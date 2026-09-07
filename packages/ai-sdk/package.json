@@ -1,0 +1,26 @@
+{
+  "name": "@unbrowse/ai-sdk",
+  "version": "0.1.0",
+  "description": "Unbrowse's resolve/execute/search capabilities exposed as Vercel AI SDK (npm: ai) tools. One import registers three agent tools — unbrowse_resolve, unbrowse_execute, unbrowse_search — in the AI SDK tool() runtime shape, with no zod dependency (plain JSON Schema). Pass your own tool/jsonSchema helpers via createUnbrowseTools to get branded instances.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "test": "bun test"
+  },
+  "keywords": ["ai", "vercel", "ai-sdk", "tool", "agent", "unbrowse", "shim", "llm"],
+  "license": "MIT",
+  "devDependencies": { "typescript": "^5.5.0", "@types/node": "^22.0.0" },
+  "repository": { "type": "git", "url": "https://github.com/unbrowse-ai/unbrowse" },
+  "bugs": { "url": "https://github.com/unbrowse-ai/unbrowse/issues" },
+  "homepage": "https://unbrowse.ai/vs/ai-sdk"
+}

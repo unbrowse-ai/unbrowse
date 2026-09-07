@@ -1,0 +1,75 @@
+[
+  {
+    "timestamp": "2026-04-03T09:10:04+08:00",
+    "action": "Built Apr 3 GTM launch pack from live public signals",
+    "channel": "ops",
+    "signals": {
+      "github_stars": 612,
+      "github_forks": 57,
+      "github_open_issues": 21,
+      "npm_downloads_last_month": 4776,
+      "stats_summary": {
+        "skills": 0,
+        "endpoints": 0,
+        "domains": 0,
+        "executions": 9,
+        "agents": 1,
+        "marketplace_hit_rate": 27,
+        "avg_resolve_ms": 14850,
+        "p95_ms": 46732
+      },
+      "hn_snapshot": [
+        "Gemma 4 open models",
+        "Cursor 3",
+        "Qwen3.6-Plus: Towards real world agents"
+      ]
+    },
+    "result": "Launch copy ready; main GTM blocker identified as stale public stats truth",
+    "next_step": "Fix public stats/traction surfaces, then launch Show HN + X thread"
+  },
+  {
+    "timestamp": "2026-04-03T09:19:00+08:00",
+    "action": "Verified live public stats and drafted queue-ready launch content",
+    "channel": "ops",
+    "signals": {
+      "stats_summary": {
+        "skills": 239,
+        "endpoints": 10997,
+        "domains": 160,
+        "executions": 722,
+        "agents": 103,
+        "marketplace_hit_rate": 75,
+        "avg_resolve_ms": 5300,
+        "p95_ms": 23060
+      },
+      "traction": {
+        "verifications": 99768,
+        "wau": 195,
+        "total_keys": 831,
+        "weekly_retention": 45,
+        "npm_downloads_total": 5420
+      },
+      "x_duplicate_scan": [
+        "paper drop",
+        "browser tax",
+        "speedup",
+        "cost reduction"
+      ]
+    },
+    "result": "Launch blocker cleared; fresh network-scale angle queued for X, HN, and investor update",
+    "next_step": "Queue in Typefully and ship Show HN while numbers are fresh"
+  },
+  {
+    "timestamp": "2026-04-03T09:24:00+08:00",
+    "action": "Published network-scale X thread and checked HN submission gate",
+    "channel": "x",
+    "signals": {
+      "x_published_url": "https://x.com/unbrowse/status/2039876484190634204",
+      "x_social_set_id": 280622,
+      "x_account": "@unbrowse",
+      "hn_submit_gate": "logged_out"
+    },
+    "result": "X launch is live; Hacker News submit is blocked on authenticated session",
+    "next_step": "Log into HN and submit the prepared Show HN package manually or via an authenticated browser session"
+  }
+]

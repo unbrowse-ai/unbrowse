@@ -1,0 +1,369 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
+import {
+  injectKeyIntoCommandText,
+  injectKeyIntoCopyText,
+  maskApiKey,
+} from "@/lib/install-key-injection";
+import { trackWebEvent } from "@/lib/web-telemetry";
+
+const O      = "#8B3800";          // dark burnt orange (commands on parchment)
+const O_DIM  = "rgba(100,55,10,0.75)";  // dim text (comments, labels)
+const O_HI   = "#5C1E00";          // dark brown (headers, active)
+const BG        = "#ede0c2";       // warm parchment/beige
+const BG_MOBILE = "#e8d8b0";
+
+type LineType = "header" | "divider" | "comment" | "cmd" | "blank";
+interface TLine { type: LineType; text: string; }
+const TABS = [
+  {
+    id: "claude-code",
+    label: "AGENT SKILL",
+    copyText: 'npm install -g unbrowse@latest && unbrowse setup && unbrowse "top stories with point counts" --url https://news.ycombinator.com',
+    lines: [
+      { type: "header",  text: "▸  UNBROWSE SKILL  ·  CLI" },
+      { type: "divider", text: "──────────────────────────────────────────────" },
+      { type: "comment", text: "  ##  1. install the binary (always @latest)" },
+      { type: "cmd",     text: "  $  npm install -g unbrowse@latest" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  2. Agent Skill + browser engine" },
+      { type: "cmd",     text: "  $  unbrowse setup" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  3. first call (one shot — not a browser loop)" },
+      { type: "cmd",     text: '  $  unbrowse "top stories with point counts" --url https://news.ycombinator.com' },
+    ] as TLine[],
+  },
+  {
+    id: "cursor",
+    label: "CURSOR / WINDSURF",
+    copyText: "npm install -g unbrowse@latest && unbrowse setup",
+    lines: [
+      { type: "header",  text: "▸  UNBROWSE SKILL  ·  CURSOR + WINDSURF + CLAUDE DESKTOP" },
+      { type: "divider", text: "──────────────────────────────────────────────" },
+      { type: "comment", text: "  ##  1. install the binary" },
+      { type: "cmd",     text: "  $  npm install -g unbrowse@latest" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  2. Agent Skill + browser engine" },
+      { type: "cmd",     text: "  $  unbrowse setup" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  3. first call from your agent (or the terminal)" },
+      { type: "cmd",     text: '  $  unbrowse "top stories" --url https://news.ycombinator.com' },
+    ] as TLine[],
+  },
+  {
+    id: "codex",
+    label: "CODEX / OPENCLAW",
+    copyText: "npm install -g unbrowse@latest && unbrowse setup",
+    lines: [
+      { type: "header",  text: "▸  UNBROWSE SKILL  ·  CODEX + OPENCLAW" },
+      { type: "divider", text: "──────────────────────────────────────────────" },
+      { type: "comment", text: "  ##  1. install the binary" },
+      { type: "cmd",     text: "  $  npm install -g unbrowse@latest" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  2. Agent Skill + browser engine" },
+      { type: "cmd",     text: "  $  unbrowse setup" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  3. first call" },
+      { type: "cmd",     text: '  $  unbrowse "top stories" --url https://news.ycombinator.com' },
+    ] as TLine[],
+  },
+  {
+    id: "elizaos",
+    label: "ELIZAOS",
+    copyText: "npm install @unbrowse/plugin-elizaos unbrowse",
+    lines: [
+      { type: "header",  text: "▸  UNBROWSE PLUGIN  ·  ELIZAOS" },
+      { type: "divider", text: "──────────────────────────────────────────────" },
+      { type: "comment", text: "  ##  install the plugin into your agent project" },
+      { type: "cmd",     text: "  $  npm install @unbrowse/plugin-elizaos unbrowse" },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  add to your character config" },
+      { type: "cmd",     text: '  {  "plugins": ["@unbrowse/plugin-elizaos"]  }' },
+      { type: "blank",   text: "" },
+      { type: "comment", text: "  ##  web tasks now route through captured APIs, not Playwright" },
+    ] as TLine[],
+  },
+] as const;
+function lineStyle(type: LineType): React.CSSProperties {
+  switch (type) {
+    case "header":
+      return { color: O_HI, fontWeight: "bold", letterSpacing: "0.04em" };
+    case "divider":
+      return { color: "rgba(100,55,10,0.4)", letterSpacing: "0" };
+    case "comment":
+      return { color: O_DIM, fontStyle: "italic", fontWeight: "600" };
+    case "cmd":
+      return { color: O, fontWeight: "bold" };
+    case "blank":
+      return { height: "0.55em", display: "block" };
+  }
+}
+
+export function InstallInstructions() {
+  const [active, setActive]       = useState<string>("claude-code");
+  const [visible, setVisible]     = useState(0);
+  const [cursor, setCursor]       = useState(true);
+  const [copied, setCopied]       = useState(false);
+  const [isMobile, setIsMobile]   = useState(false);
+  // Soft-gate: when the visitor is signed in, default to baking their API
+  // key into the install. They can opt out in one click; signed-out
+  // visitors see the existing un-keyed commands plus a "sign in to bake
+  // your key" hint. Never blocks the un-keyed install.
+  const [connectAccount, setConnectAccount] = useState(true);
+
+  const { apiKey, isAuthenticated, email, agentName } = useAuth();
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  const tab = TABS.find((t) => t.id === active)!;
+
+  // Reveal lines one-by-one when tab changes
+  useEffect(() => {
+    setVisible(0);
+    let i = 0;
+    const iv = setInterval(() => {
+      i++;
+      setVisible(i);
+      if (i >= tab.lines.length) clearInterval(iv);
+    }, 52);
+    return () => clearInterval(iv);
+  }, [active, tab.lines.length]);
+
+  // Blinking block cursor
+  useEffect(() => {
+    const iv = setInterval(() => setCursor((v) => !v), 520);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Key shown on screen is masked (so a passing screen-recorder doesn't
+  // grab a full key); the value that goes to the clipboard is the real key.
+  const baked = isAuthenticated && connectAccount && apiKey ? apiKey : null;
+  const bakedMasked = baked ? maskApiKey(baked) : null;
+  const renderedLines: TLine[] = tab.lines.map((line) =>
+    line.type === "cmd"
+      ? { ...line, text: injectKeyIntoCommandText(line.text, bakedMasked) }
+      : line,
+  );
+  const copyValue = injectKeyIntoCopyText(tab.copyText, baked);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(copyValue);
+    // Funnel: the COPY click is the strongest install-intent signal on
+    // this widget. Mirror the event name the hero-cta already uses so
+    // analytics keeps a single `install_command_copied` event across
+    // every install surface. `surface` distinguishes them; `baked_account`
+    // measures how often the soft-gate actually converts a signed-in
+    // visitor into a connected install.
+    trackWebEvent("install_command_copied", {
+      tab_id: tab.id,
+      surface: "install-instructions",
+      baked_account: Boolean(baked),
+    });
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div
+      style={{
+        background: isMobile ? BG_MOBILE : BG,
+        border: "1px solid rgba(255,122,32,0.5)",
+        borderRadius: "3px",
+        boxShadow: isMobile
+          ? "0 0 20px rgba(139,69,19,0.12)"
+          : "0 0 40px rgba(139,69,19,0.15), 0 0 0 1px rgba(255,82,0,0.1)",
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
+      {/* CRT scanlines */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute", inset: 0, pointerEvents: "none", zIndex: 20,
+          backgroundImage: `repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(0,0,0,${isMobile ? 0.04 : 0.07}) 2px, rgba(0,0,0,${isMobile ? 0.04 : 0.07}) 3px)`,
+        }}
+      />
+
+      {/* Phosphor vignette */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute", inset: 0, pointerEvents: "none", zIndex: 18,
+          background: `radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(100,60,20,${isMobile ? 0.1 : 0.18}) 100%)`,
+        }}
+      />
+
+      {/* ── Toolbar ── */}
+      <div
+        style={{
+          borderBottom: "1px solid rgba(255,122,32,0.22)",
+          padding: "7px 12px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: isMobile ? "8px" : "12px",
+          background: isMobile ? "rgba(180,145,90,0.35)" : "rgba(180,145,90,0.28)",
+          position: "relative", zIndex: 30,
+        }}
+      >
+        {/* Status dot + title */}
+        <div style={{ display: isMobile ? "none" : "flex", alignItems: "center", gap: "10px" }}>
+          <span style={{ display: "inline-block", width: 7, height: 7, borderRadius: "50%", background: O }} />
+          <span style={{ fontFamily: "monospace", fontSize: 10, color: O_DIM, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+            unbrowse mcp
+          </span>
+        </div>
+
+        {/* Tabs */}
+        <div role="tablist" aria-label="MCP host" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              id={`install-tab-${t.id}`}
+              aria-selected={active === t.id}
+              aria-controls={`install-panel-${t.id}`}
+              tabIndex={active === t.id ? 0 : -1}
+              onClick={() => setActive(t.id)}
+              onKeyDown={(e) => {
+                const ids: string[] = TABS.map((x) => x.id);
+                const idx = ids.indexOf(active);
+                if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setActive(ids[(idx + 1) % ids.length]);
+                } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setActive(ids[(idx - 1 + ids.length) % ids.length]);
+                } else if (e.key === "Home") {
+                  e.preventDefault();
+                  setActive(ids[0]);
+                } else if (e.key === "End") {
+                  e.preventDefault();
+                  setActive(ids[ids.length - 1]);
+                }
+              }}
+              style={{
+                fontFamily: "monospace", fontSize: 10, letterSpacing: "0.12em",
+                padding: "2px 10px",
+                border: `1px solid ${active === t.id ? "rgba(100,45,5,0.5)" : "rgba(100,55,10,0.2)"}`,
+                background: active === t.id ? "rgba(139,56,0,0.12)" : "transparent",
+                color: active === t.id ? O_HI : O,
+                borderRadius: 2, cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Copy — explicit label so SR users don't hear "[ COPY ]" tokens */}
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label={copied ? "Command copied to clipboard" : "Copy install command to clipboard"}
+          aria-live="polite"
+          style={{
+            fontFamily: "monospace", fontSize: 10, letterSpacing: "0.1em",
+            padding: "2px 10px",
+            border: `1px solid ${copied ? "rgba(92,30,0,0.6)" : "#FF7A20"}`,
+            background: copied ? "#FF7A20" : "#FF7A20",
+            color: "#1a0d00", fontWeight: 700,
+            borderRadius: 2, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap",
+          }}
+        >
+          {copied ? "COPIED ✓" : "[ COPY ]"}
+        </button>
+      </div>
+
+      {/* ── Account-handoff row ── */}
+      {/* Signed in: offer a one-click toggle to bake the API key into the
+          install. Signed out: a quiet hint so the value is discoverable but
+          the anonymous install never gets blocked. */}
+      <div
+        data-testid="install-account-row"
+        style={{
+          borderBottom: "1px solid rgba(255,122,32,0.14)",
+          padding: "6px 14px",
+          fontFamily: "monospace",
+          fontSize: 10,
+          letterSpacing: "0.1em",
+          color: O_DIM,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: "10px",
+          background: "rgba(180,145,90,0.12)",
+          position: "relative", zIndex: 30,
+        }}
+      >
+        {isAuthenticated && apiKey ? (
+          <>
+            <span>
+              ● signed in
+              {(email || agentName)
+                ? ` as ${(email || agentName)!.toLowerCase()}`
+                : ""}
+            </span>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={connectAccount}
+                onChange={(e) => setConnectAccount(e.target.checked)}
+                style={{ accentColor: "#FF7A20" }}
+              />
+              <span>bake api key into install</span>
+            </label>
+          </>
+        ) : (
+          <>
+            <span style={{ opacity: 0.7 }}>○ anonymous install — the cli will prompt for an email on first run</span>
+            <a
+              href="/login"
+              style={{
+                color: O_HI, textDecoration: "underline", cursor: "pointer",
+              }}
+            >
+              sign in to bake your api key into the install →
+            </a>
+          </>
+        )}
+      </div>
+
+      {/* ── Output (tabpanel) ── */}
+      <div
+        role="tabpanel"
+        id={`install-panel-${tab.id}`}
+        aria-labelledby={`install-tab-${tab.id}`}
+        style={{
+          padding: "14px 18px 18px",
+          fontFamily: "'Courier New', 'Lucida Console', monospace",
+          fontSize: "13.5px",
+          lineHeight: "1.8",
+          minHeight: "260px",
+          position: "relative", zIndex: 30,
+        }}
+      >
+        {renderedLines.slice(0, visible).map((line, i) =>
+          line.type === "blank" ? (
+            <div key={i} style={lineStyle("blank")} />
+          ) : (
+            <div key={i} style={lineStyle(line.type)}>{line.text}</div>
+          )
+        )}
+
+        {/* Blinking cursor — shown after all lines appear */}
+        {visible >= tab.lines.length && (
+          <div style={{ color: O, marginTop: "2px" }}>
+            {"  $  "}
+            <span style={{ opacity: cursor ? 1 : 0, transition: "opacity 60ms" }}>█</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

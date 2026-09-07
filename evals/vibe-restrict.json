@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "deny": [],
+  "evals": [
+    "bench/sites100"
+  ],
+  "note": "empty deny-list until first eval failure; then deny only that tool"
+}

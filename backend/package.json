@@ -1,0 +1,31 @@
+{
+  "name": "unbrowse-backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:ci": "wrangler deploy --config wrangler.ci.toml",
+    "build:core-wasm": "bash scripts/build-core-wasm.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@faremeter/flex-solana": "^0.2.1",
+    "@faremeter/middleware": "^0.21.0",
+    "@faremeter/payment-solana": "^0.21.0",
+    "@faremeter/types": "^0.21.0",
+    "@logtape/logtape": "^2.0.7",
+    "@unbrowse/extraction-core": "workspace:*",
+    "@solana-program/token": "^0.13.0",
+    "@solana/kit": "^6.7.0",
+    "hono": "^4.7.0",
+    "nanoid": "^5.1.6",
+    "stripe": "^22.1.1",
+    "viem": "^2.47.11"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241230.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.97.0"
+  }
+}

@@ -1,0 +1,147 @@
+/**
+ * yield-store.test — the pipe between holes: a write's yield fills a downstream hole.
+ */
+import { describe, expect, it } from "bun:test";
+import {
+  recordYields,
+  fillHolesFromYields,
+  getYieldCache,
+  isYieldStale,
+  clearSessionYields,
+  type YieldStore,
+} from "../src/runtime/yield-store.js";
+import type { OperationBinding } from "../src/types/skill.js";
+
+const provides = (kv: Record<string, unknown>): OperationBinding[] =>
+  Object.entries(kv).map(([key, example_value]) => ({ key, source: "response", example_value }));
+const requires = (...keys: string[]): OperationBinding[] =>
+  keys.map((key) => ({ key, required: true, source: "body" }));
+
+describe("yield-store — write→hole pipe", () => {
+  it("the golden path: a write's provides fills a downstream requires hole", () => {
+    const store: YieldStore = new Map();
+    // write op yields id=101
+    expect(recordYields("s1", provides({ id: 101 }), { store })).toBe(1);
+    // downstream op needs {id, title}; title supplied, id is an unfilled hole
+    const params: Record<string, unknown> = { title: "hi" };
+    const { filled } = fillHolesFromYields("s1", requires("id", "title"), params, { store });
+    expect(filled).toEqual(["id"]);
+    expect(params).toEqual({ title: "hi", id: 101 });
+  });
+
+  it("never overwrites an already-filled hole", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", provides({ id: 101 }), { store });
+    const params = { id: 999 };
+    const { filled } = fillHolesFromYields("s1", requires("id"), params, { store });
+    expect(filled).toEqual([]);
+    expect(params.id).toBe(999);
+  });
+
+  it("yields are session-scoped — no cross-session bleed", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", provides({ id: 101 }), { store });
+    const params: Record<string, unknown> = {};
+    const { filled } = fillHolesFromYields("s2", requires("id"), params, { store });
+    expect(filled).toEqual([]);
+    expect(params).toEqual({});
+  });
+
+  it("single_use yields are consumed on fill", () => {
+    const store: YieldStore = new Map();
+    const su: OperationBinding[] = [{ key: "token", source: "response", example_value: "t1", single_use: true }];
+    recordYields("s1", su, { store });
+    const p1: Record<string, unknown> = {};
+    expect(fillHolesFromYields("s1", requires("token"), p1, { store }).filled).toEqual(["token"]);
+    // second consumer gets nothing — the single-use yield was consumed
+    const p2: Record<string, unknown> = {};
+    expect(fillHolesFromYields("s1", requires("token"), p2, { store }).filled).toEqual([]);
+  });
+
+  it("stale (ttl) yields do not fill", () => {
+    const store: YieldStore = new Map();
+    const old = new Date(Date.now() - 10_000).toISOString();
+    recordYields("s1", [{ key: "id", source: "response", example_value: 5, ttl_ms: 1000, observed_at: old }], { store });
+    const params: Record<string, unknown> = {};
+    const { filled } = fillHolesFromYields("s1", requires("id"), params, { store });
+    expect(filled).toEqual([]);
+  });
+
+  it("getYieldCache returns the cache for the chain-walker, clear drops it", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", provides({ id: 1 }), { store });
+    expect(getYieldCache("s1", { store })?.get("id")?.value).toBe(1);
+    clearSessionYields("s1", { store });
+    expect(getYieldCache("s1", { store })).toBeUndefined();
+  });
+
+  it("LOST SHEEP: bare key-match collides across resources (documented loose behavior)", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", provides({ id: 101 }), { store }); // a /posts write
+    recordYields("s1", provides({ id: 5 }), { store }); // a /comments write — clobbers bare 'id'
+    const params: Record<string, unknown> = {};
+    fillHolesFromYields("s1", requires("id"), params, { store });
+    expect(params.id).toBe(5); // last-write wins — the WRONG post id; this is why scope exists
+  });
+
+  it("FIX: scope-namespacing prevents cross-resource collision", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", provides({ id: 101 }), { store, scope: "posts" });
+    recordYields("s1", provides({ id: 5 }), { store, scope: "comments" });
+    const pPost: Record<string, unknown> = {};
+    fillHolesFromYields("s1", requires("id"), pPost, { store, scope: "posts" });
+    expect(pPost.id).toBe(101); // the right post id
+    const pComment: Record<string, unknown> = {};
+    fillHolesFromYields("s1", requires("id"), pComment, { store, scope: "comments" });
+    expect(pComment.id).toBe(5); // the right comment id — no collision
+  });
+
+  it("waters do not mix: a scoped yield never fills an unscoped hole", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", provides({ id: 101 }), { store, scope: "posts" });
+    const params: Record<string, unknown> = {};
+    const { filled } = fillHolesFromYields("s1", requires("id"), params, { store }); // no scope
+    expect(filled).toEqual([]);
+    expect(params).toEqual({});
+  });
+
+  it("AUDIT: delimiter cannot be injected via :: in scope or key", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", [{ key: "b::c", source: "response", example_value: "X" }], { store, scope: "a" });
+    // a different (scope,key) that the naive `${scope}::${key}` would collide with:
+    const params: Record<string, unknown> = {};
+    fillHolesFromYields("s1", [{ key: "c", required: true, source: "body" }], params, { store, scope: "a::b" });
+    expect(params.c).toBeUndefined(); // no collision — the length-prefix kept them distinct
+  });
+
+  it("AUDIT: scoped single_use is consumed under its scoped key", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", [{ key: "tok", source: "response", example_value: "t", single_use: true }], { store, scope: "h" });
+    const p1: Record<string, unknown> = {};
+    expect(fillHolesFromYields("s1", requires("tok"), p1, { store, scope: "h" }).filled).toEqual(["tok"]);
+    const p2: Record<string, unknown> = {};
+    expect(fillHolesFromYields("s1", requires("tok"), p2, { store, scope: "h" }).filled).toEqual([]);
+  });
+
+  it("AUDIT: falsy yields (0, false, \"\") are valid and fill; they are not 'unfilled'", () => {
+    const store: YieldStore = new Map();
+    recordYields("s1", [{ key: "count", source: "response", example_value: 0 as unknown as string }], { store });
+    const params: Record<string, unknown> = {};
+    const { filled } = fillHolesFromYields("s1", requires("count"), params, { store });
+    expect(filled).toEqual(["count"]);
+    expect(params.count).toBe(0);
+    // and a param already set to 0 is a FILLED hole — not overwritten
+    const store2: YieldStore = new Map();
+    recordYields("s1", provides({ count: 9 }), { store: store2 });
+    const p2 = { count: 0 };
+    expect(fillHolesFromYields("s1", requires("count"), p2, { store: store2 }).filled).toEqual([]);
+    expect(p2.count).toBe(0);
+  });
+
+  it("isYieldStale honours ttl", () => {
+    const now = 1_000_000;
+    expect(isYieldStale({ value: 1, observed_at: new Date(now - 2000).toISOString(), ttl_ms: 1000 }, now)).toBe(true);
+    expect(isYieldStale({ value: 1, observed_at: new Date(now - 500).toISOString(), ttl_ms: 1000 }, now)).toBe(false);
+    expect(isYieldStale({ value: 1, observed_at: new Date(now).toISOString() }, now)).toBe(false); // no ttl = never stale
+  });
+});

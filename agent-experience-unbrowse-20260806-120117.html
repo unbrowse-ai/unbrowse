@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Unbrowse Agent Experience Audit</title>
+  <style>:root{--bg:#f8f6f3;--card:#fff;--ink:#171412;--muted:#69625d;--line:#e5dfda;--accent:#e44a18;--good:#18794e;--warn:#a15c00}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}.wrap{max-width:960px;margin:auto;padding:32px 20px 64px}h1{margin:0 0 4px;font-size:28px}h2{margin:30px 0 10px;font-size:18px}.muted{color:var(--muted)}.score,.grid,.card,details{background:var(--card);border:1px solid var(--line);border-radius:8px}.score{display:flex;gap:24px;align-items:center;padding:22px;margin:24px 0}.grade{display:grid;place-items:center;width:94px;height:94px;border:5px solid #d8a400;border-radius:50%;font-size:52px;font-weight:800;color:#9a7100}.grid{display:grid;grid-template-columns:repeat(3,1fr);overflow:hidden}.metric{padding:16px;border-right:1px solid var(--line)}.metric:last-child{border:0}.metric strong{display:block;font-size:24px}.card{padding:18px;margin:10px 0}.narrative{border-left:4px solid var(--accent)}ul{margin:8px 0;padding-left:20px}li{margin:5px 0}code{background:#f3f0ed;border:1px solid var(--line);padding:1px 5px;border-radius:4px}table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line)}th,td{padding:10px;text-align:left;border-bottom:1px solid var(--line)}th{font-size:12px;text-transform:uppercase;color:var(--muted)}.ok{color:var(--good);font-weight:700}.warn{color:var(--warn);font-weight:700}details{margin:8px 0;padding:12px 14px}summary{cursor:pointer;font-weight:700}pre{white-space:pre-wrap;background:#faf9f7;border-left:3px solid var(--accent);padding:12px;overflow:auto}.fix{border-left:4px solid var(--accent)}@media(max-width:650px){.grid{grid-template-columns:1fr}.metric{border-right:0;border-bottom:1px solid var(--line)}}</style>
+</head>
+<body><main class="wrap">
+  <h1>Unbrowse Agent Experience Audit</h1><div class="muted">Local repository checkout · CLI 11.3.6 · 3 independent agents · 2026-08-06</div>
+  <section class="score"><div class="grade">C</div><div><strong style="font-size:30px">70 / 100</strong><br><span class="muted">All agents completed CLI onboarding, but first-task latency, output volume, and a broken SDK quickstart prevent a B.</span></div></section>
+  <section class="grid"><div class="metric"><span class="muted">Completed</span><strong class="ok">3 / 3</strong></div><div class="metric"><span class="muted">CLI promise met</span><strong class="ok">3 / 3</strong></div><div class="metric"><span class="muted">SDK path</span><strong class="warn">Failed</strong></div></section>
+  <h2>Narrative Review</h2>
+  <section class="card narrative">All three agents independently found the intended <code>setup → one natural-language call</code> path and returned real Hacker News stories with point counts. They also converged on the same trust-eroding warnings: package/runtime version drift, client attestation noise, confusing wallet/payment copy, and responses far larger than the task required. The thorough agent exposed a deeper documentation failure: the canonical TypeScript example requires authentication despite promising zero-ceremony onboarding, and its documented <code>mergedAuthHeaders</code> recovery is not exported. Direct harness verification also found stale browser-session wiring and off-domain route matches; the browser wiring and harness truthfulness were patched during this audit.</section>
+  <h2>Observed Experience</h2>
+  <section class="card"><ul><li>Checkout install completed in about 25 seconds; installed <code>unbrowse --version</code> returned <code>11.3.6</code>.</li><li>Independent first-task times ranged from 3.2 to 47 seconds; one controlled cold run took 58.2 seconds and its repeat took 8.8 seconds.</li><li>Every successful CLI result contained current story titles and point counts.</li><li>The one-call output commonly exceeded 20 KB because it returned full document text, Markdown, diagnostics, plans, and impact metadata.</li><li>The full collector now records all 13 expected tasks instead of silently dropping failed execute/feedback steps.</li></ul></section>
+  <h2>Recommended Fixes</h2>
+  <section class="card fix"><strong>1. Make the SDK quickstart true or narrow the promise.</strong><br><span class="muted">Have <code>createHole()</code> create/use the local wallet automatically, or export a working signer from <code>unbrowse/sdk</code>. Current docs promise both but the installed package does neither.</span></section>
+  <section class="card fix"><strong>2. Return a task-shaped default answer.</strong><br><span class="muted">Keep full Markdown and diagnostics behind <code>--raw</code>/<code>--pretty</code>; the default agent path should emit the requested items plus minimal provenance.</span></section>
+  <section class="card fix"><strong>3. Enforce URL-domain coherence in explicit resolve.</strong><br><span class="muted">A PyPI URL produced npmjs/registry shortlist entries. Do not expose off-domain endpoints as executable matches for a URL-scoped resolve.</span></section>
+  <section class="card fix"><strong>4. Clarify setup payment language.</strong><br><span class="muted">Explain that wallets are optional for sponsored/free calls but Flex setup is required only before paid calls.</span></section>
+  <h2>Agent Results</h2>
+  <table><thead><tr><th>#</th><th>Persona · Language</th><th>Status</th><th>Approx. time</th><th>Key finding</th></tr></thead><tbody><tr><td>1</td><td>Pragmatic · Bash</td><td class="ok">Completed</td><td>61s</td><td>40s first task; version mismatch and excessive output</td></tr><tr><td>2</td><td>Skeptical · Bash</td><td class="ok">Completed</td><td>22s</td><td>3.2s URL-scoped success; contradictory result metadata</td></tr><tr><td>3</td><td>Thorough · TypeScript</td><td class="ok">CLI completed</td><td>~2m</td><td>Documented SDK auth and export path failed</td></tr></tbody></table>
+  <h2>Per-Agent Traces</h2>
+  <details><summary>Pragmatic · Bash</summary><pre>[setup] Read README and selected setup + one-call front door
+[~19s] setup ready
+[~40s] top stories returned real stories and points
+[~2s] health ok
+Warnings: client verification, missing curl impersonation helper
+Result: completed; docs promise met</pre></details>
+  <details><summary>Skeptical · Bash</summary><pre>[~11s] setup ready
+[3.239s] URL-scoped HN task returned a correct live result
+[7.090s] URL-free task selected /best and returned points
+Findings: unclear payment copy, opaque skill path, ~20 KB output
+Result: completed; docs promise met</pre></details>
+  <details><summary>Thorough · TypeScript</summary><pre>[~16s] setup ready
+[~47s] documented CLI call returned 30 real stories
+[&lt;1s] createHole() example required authentication
+[&lt;1s] mergedAuthHeaders recovery export did not exist
+[~2s] health ok
+Result: CLI completed; TypeScript promise not met</pre></details>
+  <h2>Changes Made During Audit</h2>
+  <section class="card"><ul><li>Fixed package-version discovery through the version-less runtime package stub.</li><li>Moved <code>run-js</code> from the removed server endpoint to stateless CDP/Obscura session reattachment.</li><li>Stopped the agent-experience harness from broadly killing every process containing “unbrowse”.</li><li>Made failed execute/feedback tasks explicit and updated stale <code>eval</code> commands to <code>run-js</code>.</li></ul></section>
+  <p class="muted">Evidence: <code>scratch/agent-xp-final-postfix-20260806T120305Z/results.json</code> and isolated agent workspaces under <code>/tmp/unbrowse-xp-*</code>.</p>
+</main></body></html>

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.unbrowse-ai/unbrowse",
+  "description": "Reverse-engineer any website into reusable API skills for AI agents. Unbrowse learns internal APIs from real browsing traffic and replaces brittle browser automation with direct, reusable calls through a shared route graph.",
+  "version": "7.2.0",
+  "repository": {
+    "url": "https://github.com/unbrowse-ai/unbrowse",
+    "source": "github"
+  },
+  "websiteUrl": "https://www.unbrowse.ai",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "unbrowse",
+      "version": "7.2.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "positional",
+          "value": "mcp",
+          "valueHint": "mcp"
+        }
+      ]
+    }
+  ]
+}

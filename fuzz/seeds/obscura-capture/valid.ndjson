@@ -1,0 +1,2 @@
+{"kind":"response","url":"https://example.com/api/items","method":"GET","resourceType":"XHR","reqHeaders":{},"status":200,"respHeaders":{"content-type":"application/json"},"contentType":"application/json","bodyText":"[]","bodyLen":2,"bodyTruncated":false,"ts":0}
+{"kind":"page","url":"https://example.com/","requestedUrl":"https://example.com/","htmlLen":10,"cookies":[]}

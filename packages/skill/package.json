@@ -1,0 +1,90 @@
+{
+  "name": "unbrowse",
+  "version": "11.4.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unbrowse-ai/unbrowse.git"
+  },
+  "description": "Route/action layer for AI agents: one call (unbrowse \"task\" --url) reuses first-party site routes instead of browser loops. In-process CLI + Agent Skill + SDK. Bee aliases: @unbrowse/pollen-cli.",
+  "mcpName": "io.github.unbrowse-ai/unbrowse",
+  "type": "module",
+  "bin": {
+    "unbrowse": "bin/unbrowse-wrapper.mjs"
+  },
+  "exports": {
+    "./sdk": {
+      "types": "./dist-sdk/sdk/index.d.ts",
+      "import": "./dist-sdk/sdk/index.js"
+    },
+    "./sdk/adapters": {
+      "types": "./dist-sdk/adapters/index.d.ts",
+      "import": "./dist-sdk/adapters/index.js"
+    },
+    "./sdk/adapters/exa": {
+      "types": "./dist-sdk/adapters/exa.d.ts",
+      "import": "./dist-sdk/adapters/exa.js"
+    },
+    "./sdk/adapters/tavily": {
+      "types": "./dist-sdk/adapters/tavily.d.ts",
+      "import": "./dist-sdk/adapters/tavily.js"
+    },
+    "./sdk/adapters/browser-use": {
+      "types": "./dist-sdk/adapters/browser-use.d.ts",
+      "import": "./dist-sdk/adapters/browser-use.js"
+    },
+    "./sdk/adapters/firecrawl": {
+      "types": "./dist-sdk/adapters/firecrawl.d.ts",
+      "import": "./dist-sdk/adapters/firecrawl.js"
+    },
+    "./sdk/wallet-standard": {
+      "types": "./dist-sdk/wallet-standard.d.ts",
+      "import": "./dist-sdk/wallet-standard.js"
+    }
+  },
+  "files": [
+    "runtime",
+    "bin",
+    "dist-sdk",
+    "vendor/kuri",
+    "vendor/contract",
+    "vendor/utls-proxy",
+    "scripts/release-assets.mjs",
+    "scripts/postinstall.mjs",
+    "scripts/prune-foreign-binaries.mjs",
+    "scripts/postinstall-ping.mjs",
+    "scripts/verify-release-assets.mjs",
+    "README.md",
+    "SKILL.md",
+    "LICENSE",
+    "vendor/obscura"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/postinstall.mjs",
+    "build:sdk": "tsc -p tsconfig.sdk.json",
+    "check:sdk-entry": "node scripts/assert-sdk-entry.mjs",
+    "prepack": "bun ../../scripts/build-release-manifest.ts && npm run build:runtime && npm run build:sdk && npm run check:sdk-entry && node scripts/prepare-pack.mjs && node scripts/assert-kuri-vendor.mjs && node scripts/assert-utls-vendor.mjs",
+    "prepublishOnly": "node scripts/assert-release-flow.mjs && node scripts/verify-release-assets.mjs",
+    "start": "bun src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "build:runtime": "bash ../../scripts/build-runtime-scrubbed.sh packages/skill/runtime"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "bs58": "^6.0.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.3.1",
+    "fastify": "^5.7.4",
+    "nanoid": "^5.1.6",
+    "ws": "^8.19.0"
+  },
+  "optionalDependencies": {
+    "keytar": "^7.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.1",
+    "tsx": "^4.20.6"
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}

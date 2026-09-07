@@ -1,0 +1,224 @@
+name: Test
+
+on:
+  pull_request:
+    branches: [main, staging]
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+
+env:
+  PUPPETEER_SKIP_DOWNLOAD: "1"
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      - run: bun run check:version-consistency
+        name: Check package and embedded release version consistency
+      - run: bash scripts/tsc-ratchet.sh
+        name: Reject new root TypeScript errors above the ratchet baseline
+      - run: bun run test:issue-regressions
+        name: Run issue regressions and eval contract tests
+      - run: bun test tests/path-params.test.ts tests/utils.test.ts tests/pr-agent.test.ts tests/pay-sh.test.ts tests/pay-sh-skill.test.ts tests/obscura-capture-integration.test.ts tests/agent-harness-runtime.test.ts tests/agent-loop.test.ts tests/browser-surface.test.ts tests/vibe-restrict.test.ts
+        name: Run unit tests
+
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      - run: bun test evals/quality-gate.test.ts
+        name: Run quality gate tests
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    env:
+      GRAPH_TEST_API_KEY: ${{ secrets.UNBROWSE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      - run: bun test backend/tests/
+        name: Run all backend tests
+
+  # frontend/ and packages/* carried 105 + 291 tests that no CI job had ever
+  # executed — they were runnable only if someone happened to type the bun
+  # invocation by hand, and frontend/package.json had no `test` script at all.
+  frontend-and-packages:
+    name: Frontend + Workspace Packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      # --timeout 30000 lives in frontend/package.json's test script. Several
+      # of these assert over source strings and cannot be slow on their own,
+      # but they do time out at the 5s default when the runner is saturated —
+      # starvation, not a regression. Same reason scripts/precommit.sh raises it.
+      - run: npm run test --prefix frontend
+        name: Run frontend tests
+      - run: npm run typecheck --prefix frontend
+        name: Typecheck frontend
+      # 30s, not the 5s default: several package tests spawn the CLI, whose
+      # cold start is 5-7s on a loaded runner. That is latency, not a
+      # regression — the same reason scripts/precommit.sh passes --timeout.
+      - run: bun test --timeout 30000 packages/
+        name: Run workspace package tests
+
+  # Pure-structure gates: no network, no secrets, no build. Seconds to run and
+  # they were the checks nothing was running.
+  structural-gates:
+    name: Structural Gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/bench-truth-gate.sh
+        name: Published benchmark numbers cite in-repo evidence
+      - run: bash scripts/backend-config-parity.sh
+        name: Backend config/secret provisioning parity
+
+  # 151 Python tests (bench/capability, bench/exa, paper/reference/tests, the
+  # capability harness) that no job had ever run. They did not even COLLECT
+  # under plain pytest until pytest.ini declared the pythonpath they need.
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+        name: Run Python test suite
+
+  landing-funnel-e2e:
+    name: Landing Funnel E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      - run: bun run test:landing-funnel:e2e
+        name: Run landing funnel end-to-end coverage
+
+  typecheck:
+    name: Typecheck Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+        working-directory: .
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+        name: Typecheck backend
+
+  package-cli:
+    name: Package CLI
+    runs-on: ubuntu-latest
+    env:
+      UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET: ${{ secrets.UNBROWSE_RELEASE_MANIFEST_SIGNING_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      # Vendor is gitignored; self-hosted had it prebuilt. Build on hosted runners.
+      - name: Build Kuri vendor binaries
+        run: node packages/skill/scripts/build-kuri-binaries.mjs
+      - run: bun run check:kuri-vendor
+        name: Check baked Kuri vendor state
+      - run: npm pack --dry-run
+        name: Validate npm package
+        working-directory: packages/skill
+      - run: bash scripts/smoke-packaged-cli.sh
+        name: Smoke packaged global install
+
+  cli-e2e:
+    name: CLI E2E
+    runs-on: ubuntu-latest
+    env:
+      UNBROWSE_DISABLE_AUTO_UPDATE: "1"
+      UNBROWSE_NON_INTERACTIVE: "1"
+      UNBROWSE_TOS_ACCEPTED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/ensure-submodules.sh submodules/kuri
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      - name: Build Kuri vendor binaries
+        run: node packages/skill/scripts/build-kuri-binaries.mjs
+      - run: bun run cli -- setup --no-start
+        name: Setup CLI (kuri already built)
+      - run: bun test tests/cli-e2e.test.ts
+        name: Run CLI end-to-end tests
+
+  fuzz-smoke:
+    name: Coverage-guided parser smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.1"
+      - run: bun install --frozen-lockfile
+      - run: FUZZ_SMOKE_RUNS=1000 bun run fuzz:smoke
+        name: Fuzz protobuf, sidecar NDJSON, and RSC parsers
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-crash-artifacts
+          path: |
+            crash-*
+            leak-*
+            timeout-*
+            oom-*
+            slow-unit-*
+          if-no-files-found: ignore

@@ -1,0 +1,50 @@
+{
+  "name": "@unbrowse/pollen-cli",
+  "version": "11.3.5",
+  "description": "🐝 Bee aliases for unbrowse (route/action layer) — pollen, waggle, buzz, forage, swarm, nectar, hive. Same runtime, louder names.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unbrowse-ai/unbrowse.git",
+    "directory": "packages/pollen-cli"
+  },
+  "bin": {
+    "pollen": "bin/pollen.mjs",
+    "waggle": "bin/waggle.mjs",
+    "buzz": "bin/buzz.mjs",
+    "forage": "bin/forage.mjs",
+    "swarm": "bin/swarm.mjs",
+    "nectar": "bin/nectar.mjs",
+    "hive": "bin/hive.mjs"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.mjs"
+  },
+  "dependencies": {
+    "unbrowse": ">=11.3.4"
+  },
+  "peerDependencies": {
+    "unbrowse": ">=11.3.4"
+  },
+  "peerDependenciesMeta": {
+    "unbrowse": { "optional": false }
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "keywords": [
+    "agent",
+    "api",
+    "bee",
+    "pollen",
+    "waggle",
+    "swarm",
+    "forage",
+    "unbrowse",
+    "skills",
+    "mcp",
+    "route-layer",
+    "action-layer"
+  ]
+}

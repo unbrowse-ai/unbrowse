@@ -1,0 +1,1091 @@
+@import "tailwindcss";
+
+/* ═══ Fonetika Font ═══ */
+@font-face {
+  font-family: 'Fonetika';
+  src: url('/fonts/Fonetika-Regular.otf') format('opentype'),
+       url('/fonts/Fonetika-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ═══ Orange/White Theme ═══ */
+:root {
+  --orange-50: #FFF8F0;
+  --orange-100: #FFEDD5;
+  --orange-200: #FED7AA;
+  --orange-300: #FDBA74;
+  /* --orange-400 is the accent used for link/label TEXT. On white #FF6A00 is only
+     2.87:1 (AA fail); darken to #C2410C (≈4.6:1) so light-mode orange text passes
+     while staying clearly orange. Buttons use --orange-500 (unaffected); the dark
+     theme redefines --orange-400 to vivid #FF6A00 below. */
+  --orange-400: #C2410C;
+  --orange-500: #FF5200;
+  --orange-600: #E04000;
+  --orange-700: #7A3000;
+  /* Technical / modern activation layer */
+  --azure-50: #EFF6FF;
+  --azure-100: #DBEAFE;
+  --azure-400: #60A5FA;
+  --azure-500: #3B82F6;
+  --azure-600: #2563EB;
+  --surface: #FFFFFF;
+  --surface-raised: #FAFAFA;
+  --surface-sunken: #F5F0EB;
+  --border: #E8E0D8;
+  --border-strong: #D4C9BE;
+  --text-primary: #1A1207;
+  --text-secondary: #6B5C4D;
+  /* muted text must still pass WCAG AA on white: #756857 on #FFF ≈ 5.5:1
+     (was #9C8E7E ≈ 3.05:1, FAIL) — the dark theme was already AA-tuned; light was not. */
+  --text-muted: #756857;
+  --code-bg: #FFF8F0;
+  --glow: rgba(255, 109, 0, 0.12);
+  --glow-azure: rgba(59, 130, 246, 0.10);
+  --noise-opacity: 0.03;
+
+  /* ═══ Design system (locked) — see design.md ═══
+     Editorial restraint: one accent ≤5%, hairline rules, named motion. Additive;
+     does not alter the color tokens above. */
+  --accent-spark: #06B6D4;            /* cyan — rare spark only, ≤1 element/viewport */
+  --rule: 1px solid var(--border);    /* the hairline is a primitive */
+  --font-display-serif: 'Cormorant Garamond', Georgia, serif;
+  /* Named easings — never the browser-default `ease`, never bounce on UI state */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur-base: 260ms;
+  --dur-slow: 520ms;
+  /* 4pt semantic spacing scale (parallels Tailwind utilities; named for portability) */
+  --space-xs: 0.25rem; --space-sm: 0.5rem; --space-md: 1rem;
+  --space-lg: 2rem; --space-xl: 4rem; --space-2xl: 8rem;
+}
+
+[data-theme="dark"] {
+  --orange-50: #100600;
+  --orange-100: #1C0900;
+  --orange-200: #321200;
+  --orange-300: #FF9944;
+  --orange-400: #FF6A00;
+  --orange-500: #FF5200;
+  --orange-600: #E04000;
+  --orange-700: #FF8833;
+  /* Electric cyan as tech accent — pairs with vivid orange */
+  --azure-50: #030B10;
+  --azure-100: #071520;
+  --azure-400: #22D3EE;
+  --azure-500: #06B6D4;
+  --azure-600: #67E8F9;
+  /* Near-black surfaces */
+  --surface: rgba(10, 9, 8, 0.92);
+  --surface-raised: rgba(16, 14, 12, 0.94);
+  --surface-sunken: rgba(5, 4, 3, 0.96);
+  --border: rgba(255, 82, 0, 0.18);
+  --border-strong: rgba(255, 82, 0, 0.32);
+  /* High-contrast white text — WCAG AA on #090806 base
+     - primary  #F5F3EF on #090806 = 17.5:1 (AAA)
+     - secondary #B5AC9E on #090806 = 8.3:1 (AAA)  [was #8A8278 = 5.0:1, AA only]
+     - muted    #A89E92 on #090806 = 6.9:1 (AAA)   [was #5A5450 = 3.6:1, FAIL] */
+  --text-primary: #F5F3EF;
+  --text-secondary: #B5AC9E;
+  --text-muted: #A89E92;
+  --code-bg: rgba(8, 7, 6, 0.96);
+  --glow: rgba(255, 82, 0, 0.45);
+  --glow-azure: rgba(34, 211, 238, 0.25);
+  --noise-opacity: 0.07;
+}
+
+@theme inline {
+  --color-background: var(--surface);
+  --color-foreground: var(--text-primary);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-orange-50: var(--orange-50);
+  --color-orange-100: var(--orange-100);
+  --color-orange-200: var(--orange-200);
+  --color-orange-300: var(--orange-300);
+  --color-orange-400: var(--orange-400);
+  --color-orange-500: var(--orange-500);
+  --color-orange-600: var(--orange-600);
+  --color-orange-700: var(--orange-700);
+  --color-azure-50: var(--azure-50);
+  --color-azure-100: var(--azure-100);
+  --color-azure-400: var(--azure-400);
+  --color-azure-500: var(--azure-500);
+  --color-azure-600: var(--azure-600);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-code-bg: var(--code-bg);
+  --color-glow: var(--glow);
+  --color-glow-azure: var(--glow-azure);
+    --font-sans: var(--font-google-sans);
+    --font-mono: var(--font-jetbrains-mono);
+    --font-display: 'Google Sans Display', 'Google Sans', system-ui, sans-serif;
+}
+
+/* ═══ Base ═══ */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ═══ A11y: keyboard focus rings ═══
+   Every interactive element gets a visible focus ring on keyboard nav.
+   :focus-visible scopes to keyboard-only — mouse clicks remain ringless.
+   Reset the UA outline first so we don't double-ring. */
+:focus { outline: none; }
+:focus-visible {
+  outline-width: 2px;
+  outline-style: solid;
+  outline-color: #FF8B4A;
+  outline-offset: 2px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 4px rgba(255, 139, 74, 0.25);
+}
+[data-theme="dark"] :focus-visible {
+  outline-color: #FF8B4A; /* slightly brighter against near-black bg */
+}
+/* Buttons that override `outline` in their own className (e.g. the
+   orange CTA) still get the ring via box-shadow fallback. */
+
+/* Respect reduced-motion: kill non-essential transitions/animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Screen-reader-only utility (already provided by Tailwind's sr-only) —
+   ensure custom layers don't override visibility. */
+
+/* A11y: white-on-orange-500 fails WCAG AA (3.25:1 < 4.5:1).
+   Re-color white text to dark when the parent uses bg-orange-500 / -600.
+   `:is()` keeps specificity low; `:where()` would let any `text-*` override
+   us, which is what we want — a deliberate text color on the same element
+   should still win. */
+.bg-orange-500.text-white,
+.bg-orange-500 .text-white,
+.bg-orange-600.text-white,
+.bg-orange-600 .text-white,
+.hover\:bg-orange-600:hover.text-white,
+.hover\:bg-orange-600:hover .text-white {
+  color: #1a0d00 !important;
+  font-weight: 600;
+}
+
+/* A11y: low-alpha orange literal classes used decoratively across the
+   archival pages render at 2-3.9:1 on near-black backgrounds — below
+   the WCAG AA 4.5:1 floor. Bump them by overriding the literal arbitrary
+   classes when they appear under dark theme. The original values stay
+   in source so light-theme (if re-enabled) still works. */
+[data-theme="dark"] .text-\[rgba\(255\,122\,32\,0\.4\)\],
+[data-theme="dark"] .text-\[rgba\(255\,122\,32\,0\.45\)\],
+[data-theme="dark"] .text-\[rgba\(255\,122\,32\,0\.5\)\],
+[data-theme="dark"] .text-\[rgba\(255\,122\,32\,0\.55\)\],
+[data-theme="dark"] .text-\[rgba\(255\,122\,32\,0\.6\)\],
+[data-theme="dark"] .text-\[rgba\(255\,156\,64\,0\.6\)\],
+[data-theme="dark"] .text-\[rgba\(255\,156\,64\,0\.7\)\],
+[data-theme="dark"] .text-\[rgba\(255\,176\,96\,0\.55\)\],
+[data-theme="dark"] .text-\[rgba\(255\,176\,96\,0\.6\)\],
+[data-theme="dark"] .text-\[rgba\(255\,176\,96\,0\.7\)\] {
+  color: rgba(255, 188, 120, 0.95) !important; /* ≈ #ffbc78 — 7.1:1 on #090806 */
+}
+
+/* zinc-500 (#71717a) on near-black is 4.0:1 — fails AA for normal text.
+   The two chat-demo placeholders use it on small body copy; bump locally. */
+[data-theme="dark"] .text-zinc-500 {
+  color: #b0b0b8 !important; /* 7.3:1 on #090806 */
+}
+
+/* LIGHT theme: arbitrary orange TEXT literals (mono eyebrows, terminal-style
+   lines, suggestion chips) are tuned for a dark background and wash out on the
+   light halftone — see the dark-theme bumps above. Force any orange text literal
+   to the AA-tuned accent (#C2410C ≈ 4.6:1 on white) so it stays readable in
+   light mode. Scoped by substring to text-* only, so bg/border orange literals
+   are untouched; the :not([data-theme="dark"]) guard leaves dark theme alone and
+   also covers the no-JS default (:root is light). */
+:root:not([data-theme="dark"]) [class*='text-[rgba(255,122,32'],
+:root:not([data-theme="dark"]) [class*='text-[rgba(255,156,64'],
+:root:not([data-theme="dark"]) [class*='text-[rgba(255,176,96'],
+:root:not([data-theme="dark"]) [class*='text-[rgba(255,200,140'],
+:root:not([data-theme="dark"]) [class*='text-[rgba(255,200,150'] {
+  color: #C2410C !important;
+}
+
+/* LIGHT theme: low-alpha orange placeholders (e.g. the hero Ask input) are set
+   on the ::placeholder pseudo, which the color rule above can't reach. Give
+   placeholders a muted-but-readable orange on the light surface. */
+:root:not([data-theme="dark"]) input::placeholder,
+:root:not([data-theme="dark"]) textarea::placeholder {
+  color: rgba(194, 65, 12, 0.62) !important;
+}
+
+/* Decorative line-through text used to show "the old way" — keep
+   contrast above AA when not strictly decorative. */
+[data-theme="dark"] .text-\[rgba\(120\,108\,96\,0\.85\)\] {
+  color: rgba(170, 160, 145, 0.92) !important; /* 6.4:1 */
+}
+
+body {
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: var(--font-google-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Near-black base + crown glow — dots handled by canvas FlowingDotField */
+[data-theme="dark"] body {
+  background-color: #090806;
+  background-image:
+    /* vivid orange crown glow at top */
+    radial-gradient(ellipse 130% 50% at 50% -6%, rgba(255, 82, 0, 0.18) 0%, transparent 60%);
+  background-size: 100% 100%;
+  background-attachment: fixed;
+}
+
+/* Scanline + film grain overlay — dense tech texture */
+[data-theme="dark"] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background-image:
+    /* horizontal scanlines — slightly stronger */
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 2px,
+      rgba(0, 0, 0, 0.12) 2px,
+      rgba(0, 0, 0, 0.12) 3px
+    ),
+    /* film grain */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23g)'/%3E%3C/svg%3E");
+  background-size: 100% 100%, 128px 128px;
+  opacity: 0.65;
+  mix-blend-mode: overlay;
+}
+
+/* Phosphor glow on headings — softened to a whisper (restraint; see design.md).
+   Linear/Anthropic use none; we keep a faint brand warmth, not a halo. */
+[data-theme="dark"] h1,
+[data-theme="dark"] h2 {
+  text-shadow: 0 0 40px rgba(255, 82, 0, 0.07);
+}
+
+/* ═══ Editorial restraint utilities (design.md) ═══ */
+/* Mono uppercase eyebrow label — the technical voice above headings */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;        /* 11px */
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--orange-400);
+}
+/* Section head: hairline rule above, eyebrow, then heading — stacked, never tag-left */
+.section-head { border-top: var(--rule); padding-top: var(--space-lg); }
+.section-head > .eyebrow { display: block; margin-bottom: 0.5rem; }
+/* Editorial serif emphasis — one word, never a whole line */
+.serif-em {
+  font-family: var(--font-display-serif);
+  font-style: italic;
+  font-weight: 500;
+}
+/* Warm hero glow — one restrained radial, replaces the particle backdrop */
+.hero-glow {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(60% 50% at 50% 0%, var(--glow) 0%, transparent 70%);
+}
+/* Restrained single reveal — honors reduced-motion via the media block below */
+.reveal { opacity: 0; transform: translateY(16px); animation: fade-up var(--dur-slow) var(--ease-out) forwards; }
+.reveal-1 { animation-delay: 60ms; }
+.reveal-2 { animation-delay: 140ms; }
+.reveal-3 { animation-delay: 220ms; }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { animation: fade-in 150ms linear forwards; transform: none; }
+}
+
+
+/* ═══ Animations ═══ */
+@keyframes fade-up {
+  from { opacity: 1; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--glow); }
+  50% { box-shadow: 0 0 24px 4px var(--glow); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 1;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease forwards;
+  opacity: 0;
+}
+
+.animate-slide-right {
+  animation: slide-in-right 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 0;
+}
+
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
+.stagger-5 { animation-delay: 0.5s; }
+.stagger-6 { animation-delay: 0.6s; }
+
+/* ═══ Display Font Fallback Calibration ═══
+   The hero H1 is the LCP candidate AND the font swap from system-stack
+   to Google Sans Display caused the largest measured CLS shift
+   (0.246 at t=5664ms in PERF-AUDIT). The fallback @font-face below
+   wraps the local system stack with explicit metric overrides so the
+   system render measures at almost-exactly the cap-height of Google
+   Sans Display. Font swap reflow becomes near-zero. */
+@font-face {
+  font-family: 'Google Sans Display Fallback';
+  src: local('Helvetica Neue'), local('HelveticaNeue'), local('Arial');
+  size-adjust: 99%;
+  ascent-override: 95%;
+  descent-override: 22%;
+  line-gap-override: 0%;
+}
+
+/* ═══ Display Font ═══ */
+h1, h2, .font-display {
+  font-family: var(--font-display, 'Google Sans Display'),
+    'Google Sans Display Fallback', system-ui, sans-serif;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+}
+
+/* ═══ Hero H1 height lock (PERF: CLS 0.307 → near-zero)
+   The hero H1's font swap (system → Google Sans Display) grows the box
+   from the system-stack render to the Display render. Locking min-height
+   to the POST-font (LARGER) rendered height means the box never grows
+   on swap — the swap is pure paint, not layout.
+
+   Measured at each breakpoint via scripts/measure-h1.mjs after font load:
+     375x812   →  148px (was 148 — fine)
+     1440x900  →  366px (was 200 — too short, caused CLS 0.307)
+     1024px    →  ~366px (4 lines of 88px / lh 1.04 → 366)
+     640px     →  ~210px (text-6xl=60px / lh 1.04 → 3 lines × ~62 ≈ 186-210)
+
+   The hero H1 carries the data-hero-h1 attribute so this rule is
+   targeted (no global side-effects).
+*/
+[data-hero-h1] {
+  min-height: 168px;
+}
+@media (min-width: 640px) {
+  [data-hero-h1] {
+    min-height: 220px;
+  }
+}
+@media (min-width: 1024px) {
+  [data-hero-h1] {
+    min-height: 380px;
+  }
+}
+
+/* ═══ Utility ═══ */
+.gradient-text {
+  background: linear-gradient(135deg, var(--orange-500), var(--orange-600));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.glass {
+  backdrop-filter: blur(16px) saturate(180%);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+
+.orange-glow {
+  box-shadow: 0 0 40px -8px var(--glow);
+}
+
+.bg-gradient-radial {
+  background-image: radial-gradient(ellipse at center, var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to));
+}
+
+.grid-pattern {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* ═══ Scrollbar ═══ */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #060402;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 122, 32, 0.3);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--orange-400);
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* ═══ Archival / Celestial Visual Language ═══ */
+
+/* Cartographic coordinate grid */
+.archival-grid {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 80px 80px;
+  opacity: 0.4;
+}
+
+/* Engraved text — subtle inset/letterpress effect */
+.engraved {
+  text-shadow:
+    0 1px 0 rgba(255, 248, 240, 0.04),
+    0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Technical glow — azure precision layer */
+.azure-glow {
+  box-shadow: 0 0 32px -8px var(--glow-azure);
+}
+
+/* Archival ornament divider */
+.ornament-divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--text-muted);
+}
+.ornament-divider::before,
+.ornament-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+}
+
+/* ═══ Halftone / Retro Utilities ═══ */
+
+/* Dense halftone overlay — use on hero sections or panel backgrounds */
+.halftone-overlay {
+  position: relative;
+}
+.halftone-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255, 82, 0, 0.16) 1.8px, transparent 1.8px);
+  background-size: 14px 14px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Retro card border — vivid orange-tinted */
+.retro-border {
+  border: 1px solid rgba(255, 82, 0, 0.28);
+}
+
+/* Ink stamp label — mono uppercase with retro weight */
+.stamp-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Route line animation — technical overlay */
+@keyframes route-trace {
+  0% { stroke-dashoffset: 300; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.6; }
+}
+
+.route-line {
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation: route-trace 3s ease-in-out infinite;
+}
+
+/* ═══ Docs Markdown (single-source-of-truth doc pages) ═══ */
+/* Used by pages that render markdown from /docs/<SLUG>.md via
+   src/lib/docs-renderer.ts. Matches the legacy hardcoded-JSX look
+   on /how-unbrowse-pays so the visual layout is unchanged. */
+.docs-markdown {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.docs-markdown h2 {
+  font-family: var(--font-display, 'Google Sans Display'), system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-top: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+.docs-markdown h3 {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+.docs-markdown p {
+  margin-bottom: 0.75rem;
+}
+.docs-markdown ul,
+.docs-markdown ol {
+  margin: 0.75rem 0;
+  padding-left: 1.5rem;
+}
+.docs-markdown ul { list-style: disc; }
+.docs-markdown ol { list-style: decimal; }
+.docs-markdown li { margin: 0.25rem 0; }
+.docs-markdown li > p { margin-bottom: 0.25rem; }
+.docs-markdown strong { color: var(--text-primary); font-weight: 600; }
+.docs-markdown a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.docs-markdown a:hover { color: var(--text-secondary); }
+.docs-markdown code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  background: var(--code-bg);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+.docs-markdown pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.docs-markdown pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.docs-markdown blockquote {
+  border-left: 2px solid var(--border-strong);
+  padding-left: 1rem;
+  color: var(--text-muted);
+  margin: 0.75rem 0;
+}
+.docs-markdown hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * Hallmark · archival-editorial chapter tokens
+ * theme: studied-DNA (source: shopify.com/editions/winter2026)
+ * paper-band: dark (L≈3%) · display-style: condensed-display (Fonetika)
+ * accent-hue: warm (orange 20°) · footprint: ≤5%
+ * macrostructure: Long Document · nav: N5 Floating pill · footer: Ft5 Statement
+ * ─────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Token block consumed by .hl-* utilities. Dark theme is the canonical
+   * archival surface; light theme overrides below for [data-theme="light"]. */
+  --hl-paper:           rgba(7, 5, 3, 1);
+  --hl-paper-2:         rgba(12, 8, 4, 1);
+  --hl-paper-3:         rgba(6, 4, 2, 0.85);
+  --hl-ink:             #F5F3EF;
+  --hl-ink-muted:       #B5AC9E;
+  --hl-ink-faint:       rgba(255, 188, 120, 0.65);
+  --hl-accent:          #FF5200;
+  --hl-accent-warm:     #FFB060;
+  --hl-accent-ink:      #1a0d00;
+  --hl-hairline:        rgba(255, 122, 32, 0.18);
+  --hl-hairline-faint:  rgba(255, 122, 32, 0.10);
+  --hl-focus:           #FF8B4A;
+
+  --hl-font-display:    var(--font-display);
+  --hl-font-body:       var(--font-google-sans), system-ui, sans-serif;
+  --hl-font-mono:       var(--font-jetbrains-mono), 'JetBrains Mono', ui-monospace, monospace;
+
+  --hl-text-h1:         clamp(3.5rem, 28.5px + 8.2vw, 8rem);
+  --hl-text-h2:         clamp(2.5rem, 24px + 3.2vw, 4.75rem);
+  --hl-text-h3:         clamp(1.5rem, 18.5px + 1.2vw, 2.25rem);
+  --hl-text-narrative:  1.375rem;
+  --hl-text-narrative-sm: 1rem;
+  --hl-text-eyebrow:    0.6875rem;
+
+  --hl-lh-display:      0.96;
+  --hl-lh-narrative:    1.4;
+  --hl-tracking-display: -0.03em;
+  --hl-tracking-eyebrow: 0.22em;
+
+  --hl-chapter-py:      clamp(4.5rem, 7vw, 7rem);
+  --hl-chapter-gap:     clamp(2rem, 4vw, 3.5rem);
+  --hl-banner-height:   56px;
+
+  --hl-dur-short:       150ms;
+  --hl-dur-curtain:     600ms;
+  --hl-ease-out:        cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === Chapter spine === */
+.hl-spine {
+  background: var(--hl-paper);
+  color: var(--hl-ink);
+  font-family: var(--hl-font-body);
+}
+
+.hl-chapter {
+  position: relative;
+  border-top: 1px solid var(--hl-hairline);
+  padding-block: var(--hl-chapter-py);
+  scroll-margin-top: var(--hl-banner-height);
+}
+.hl-chapter--first { border-top: 0; }
+
+.hl-chapter__inner {
+  max-width: 76rem;
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4vw, 3rem);
+  min-width: 0;
+}
+
+.hl-chapter__eyebrow {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+  font-family: var(--hl-font-mono);
+  font-size: var(--hl-text-eyebrow);
+  text-transform: uppercase;
+  letter-spacing: var(--hl-tracking-eyebrow);
+  color: var(--hl-ink-faint);
+  margin-bottom: clamp(2rem, 4vw, 3rem);
+}
+.hl-chapter__numeral {
+  color: var(--hl-accent-warm);
+  font-variant-numeric: tabular-nums;
+}
+
+.hl-chapter__title {
+  font-family: var(--hl-font-display);
+  font-weight: 400;
+  font-size: var(--hl-text-h2);
+  line-height: var(--hl-lh-display);
+  letter-spacing: var(--hl-tracking-display);
+  color: var(--hl-ink);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  margin: 0 0 clamp(1.5rem, 3vw, 2.5rem) 0;
+  max-width: 18ch;
+}
+
+.hl-chapter__lede {
+  font-family: var(--hl-font-body);
+  font-style: italic;
+  font-size: var(--hl-text-narrative);
+  line-height: var(--hl-lh-narrative);
+  letter-spacing: -0.01em;
+  color: var(--hl-ink-muted);
+  max-width: 42ch;
+  margin: 0;
+}
+
+.hl-chapter__figure {
+  margin-top: clamp(2.5rem, 5vw, 4rem);
+  position: relative;
+}
+
+.hl-chapter__rows {
+  margin-top: clamp(2rem, 4vw, 3rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+@media (min-width: 48rem) {
+  .hl-chapter__rows {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(2rem, 4vw, 3rem);
+  }
+}
+
+.hl-row {
+  border-top: 1px solid var(--hl-hairline-faint);
+  padding-block: clamp(1.25rem, 2.5vw, 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.hl-row__title {
+  font-family: var(--hl-font-display);
+  font-size: var(--hl-text-h3);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--hl-ink);
+  margin: 0;
+}
+.hl-row__body {
+  font-size: var(--hl-text-narrative-sm);
+  line-height: 1.55;
+  color: var(--hl-ink-muted);
+  margin: 0;
+  max-width: 44ch;
+}
+
+/* === H1 masthead === */
+.hl-masthead {
+  position: relative;
+  padding-block: clamp(7rem, 14vw, 11rem) clamp(4rem, 8vw, 6rem);
+  overflow: hidden;
+}
+.hl-masthead__inner {
+  position: relative;
+  max-width: 76rem;
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4vw, 3rem);
+  min-width: 0;
+}
+.hl-masthead__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--hl-font-mono);
+  font-size: var(--hl-text-eyebrow);
+  text-transform: uppercase;
+  letter-spacing: var(--hl-tracking-eyebrow);
+  color: var(--hl-ink-faint);
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--hl-hairline);
+  margin-bottom: clamp(2rem, 4vw, 3rem);
+}
+.hl-masthead__h1 {
+  font-family: var(--hl-font-display);
+  font-weight: 400;
+  font-size: var(--hl-text-h1);
+  line-height: var(--hl-lh-display);
+  letter-spacing: var(--hl-tracking-display);
+  color: var(--hl-ink);
+  margin: 0;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 16ch;
+}
+.hl-masthead__h1 em {
+  font-style: normal;
+  color: var(--hl-accent);
+}
+.hl-masthead__lede {
+  margin-top: clamp(1.5rem, 3vw, 2rem);
+  font-family: var(--hl-font-body);
+  font-style: italic;
+  font-size: clamp(1.125rem, 1.5vw, 1.5rem);
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: var(--hl-ink-muted);
+  max-width: 38ch;
+}
+
+.hl-masthead__ctas {
+  margin-top: clamp(2rem, 4vw, 3rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.5rem;
+}
+.hl-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.4rem;
+  background: var(--hl-accent);
+  color: var(--hl-accent-ink);
+  font-family: var(--hl-font-mono);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background var(--hl-dur-short) var(--hl-ease-out);
+}
+.hl-cta:hover { background: var(--hl-accent-warm); }
+.hl-cta:active { transform: translateY(1px); }
+
+.hl-cta--ghost {
+  background: transparent;
+  color: var(--hl-ink-faint);
+  font-family: var(--hl-font-mono);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  padding: 0.75rem 0;
+  white-space: nowrap;
+}
+.hl-cta--ghost:hover { color: var(--hl-accent-warm); }
+
+/* === Sticky chapter rail === */
+.hl-rail {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(7, 5, 3, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--hl-hairline);
+  height: var(--hl-banner-height);
+}
+.hl-rail__inner {
+  max-width: 100%;
+  padding-inline: clamp(1rem, 3vw, 2rem);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.hl-rail__inner::-webkit-scrollbar { display: none; }
+.hl-rail__link {
+  font-family: var(--hl-font-mono);
+  font-size: var(--hl-text-eyebrow);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--hl-ink-faint);
+  white-space: nowrap;
+  text-decoration: none;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid transparent;
+  transition: color var(--hl-dur-short) var(--hl-ease-out),
+              border-color var(--hl-dur-short) var(--hl-ease-out);
+}
+.hl-rail__link.is-active {
+  color: var(--hl-ink);
+  border-bottom-color: var(--hl-accent);
+}
+.hl-rail__link:hover { color: var(--hl-accent-warm); }
+
+/* === Statement footer (Ft5) === */
+.hl-statement {
+  border-top: 1px solid var(--hl-hairline);
+  padding-block: clamp(4rem, 7vw, 6rem);
+  background: rgba(4, 3, 2, 1);
+}
+.hl-statement__inner {
+  max-width: 76rem;
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4vw, 3rem);
+}
+.hl-statement__line {
+  font-family: var(--hl-font-display);
+  font-weight: 400;
+  font-size: clamp(1.75rem, 3vw, 2.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--hl-ink);
+  margin: 0 0 clamp(2rem, 4vw, 3rem) 0;
+  max-width: 22ch;
+}
+.hl-statement__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1.5rem 2rem;
+  font-family: var(--hl-font-mono);
+  font-size: var(--hl-text-eyebrow);
+  text-transform: uppercase;
+  letter-spacing: var(--hl-tracking-eyebrow);
+}
+.hl-statement__row a {
+  color: var(--hl-ink-faint);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.hl-statement__row a:hover { color: var(--hl-accent-warm); }
+.hl-statement__copy { color: var(--hl-ink-faint); }
+
+/* === Word-stagger reveal (opacity-only per SPEC §5) === */
+@keyframes hl-stagger-fade {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+.hl-stagger > * {
+  opacity: 0;
+  animation: hl-stagger-fade 600ms var(--hl-ease-out) forwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+.hl-word {
+  display: inline-block;
+  opacity: 0;
+  animation: hl-stagger-fade 500ms var(--hl-ease-out) forwards;
+  animation-delay: calc(var(--i, 0) * 75ms + 150ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hl-stagger > *,
+  .hl-word {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* === Figure card === */
+.hl-figure {
+  position: relative;
+  border: 1px solid var(--hl-hairline);
+  background: var(--hl-paper-2);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  min-width: 0;
+}
+.hl-figure__head {
+  border-bottom: 1px solid var(--hl-hairline-faint);
+  padding: 0.85rem 1.25rem;
+  font-family: var(--hl-font-mono);
+  font-size: var(--hl-text-eyebrow);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--hl-ink-faint);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.hl-figure__body { padding: 1.25rem; }
+@media (max-width: 30rem) {
+  .hl-figure__body { padding: 0.75rem; }
+}
+
+/* ── docs prose ──────────────────────────────────────────────────────────
+   Typography for /docs/* article content. The layout used tailwind's `prose`
+   classes, but @tailwindcss/typography is not installed, so they were inert —
+   every docs page rendered as raw unstyled HTML. This is the real type system,
+   in the site's own dark + orange brand. Scoped to skip `.not-prose` subtrees
+   so styled stat-card components keep their own look.                        */
+.docs-prose {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.75;
+  max-width: 46rem;
+}
+.docs-prose > :where(* + *):not(.not-prose *) { margin-top: 1.15rem; }
+.docs-prose :where(h1):not(.not-prose *) {
+  color: var(--text-primary);
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  font-weight: 700; line-height: 1.08; letter-spacing: -0.02em;
+  margin-bottom: 0.4rem;
+}
+.docs-prose :where(h2):not(.not-prose *) {
+  color: var(--text-primary);
+  font-size: 1.5rem; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em;
+  margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+}
+.docs-prose :where(h3):not(.not-prose *) {
+  color: var(--text-primary); font-size: 1.15rem; font-weight: 600; margin-top: 2rem;
+}
+.docs-prose :where(h4):not(.not-prose *) {
+  color: var(--text-primary); font-size: 1rem; font-weight: 600; margin-top: 1.5rem;
+}
+.docs-prose :where(p):not(.not-prose *) { max-width: 46rem; }
+.docs-prose :where(strong):not(.not-prose *) { color: var(--text-primary); font-weight: 600; }
+.docs-prose :where(a):not(.not-prose *) {
+  color: rgba(255, 138, 61, 0.96); text-decoration: none;
+  border-bottom: 1px solid rgba(255, 122, 32, 0.3);
+  transition: color 0.15s, border-color 0.15s;
+}
+.docs-prose :where(a):not(.not-prose *):hover {
+  color: rgba(255, 176, 96, 1); border-bottom-color: rgba(255, 122, 32, 0.7);
+}
+.docs-prose :where(ul, ol):not(.not-prose *) { padding-left: 1.4rem; }
+.docs-prose :where(ul):not(.not-prose *) > li { list-style: none; position: relative; }
+.docs-prose :where(ul):not(.not-prose *) > li::before {
+  content: ""; position: absolute; left: -1.1rem; top: 0.72em;
+  width: 5px; height: 5px; border-radius: 1px; background: rgba(255, 122, 32, 0.6);
+}
+.docs-prose :where(ol):not(.not-prose *) { list-style: decimal; }
+.docs-prose :where(ol):not(.not-prose *) > li::marker { color: rgba(255, 122, 32, 0.65); }
+.docs-prose :where(li):not(.not-prose *) { margin-top: 0.5rem; padding-left: 0.15rem; }
+.docs-prose :where(:not(pre) > code):not(.not-prose *) {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.85em;
+  color: rgba(255, 176, 96, 0.96); background: rgba(255, 122, 32, 0.08);
+  border: 1px solid rgba(255, 122, 32, 0.16); border-radius: 5px; padding: 0.12em 0.4em;
+}
+.docs-prose :where(pre):not(.not-prose *) {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.82rem; line-height: 1.6;
+  background: #070503; border: 1px solid var(--border); border-radius: 0.6rem;
+  padding: 1.1rem 1.25rem; overflow-x: auto; color: var(--text-primary);
+}
+.docs-prose :where(pre code):not(.not-prose *) {
+  background: none; border: none; padding: 0; color: inherit; font-size: inherit;
+}
+.docs-prose :where(table):not(.not-prose *) {
+  width: 100%; border-collapse: collapse; font-size: 0.85rem;
+  border: 1px solid var(--border); border-radius: 0.6rem; display: block; overflow-x: auto;
+}
+.docs-prose :where(thead):not(.not-prose *) { background: rgba(255, 122, 32, 0.06); }
+.docs-prose :where(th):not(.not-prose *) {
+  text-align: left; font-weight: 600; color: var(--text-primary);
+  padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.docs-prose :where(td):not(.not-prose *) {
+  padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top;
+}
+.docs-prose :where(tbody tr:last-child td):not(.not-prose *) { border-bottom: none; }
+.docs-prose :where(tbody tr):not(.not-prose *):hover { background: rgba(255, 122, 32, 0.03); }
+.docs-prose :where(blockquote):not(.not-prose *) {
+  border-left: 2px solid rgba(255, 122, 32, 0.45); padding-left: 1rem;
+  color: var(--text-muted); font-style: italic;
+}
+.docs-prose :where(hr):not(.not-prose *) { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+@media (max-width: 640px) {
+  .docs-prose { font-size: 0.92rem; }
+  .docs-prose :where(h2):not(.not-prose *) { margin-top: 2.25rem; }
+}

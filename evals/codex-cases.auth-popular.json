@@ -1,0 +1,626 @@
+{
+  "meta": {
+    "name": "Popular Auth Sites",
+    "description": "Popularity-backed auth eval corpus for Unbrowse. Mixes major logged-in consumer sites with scripted demo sites that should pass without user credentials.",
+    "source": {
+      "name": "Similarweb Top Websites Ranking in United States",
+      "url": "https://www.similarweb.com/top-websites/united-states/",
+      "retrieved_at": "2026-03-13"
+    }
+  },
+  "cases": [
+    {
+      "id": "amazon-order-history",
+      "suite": "popular-cookie-reuse",
+      "site": "amazon.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 3,
+        "category": "shopping",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get order history",
+      "url": "https://www.amazon.com/gp/css/order-history",
+      "auth": {
+        "domain": "amazon.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["order_id", "title", "order_date"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.amazon.com/ap/signin",
+        "required_cookie_names": ["session-id", "ubid-main", "at-main"],
+        "notes": "Reuse existing browser session when present."
+      }
+    },
+    {
+      "id": "reddit-message-inbox",
+      "suite": "popular-cookie-reuse",
+      "site": "reddit.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 5,
+        "category": "social",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get inbox messages",
+      "url": "https://www.reddit.com/message/inbox/",
+      "auth": {
+        "domain": "reddit.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["subject", "author", "permalink"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.reddit.com/login/",
+        "required_cookie_names": ["reddit_session", "session_tracker", "token_v2"],
+        "notes": "Inbox requires a logged-in browser session."
+      }
+    },
+    {
+      "id": "x-bookmarks",
+      "suite": "popular-cookie-reuse",
+      "site": "x.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 9,
+        "category": "social",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get bookmarks",
+      "url": "https://x.com/i/bookmarks",
+      "auth": {
+        "domain": "x.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["text", "author", "permalink"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://x.com/i/flow/login",
+        "required_cookie_names": ["auth_token", "ct0"],
+        "notes": "Requires cookie-backed session plus CSRF token replay."
+      }
+    },
+    {
+      "id": "walmart-order-history",
+      "suite": "popular-cookie-reuse",
+      "site": "walmart.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 12,
+        "category": "shopping",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get order history",
+      "url": "https://www.walmart.com/orders",
+      "auth": {
+        "domain": "walmart.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["order_id", "title", "status"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.walmart.com/account/login",
+        "required_cookie_names": ["customer", "hasCID"],
+        "notes": "Reuse browser cookies only."
+      }
+    },
+    {
+      "id": "ebay-watchlist",
+      "suite": "popular-cookie-reuse",
+      "site": "ebay.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 13,
+        "category": "shopping",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get watchlist items",
+      "url": "https://www.ebay.com/mye/myebay/watchlist",
+      "auth": {
+        "domain": "ebay.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "price", "item_id"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://signin.ebay.com/",
+        "required_cookie_names": ["nonsession", "dp1", "s"],
+        "notes": "My eBay watchlist behind browser auth."
+      }
+    },
+    {
+      "id": "linkedin-people-search",
+      "suite": "popular-cookie-reuse",
+      "site": "linkedin.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 15,
+        "category": "professional-network",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "search people",
+      "url": "https://www.linkedin.com/search/results/people/?keywords=openai",
+      "auth": {
+        "domain": "linkedin.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["name", "headline", "url"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.linkedin.com/login",
+        "required_cookie_names": ["li_at", "JSESSIONID"],
+        "notes": "Reuse local LinkedIn session when present."
+      }
+    },
+    {
+      "id": "tiktok-following-feed",
+      "suite": "popular-cookie-reuse",
+      "site": "tiktok.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 17,
+        "category": "social-video",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get following feed",
+      "url": "https://www.tiktok.com/following",
+      "auth": {
+        "domain": "tiktok.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["author", "description", "url"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.tiktok.com/login",
+        "required_cookie_names": ["sessionid", "sid_tt"],
+        "notes": "Likely blocked headless; keep in corpus for classification."
+      }
+    },
+    {
+      "id": "netflix-my-list",
+      "suite": "popular-cookie-reuse",
+      "site": "netflix.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 21,
+        "category": "streaming",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get my list",
+      "url": "https://www.netflix.com/browse/my-list",
+      "auth": {
+        "domain": "netflix.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "synopsis", "maturity_rating"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.netflix.com/login",
+        "required_cookie_names": ["NetflixId", "SecureNetflixId"],
+        "notes": "Heavy anti-automation; classify rather than force false negatives."
+      }
+    },
+    {
+      "id": "twitch-following-live",
+      "suite": "popular-cookie-reuse",
+      "site": "twitch.tv",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 24,
+        "category": "streaming",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get followed live streams",
+      "url": "https://www.twitch.tv/directory/following/live",
+      "auth": {
+        "domain": "twitch.tv",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "broadcaster", "viewer_count"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.twitch.tv/login",
+        "required_cookie_names": ["auth-token"],
+        "notes": "Good canary for SPA + auth + GraphQL."
+      }
+    },
+    {
+      "id": "etsy-favorites",
+      "suite": "popular-cookie-reuse",
+      "site": "etsy.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 26,
+        "category": "shopping",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get favorite items",
+      "url": "https://www.etsy.com/your/favorites",
+      "auth": {
+        "domain": "etsy.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "price", "shop_name"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.etsy.com/signin",
+        "required_cookie_names": ["uaid", "fve"],
+        "notes": "Favorites page exercises authenticated HTML/app shell replay."
+      }
+    },
+    {
+      "id": "discord-dms",
+      "suite": "popular-cookie-reuse",
+      "site": "discord.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 49,
+        "category": "communication",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "list my discord servers",
+      "url": "https://discord.com/channels/@me",
+      "auth": {
+        "domain": "discord.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["id", "name"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://discord.com/login",
+        "required_cookie_names": ["__dcfduid", "__sdcfduid", "locale"],
+        "notes": "Useful auth-heavy SPA canary; local session reuse only."
+      }
+    },
+    {
+      "id": "paypal-activity",
+      "suite": "popular-cookie-reuse",
+      "site": "paypal.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 51,
+        "category": "payments",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get activity feed",
+      "url": "https://www.paypal.com/myaccount/activity",
+      "auth": {
+        "domain": "paypal.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["counterparty", "amount", "date"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.paypal.com/signin",
+        "required_cookie_names": ["LANG", "tsrce"],
+        "notes": "Payments flow; likely blocked, still important taxonomy coverage."
+      }
+    },
+    {
+      "id": "pinterest-saved-pins",
+      "suite": "popular-cookie-reuse",
+      "site": "pinterest.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 67,
+        "category": "social-discovery",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get saved pins",
+      "url": "https://www.pinterest.com/",
+      "auth": {
+        "domain": "pinterest.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "url", "image"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.pinterest.com/login/",
+        "required_cookie_names": ["_pinterest_sess", "_auth"],
+        "notes": "Saved/home feed canary."
+      }
+    },
+    {
+      "id": "target-order-history",
+      "suite": "popular-cookie-reuse",
+      "site": "target.com",
+      "popularity": {
+        "source": "Similarweb Top Websites Ranking in United States",
+        "source_url": "https://www.similarweb.com/top-websites/united-states/",
+        "us_rank": 72,
+        "category": "shopping",
+        "retrieved_at": "2026-03-13"
+      },
+      "intent": "get order history",
+      "url": "https://www.target.com/co-orderhistory",
+      "auth": {
+        "domain": "target.com",
+        "persona": "browser-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["order_id", "title", "status"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked", "skip"]
+      },
+      "auth_bootstrap": {
+        "strategy": "cookie_reuse",
+        "login_url": "https://www.target.com/account",
+        "required_cookie_names": ["visitorId", "te2"],
+        "notes": "Orders page behind login."
+      }
+    },
+    {
+      "id": "saucedemo-products",
+      "suite": "scripted-demo",
+      "site": "saucedemo.com",
+      "intent": "get products",
+      "url": "https://www.saucedemo.com/inventory.html",
+      "auth": {
+        "domain": "www.saucedemo.com",
+        "persona": "qa-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "description"],
+      "validate": {
+        "min_rows": 3,
+        "terminal_ok": ["pass"]
+      },
+      "workflow": {
+        "max_total_ms": 60000,
+        "max_failures": 0,
+        "steps": [
+          {
+            "id": "inventory",
+            "intent": "get products",
+            "url": "https://www.saucedemo.com/inventory.html",
+            "expected_fields": ["title", "description"],
+            "validate": {
+              "min_rows": 3
+            },
+            "max_total_ms": 30000
+          }
+        ],
+        "verify": [
+          {
+            "id": "backpack-detail",
+            "intent": "get product details",
+            "url": "https://www.saucedemo.com/inventory-item.html?id=4",
+            "expected_fields": ["title", "description", "price"],
+            "validate": {
+              "entity_type": "product",
+              "terminal_ok": ["pass"]
+            },
+            "max_total_ms": 30000
+          }
+        ]
+      },
+      "auth_bootstrap": {
+        "strategy": "scripted_login",
+        "login_url": "https://www.saucedemo.com/",
+        "success_url": "https://www.saucedemo.com/inventory.html",
+        "username": "standard_user",
+        "password": "secret_sauce",
+        "steps": [
+          { "action": "fill", "selector": "#user-name", "value": "$USERNAME" },
+          { "action": "fill", "selector": "#password", "value": "$PASSWORD" },
+          { "action": "click", "selector": "#login-button" },
+          { "action": "wait_for_url", "pattern": "**/inventory.html" }
+        ]
+      }
+    },
+    {
+      "id": "the-internet-secure-flash",
+      "suite": "scripted-demo",
+      "site": "the-internet.herokuapp.com",
+      "intent": "get secure area message",
+      "url": "https://the-internet.herokuapp.com/secure",
+      "auth": {
+        "domain": "the-internet.herokuapp.com",
+        "persona": "qa-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "message"],
+      "validate": {
+        "terminal_ok": ["pass"]
+      },
+      "auth_bootstrap": {
+        "strategy": "scripted_login",
+        "login_url": "https://the-internet.herokuapp.com/login",
+        "success_url": "https://the-internet.herokuapp.com/secure",
+        "username": "tomsmith",
+        "password": "SuperSecretPassword!",
+        "steps": [
+          { "action": "fill", "selector": "#username", "value": "$USERNAME" },
+          { "action": "fill", "selector": "#password", "value": "$PASSWORD" },
+          { "action": "click", "selector": "button[type='submit']" },
+          { "action": "wait_for_url", "pattern": "**/secure" }
+        ]
+      }
+    },
+    {
+      "id": "practice-test-automation-success",
+      "suite": "scripted-demo",
+      "site": "practicetestautomation.com",
+      "intent": "get login success message",
+      "url": "https://practicetestautomation.com/logged-in-successfully/",
+      "auth": {
+        "domain": "practicetestautomation.com",
+        "persona": "qa-user",
+        "role": "member",
+        "session": "primary"
+      },
+      "expected_fields": ["title", "message"],
+      "validate": {
+        "terminal_ok": ["pass"]
+      },
+      "auth_bootstrap": {
+        "strategy": "scripted_login",
+        "login_url": "https://practicetestautomation.com/practice-test-login/",
+        "success_url": "https://practicetestautomation.com/logged-in-successfully/",
+        "username": "student",
+        "password": "Password123",
+        "steps": [
+          { "action": "fill", "selector": "#username", "value": "$USERNAME" },
+          { "action": "fill", "selector": "#password", "value": "$PASSWORD" },
+          { "action": "click", "selector": "#submit" },
+          { "action": "wait_for_url", "pattern": "**/logged-in-successfully/" }
+        ]
+      }
+    },
+    {
+      "id": "orangehrm-dashboard",
+      "suite": "scripted-demo",
+      "site": "opensource-demo.orangehrmlive.com",
+      "intent": "get dashboard widgets",
+      "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+      "auth": {
+        "domain": "opensource-demo.orangehrmlive.com",
+        "persona": "qa-user",
+        "role": "admin",
+        "session": "primary"
+      },
+      "expected_fields": ["title"],
+      "validate": {
+        "min_rows": 1,
+        "terminal_ok": ["pass", "blocked"]
+      },
+      "workflow": {
+        "max_total_ms": 60000,
+        "max_failures": 0,
+        "steps": [
+          {
+            "id": "dashboard-widgets",
+            "intent": "get dashboard widgets",
+            "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+            "expected_fields": ["title"],
+            "validate": {
+              "min_rows": 2
+            }
+          }
+        ],
+        "verify": [
+          {
+            "id": "dashboard-widgets-warm",
+            "intent": "get dashboard widgets",
+            "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+            "expected_fields": ["title"],
+            "validate": {
+              "min_rows": 2
+            },
+            "max_total_ms": 30000
+          }
+        ]
+      },
+      "auth_bootstrap": {
+        "strategy": "scripted_login",
+        "login_url": "https://opensource-demo.orangehrmlive.com/web/index.php/auth/login",
+        "success_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+        "username": "Admin",
+        "password": "admin123",
+        "steps": [
+          { "action": "wait_for_selector", "selector": "input[name='username']" },
+          { "action": "fill", "selector": "input[name='username']", "value": "$USERNAME" },
+          { "action": "fill", "selector": "input[name='password']", "value": "$PASSWORD" },
+          { "action": "click", "selector": "button[type='submit']" },
+          { "action": "wait_for_url", "pattern": "**/dashboard/index" }
+        ]
+      }
+    }
+  ]
+}

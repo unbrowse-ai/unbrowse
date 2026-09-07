@@ -1,0 +1,215 @@
+{
+  "summary": {
+    "total": 1,
+    "pass": 1,
+    "fail": 0,
+    "skip": 0,
+    "blocked": 0,
+    "satisfied": 1,
+    "unsatisfied": 0,
+    "max_rounds": 6,
+    "max_candidates": 4,
+    "max_follow_urls": 3,
+    "force_capture": false,
+    "benchmark": false,
+    "mode": "autonomous"
+  },
+  "results": [
+    {
+      "id": "orangehrm-dashboard:dashboard-widgets-warm",
+      "intent": "get dashboard widgets",
+      "auth": true,
+      "final_state": "pass",
+      "goal_satisfied": true,
+      "allowed_terminal_states": [
+        "pass"
+      ],
+      "final_reason": "unclassified_array",
+      "final_source_kind": "record",
+      "matched_fields": [
+        "title"
+      ],
+      "missing_fields": [],
+      "repair_memory": {
+        "visited_urls": [
+          "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+        ],
+        "attempted_endpoint_counts": {},
+        "failure_class_counts": {},
+        "reasons_seen": []
+      },
+      "rounds": [
+        {
+          "round": 1,
+          "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+          "force_capture": false,
+          "resolve_ms": 3723,
+          "skill_id": "c_QP02MKRC2_gnm_YYqcp",
+          "available_endpoint_ids": [],
+          "dag": {
+            "available": true,
+            "reachable": false,
+            "selected_path": [],
+            "reason": "missing_target_operation"
+          },
+          "trace_context": {
+            "known_bindings": {
+              "url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+              "domain": "opensource-demo.orangehrmlive.com",
+              "pathname": "/web/index.php/dashboard/index",
+              "slug_1": "web",
+              "slug_2": "index.php",
+              "slug_3": "dashboard",
+              "slug_4": "index"
+            },
+            "chunk": {
+              "skill_id": "c_QP02MKRC2_gnm_YYqcp",
+              "intent": "get dashboard widgets",
+              "missing_bindings": [
+                "slug",
+                "v2"
+              ],
+              "suggested_next_operation_id": "e_8U9NXZfN84crWCm-tMB",
+              "available_operations": [
+                {
+                  "operation_id": "e_8U9NXZfN84crWCm-tMB",
+                  "method": "GET",
+                  "action_kind": "list",
+                  "resource_kind": "resource",
+                  "title": "list resource",
+                  "why_available": "Runnable now; no missing dependencies.",
+                  "url_template": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+                  "requires": [],
+                  "yields": [
+                    "resource_name"
+                  ],
+                  "example_request": {},
+                  "example_response_compact": [
+                    {
+                      "title": "Time at Work",
+                      "image": "../pim/viewPhoto/empNumber/7",
+                      "description": "Time at Work"
+                    },
+                    {
+                      "title": "My Actions",
+                      "description": "(1) Pending Self Review"
+                    }
+                  ]
+                }
+              ]
+            },
+            "skill_snapshot": {
+              "skill_id": "c_QP02MKRC2_gnm_YYqcp",
+              "domain": "opensource-demo.orangehrmlive.com",
+              "auth_required": true,
+              "endpoint_count": 114,
+              "operation_count": 114,
+              "edge_count": 0,
+              "updated_at": "2026-03-13T20:57:14.666Z"
+            },
+            "source": "marketplace",
+            "total_ms": 3696,
+            "tokens_used": 388,
+            "tokens_saved": 29612,
+            "tokens_saved_pct": 99
+          },
+          "resolve_excerpt": {
+            "data": [
+              {
+                "title": "Time at Work",
+                "image": "../pim/viewPhoto/empNumber/7",
+                "description": "Time at Work"
+              },
+              {
+                "title": "My Actions",
+                "description": "(1) Pending Self Review"
+              },
+              {
+                "title": "Quick Launch",
+                "description": "Quick Launch"
+              },
+              {
+                "title": "Richard akhil Dan2020-07-10 08:38 PM",
+                "heading_1": "Sania  Shaheen2020-07-10 08:38 PM",
+                "heading_2": "Rebecca  Harmony2020-07-10 08:34 PM",
+                "heading_3": "Russel  Hamilton2020-07-10 08:33 PM",
+                "image": "../pim/viewPhoto/empNumber/7",
+                "description": "Buzz Latest Posts"
+              }
+            ],
+            "_extraction": {
+              "method": "repeated-elements",
+              "confidence": 0.8,
+              "source": "rendered-dom",
+              "final_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+              "selector": "div.oxd-grid-item.oxd-grid-item--gutters.orangehrm-dashboard-widget"
+            }
+          },
+          "candidates": [
+            {
+              "endpoint_id": "e_8U9NXZfN84crWCm-tMB",
+              "attempt_count": 0,
+              "verdict": "pass",
+              "reason": "unclassified_array",
+              "failure_class": "none",
+              "source_kind": "record",
+              "matched_fields": [
+                "title"
+              ],
+              "missing_fields": [],
+              "row_count": 11,
+              "observed_entity_types": [],
+              "validation_failures": [],
+              "echoed_params": [],
+              "tokens_used": 388,
+              "tokens_saved": 29612,
+              "tokens_saved_pct": 99,
+              "excerpt": {
+                "data": [
+                  {
+                    "title": "Time at Work",
+                    "image": "../pim/viewPhoto/empNumber/7",
+                    "description": "Time at Work"
+                  },
+                  {
+                    "title": "My Actions",
+                    "description": "(1) Pending Self Review"
+                  },
+                  {
+                    "title": "Quick Launch",
+                    "description": "Quick Launch"
+                  },
+                  {
+                    "title": "Richard akhil Dan2020-07-10 08:38 PM",
+                    "heading_1": "Sania  Shaheen2020-07-10 08:38 PM",
+                    "heading_2": "Rebecca  Harmony2020-07-10 08:34 PM",
+                    "heading_3": "Russel  Hamilton2020-07-10 08:33 PM",
+                    "image": "../pim/viewPhoto/empNumber/7",
+                    "description": "Buzz Latest Posts"
+                  }
+                ],
+                "_extraction": {
+                  "method": "repeated-elements",
+                  "confidence": 0.8,
+                  "source": "rendered-dom",
+                  "final_url": "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index",
+                  "selector": "div.oxd-grid-item.oxd-grid-item--gutters.orangehrm-dashboard-widget"
+                }
+              }
+            }
+          ],
+          "repair_action": "complete",
+          "repair_reason": "pass",
+          "repair_memory": {
+            "visited_urls": [
+              "https://opensource-demo.orangehrmlive.com/web/index.php/dashboard/index"
+            ],
+            "attempted_endpoint_counts": {},
+            "failure_class_counts": {},
+            "reasons_seen": []
+          }
+        }
+      ]
+    }
+  ]
+}

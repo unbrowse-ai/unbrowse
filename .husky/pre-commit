@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+bash scripts/precommit.sh

@@ -1,0 +1,7 @@
+Contact: mailto:security@unbrowse.ai
+Contact: https://www.unbrowse.ai/security
+Expires: 2027-05-23T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://www.unbrowse.ai/.well-known/security.txt
+Policy: https://www.unbrowse.ai/security
+Acknowledgments: https://github.com/unbrowse-ai/unbrowse/blob/main/SECURITY.md

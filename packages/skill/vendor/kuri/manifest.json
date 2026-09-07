@@ -1,0 +1,53 @@
+{
+  "repo_url": "https://github.com/justrach/kuri.git",
+  "branch": "adding-extensions",
+  "source_sha": "149881254046a20778f642b69f20f0c6468f6fb4",
+  "built_at": "2026-08-03T04:31:56.647Z",
+  "binaries": {
+    "darwin-arm64": {
+      "zig_target": "aarch64-macos",
+      "sha256": "e7a2f965535c10fe4faf2e962ffa3237e96e65fb8bfe37428c84e72fcbcce613",
+      "source": "pre-staged"
+    },
+    "darwin-x64": {
+      "zig_target": "x86_64-macos",
+      "source": "placeholder",
+      "sha256": "05b88578d5e7980d81e18ba3051c813271d1630d940009a599c791956090d122"
+    },
+    "linux-arm64": {
+      "zig_target": "aarch64-linux",
+      "source": "placeholder",
+      "sha256": "6a47890b281c8178a5df040cbaf1e32acd9ddf1eb23428055e1a3abce79f92e5"
+    },
+    "linux-x64": {
+      "zig_target": "x86_64-linux",
+      "sha256": "87acc4980e7072d28db96a0e5fc69442d594cc69c4030fc58cfeeefd36eb51a4"
+    },
+    "win-x64": {
+      "zig_target": "x86_64-windows-gnu",
+      "sha256": "fb7c7b740eecbec8d368ceafa5cd41e0fc0511886aaea1de33319d346f2949e2"
+    }
+  },
+  "ffi": {
+    "darwin-arm64": {
+      "zig_target": "aarch64-macos",
+      "lib": "libkuri_ffi.dylib",
+      "sha256": "837200f9fb44efe27153c54ac4ef7129f8f539c43737c21aa4df800c28046506"
+    },
+    "darwin-x64": {
+      "zig_target": "x86_64-macos",
+      "lib": "libkuri_ffi.dylib",
+      "sha256": "09e52ca7bc2cd398682a0da0bd8fe7115e30ff4f0a9eb58f4fcc43ac3753861f"
+    },
+    "linux-arm64": {
+      "zig_target": "aarch64-linux",
+      "lib": "libkuri_ffi.so",
+      "sha256": "724419472aefc704ac27a9f5d678621bac8752dfcb363a8595c39091a95ea30c"
+    },
+    "linux-x64": {
+      "zig_target": "x86_64-linux",
+      "lib": "libkuri_ffi.so",
+      "sha256": "4960aa33128b32d5bf5776e7becec7bdfa076571638c9df86053fe7bb3f5555e"
+    }
+  }
+}

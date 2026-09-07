@@ -1,0 +1,125 @@
+{
+  "experiment_id": "homepage-2026-04-icp-rework",
+  "page": "homepage",
+  "updated_at": "2026-04-05T00:00:00.000Z",
+  "control_variant_id": "control-browser-replacement",
+  "assignment_salt": "homepage-icp-rework-v1",
+  "canary_weight_cap": 0.1,
+  "shadow_generation_limit": 3,
+  "optimizer_runs": [],
+  "variants": [
+    {
+      "variant_id": "control-browser-replacement",
+      "label": "Agent Stack Builder — Integration-Led",
+      "status": "active",
+      "source": "human",
+      "angle_family": "browser-replacement",
+      "weight": 0.5,
+      "icp": ["agent-stack-builder", "automation-engineer"],
+      "rationale": "Integration-led framing for agent builders. Emphasizes one-package simplicity and the swap-import mental model.",
+      "copy": {
+        "hero_headline": "One package replaces your",
+        "hero_emphasis": "Playwright wrapper.",
+        "hero_subheadline": "Unbrowse learns the API behind websites on the first browser pass, then replays it directly on every run after. Your agent gets 3.6x faster without changing your framework.",
+        "hero_support_line": "Drop-in compatible with Playwright and Puppeteer. 94 domains benchmarked.",
+        "trust_bar_order": [
+          "benchmarks",
+          "speed",
+          "paper",
+          "github",
+          "npm"
+        ],
+        "definition_heading": "Browser on first pass. Direct API on every pass after.",
+        "definition_body": "Your agent's browser loop runs the same DOM discovery on every execution. Unbrowse watches that first pass, learns the internal API endpoints the site uses behind the scenes, and replays them directly. The browser stays available for auth and hard cases — but repeat work becomes a single HTTP call instead of a full page render.",
+        "install_eyebrow": "Swap The Import",
+        "install_body": "Install Unbrowse, swap your Playwright import, and your agent's repeat tasks run 3.6x faster with zero framework changes.",
+        "hero_cta_label": "npm install unbrowse"
+      }
+    },
+    {
+      "variant_id": "speed-proof",
+      "label": "Performance Engineer — Numbers-Led",
+      "status": "active",
+      "source": "human",
+      "angle_family": "speed-proof",
+      "weight": 0.5,
+      "icp": ["performance-engineer", "scraping-at-scale"],
+      "rationale": "Numbers-first framing for performance-minded engineers and scraping teams. Leads with the 3.6x benchmark in the headline itself.",
+      "copy": {
+        "hero_headline": "3.6x faster than Playwright",
+        "hero_emphasis": "across 94 domains.",
+        "hero_subheadline": "Unbrowse learns the internal API behind websites and replays it directly — skipping DOM rendering, script execution, and network waterfalls on repeat runs. Same data. No headless browser per request.",
+        "hero_support_line": "100% win rate across 94 benchmarked domains. Median speedup: 5.4x.",
+        "trust_bar_order": [
+          "speed",
+          "benchmarks",
+          "paper",
+          "github",
+          "npm"
+        ],
+        "definition_heading": "Your agents are rendering pages they never look at.",
+        "definition_body": "Each headless Chrome instance burns 200+ MB of RAM to render a page, execute JavaScript, and parse the DOM — just to extract data that was already available as an API response. Unbrowse captures that API path once, then replays it at a fraction of the cost. The browser stays available as fallback for auth and anti-bot.",
+        "install_eyebrow": "See The Benchmark",
+        "install_body": "Install Unbrowse and run it against your own test suite. The 3.6x speedup is measured, not promised — reproduce it in minutes.",
+        "hero_cta_label": "npm install unbrowse"
+      }
+    },
+    {
+      "variant_id": "reliability-canary",
+      "label": "CI/CD Maintainer — Stability-Led",
+      "status": "canary",
+      "source": "human",
+      "angle_family": "reliability",
+      "weight": 0.1,
+      "icp": ["automation-engineer", "ci-cd-maintainer"],
+      "rationale": "Reliability-led framing for CI/CD maintainers. Addresses flaky tests and selector breakage directly.",
+      "canary_started_at": "2026-04-05T00:00:00.000Z",
+      "copy": {
+        "hero_headline": "Your e2e tests break because",
+        "hero_emphasis": "selectors change. Ours don't use selectors.",
+        "hero_subheadline": "Unbrowse learns the API behind the page and replays it deterministically — no DOM rendering, no timing races, no selector dependencies. Same test, 3.6x faster, zero flake.",
+        "hero_support_line": "Zero selector dependencies on repeat runs. Deterministic replay. Browser fallback when needed.",
+        "trust_bar_order": [
+          "paper",
+          "benchmarks",
+          "github",
+          "speed",
+          "npm"
+        ],
+        "definition_heading": "First run browses. Every run after just knows.",
+        "definition_body": "Browser tests in CI spin up headless Chrome, render the full DOM, then wait for selectors that break every time the frontend ships. Unbrowse watches the first run, captures the API calls behind the page, and replays them directly on every subsequent run. No Chrome process, no flaky waits, no selector maintenance. Frontend teams ship without breaking your pipeline.",
+        "install_eyebrow": "Stop Flaky Tests",
+        "install_body": "Install Unbrowse into your existing Playwright suite. Start with your most quarantined test and measure the flake reduction.",
+        "hero_cta_label": "npm install unbrowse"
+      }
+    },
+    {
+      "variant_id": "scale-shadow",
+      "label": "Scraping at Scale — Cost-Led",
+      "status": "shadow",
+      "source": "human",
+      "angle_family": "learn-once-reuse-later",
+      "weight": 0,
+      "icp": ["scraping-at-scale"],
+      "rationale": "Cost-led framing for high-volume scraping teams. Leads with eliminating browser overhead on repeat requests.",
+      "copy": {
+        "hero_headline": "Scale scraping without",
+        "hero_emphasis": "scaling Chrome.",
+        "hero_subheadline": "Unbrowse learns the API behind websites on the first browser pass, then scales with direct API calls — no headless browser per repeat request. 3.6x faster across 94 domains.",
+        "hero_support_line": "Same data. No Chrome instance. Fraction of the compute and proxy bandwidth.",
+        "trust_bar_order": [
+          "benchmarks",
+          "speed",
+          "paper",
+          "github",
+          "npm"
+        ],
+        "definition_heading": "One browser pass to learn the route. Then scale without the browser.",
+        "definition_body": "Every site you scrape repeatedly is a frontend sitting on top of an API. Unbrowse discovers that API automatically on the first visit, then replays it directly on every subsequent request — no Chrome instance, no DOM rendering, no JavaScript execution. Your throughput ceiling stops being browser concurrency.",
+        "install_eyebrow": "Cut Cost Per Page",
+        "install_body": "Install Unbrowse, point it at your highest-volume targets, and watch your compute costs drop on the second request onward.",
+        "hero_cta_label": "npm install unbrowse"
+      }
+    }
+  ]
+}

@@ -1,0 +1,501 @@
+// research.ts — native research primitive (Tavily parity), built on unbrowse's own
+// machinery: ddgSearch (pointers) -> fetchDirectDocument (values) -> focusMarkdownToIntent
+// (ground). The query is a HOLE; search resolves ranked URL POINTERS; fetch resolves the
+// page-markdown VALUES; synthesis grounds a cited answer. No external research API, no model
+// call required (extractive synthesis keeps it native + dependency-free).
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync, mkdirSync, statSync, readdirSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir, homedir } from "node:os";
+import { ddgSearch } from "../lib/ddg-search.js";
+import { fetchDirectDocument, focusMarkdownToIntent } from "./direct-document.js";
+
+// Read cache for the per-source fetch (the ~18s cost of the resolve→read→ground walk). A repeat
+// read of the same URL within TTL is served from disk → research/extract get near-instant on warm
+// sources. On by default with a conservative TTL; disable with UNBROWSE_RESEARCH_CACHE=0.
+const CACHE_ON = process.env.UNBROWSE_RESEARCH_CACHE !== "0";
+const CACHE_TTL_MS = Number(process.env.UNBROWSE_RESEARCH_CACHE_TTL_MS ?? 900_000) || 900_000;
+const CACHE_MAX = Number(process.env.UNBROWSE_RESEARCH_CACHE_MAX ?? 500) || 500;
+function cacheDir(): string {
+  const base = process.env.UNBROWSE_RESEARCH_CACHE_DIR || join(homedir() || tmpdir(), ".cache", "unbrowse", "research");
+  try { mkdirSync(base, { recursive: true }); } catch { /* best-effort */ }
+  return base;
+}
+function cachePath(url: string): string {
+  return join(cacheDir(), createHash("sha256").update(url).digest("hex").slice(0, 32) + ".json");
+}
+function cacheRead(url: string): ExtractedDoc | null {
+  if (!CACHE_ON) return null;
+  try {
+    const p = cachePath(url);
+    if (Date.now() - statSync(p).mtimeMs > CACHE_TTL_MS) return null; // stale
+    const doc = JSON.parse(readFileSync(p, "utf8")) as ExtractedDoc;
+    return doc && doc.ok ? { ...doc, cached: true } : null;
+  } catch { return null; }
+}
+function cacheWrite(url: string, doc: ExtractedDoc): void {
+  if (!CACHE_ON || !doc.ok) return;
+  try {
+    writeFileSync(cachePath(url), JSON.stringify({ ...doc, cached: false }));
+    sweepCache(cacheDir(), CACHE_MAX); // bound the store: a cache without eviction is an unbounded hole
+  } catch { /* best-effort */ }
+}
+
+/** Evict oldest entries so the read-cache never grows past `maxEntries` (newest kept).
+ *  Exported so the boundary is witnessable. No-op when under cap. */
+export function sweepCache(dir: string, maxEntries: number): number {
+  try {
+    const files = readdirSync(dir).filter((f) => f.endsWith(".json"));
+    if (files.length <= maxEntries) return 0;
+    const withMtime = files.map((f) => {
+      const p = join(dir, f);
+      try { return { p, m: statSync(p).mtimeMs }; } catch { return { p, m: 0 }; }
+    });
+    withMtime.sort((a, b) => a.m - b.m); // oldest first
+    const evict = withMtime.slice(0, withMtime.length - maxEntries);
+    for (const e of evict) { try { unlinkSync(e.p); } catch { /* race ok */ } }
+    return evict.length;
+  } catch { return 0; }
+}
+
+export interface ResearchCitation {
+  url: string;
+  title: string;
+  /** The query-focused excerpt from THIS source that supports the answer. */
+  quote: string;
+}
+
+export interface ResearchResult {
+  url: string;
+  title: string;
+  /** The fetched page content (query-focused markdown excerpt). Tavily.results[].content parity. */
+  content: string;
+  score: number;
+}
+
+export interface ResearchAnswer {
+  query: string;
+  /** Synthesized cited answer, built ONLY from fetched sources. Empty string if nothing fetched. */
+  answer: string;
+  citations: ResearchCitation[];
+  results: ResearchResult[];
+  /** When the answer is empty, WHY — so an empty result is never a silent failure
+   *  (distinguishes empty query / rate-limited search / no results / unreadable sources). */
+  note?: string;
+}
+
+export interface ResearchOptions {
+  /** How many SERP hits to consider (and fetch top-k of). Default 5. */
+  numResults?: number;
+  /** Per-source focused-excerpt budget in chars. Default 1200. */
+  perSourceBudget?: number;
+  /** Override the SERP resolver (injection seam for tests / alternate engines). */
+  searchImpl?: (query: string, numResults: number) => Promise<DdgHit[]>;
+  /** Override the ground/synthesis step (the answer is a value resolved from the source-holes —
+   *  by extraction by default, or a model when configured). Receives ONLY fetched sources, so a
+   *  model synth stays grounded (no fabrication). Returns "" to fall back to extractive. */
+  synthImpl?: (sources: { url: string; title: string; content: string }[], query: string) => Promise<string> | string;
+}
+
+type DdgHit = Awaited<ReturnType<typeof ddgSearch>>[number];
+
+/** Try the primary SERP; if it returns empty or throws (e.g. rate-limited), fall through to the
+ *  secondary (e.g. the same search via a residential proxy). The resilience seam that keeps a
+ *  throttled direct IP from zeroing research. Exported so the fallback control flow is witnessable. */
+export async function searchWithFallback(
+  primary: () => Promise<DdgHit[]>,
+  secondary: () => Promise<DdgHit[]>,
+): Promise<DdgHit[]> {
+  try { const r = await primary(); if (r.length) return r; } catch { /* fall through */ }
+  try { return await secondary(); } catch { return []; }
+}
+
+/** A fetch that egresses through UNBROWSE_WEB_PROXY (bun's `proxy` option) — the clean-IP rung
+ *  for a throttled DDG. Returns the plain fetch when no proxy is configured (fallback = no-op). */
+function proxiedFetch(): typeof fetch {
+  const proxy = process.env.UNBROWSE_WEB_PROXY;
+  if (!proxy) return fetch;
+  return ((url: string, init?: RequestInit) => fetch(url, { ...(init ?? {}), proxy } as RequestInit & { proxy: string })) as typeof fetch;
+}
+
+/** Resilient SERP: ddgSearch direct, falling back to a proxied egress on empty/throttle. */
+async function resolveSerp(query: string, numResults: number): Promise<DdgHit[]> {
+  return searchWithFallback(
+    () => ddgSearch(query, numResults),
+    () => (process.env.UNBROWSE_WEB_PROXY ? ddgSearch(query, numResults, proxiedFetch()) : Promise.resolve([])),
+  );
+}
+
+/**
+ * modelSynth — OPTIONAL grounded model synthesis (the quality lever for overview-only sources
+ * extraction can't phrase). Active ONLY when a key is configured (UNBROWSE_RESEARCH_LLM_KEY or
+ * OPENROUTER_API_KEY); otherwise returns "" → the extractive floor stands. The model is given
+ * ONLY the fetched sources and told to answer strictly from them (no fabrication). Best-effort:
+ * any error returns "" and the caller keeps the extractive answer.
+ */
+async function modelSynth(sources: { url: string; title: string; content: string }[], query: string): Promise<string> {
+  const key = process.env.UNBROWSE_RESEARCH_LLM_KEY || process.env.OPENROUTER_API_KEY;
+  if (!key || !sources.length) return ""; // off by default -> extractive floor
+  const base = process.env.UNBROWSE_RESEARCH_LLM_BASE || "https://openrouter.ai/api/v1";
+  const model = process.env.UNBROWSE_RESEARCH_LLM_MODEL || "openai/gpt-4o-mini";
+  const ctx = sources.slice(0, 6).map((s, i) => `[${i + 1}] ${s.title}\n${(s.content || "").slice(0, 1500)}`).join("\n\n");
+  const sys = "Answer the question using ONLY the numbered sources. Quote facts faithfully; do not invent. If the sources do not contain the answer, say exactly: not found in sources.";
+  const res = await fetch(`${base}/chat/completions`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model, temperature: 0, max_tokens: 300, messages: [
+      { role: "system", content: sys },
+      { role: "user", content: `Question: ${query}\n\nSources:\n${ctx}` },
+    ] }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) return "";
+  const j = await res.json() as { choices?: { message?: { content?: string } }[] };
+  const txt = (j.choices?.[0]?.message?.content || "").trim();
+  return /^not found in sources/i.test(txt) ? "" : txt; // honest: abstain -> extractive fallback
+}
+
+/**
+ * isGrounded — faithfulness guard (the two-witness principle applied to synthesis): an emitted
+ * answer must be corroborated by the fetched sources. Returns true iff most of the answer's
+ * content terms actually appear in the source text. Guards ANY synthImpl (model or custom)
+ * against drift/fabrication beyond what was read — the no-fabrication invariant, enforced.
+ */
+export function isGrounded(answer: string, sources: { content: string }[], minOverlap = 0.6): boolean {
+  const ans = answer.trim();
+  if (!ans) return false;
+  const terms = [...new Set(ans.toLowerCase().match(/[a-z][a-z0-9]{3,}/g) ?? [])]
+    .filter((t) => !STOPWORDS.has(t));
+  if (!terms.length) return true; // numbers/punctuation only -> nothing to fabricate
+  const hay = sources.map((s) => s.content || "").join(" ").toLowerCase();
+  const present = terms.filter((t) => hay.includes(t)).length;
+  return present / terms.length >= minOverlap;
+}
+
+const STOPWORDS = new Set(
+  ("the and for that with this from were was are has have had its their they them then than what when " +
+   "which who whom whose into onto over under about above below been being also some such only very more most " +
+   "other these those will would shall should could there here your you our out off per via etc inc").split(/\s+/),
+);
+
+/**
+ * doResearch — search -> extract -> synthesized cited answer, natively.
+ * Honest-empty: if no source fetches, answer="" and citations=[] (never fabricated).
+ */
+export async function doResearch(query: string, opts: ResearchOptions = {}): Promise<ResearchAnswer> {
+  const q = (query ?? "").trim();
+  const numResults = opts.numResults ?? 5;
+  const budget = opts.perSourceBudget ?? 1200;
+  const emptyWith = (note: string): ResearchAnswer => ({ query: q, answer: "", citations: [], results: [], note });
+  if (!q) return emptyWith("empty query");
+
+  // 1. SEARCH — resolve ranked URL pointers (DDG direct -> proxied fallback on throttle). One
+  //    retry with backoff absorbs transient rate-limiting; a persistent empty is surfaced.
+  const search = opts.searchImpl ?? resolveSerp;
+  let hits: DdgHit[] = [];
+  let serpError = false;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      hits = await search(q, numResults);
+      if (hits.length) break;
+    } catch {
+      serpError = true;
+    }
+    if (attempt === 0 && !hits.length) await new Promise((r) => setTimeout(r, 600));
+  }
+  if (!hits.length) {
+    return emptyWith(serpError ? "search unavailable (possibly rate-limited)" : "no search results (search may be rate-limited)");
+  }
+
+  // 2. READ — the SAME read step `extract` exposes (readSource), per pointer, concurrently;
+  //    then focus each source's value to the intent. One read path, not two.
+  const fetched = await mapLimit(hits.slice(0, numResults), FETCH_CONCURRENCY, async (h) => {
+    const doc = await readSource(h.url); // shared with doExtract
+    if (!doc) return null; // a single source failing must not sink the research.
+    const focused = focusMarkdownToIntent(doc.raw_content, q, budget);
+    if (!focused.trim()) return null;
+    return { url: doc.url, title: doc.title || h.title || h.url, focused, score: h.score };
+  });
+  const sources = fetched.filter((x): x is NonNullable<typeof x> => x !== null);
+  if (!sources.length) return emptyWith("no readable sources fetched");
+
+  // 3. SYNTHESIZE — extractive cited answer: the leading focused excerpts from the
+  //    highest-scoring sources, each attributed. (A model-backed synthesis is a later
+  //    lever; extractive keeps this native + dependency-free and never fabricates.)
+  // Only sources whose focused excerpt yields a real prose quote become citations — an
+  // empty quote means the page was all nav/chrome, so it is not a usable source.
+  const cited = sources
+    .map((s) => ({ s, quote: bestSentences(s.focused, q, 2) }))
+    .filter((x) => x.quote.trim().length > 0);
+  if (!cited.length) return emptyWith("sources fetched but no quotable prose"); // every fetched page was chrome-only -> honest empty.
+
+  const citations: ResearchCitation[] = cited.map(({ s, quote }) => ({ url: s.url, title: s.title, quote }));
+  const results: ResearchResult[] = cited.map(({ s }) => ({
+    url: s.url,
+    title: s.title,
+    content: s.focused,
+    score: s.score,
+  }));
+  // 3. GROUND — the answer is a value resolved from the source-holes. Default = extractive
+  //    cross-source BM25+MMR synthesis (native, dep-free). A configured synthImpl (e.g. a model
+  //    given ONLY these sources) may override; any failure or empty falls back to extractive —
+  //    the native floor is never lost.
+  const extractive = synthesizeAnswer(cited.map((c) => c.s.focused), q, 3) || citations[0].quote;
+  const synth = opts.synthImpl ?? modelSynth;
+  let answer = extractive;
+  try {
+    const got = await synth(results, q);
+    // Faithfulness gate: accept a synth answer ONLY if it is grounded in the fetched sources;
+    // otherwise keep the (source-built, never-fabricated) extractive answer.
+    if (got && got.trim() && isGrounded(got, results)) answer = got.trim();
+  } catch { /* graceful: keep the extractive answer */ }
+
+  return { query: q, answer, citations, results };
+}
+
+/**
+ * doCrawl — Tavily `/crawl` parity, native = `map ∘ extract*` bounded: map the seed's
+ * pointers, keep same-domain links (politeness + relevance), and read each (cached). One hop,
+ * page-capped — never an unbounded walk. Reuses doMap + readSource; honest-empty on a dead seed.
+ */
+export async function doCrawl(seed: string, opts: { maxPages?: number } = {}): Promise<{ seed: string; pages: ExtractedDoc[] }> {
+  const s = (seed ?? "").trim();
+  const maxPages = Math.max(1, Math.min(opts.maxPages ?? 5, 20));
+  if (!s) return { seed: "", pages: [] };
+  let host = "";
+  try { host = new URL(s).host; } catch { return { seed: s, pages: [] }; }
+  const { links } = await doMap(s);
+  const sameDomain: string[] = [];
+  const seen = new Set<string>([s]);
+  for (const l of links) {
+    try {
+      if (new URL(l.url).host !== host) continue; // same-domain only (bounded, polite)
+    } catch { continue; }
+    if (seen.has(l.url)) continue;
+    seen.add(l.url);
+    sameDomain.push(l.url);
+    if (sameDomain.length >= maxPages) break;
+  }
+  const { results } = await doExtract([s, ...sameDomain]);
+  return { seed: s, pages: results.filter((r) => r.ok) };
+}
+
+export interface ExtractedDoc {
+  url: string;
+  title: string;
+  /** Clean prose (markdown/nav cruft stripped) — Tavily-style extracted content. */
+  content: string;
+  /** The full page markdown before prose-cleaning — Tavily.raw_content parity. */
+  raw_content: string;
+  ok: boolean;
+  /** True when this read was served from the warm read-cache (perf signal). */
+  cached?: boolean;
+}
+
+/**
+ * readSource — THE shared read step of the resolve→read→ground walk: resolve one URL hole to
+ * its value (clean content + raw markdown) via unbrowse's own document path. Returns null on
+ * failure (never throws, never fabricates). Both `extract` (exposes it) and `research`
+ * (consumes it per source) go through THIS one function — they are one read path, not two.
+ */
+export async function readSource(url: string): Promise<ExtractedDoc | null> {
+  const warm = cacheRead(url); // perf: warm read-cache hit -> skip the ~18s fetch
+  if (warm) return warm;
+  try {
+    const doc = await fetchDirectDocument(url);
+    if (!doc || !doc.markdown) return null;
+    const out: ExtractedDoc = { url: doc.url || url, title: doc.title || url, content: cleanProse(doc.markdown), raw_content: doc.markdown, ok: true, cached: false };
+    cacheWrite(url, out);
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+const FETCH_CONCURRENCY = Math.max(1, Number(process.env.UNBROWSE_RESEARCH_CONCURRENCY ?? 5) || 5);
+
+/** Concurrency-bounded map: run `fn` over `items` with at most `limit` in flight — cast the net
+ *  in measure (politeness + anti-self-throttle) instead of a `Promise.all` flood. Order preserved.
+ *  Exported so the bound is witnessable. */
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length || 1) }, worker));
+  return out;
+}
+
+export interface MappedLink { url: string; text: string }
+
+/**
+ * doMap — Tavily `/map` parity, native: resolve a URL hole to its POINTERS (the outgoing
+ * absolute links on the page), via the same cached `readSource`. The pointers face of the
+ * read (extract = the value face). Honest-empty on a failed/linkless page.
+ */
+export async function doMap(url: string): Promise<{ url: string; links: MappedLink[] }> {
+  const u = (url ?? "").trim();
+  if (!u) return { url: "", links: [] };
+  const doc = await readSource(u);
+  if (!doc) return { url: u, links: [] };
+  const links: MappedLink[] = [];
+  const seen = new Set<string>();
+  const re = /\[([^\]]*)\]\(([^)\s]+)\)/g; // any href; relative links resolved against the page URL
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(doc.raw_content)) !== null) {
+    const raw = m[2];
+    if (/^(#|mailto:|javascript:|tel:|data:)/i.test(raw)) continue; // anchors/non-navigational
+    let abs: string;
+    try { abs = new URL(raw, doc.url).toString(); } catch { continue; }
+    if (!/^https?:\/\//i.test(abs)) continue;
+    if (seen.has(abs)) continue;
+    seen.add(abs);
+    links.push({ url: abs, text: m[1].replace(/\s+/g, " ").trim() });
+  }
+  return { url: doc.url, links };
+}
+
+/**
+ * doExtract — Tavily `/extract` parity = `readSource` exposed in batch. A URL that fails comes
+ * back `ok:false` with empty content (honest, never fabricated).
+ */
+export async function doExtract(urls: string[]): Promise<{ results: ExtractedDoc[] }> {
+  const list = (urls ?? []).map((u) => (u ?? "").trim()).filter(Boolean);
+  if (!list.length) return { results: [] };
+  const results = await mapLimit(list, FETCH_CONCURRENCY, async (url): Promise<ExtractedDoc> =>
+    (await readSource(url)) ?? { url, title: "", content: "", raw_content: "", ok: false },
+  );
+  return { results };
+}
+
+/** Cross-source synthesis: pool prose sentences from all sources, rank by query-term
+ *  relevance over the whole set, dedup near-duplicates, return the best N joined. Only
+ *  sentences that actually mention a query term qualify (so titles/chrome with 0 hits are
+ *  excluded), keeping the answer fact-bearing and grounded in the fetched text. */
+function synthesizeAnswer(focusedTexts: string[], query: string, n: number): string {
+  const terms = [...new Set((query.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []))];
+  if (!terms.length) return "";
+  const pool: string[] = [];
+  for (const text of focusedTexts) {
+    const sents = cleanProse(text).match(/[^.!?]+[.!?]+|\S[^.!?]*$/g)?.map((s) => s.trim()).filter(Boolean) ?? [];
+    pool.push(...sents);
+  }
+  return rankSentencesMMR(pool, terms, n).join(" ").trim();
+}
+
+/** Tokenize to lowercase word terms (>=3 chars), the unit BM25/MMR score over. */
+function termsOf(s: string): string[] {
+  return (s.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []);
+}
+
+/**
+ * Select the N maximally-relevant, minimally-redundant sentences — Okapi BM25 relevance
+ * (TF-saturation k1 + length-norm b + idf over the pool) × MMR diversity (Carbonell &
+ * Goldstein 1998: greedily pick argmax λ·rel − (1−λ)·maxSimToPicked). This is the two-witness
+ * ground: corroborating-but-distinct evidence beats one fact repeated. Deterministic, native.
+ */
+export function rankSentencesMMR(
+  sentences: string[],
+  queryTerms: string[],
+  n: number,
+  opts: { k1?: number; b?: number; lambda?: number } = {},
+): string[] {
+  const k1 = opts.k1 ?? 1.5, b = opts.b ?? 0.75, lambda = opts.lambda ?? 0.7;
+  const qset = new Set(queryTerms);
+  const docs = sentences.map((s) => ({ s, t: termsOf(s) }));
+  const cand = docs.filter((d) => d.t.some((t) => qset.has(t))); // must touch the query
+  if (!cand.length) return [];
+  const avglen = cand.reduce((a, d) => a + d.t.length, 0) / cand.length;
+  // idf over the candidate pool (rarer query term in the pool => more discriminating).
+  const df: Record<string, number> = {};
+  for (const t of qset) df[t] = cand.filter((d) => d.t.includes(t)).length;
+  const N = cand.length;
+  const idf = (t: string) => Math.log(1 + (N - (df[t] || 0) + 0.5) / ((df[t] || 0) + 0.5));
+  const bm25 = (d: { t: string[] }) => {
+    let sc = 0;
+    for (const t of qset) {
+      const tf = d.t.filter((x) => x === t).length;
+      if (!tf) continue;
+      sc += idf(t) * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (d.t.length / (avglen || 1))));
+    }
+    return sc;
+  };
+  const sim = (a: string[], bb: string[]) => {
+    const A = new Set(a), B = new Set(bb);
+    let inter = 0;
+    for (const x of A) if (B.has(x)) inter++;
+    const uni = A.size + B.size - inter;
+    return uni ? inter / uni : 0; // Jaccard
+  };
+  const scored = cand.map((d) => ({ ...d, rel: bm25(d) })).filter((d) => d.rel > 0);
+  const picked: typeof scored = [];
+  const pickedKeys = new Set<string>();
+  while (picked.length < n && scored.length) {
+    let best = -1, bestI = -1;
+    for (let i = 0; i < scored.length; i++) {
+      const d = scored[i];
+      const key = d.s.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 60);
+      if (pickedKeys.has(key)) continue; // exact-ish dup guard
+      const maxSim = picked.reduce((m, p) => Math.max(m, sim(d.t, p.t)), 0);
+      const mmr = lambda * d.rel - (1 - lambda) * maxSim * (picked.length ? Math.max(...picked.map((p) => p.rel)) : 1);
+      if (mmr > best) { best = mmr; bestI = i; }
+    }
+    if (bestI < 0) break;
+    const chosen = scored.splice(bestI, 1)[0];
+    pickedKeys.add(chosen.s.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 60));
+    picked.push(chosen);
+  }
+  return picked.map((p) => p.s);
+}
+
+/** The N most query-relevant prose sentences of a focused excerpt — the quotable kernel
+ *  for a citation. Cleans markdown/nav cruft, then ranks sentences by how many query terms
+ *  they contain (so the quote carries the FACT, not the page title), restored to reading order. */
+function bestSentences(text: string, query: string, n: number): string {
+  const prose = cleanProse(text);
+  const sents = prose.match(/[^.!?]+[.!?]+|\S[^.!?]*$/g)?.map((s) => s.trim()).filter(Boolean) ?? [];
+  if (sents.length <= n) return sents.join(" ").trim();
+  const terms = [...new Set((query.toLowerCase().match(/[a-z][a-z0-9]{2,}/g) ?? []))];
+  // ONE scoring core: a citation's quote is ranked by the SAME BM25+MMR as the answer
+  // (not a second naive ranker). Restore reading order for a readable quote.
+  const picked = rankSentencesMMR(sents, terms, n);
+  if (!picked.length) return sents.slice(0, n).join(" ").trim(); // no query-term match -> lead sentences
+  const order = new Map(sents.map((s, i) => [s, i]));
+  return picked.slice().sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0)).join(" ").trim();
+}
+
+/** Turn focused markdown into plain prose: unwrap [label](url) -> label, drop heading
+ *  markers, and keep only lines that read like prose (enough letters, not link-dense). */
+export function cleanProse(md: string): string {
+  const kept: string[] = [];
+  for (const raw of md.split(/\n+/)) {
+    // Nav-detection FIRST, on the RAW line: menus/sidebars are link-dense or list-of-links.
+    // A line with >=2 link/image markers, or a list item that is mostly a single link, is
+    // chrome — drop it whole rather than try to salvage prose from it.
+    // Nav bullets ("- [Link](..)") are pure chrome; drop them whole. Link-dense prose
+    // (e.g. Wikipedia body) is kept — bestSentences() will pick the fact-bearing lines.
+    if (/^\s*[-*]\s*\[/.test(raw)) continue;
+
+    let line = raw.replace(/!\[[^\]]*\]\([^)]*\)/g, " "); // images
+    line = line.replace(/\[\\?\[?\d+\\?\]?\]?\([^)]*\)/g, " "); // footnote refs [[7]](#cite..)
+    line = line.replace(/\[\d+\]/g, " "); // bare [7] ref leftovers
+    const linkCount = (line.match(/\]\([^)]*\)/g) ?? []).length;
+    line = line.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1"); // [label](url) -> label
+    line = line.replace(/\[\s*\]\([^)]*\)/g, " "); // empty-label links [](url)
+    line = line.replace(/\]\([^\s)]*\)?/g, " "); // orphan "](url" from a budget-truncated link
+    line = line.replace(/https?:\/\/\S+/g, " "); // bare/cruft URLs
+    line = line.replace(/\S*#ref\d+\)?/g, " "); // truncated url-anchor fragments (#ref41179))
+    line = line.replace(/\s+\)/g, " "); // orphan close-paren left by a stripped link
+    line = line.replace(/^#{1,6}\s*/, "").replace(/[*_`>|]+/g, " ").replace(/\s+/g, " ").trim();
+    if (!line) continue;
+    const letters = (line.match(/[a-zA-Z]/g) ?? []).length;
+    if (letters < 20) continue; // letter-poor fragment
+    if (linkCount >= 3 && letters < line.length * 0.5) continue; // link-dense nav residue
+    kept.push(line);
+  }
+  return kept.join(" ").replace(/\s+/g, " ").trim();
+}

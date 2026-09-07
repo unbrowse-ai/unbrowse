@@ -1,0 +1,19 @@
+[project]
+name = "unbrowse-crewai"
+version = "0.1.0"
+description = "Native Unbrowse tools for CrewAI — resolve an intent + URL to a ranked API shortlist, execute an endpoint, or search."
+requires-python = ">=3.8"
+license = { text = "MIT" }
+readme = "README.md"
+
+[project.urls]
+Homepage = "https://unbrowse.ai/vs/crewai"
+Repository = "https://github.com/unbrowse-ai/unbrowse"
+Issues = "https://github.com/unbrowse-ai/unbrowse/issues"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

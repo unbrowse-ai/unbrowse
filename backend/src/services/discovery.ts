@@ -1,0 +1,975 @@
+import type { Env, EndpointDescriptor } from "../types.js";
+import { computeCompositeSearchScore, computeDomainAffinityBoost } from "./scoring.js";
+import { EMERGENTDB_BASE, emergentDBRequest } from "./emergentdb.js";
+import { generateDescriptions } from "./descriptions.js";
+import { skillsKV } from "./kv.js";
+import { isMarketplaceDomainSuppressed } from "./domain-suppression.js";
+import { webSearchWithProvider, type WebResult, type WebSearchOutcome } from "./web-search/index.js";
+import { energyScore } from "./energy.js";
+import { settleOrEscalate, type SettleCandidate } from "./settle.js";
+
+const SEARCH_CACHE_TTL = 300; // 5 minutes
+const CACHE_READ_TIMEOUT = 2_000; // max ms to wait for cache before skipping
+const CACHE_WRITE_TIMEOUT = 2_000;
+
+/** Normalize domain: strip www., use stg- prefix for staging. */
+function normalizeDomain(env: Env, domain: string): string {
+  const clean = domain.replace(/^www\./, "");
+  // v2: fresh graph namespace — old stale embeddings remain in unprefixed collections
+  return env.ENVIRONMENT === "staging" ? `stg2-${clean}` : `v2-${clean}`;
+}
+
+type SearchResult = Array<{ id: number; score: number; metadata: Record<string, unknown> }>;
+
+/**
+ * Settlement confidence signal — an ENGAGED field on the resolve response.
+ *
+ * The flat RRF/composite ranking is an ORDERER: it always returns its top-k,
+ * even when nothing actually covers the intent (settle.ts's complaint). This
+ * carrier runs energy.ts + settle.ts over the shortlist, RE-ORDERS the shortlist
+ * by energy (lowest energy first), and surfaces the two-witness quorum verdict.
+ * No result is dropped — the caller still gets the full shortlist — but the order
+ * is now energy-decided and a low-quorum resolve is FLAGGED with an ACTIONABLE
+ * `recommended_action` so the agent knows to fall back to browse rather than
+ * trusting a least-bad top hit as if it were confident.
+ */
+export interface ResolveConfidence {
+  /** True iff the lowest-energy candidate cleared the two-witness quorum + coverage. */
+  settled: boolean;
+  /** True iff the caller should treat the shortlist as low-confidence / fall back. */
+  escalate: boolean;
+  /** Why: "settled" | "empty" | "no_quorum" | "below_coverage". */
+  reason: string;
+  /** Id of the candidate that settled (when settled); null on escalation. */
+  settled_id?: string | number | null;
+  /**
+   * The action the agent should take given the verdict. "use_top" when settled
+   * (trust the energy-ordered top hit); "browse" when escalated (no quorum / no
+   * coverage — drive a fresh browse instead of trusting the shortlist).
+   */
+  recommended_action: "use_top" | "browse";
+  /** Human-readable low-confidence marker; present only on escalation. */
+  note?: string;
+}
+
+export interface ResolvedSearchResult {
+  domain_results: SearchResult;
+  global_results: SearchResult;
+  skipped_global: boolean;
+  exa_results?: WebResult[]; // wire-compat field name; populated by the provider chain (services/web-search/)
+  /** Engine that actually produced exa_results ("exa" | "ddg") — honest provenance for the wire. */
+  web_search_provider?: string;
+  /** ENGAGED settlement signal (energy.ts + settle.ts). Re-orders the shortlist by
+   *  energy and carries an actionable recommended_action. Never removes results. */
+  confidence?: ResolveConfidence;
+}
+
+function resultDomain(result: { metadata: Record<string, unknown> }): string | null {
+  // Defensive: when EmergentDB returns metadata-less results, result.metadata
+  // is undefined. Guard so the suppression filter doesn't crash and zero out
+  // the entire result set. Contract 8b2f65ea.
+  const meta: Record<string, unknown> = (result.metadata && typeof result.metadata === "object") ? result.metadata : {};
+  const direct = meta.source_url;
+  if (typeof direct === "string" && direct) return direct;
+  const content = meta.content;
+  if (typeof content !== "string") return null;
+  try {
+    const parsed = JSON.parse(content) as { domain?: unknown };
+    return typeof parsed.domain === "string" ? parsed.domain : null;
+  } catch {
+    return null;
+  }
+}
+
+function filterSuppressedSearchResults(env: Env, results: SearchResult): SearchResult {
+  return results.filter((result) => !isMarketplaceDomainSuppressed(env, resultDomain(result)));
+}
+
+function filterSuppressedResolvedSearchResults(env: Env, results: ResolvedSearchResult): ResolvedSearchResult {
+  return {
+    ...results,
+    domain_results: filterSuppressedSearchResults(env, results.domain_results),
+    global_results: filterSuppressedSearchResults(env, results.global_results),
+  };
+}
+
+// In-memory search cache — survives within a single Worker isolate lifetime.
+const _memCache = new Map<string, { value: string; expires: number }>();
+
+/** Test-only: clear the in-memory search cache so a test exercises a fresh BM25
+ * read rather than serving a stale hit from a prior test (cache-pollution). */
+export function __resetSearchCacheForTests(): void {
+  _memCache.clear();
+}
+
+// Search-cache epoch. Bumped on any index DELETE so every cached search result (both
+// _memCache and the QDKV search-cache:* keys) is invalidated at once — without it a
+// deleted, deprecated, or taken-down skill keeps being served from cache for up to
+// SEARCH_CACHE_TTL (~5 min). The epoch rides in the cache key, so old-epoch entries are
+// simply never read again and TTL-expire — no per-skill enumeration needed.
+let _searchCacheEpoch = 0;
+/** Invalidate ALL cached search results — call after any index mutation that removes
+ * docs, so /v1/search never serves a skill that no longer exists. */
+export function invalidateSearchCache(): void {
+  _searchCacheEpoch++;
+  _memCache.clear();
+}
+
+function searchCacheKey(intent: string, k: number, domain?: string): string {
+  const base = `e${_searchCacheEpoch}:${intent.toLowerCase().trim()}:${k}`;
+  return domain ? `${base}:${domain}` : base;
+}
+
+function searchResolveCacheKey(intent: string, domain: string | undefined, domainK: number, globalK: number): string {
+  return `resolve:e${_searchCacheEpoch}:${intent.toLowerCase().trim()}:${domain ?? "global"}:${domainK}:${globalK}`;
+}
+
+export function extractSkillId(metadata: Record<string, unknown>): string | null {
+  const direct = metadata.skill_id;
+  if (typeof direct === "string" && direct) return direct;
+  const content = metadata.content;
+  if (typeof content !== "string") return null;
+  try {
+    const parsed = JSON.parse(content) as { skill_id?: unknown };
+    return typeof parsed.skill_id === "string" ? parsed.skill_id : null;
+  } catch {
+    return null;
+  }
+}
+
+function uniqueSkillCount(results: SearchResult): number {
+  return new Set(results.map((result) => result.metadata ? extractSkillId(result.metadata) : null).filter((value): value is string => !!value)).size;
+}
+
+export function shouldSkipGlobalSearch(domainResults: SearchResult, requestedDomain?: string | null): boolean {
+  if (!requestedDomain || domainResults.length === 0) return false;
+  const topScore = domainResults[0]?.score ?? 0;
+  const skillCount = uniqueSkillCount(domainResults);
+  return skillCount >= 2 || topScore >= 0.84;
+}
+
+/** Direct qdkv/get with timeout — bypasses the heavy EdbKV index load. */
+async function cacheGet(env: Env, key: string): Promise<string | null> {
+  const fullKey = `search-cache:${key}`;
+
+  // Check in-memory first (free, no HTTP)
+  const mem = _memCache.get(fullKey);
+  if (mem && Date.now() < mem.expires) return mem.value;
+  if (mem) _memCache.delete(fullKey);
+
+  // Direct qdkv/get with a hard timeout — never block search for cache
+  try {
+    const res = await Promise.race([
+      fetch(`${EMERGENTDB_BASE}/qdkv/get/${encodeURIComponent(fullKey)}`, {
+        headers: { Authorization: `Bearer ${env.EMERGENTDB_API_KEY}`, "Content-Type": "application/json" },
+      }),
+      new Promise<Response>((_, reject) => setTimeout(() => reject(new Error("cache timeout")), CACHE_READ_TIMEOUT)),
+    ]);
+    if (!res.ok) return null;
+    const data = await res.json() as { value?: string | null; found?: boolean };
+    if (!data.found || !data.value) return null;
+    _memCache.set(fullKey, { value: data.value, expires: Date.now() + SEARCH_CACHE_TTL * 1000 });
+    return data.value;
+  } catch {
+    return null;
+  }
+}
+
+/** Fire-and-forget cache write — never blocks the response. */
+function cachePut(env: Env, key: string, value: string): void {
+  const fullKey = `search-cache:${key}`;
+  _memCache.set(fullKey, { value, expires: Date.now() + SEARCH_CACHE_TTL * 1000 });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CACHE_WRITE_TIMEOUT);
+  fetch(`${EMERGENTDB_BASE}/qdkv/set`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.EMERGENTDB_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ key: fullKey, value, ttlMs: SEARCH_CACHE_TTL * 1000 }),
+    signal: controller.signal,
+  }).catch(() => {}).finally(() => clearTimeout(timer));
+}
+
+async function edbRequest(
+  env: Env,
+  method: "GET" | "POST",
+  path: string,
+  body?: unknown
+): Promise<unknown> {
+  return emergentDBRequest(env, method, path, body);
+}
+
+/** Graph API search — auto-embeds the query server-side. */
+async function graphSearch(
+  env: Env,
+  domain: string,
+  query: string,
+  k: number,
+): Promise<SearchResult> {
+  const data = (await edbRequest(env, "POST", "/graph/search", {
+    domain: normalizeDomain(env, domain),
+    query,
+    k,
+    include_metadata: true,
+  })) as { results?: SearchResult };
+  return data.results ?? [];
+}
+
+// The global BM25 index is SHARDED across GLOBAL_SHARD_COUNT keys by hash(skillId).
+// A single `bm25-idx:<global>` key hit CF's 25MB value cap at ~7.4k skills (~37k docs)
+// and its read-modify-write was a concurrent-write data-loss hazard. Sharding gives
+// N× capacity and 1/N-sized writes. All docs from one publish share a skillId, so they
+// land in ONE shard — exactly one read-modify-write per publish, of ~1/Nth the data.
+const GLOBAL_SHARD_COUNT = 16;
+function globalShardKey(env: Env, shard: number): string {
+  return `bm25-idx:${normalizeDomain(env, "global")}:s${shard.toString(16)}`;
+}
+function shardForId(id: string): number {
+  return hashToInt(id) % GLOBAL_SHARD_COUNT;
+}
+/** All global BM25 READ keys: every shard PLUS the legacy single key. Back-compat:
+ * pre-shard data still lives in `bm25-idx:<global>` and must stay searchable until it
+ * naturally drains, so search unions the shards with the legacy key. */
+function globalReadKeys(env: Env): string[] {
+  const g = normalizeDomain(env, "global");
+  // Shards FIRST, legacy LAST. bm25SearchGlobal dedups by first-seen id, so a skill
+  // re-published post-shard (now in a shard) must shadow its STALE copy still sitting in
+  // the legacy key — reading shards first keeps the fresh shard version, not the old one.
+  return [...Array.from({ length: GLOBAL_SHARD_COUNT }, (_, i) => globalShardKey(env, i)), `bm25-idx:${g}`];
+}
+
+/** Search the global BM25 index across all shards + the legacy key, dedup by id, score. */
+async function bm25SearchGlobal(env: Env, query: string, k: number): Promise<SearchResult> {
+  const raws = await Promise.all(globalReadKeys(env).map((key) => (skillsKV(env).get(key) as Promise<string | null>).catch(() => null)));
+  const docs: Bm25Doc[] = [];
+  const seen = new Set<string>();
+  for (const raw of raws) {
+    if (!raw) continue;
+    try {
+      for (const d of JSON.parse(raw) as Bm25Doc[]) {
+        if (!seen.has(d.id)) { seen.add(d.id); docs.push(d); }
+      }
+    } catch { /* skip a corrupt shard — the others still serve */ }
+  }
+  return bm25Score(docs, query, k);
+}
+
+/** Index endpoints via Graph API batch_insert — auto-embeds server-side. */
+export async function indexEndpoints(
+  env: Env,
+  skillId: string,
+  endpoints: Array<{ endpoint_id: string; description?: string; method: string; url_template: string }>,
+  meta: Record<string, unknown>
+): Promise<number> {
+  const domain = normalizeDomain(env, String(meta.domain ?? "global"));
+  const toIndex = endpoints.filter((ep) => ep.description);
+  if (toIndex.length === 0) {
+    // VISIBLE, never silent (Decalogue 9 / fallbacks-visible): a skill published with
+    // endpoints but NONE carrying a description contributes ZERO docs to /v1/search — so
+    // the caller must NOT record "ok". A silent early-return here is exactly why an empty
+    // /v1/search index gives no diagnostic. Return 0 so the caller logs the honest status.
+    console.warn(`[indexEndpoints] skill=${skillId} domain=${domain}: ${endpoints.length} endpoint(s), 0 with descriptions — indexed NOTHING (invisible to /v1/search until descriptions exist)`);
+    return 0;
+  }
+  if (toIndex.length < endpoints.length) {
+    console.warn(`[indexEndpoints] skill=${skillId} domain=${domain}: indexing ${toIndex.length}/${endpoints.length} endpoint(s); ${endpoints.length - toIndex.length} dropped (no description)`);
+  }
+
+  const items = toIndex.map((ep) => {
+    let path: string;
+    try { path = new URL(ep.url_template).pathname; } catch { path = ep.url_template.slice(0, 60); }
+    return {
+      id: `${skillId}:${ep.endpoint_id}`,
+      text: `${ep.description} [${ep.method} ${path}]`,
+      metadata: {
+        title: ep.description ?? "",
+        // SLIM projection: index docs carry ONLY the derived fields the search/resolve
+        // read-path consumes (audited) — NOT the full `meta` blob (which can inline captured
+        // samples/schemas and blow the qdkv value cap). Raw content is never indexed.
+        content: JSON.stringify({
+          skill_id: skillId,
+          endpoint_id: ep.endpoint_id,
+          name: meta.name,
+          domain: meta.domain,
+          subdomain: meta.subdomain,
+          avg_reliability: meta.avg_reliability,
+          verified_ratio: meta.verified_ratio,
+          updated_at: meta.updated_at,
+        }),
+        tags: [meta.domain, meta.subdomain].filter(Boolean),
+        source_url: String(meta.domain ?? ""),
+      },
+    };
+  });
+
+  // Store BM25 docs in KV for lexical search. AWAITED (was fire-and-forget): KV is the
+  // reliable lexical index that carries /v1/search when the EmergentDB graph is degraded.
+  const bm25Docs = items.map((item) => ({ id: item.id, text: item.text, metadata: item.metadata }));
+  type Bm25Doc = (typeof bm25Docs)[number];
+  await skillsKV(env).put(`bm25-idx:${domain}`, JSON.stringify(bm25Docs));
+
+  // Merge into the GLOBAL index so global /v1/search finds this skill. SHARDED by
+  // hash(skillId) — all of this publish's docs share the skillId, so they land in ONE
+  // shard: a single read-modify-write of ~1/Nth the global data (was the whole 25MB-bound
+  // key). Dedup by id so a re-publish ACCUMULATES into its shard rather than overwriting.
+  const shardKey = globalShardKey(env, shardForId(skillId));
+  const existingShard = await (skillsKV(env).get(shardKey) as Promise<string | null>)
+    .then((raw) => (raw ? (JSON.parse(raw) as Bm25Doc[]) : []))
+    .catch(() => [] as Bm25Doc[]);
+  const merged = new Map<string, Bm25Doc>();
+  for (const doc of existingShard) merged.set(doc.id, doc);
+  for (const doc of bm25Docs) merged.set(doc.id, doc);
+  await skillsKV(env).put(shardKey, JSON.stringify(Array.from(merged.values())));
+
+  // Graph insert is now BEST-EFFORT enrichment (degraded substrate; KV above is authoritative).
+  await Promise.all([
+    edbRequest(env, "POST", "/graph/batch_insert", { domain, items }),
+    edbRequest(env, "POST", "/graph/batch_insert", {
+      domain: normalizeDomain(env, "global"),
+      items,
+    }),
+  ]);
+  return toIndex.length;
+}
+
+
+const RRF_K = 60;
+
+export type Bm25Doc = { id: string; text: string; metadata: Record<string, unknown> };
+
+export function tokenize(text: string): string[] {
+  return text.toLowerCase().match(/\w+/g) ?? [];
+}
+
+/** In-process BM25 search over docs loaded from KV. k1=1.5, b=0.75. */
+/** In-process BM25 search over docs loaded from KV. k1=1.5, b=0.75. */
+export function bm25Score(docs: Bm25Doc[], query: string, k: number): SearchResult {
+  if (docs.length === 0) return [];
+  const qTerms = tokenize(query);
+  if (qTerms.length === 0) return [];
+
+  const k1 = 1.5, b = 0.75;
+  const N = docs.length;
+
+  // Tokenize all docs once
+  const tokenized = docs.map((d) => tokenize(d.text));
+  const avgdl = tokenized.reduce((s, t) => s + t.length, 0) / N;
+
+  // IDF per query term
+  const idf = new Map<string, number>();
+  for (const term of qTerms) {
+    if (idf.has(term)) continue;
+    const df = tokenized.filter((t) => t.includes(term)).length;
+    idf.set(term, Math.log((N - df + 0.5) / (df + 0.5) + 1));
+  }
+
+  const scored = docs.map((doc, i) => {
+    const terms = tokenized[i];
+    const dl = terms.length;
+    let score = 0;
+    for (const term of qTerms) {
+      const tf = terms.filter((t) => t === term).length;
+      const idfVal = idf.get(term) ?? 0;
+      score += idfVal * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * dl / avgdl));
+    }
+    return { id: doc.id as unknown as number, score, metadata: doc.metadata };
+  });
+
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, k);
+}
+
+/** Load BM25 index from KV and score against query. Returns [] if no index. */
+async function bm25Search(env: Env, domain: string, query: string, k: number): Promise<SearchResult> {
+  try {
+    const raw = await skillsKV(env).get(`bm25-idx:${domain}`) as string | null;
+    if (!raw) return [];
+    const docs = JSON.parse(raw) as Bm25Doc[];
+    return bm25Score(docs, query, k);
+  } catch {
+    return [];
+  }
+}
+
+/** Reciprocal Rank Fusion over two result lists. */
+export function rrfFuse(listA: SearchResult, listB: SearchResult, k: number): SearchResult {
+  const scores = new Map<string, { score: number; metadata: Record<string, unknown> }>();
+  const addList = (list: SearchResult) => {
+    list.forEach((item, rank) => {
+      const key = String(item.id);
+      const prev = scores.get(key);
+      const add = 1 / (RRF_K + rank + 1);
+      scores.set(key, { score: (prev?.score ?? 0) + add, metadata: item.metadata });
+    });
+  };
+  addList(listA);
+  addList(listB);
+  return Array.from(scores.entries())
+    .sort((a, b) => b[1].score - a[1].score)
+    .slice(0, k)
+    .map(([id, { score, metadata }]) => ({ id: id as unknown as number, score, metadata }));
+}
+
+/** Extract metadata fields from a search result's `content` JSON. */
+function extractMeta(metadata: Record<string, unknown>): {
+  avg_reliability: number;
+  verified_ratio: number;
+  updated_at: string;
+} {
+  const defaults = { avg_reliability: 0.5, verified_ratio: 0, updated_at: new Date().toISOString() };
+  const content = metadata.content;
+  if (typeof content !== "string") return defaults;
+  try {
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+    return {
+      avg_reliability: typeof parsed.avg_reliability === "number" ? parsed.avg_reliability : defaults.avg_reliability,
+      verified_ratio: typeof parsed.verified_ratio === "number" ? parsed.verified_ratio : defaults.verified_ratio,
+      updated_at: typeof parsed.updated_at === "string" ? parsed.updated_at : defaults.updated_at,
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+/**
+ * Rescore search results using the composite formula from Section 3.3:
+ * 40% embedding similarity, 30% reliability, 15% freshness, 15% verification.
+ *
+ * Accepts the raw vector-similarity results and returns them re-sorted by
+ * composite score.  Results without parseable metadata fall back to
+ * conservative defaults (reliability=0.5, verified=0, freshness=now).
+ */
+export function rescoreWithComposite(
+  results: Array<{ id: number; score: number; metadata: Record<string, unknown> }>,
+  requestDomain?: string | null,
+): Array<{ id: number; score: number; metadata: Record<string, unknown> }> {
+  if (results.length === 0) return results;
+  return results
+    .map((r) => {
+      // Defensive: EmergentDB /graph/search returns metadata-less results
+      // ({id, score} only). Without this normalization, extractMeta and
+      // metadata.source_url crash with `Cannot read properties of undefined`,
+      // the route's try/catch swallows it, and /v1/search returns [].
+      // Contract 8b2f65ea — empty-search-after-reindex root cause.
+      const safeMeta: Record<string, unknown> = (r.metadata && typeof r.metadata === "object") ? r.metadata : {};
+      const meta = extractMeta(safeMeta);
+      const composite = computeCompositeSearchScore(
+        r.score,
+        meta.avg_reliability,
+        meta.updated_at,
+        meta.verified_ratio,
+      );
+      const domainBoost = requestDomain
+        ? computeDomainAffinityBoost(
+            typeof safeMeta.source_url === "string" ? safeMeta.source_url : "",
+            requestDomain,
+          )
+        : 0;
+      return { ...r, metadata: safeMeta, score: Math.min(1, composite + domainBoost) };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
+/** Candidate text for the lexical witness: the indexed description (title) plus
+ *  the skill name parsed from the content blob. Both are what the agent reads. */
+function candidateText(metadata: Record<string, unknown>): string {
+  const meta = (metadata && typeof metadata === "object") ? metadata : {};
+  const title = typeof meta.title === "string" ? meta.title : "";
+  let name = "";
+  if (typeof meta.content === "string") {
+    try {
+      const parsed = JSON.parse(meta.content) as { name?: unknown };
+      if (typeof parsed.name === "string") name = parsed.name;
+    } catch { /* non-JSON content — title alone carries the witness */ }
+  }
+  return `${name} ${title}`.trim();
+}
+
+/** Energy of one search row vs the intent (energy = -score; lower = better match).
+ *  The dense witness is the row's own composite/RRF score (already in [0,1] post
+ *  rescore); the lexical witness is recomputed from the candidate text vs intent. */
+function rowEnergy(intent: string, row: { id: number; score: number; metadata: Record<string, unknown> }) {
+  return energyScore(
+    intent,
+    { id: row.id, text: candidateText(row.metadata) },
+    { dense: typeof row.score === "number" ? row.score : 0 },
+  );
+}
+
+/**
+ * Re-order a result list by energy (lowest energy = best match, first). DETERMINISTIC:
+ * a NaN energy sorts LAST, and equal energies keep their original relative order
+ * (stable tie-break via the captured index). Pure on the input array's element
+ * identities — returns a NEW array, same rows.
+ */
+function orderByEnergy(
+  intent: string,
+  rows: SearchResult,
+): SearchResult {
+  return rows
+    .map((row, idx) => ({ row, idx, energy: rowEnergy(intent, row).energy }))
+    .sort((a, b) => {
+      const an = Number.isNaN(a.energy), bn = Number.isNaN(b.energy);
+      if (an && bn) return a.idx - b.idx;       // both garbage → original order
+      if (an) return 1;                          // NaN sorts last
+      if (bn) return -1;
+      if (a.energy !== b.energy) return a.energy - b.energy; // lower energy first
+      return a.idx - b.idx;                      // stable tie-break
+    })
+    .map((e) => e.row);
+}
+
+/**
+ * ENGAGE the energy ranking + settlement on the resolve shortlist.
+ *
+ * RE-ORDERS `resolved.domain_results` and `resolved.global_results` IN PLACE by
+ * energy (lowest energy first), so the order the caller sees is energy-decided
+ * rather than raw RRF/composite order. NEVER drops a result — the full shortlist
+ * stays. Then runs settleOrEscalate over the combined (energy-ordered) shortlist
+ * to derive the two-witness quorum verdict, and returns an ACTIONABLE confidence:
+ * on escalation the response clearly says "low confidence, consider browsing"
+ * (recommended_action: "browse") instead of silently presenting a least-bad top
+ * hit as confident.
+ */
+export function computeResolveConfidence(
+  intent: string,
+  resolved: ResolvedSearchResult,
+): ResolveConfidence {
+  // 1. Re-order each list by energy (lowest first), in place on the response.
+  resolved.domain_results = orderByEnergy(intent, resolved.domain_results);
+  resolved.global_results = orderByEnergy(intent, resolved.global_results);
+
+  // 2. Settle over the combined, now energy-ordered shortlist.
+  const rows = [...resolved.domain_results, ...resolved.global_results];
+  const candidates: SettleCandidate[] = rows.map((row) => {
+    const { energy, witnesses, agree } = rowEnergy(intent, row);
+    return { id: row.id, energy, witnesses, agree };
+  });
+  const verdict = settleOrEscalate(candidates);
+
+  if (verdict.escalate) {
+    return {
+      settled: false,
+      escalate: true,
+      reason: verdict.reason,
+      settled_id: null,
+      recommended_action: "browse",
+      note: "low confidence — no two-witness quorum over the indexed shortlist; consider browsing",
+    };
+  }
+  return {
+    settled: true,
+    escalate: false,
+    reason: verdict.reason,
+    settled_id: verdict.settled?.id ?? null,
+    recommended_action: "use_top",
+  };
+}
+
+export async function searchIntentInDomain(
+  env: Env,
+  intent: string,
+  domain: string,
+  k = 5
+): Promise<SearchResult> {
+  const t0 = Date.now();
+  const ckey = searchCacheKey(intent, k, domain);
+
+  const hit = await cacheGet(env, ckey);
+  const t1 = Date.now();
+  console.log(`[perf:search-domain] cache-check: ${t1 - t0}ms hit=${!!hit}`);
+  if (hit) try { return filterSuppressedSearchResults(env, JSON.parse(hit)); } catch { /* fall through */ }
+
+  if (isMarketplaceDomainSuppressed(env, domain)) return [];
+
+  const normDomain = normalizeDomain(env, domain);
+  let results: SearchResult;
+  try {
+    const [graphSettled, bm25Settled] = await Promise.allSettled([
+      graphSearch(env, domain, intent, k),
+      bm25Search(env, normDomain, intent, k),
+    ]);
+    const graphResults = graphSettled.status === "fulfilled" ? graphSettled.value : [];
+    const bm25Results = bm25Settled.status === "fulfilled" ? bm25Settled.value : [];
+    if (graphSettled.status === "rejected") console.warn(`[search] graph search failed: ${graphSettled.reason}`);
+    if (bm25Settled.status === "rejected") console.warn(`[search] bm25 search failed: ${bm25Settled.reason}`);
+    const t2 = Date.now();
+    console.log(`[perf:search-domain] graph-search: ${t2 - t1}ms graph=${graphResults.length} bm25=${bm25Results.length}`);
+
+    if (bm25Results.length > 0) {
+      results = rrfFuse(graphResults, bm25Results, k);
+      console.log(`[perf:search-domain] rrf-fused: ${results.length} results`);
+    } else {
+      results = graphResults;
+    }
+    // Rescore with composite formula (Section 3.3) before caching
+    results = rescoreWithComposite(results, domain);
+    console.log(`[perf:search-domain] TOTAL: ${t2 - t0}ms`);
+  } catch (err) {
+    console.error(`[search] domain=${domain} error:`, (err as Error).message);
+    return [];
+  }
+
+  if (results.length > 0) {
+    cachePut(env, ckey, JSON.stringify(results));
+  }
+
+  return results;
+}
+
+export async function searchIntentResolve(
+  env: Env,
+  intent: string,
+  domain?: string,
+  domainK = 5,
+  globalK = 10,
+): Promise<ResolvedSearchResult> {
+  const t0 = Date.now();
+  const ckey = searchResolveCacheKey(intent, domain, domainK, globalK);
+  const hit = await cacheGet(env, ckey);
+  const t1 = Date.now();
+  console.log(`[perf:search-resolve] cache-check: ${t1 - t0}ms hit=${!!hit}`);
+  if (hit) try { return filterSuppressedResolvedSearchResults(env, JSON.parse(hit) as ResolvedSearchResult); } catch { /* fall through */ }
+
+  // Web search fires in parallel with graph searches — a best-effort
+  // enrichment, never on the critical path. The provider chain (Exa primary
+  // when keyed, keyless DDG fallback) decides the engine; the outcome carries
+  // which one actually answered.
+  const webPromise: Promise<WebSearchOutcome> = webSearchWithProvider(env, intent, globalK).catch((err) => {
+    console.error("[search-resolve] web-search error:", (err as Error).message);
+    return { provider: null, results: [] as WebResult[] };
+  });
+
+  if (!domain) {
+    let global_results = await graphSearch(env, "global", intent, globalK).catch((err) => {
+      console.error(`[search-resolve] global error:`, (err as Error).message);
+      return [] as SearchResult;
+    });
+    global_results = filterSuppressedSearchResults(env, rescoreWithComposite(global_results));
+    const webOutcome = await webPromise;
+    const exa_results = webOutcome.results;
+    const t2 = Date.now();
+    const resolved: ResolvedSearchResult = {
+      domain_results: [] as SearchResult,
+      global_results,
+      skipped_global: false,
+      ...(exa_results.length > 0 && { exa_results, ...(webOutcome.provider && { web_search_provider: webOutcome.provider }) }),
+    };
+    // ENGAGED: energy-order the shortlist + attach the actionable settlement
+    // confidence (recommended_action). Re-orders in place; never drops a result.
+    resolved.confidence = computeResolveConfidence(intent, resolved);
+    console.log(`[perf:search-resolve] global-only: ${t2 - t1}ms results=${global_results.length} web=${exa_results.length} provider=${webOutcome.provider ?? "none"}`);
+    console.log(`[perf:search-resolve] TOTAL: ${t2 - t0}ms`);
+    if (global_results.length > 0) cachePut(env, ckey, JSON.stringify(resolved));
+    return resolved;
+  }
+
+  if (isMarketplaceDomainSuppressed(env, domain)) {
+    const resolved: ResolvedSearchResult = { domain_results: [] as SearchResult, global_results: [] as SearchResult, skipped_global: true };
+    cachePut(env, ckey, JSON.stringify(resolved));
+    return resolved;
+  }
+
+  const globalPromise = graphSearch(env, "global", intent, globalK).catch((err) => {
+    console.error(`[search-resolve] global error:`, (err as Error).message);
+    return [] as SearchResult;
+  });
+  let domain_results = await graphSearch(env, domain, intent, domainK).catch((err) => {
+    console.error(`[search-resolve] domain=${domain} error:`, (err as Error).message);
+    return [] as SearchResult;
+  });
+  domain_results = filterSuppressedSearchResults(env, rescoreWithComposite(domain_results, domain));
+  const t2 = Date.now();
+  console.log(`[perf:search-resolve] domain-search: ${t2 - t1}ms results=${domain_results.length}`);
+
+  const skipped_global = shouldSkipGlobalSearch(domain_results, domain);
+  let global_results = skipped_global ? [] : await globalPromise;
+  if (!skipped_global) global_results = filterSuppressedSearchResults(env, rescoreWithComposite(global_results));
+  const webOutcome = await webPromise;
+  const exa_results = webOutcome.results;
+  const t3 = Date.now();
+  console.log(
+    `[perf:search-resolve] global-search: ${skipped_global ? "skipped" : `${t3 - t2}ms results=${global_results.length}`}`,
+  );
+  console.log(`[perf:search-resolve] web=${exa_results.length} provider=${webOutcome.provider ?? "none"} TOTAL: ${t3 - t0}ms`);
+
+  const resolved: ResolvedSearchResult = {
+    domain_results,
+    global_results,
+    skipped_global,
+    ...(exa_results.length > 0 && { exa_results, ...(webOutcome.provider && { web_search_provider: webOutcome.provider }) }),
+  };
+  // ADDITIVE: attach the energy/settlement confidence. Never drops a result.
+  resolved.confidence = computeResolveConfidence(intent, resolved);
+  if (domain_results.length > 0 || global_results.length > 0 || exa_results.length > 0) {
+    cachePut(env, ckey, JSON.stringify(resolved));
+  }
+  return resolved;
+}
+
+export async function searchIntent(
+  env: Env,
+  intent: string,
+  k = 5
+): Promise<SearchResult> {
+  const t0 = Date.now();
+  const ckey = searchCacheKey(intent, k);
+
+  const hit = await cacheGet(env, ckey);
+  const t1 = Date.now();
+  console.log(`[perf:search-global] cache-check: ${t1 - t0}ms hit=${!!hit}`);
+  if (hit) try { return filterSuppressedSearchResults(env, JSON.parse(hit)); } catch { /* fall through */ }
+
+  // Global search now mirrors searchIntentInDomain: parallel graph + BM25.
+  // EmergentDB /graph/search returns metadata-less {id, score} only; the BM25
+  // path (docs in STATS_KV `bm25-idx:<domain>`) carries the metadata we wrote
+  // at index time, so RRF-fusing the two gives us identifiable, rescorable
+  // results even when graph metadata is unavailable. Contract 8b2f65ea.
+  let results: SearchResult;
+  try {
+    const [graphSettled, bm25Settled] = await Promise.allSettled([
+      graphSearch(env, "global", intent, k),
+      bm25SearchGlobal(env, intent, k),
+    ]);
+    const graphResults = graphSettled.status === "fulfilled" ? graphSettled.value : [];
+    const bm25Results = bm25Settled.status === "fulfilled" ? bm25Settled.value : [];
+    if (graphSettled.status === "rejected") console.warn(`[search] global graph failed: ${graphSettled.reason}`);
+    if (bm25Settled.status === "rejected") console.warn(`[search] global bm25 failed: ${bm25Settled.reason}`);
+    const t2 = Date.now();
+    console.log(`[perf:search-global] graph-search: ${t2 - t1}ms graph=${graphResults.length} bm25=${bm25Results.length}`);
+    if (bm25Results.length > 0) {
+      results = rrfFuse(graphResults, bm25Results, k);
+    } else {
+      results = graphResults;
+    }
+  } catch (err) {
+    console.error(`[search] global error:`, (err as Error).message);
+    return [];
+  }
+  // Rescore with composite formula (Section 3.3) before caching
+  results = filterSuppressedSearchResults(env, rescoreWithComposite(results));
+  const t3 = Date.now();
+  console.log(`[perf:search-global] TOTAL: ${t3 - t0}ms results=${results.length}`);
+
+  if (results.length > 0) {
+    cachePut(env, ckey, JSON.stringify(results));
+  }
+
+  return results;
+}
+
+
+/**
+ * Flat endpoint-shaped search.
+ *
+ * Returns one row per matching endpoint with the structured fields the
+ * graph index ALREADY carries (skill_id + endpoint_id are baked into
+ * every indexed row's metadata.content). The existing /v1/search returns
+ * SearchResult = {id, score, metadata} where metadata.content is a
+ * JSON-stringified blob; callers had to JSON.parse to get skill_id /
+ * endpoint_id / domain. This helper does the unwrap server-side so the
+ * SDK / MCP consumer gets a structured EndpointSearchHit row directly.
+ *
+ * Substrate-faithful: no new index, no new embedding, no new heuristic.
+ * It re-uses graphSearch + the canonical content schema from
+ * indexEndpoints (above).
+ */
+export interface EndpointSearchHit {
+  endpoint_id: string;
+  skill_id: string;
+  domain: string;
+  subdomain?: string;
+  description: string;
+  score: number;
+  tags: string[];
+  // Optional fields surfaced when the graph index carries them; older
+  // rows may omit. Callers MUST handle absence.
+  name?: string;
+  avg_reliability?: number;
+  verified_ratio?: number;
+  updated_at?: string;
+}
+
+export async function searchEndpoints(
+  env: Env,
+  intent: string,
+  k = 10,
+  domain?: string,
+): Promise<EndpointSearchHit[]> {
+  const rawResults: SearchResult = domain
+    ? await graphSearch(env, domain, intent, k).catch(() => [])
+    : await graphSearch(env, "global", intent, k).catch(() => []);
+
+  const hits: EndpointSearchHit[] = [];
+  for (const row of rawResults) {
+    const meta = row.metadata ?? {};
+    const tagsRaw = meta.tags;
+    const tags = Array.isArray(tagsRaw)
+      ? tagsRaw.filter((t): t is string => typeof t === "string")
+      : [];
+
+    let parsed: Record<string, unknown> = {};
+    if (typeof meta.content === "string") {
+      try { parsed = JSON.parse(meta.content) as Record<string, unknown>; } catch { /* skip */ }
+    }
+
+    const endpointId = typeof parsed.endpoint_id === "string" ? parsed.endpoint_id : undefined;
+    const skillId = typeof parsed.skill_id === "string" ? parsed.skill_id : undefined;
+    if (!endpointId || !skillId) continue;
+
+    hits.push({
+      endpoint_id: endpointId,
+      skill_id: skillId,
+      domain: typeof parsed.domain === "string" ? parsed.domain : "",
+      subdomain: typeof parsed.subdomain === "string" ? parsed.subdomain : undefined,
+      description: typeof meta.title === "string" ? meta.title : "",
+      score: typeof row.score === "number" ? row.score : 0,
+      tags,
+      name: typeof parsed.name === "string" ? parsed.name : undefined,
+      avg_reliability: typeof parsed.avg_reliability === "number" ? parsed.avg_reliability : undefined,
+      verified_ratio: typeof parsed.verified_ratio === "number" ? parsed.verified_ratio : undefined,
+      updated_at: typeof parsed.updated_at === "string" ? parsed.updated_at : undefined,
+    });
+  }
+  return hits;
+}
+
+/** Re-index a single skill — indexes per-endpoint via Graph API. */
+export async function reindexSkill(
+  env: Env,
+  skill: { skill_id: string; intent_signature: string; domain: string; subdomain?: string; name: string; description: string; endpoints: EndpointDescriptor[]; updated_at: string }
+): Promise<void> {
+  const reliabilities = skill.endpoints.map((e) => e.reliability_score);
+  const avgReliability = reliabilities.length > 0
+    ? reliabilities.reduce((a, b) => a + b, 0) / reliabilities.length
+    : 0.5;
+  const verifiedCount = skill.endpoints.filter((e) => e.verification_status === "verified").length;
+  const verifiedRatio = skill.endpoints.length > 0 ? verifiedCount / skill.endpoints.length : 0;
+
+  // Consistency with the publish path (marketplace.ts): ensure every endpoint carries a
+  // description BEFORE indexing, so a re-index populates /v1/search the same as a publish.
+  // Without this, reindexSkill dropped description-less endpoints (indexEndpoints skips them),
+  // so the CLI `index` command + the reindex sweeper under-populated vs publish. generateDescriptions
+  // is LLM-first with a heuristic fallback, so it always yields a non-empty description.
+  if (skill.endpoints.some((ep) => !ep.description)) {
+    await generateDescriptions(env, skill.endpoints);
+  }
+
+  await indexEndpoints(env, skill.skill_id, skill.endpoints, {
+    domain: skill.domain,
+    subdomain: skill.subdomain,
+    name: skill.name,
+    description: skill.description,
+    avg_reliability: avgReliability,
+    verified_ratio: verifiedRatio,
+    updated_at: skill.updated_at,
+  });
+}
+
+/** Remove a skill's vectors from the graph index. */
+/** Remove a skill's docs from the BM25 KV index — the per-domain key, the skill's
+ * global shard, and the legacy global key. Without this, the graph deletes below leave
+ * the KV/BM25 docs in place, so a deleted, deprecated, or taken-down skill stays
+ * searchable in /v1/search forever (the KV path is now the authoritative index). With
+ * endpointIds, only those `${skillId}:${epId}` docs are removed; otherwise every doc
+ * whose id starts with `${skillId}:` is removed. */
+async function removeFromBm25Index(
+  env: Env,
+  skillId: string,
+  domain: string,
+  endpointIds?: string[],
+): Promise<void> {
+  const toRemove = endpointIds && endpointIds.length > 0
+    ? new Set(endpointIds.map((ep) => `${skillId}:${ep}`))
+    : null;
+  const keep = (id: string): boolean =>
+    toRemove ? !toRemove.has(id) : !id.startsWith(`${skillId}:`);
+  const g = normalizeDomain(env, "global");
+  const keys = [
+    `bm25-idx:${normalizeDomain(env, domain)}`,   // per-domain index
+    globalShardKey(env, shardForId(skillId)),     // the skill's global shard
+    `bm25-idx:${g}`,                              // legacy global key (pre-shard back-compat)
+  ];
+  await Promise.all(keys.map(async (key) => {
+    try {
+      const raw = await skillsKV(env).get(key) as string | null;
+      if (!raw) return;
+      const docs = JSON.parse(raw) as Bm25Doc[];
+      const filtered = docs.filter((doc) => keep(doc.id));
+      if (filtered.length !== docs.length) await skillsKV(env).put(key, JSON.stringify(filtered));
+    } catch { /* corrupt key — a future write self-heals; never throw from a delete */ }
+  }));
+  // Removing docs from the index must also invalidate cached search results, or
+  // /v1/search keeps serving the just-removed skill for up to SEARCH_CACHE_TTL.
+  invalidateSearchCache();
+}
+
+export async function removeSkillFromIndex(env: Env, skillId: string, domain: string): Promise<void> {
+  const d = normalizeDomain(env, domain);
+  const g = normalizeDomain(env, "global");
+  await Promise.all([
+    edbRequest(env, "POST", "/graph/delete", { domain: d, id: skillId }),
+    edbRequest(env, "POST", "/graph/delete", { domain: g, id: skillId }),
+    removeFromBm25Index(env, skillId, domain), // BM25 KV — the authoritative search index
+  ]);
+}
+
+/** Remove specific endpoint vectors from the graph index. */
+export async function removeEndpointsFromIndex(
+  env: Env,
+  skillId: string,
+  endpointIds: string[],
+  domain: string
+): Promise<void> {
+  const d = normalizeDomain(env, domain);
+  const g = normalizeDomain(env, "global");
+  const deletes = endpointIds.flatMap((epId) => {
+    const id = `${skillId}:${epId}`;
+    return [
+      edbRequest(env, "POST", "/graph/delete", { domain: d, id }),
+      edbRequest(env, "POST", "/graph/delete", { domain: g, id }),
+    ];
+  });
+  await Promise.all([...deletes, removeFromBm25Index(env, skillId, domain, endpointIds)]);
+}
+
+/** Purge all endpoint vectors for a skill from both domain and global indexes. */
+export async function purgeSkillVectors(
+  env: Env,
+  skillId: string,
+  endpointIds: string[],
+  domain: string
+): Promise<{ deleted: number }> {
+  const d = normalizeDomain(env, domain);
+  const g = normalizeDomain(env, "global");
+  const deletes: Promise<unknown>[] = [];
+
+  // Delete each endpoint vector by its composite ID
+  for (const epId of endpointIds) {
+    const id = `${skillId}:${epId}`;
+    deletes.push(
+      edbRequest(env, "POST", "/graph/delete", { domain: d, id }).catch(() => {}),
+      edbRequest(env, "POST", "/graph/delete", { domain: g, id }).catch(() => {}),
+    );
+  }
+
+  // Also delete the bare skill ID in case old-style vectors exist
+  deletes.push(
+    edbRequest(env, "POST", "/graph/delete", { domain: d, id: skillId }).catch(() => {}),
+    edbRequest(env, "POST", "/graph/delete", { domain: g, id: skillId }).catch(() => {}),
+  );
+  // Purge the skill's BM25 KV docs too — graph deletes alone leave it searchable.
+  deletes.push(removeFromBm25Index(env, skillId, domain).catch(() => {}));
+
+  await Promise.all(deletes);
+  return { deleted: endpointIds.length };
+}
+
+export function hashToInt(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) || 1;
+}

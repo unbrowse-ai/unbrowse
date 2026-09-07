@@ -1,0 +1,44 @@
+{
+  "name": "@unbrowse/node-fetch-shim",
+  "version": "0.1.0",
+  "description": "Drop-in replacement for node-fetch. A safe GET routes through Unbrowse's resolved-route cache first ($0 on hit) and falls straight through to native fetch on miss — same default export, same Headers/Request/Response/FetchError surface, identical semantics.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --format esm",
+    "test": "bun test"
+  },
+  "keywords": [
+    "node-fetch",
+    "fetch",
+    "http",
+    "unbrowse",
+    "shim",
+    "cache"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unbrowse-ai/unbrowse"
+  },
+  "bugs": {
+    "url": "https://github.com/unbrowse-ai/unbrowse/issues"
+  },
+  "homepage": "https://unbrowse.ai/vs/node-fetch"
+}
