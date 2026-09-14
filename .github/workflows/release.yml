@@ -1,0 +1,72 @@
+name: Release
+
+# Publishes a prebuilt unbrowse tarball attached to a public GitHub release.
+# Trusted Publishing (OIDC) is preferred; NPM_TOKEN is the fallback.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag (e.g. v11.4.2) whose unbrowse-VERSION.tgz should be published"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish unbrowse tarball to npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Download release tarball
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ inputs.tag }}"
+          VERSION="${TAG#v}"
+          gh release download "$TAG" --repo unbrowse-ai/unbrowse --pattern "unbrowse-${VERSION}.tgz"
+          test -s "unbrowse-${VERSION}.tgz"
+          echo "tarball=unbrowse-${VERSION}.tgz" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_ENV"
+      - name: Assert packed linux-x64 kuri is a real ELF
+        run: |
+          MEMBER="package/vendor/kuri/linux-x64/kuri"
+          tar -tzf "$tarball" | grep -F "$MEMBER"
+          SIZE="$(tar -xOf "$tarball" "$MEMBER" | wc -c)"
+          echo "linux-x64 kuri bytes=$SIZE"
+          test "$SIZE" -gt 100000
+          HEADER="$(tar -xOf "$tarball" "$MEMBER" | head -c 4 | od -An -tx1 | tr -d ' \n')"
+          test "$HEADER" = "7f454c46"
+          if tar -xOf "$tarball" package/package.json | grep -q cloakbrowser; then
+            echo "::error::packed package.json still depends on cloakbrowser"
+            exit 1
+          fi
+      - name: Refuse if version already exists
+        id: version-check
+        run: |
+          if npm view "unbrowse@${version}" version >/dev/null 2>&1; then
+            echo "::notice::unbrowse@${version} is already published; nothing to do."
+            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish to npm
+        if: steps.version-check.outputs.skip_publish != '1'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set +e
+          npm publish "$tarball" --access public --provenance --tag latest
+          STATUS=$?
+          set -e
+          if [ "$STATUS" -ne 0 ]; then
+            echo "provenance publish failed; retrying without --provenance"
+            npm publish "$tarball" --access public --tag latest
+          fi
+          PUBLISHED="$(npm view "unbrowse@${version}" version)"
+          test "$PUBLISHED" = "$version"
+          LATEST="$(npm view unbrowse dist-tags.latest)"
+          test "$LATEST" = "$version"
