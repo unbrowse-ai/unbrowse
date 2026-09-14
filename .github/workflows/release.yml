@@ -38,6 +38,12 @@ jobs:
           VERSION="${TAG#v}"
           gh release download "$TAG" --repo unbrowse-ai/unbrowse --pattern "unbrowse-${VERSION}.tgz"
           test -s "unbrowse-${VERSION}.tgz"
+          BYTES="$(wc -c < "unbrowse-${VERSION}.tgz" | tr -d ' ')"
+          echo "tarball bytes=$BYTES"
+          if [ "$BYTES" -ge 100000000 ]; then
+            echo "::error::tarball is ${BYTES} bytes; npm silently drops publishes over 100MB"
+            exit 1
+          fi
           echo "tarball=unbrowse-${VERSION}.tgz" >> "$GITHUB_ENV"
           echo "version=$VERSION" >> "$GITHUB_ENV"
       - name: Assert packed linux-x64 kuri is a real ELF
@@ -63,7 +69,6 @@ jobs:
       - name: Publish to npm via Trusted Publishing
         id: oidc
         if: steps.version-check.outputs.skip_publish != '1'
-        continue-on-error: true
         run: |
           # npm 11 uses GitHub OIDC. Do not set NODE_AUTH_TOKEN here.
           npm publish "$tarball" --access public --provenance --tag latest
@@ -77,7 +82,14 @@ jobs:
       - name: Verify latest
         if: steps.version-check.outputs.skip_publish != '1'
         run: |
-          PUBLISHED="$(npm view "unbrowse@${version}" version)"
+          # Large tarballs can take a few minutes to appear on the packument.
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            PUBLISHED="$(npm view "unbrowse@${version}" version 2>/dev/null || true)"
+            if [ "$PUBLISHED" = "$version" ]; then
+              break
+            fi
+            sleep 10
+          done
           test "$PUBLISHED" = "$version"
           LATEST="$(npm view unbrowse dist-tags.latest)"
           test "$LATEST" = "$version"
