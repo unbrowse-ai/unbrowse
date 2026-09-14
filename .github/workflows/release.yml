@@ -1,7 +1,7 @@
 name: Release
 
 # Publishes a prebuilt unbrowse tarball attached to a public GitHub release.
-# Trusted Publishing (OIDC) is preferred; NPM_TOKEN is the fallback.
+# Trusted Publishing is bound to environment=prod on this workflow.
 on:
   workflow_dispatch:
     inputs:
@@ -18,11 +18,11 @@ jobs:
   publish:
     name: Publish unbrowse tarball to npm
     runs-on: ubuntu-latest
+    environment: prod
     steps:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
       - name: Download release tarball
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,19 +53,23 @@ jobs:
             echo "::notice::unbrowse@${version} is already published; nothing to do."
             echo "skip_publish=1" >> "$GITHUB_OUTPUT"
           fi
-      - name: Publish to npm
+      - name: Publish to npm via Trusted Publishing
+        id: oidc
         if: steps.version-check.outputs.skip_publish != '1'
+        continue-on-error: true
+        run: |
+          # Do not set NODE_AUTH_TOKEN here. A stale token turns OIDC into a 404.
+          npm publish "$tarball" --access public --provenance --tag latest
+      - name: Publish to npm via NPM_TOKEN fallback
+        if: steps.version-check.outputs.skip_publish != '1' && steps.oidc.outcome != 'success'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          set +e
-          npm publish "$tarball" --access public --provenance --tag latest
-          STATUS=$?
-          set -e
-          if [ "$STATUS" -ne 0 ]; then
-            echo "provenance publish failed; retrying without --provenance"
-            npm publish "$tarball" --access public --tag latest
-          fi
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$HOME/.npmrc"
+          npm publish "$tarball" --access public --tag latest
+      - name: Verify latest
+        if: steps.version-check.outputs.skip_publish != '1'
+        run: |
           PUBLISHED="$(npm view "unbrowse@${version}" version)"
           test "$PUBLISHED" = "$version"
           LATEST="$(npm view unbrowse dist-tags.latest)"
