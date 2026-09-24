@@ -82,8 +82,8 @@ jobs:
       - name: Verify version and dist-tag
         if: steps.version-check.outputs.skip_publish != '1'
         run: |
-          # Large tarballs can take a few minutes to appear on the packument.
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+          # Large tarballs take minutes to appear on the packument (11.5.0, 54 MB: ~4.5 min). Wait up to 10.
+          for i in $(seq 1 60); do
             PUBLISHED="$(npm view "unbrowse@${version}" version 2>/dev/null || true)"
             if [ "$PUBLISHED" = "$version" ]; then
               break
@@ -93,7 +93,7 @@ jobs:
           test "$PUBLISHED" = "$version"
           # Previews go to the preview dist-tag; releases to latest. Tags lag the version briefly.
           case "$version" in *-preview.*) TAG=preview ;; *) TAG=latest ;; esac
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+          for i in $(seq 1 60); do
             ACTUAL="$(npm view unbrowse "dist-tags.${TAG}" 2>/dev/null || true)"
             [ "$ACTUAL" = "$version" ] && break
             sleep 10
