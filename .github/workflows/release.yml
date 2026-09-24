@@ -71,15 +71,15 @@ jobs:
         if: steps.version-check.outputs.skip_publish != '1'
         run: |
           # npm 11 uses GitHub OIDC. Do not set NODE_AUTH_TOKEN here.
-          npm publish "$tarball" --access public --provenance --tag latest
+          npm publish "$tarball" --access public --provenance --tag "$(case "$version" in *-preview.*) echo preview ;; *) echo latest ;; esac)"
       - name: Publish to npm via NPM_TOKEN fallback
         if: steps.version-check.outputs.skip_publish != '1' && steps.oidc.conclusion != 'success'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$HOME/.npmrc"
-          npm publish "$tarball" --access public --tag latest
-      - name: Verify latest
+          npm publish "$tarball" --access public --tag "$(case "$version" in *-preview.*) echo preview ;; *) echo latest ;; esac)"
+      - name: Verify version and dist-tag
         if: steps.version-check.outputs.skip_publish != '1'
         run: |
           # Large tarballs can take a few minutes to appear on the packument.
@@ -91,5 +91,11 @@ jobs:
             sleep 10
           done
           test "$PUBLISHED" = "$version"
-          LATEST="$(npm view unbrowse dist-tags.latest)"
-          test "$LATEST" = "$version"
+          # Previews go to the preview dist-tag; releases to latest. Tags lag the version briefly.
+          case "$version" in *-preview.*) TAG=preview ;; *) TAG=latest ;; esac
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            ACTUAL="$(npm view unbrowse "dist-tags.${TAG}" 2>/dev/null || true)"
+            [ "$ACTUAL" = "$version" ] && break
+            sleep 10
+          done
+          test "$ACTUAL" = "$version"
