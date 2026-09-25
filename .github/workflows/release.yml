@@ -99,3 +99,58 @@ jobs:
             sleep 10
           done
           test "$ACTUAL" = "$version"
+
+  publish-sdk:
+    # @unbrowse/sdk, same Trusted Publisher binding (this workflow, environment prod). Runs only when
+    # the release carries unbrowse-sdk-VERSION.tgz; otherwise it is a no-op.
+    name: Publish @unbrowse/sdk tarball to npm
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install npm 11 (Trusted Publishing requires >= 11.5.1)
+        run: npm install -g npm@11
+      - name: Download SDK tarball if the release has one
+        id: asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ inputs.tag }}"
+          VERSION="${TAG#v}"
+          ASSET="unbrowse-sdk-${VERSION}.tgz"
+          if ! gh release view "$TAG" --repo unbrowse-ai/unbrowse --json assets --jq '.assets[].name' | grep -qx "$ASSET"; then
+            echo "::notice::release $TAG has no $ASSET; nothing to publish."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh release download "$TAG" --repo unbrowse-ai/unbrowse --pattern "$ASSET"
+          NAME="$(tar -xOf "$ASSET" package/package.json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const p=JSON.parse(s);console.log(p.name+"@"+p.version)})')"
+          test "$NAME" = "@unbrowse/sdk@${VERSION}" || { echo "::error::tarball is $NAME, expected @unbrowse/sdk@${VERSION}"; exit 1; }
+          echo "sdk_tarball=$ASSET" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_ENV"
+      - name: Refuse if version already exists
+        id: version-check
+        if: steps.asset.outputs.skip != '1'
+        run: |
+          if npm view "@unbrowse/sdk@${version}" version >/dev/null 2>&1; then
+            echo "::notice::@unbrowse/sdk@${version} is already published; nothing to do."
+            echo "skip_publish=1" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish via Trusted Publishing
+        if: steps.asset.outputs.skip != '1' && steps.version-check.outputs.skip_publish != '1'
+        run: npm publish "$sdk_tarball" --access public --provenance --tag "$(case "$version" in *-preview.*) echo preview ;; *) echo latest ;; esac)"
+      - name: Verify version and dist-tag
+        if: steps.asset.outputs.skip != '1' && steps.version-check.outputs.skip_publish != '1'
+        run: |
+          case "$version" in *-preview.*) TAG=preview ;; *) TAG=latest ;; esac
+          for i in $(seq 1 60); do
+            [ "$(npm view "@unbrowse/sdk@${version}" version 2>/dev/null || true)" = "$version" ] && \
+            [ "$(npm view @unbrowse/sdk "dist-tags.${TAG}" 2>/dev/null || true)" = "$version" ] && exit 0
+            sleep 10
+          done
+          echo "::error::@unbrowse/sdk@${version} did not appear as ${TAG} within 10 minutes"; exit 1
