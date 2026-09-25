@@ -143,7 +143,8 @@ jobs:
           fi
       - name: Publish via Trusted Publishing
         if: steps.asset.outputs.skip != '1' && steps.version-check.outputs.skip_publish != '1'
-        run: npm publish "$sdk_tarball" --access public --provenance --tag "$(case "$version" in *-preview.*) echo preview ;; *) echo latest ;; esac)"
+        # --loglevel verbose shows the OIDC token exchange, so a Trusted Publisher mismatch is diagnosable.
+        run: npm publish "$sdk_tarball" --access public --provenance --loglevel verbose --tag "$(case "$version" in *-preview.*) echo preview ;; *) echo latest ;; esac)"
       - name: Verify version and dist-tag
         if: steps.asset.outputs.skip != '1' && steps.version-check.outputs.skip_publish != '1'
         run: |
