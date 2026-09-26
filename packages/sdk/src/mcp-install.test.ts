@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { cursorInstallLink, mcpCommands, vscodeInstallLink } from "./mcp-install.ts";
 
-const URL_ = "https://v3.unbrowse.ai/mcp";
+const URL_ = "https://unbrowse.ai/mcp";
 
 describe("G59 remote MCP install links", () => {
   it("Cursor's link carries the server config, base64", () => {

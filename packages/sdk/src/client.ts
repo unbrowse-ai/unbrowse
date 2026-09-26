@@ -1,12 +1,12 @@
 // @unbrowse/sdk — the Unbrowse REST API (/api/v1). Grown from unbrowse6 src/lib/unbrowse/client.ts.
 import type { Json, RunRequest, RunView } from "./types.ts";
 
-export const DEFAULT_BASE_URL = "https://v3.unbrowse.ai/api/v1";
+export const DEFAULT_BASE_URL = "https://unbrowse.ai/api/v1";
 
 export type UnbrowseOptions = {
   /** API key (`ub_live_…`) or OAuth access token. Defaults to `UNBROWSE_API_KEY`. Public routes need none. */
   apiKey?: string;
-  /** Defaults to `UNBROWSE_BASE_URL` (origin or `/api/v1` URL), then https://v3.unbrowse.ai/api/v1. */
+  /** Defaults to `UNBROWSE_BASE_URL` (origin or `/api/v1` URL), then https://unbrowse.ai/api/v1. */
   baseUrl?: string;
   fetch?: typeof globalThis.fetch;
 };

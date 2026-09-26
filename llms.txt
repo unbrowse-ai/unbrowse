@@ -9,5 +9,5 @@ Hosted website execution through remote MCP, CLI and TypeScript SDK.
 - [SDK](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/sdk.md): supported REST methods.
 - [Troubleshooting](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/troubleshooting.md): recovery and version selection.
 
-Server: https://v3.unbrowse.ai/mcp
+Server: https://unbrowse.ai/mcp
 The skill supplies guidance, not authentication. Never infer current site support from examples. Use tools/list and discovery.

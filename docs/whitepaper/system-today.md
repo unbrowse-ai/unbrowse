@@ -4,7 +4,7 @@ This page describes the Unbrowse system that runs today. It is not the full syst
 
 Unbrowse has two parts:
 
-- **The hosted service** at `https://v3.unbrowse.ai`. It is closed source. It runs the cloud browser, the learn loop, replay, the registry, the vault and billing.
+- **The hosted service** at `https://unbrowse.ai`. It is closed source. It runs the cloud browser, the learn loop, replay, the registry, the vault and billing.
 - **The client** in this repo. It is open source and thin: the `@unbrowse/sdk` REST client (`packages/sdk`) and the `unbrowse` CLI on it (`packages/cli`). It calls the service's REST API at `/api/v1`; agents use the remote MCP at `/mcp`. It runs no browser and indexes nothing locally. `skill/SKILL.md` is the agent contract.
 
 Everything below is behavior of the hosted service unless it names a client file.

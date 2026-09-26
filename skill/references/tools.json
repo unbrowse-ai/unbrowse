@@ -1,6 +1,76 @@
 {
-  "endpoint": "https://v3.unbrowse.ai/mcp",
+  "endpoint": "https://unbrowse.ai/mcp",
   "tools": [
+    {
+      "name": "unbrowse.canvas.read",
+      "description": "Read the signed-in user's live canvas, card revisions, selected context and conversation. Open /app/canvas to watch cards appear.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.canvas.put",
+      "description": "Insert/update a live UI card on the user's canvas. kind: note, plan, results, draft, activity. Plain text for plans/notes; data for actual API results. Use parentId to unfold from a prior card. Draft action is optional: {capabilityId,input,bodyField}; the human reviews and sends in the UI. Never send from this tool. Updates require expectedRevision; human edits are protected. No HTML or JavaScript.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "note",
+              "plan",
+              "results",
+              "draft",
+              "activity",
+              "search"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "data": {},
+          "parentId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "object",
+            "properties": {
+              "capabilityId": {
+                "type": "string"
+              },
+              "input": {
+                "type": "object"
+              },
+              "bodyField": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "capabilityId",
+              "input",
+              "bodyField"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title"
+        ],
+        "additionalProperties": false
+      }
+    },
     {
       "name": "unbrowse.run",
       "description": "Start a durable Unbrowse run by capability id or natural-language task. For a learned capability, pass `input` keyed by the inputs unbrowse.discover lists (e.g. {origin, destination, date, passenger}); anything missing is asked for on the same run. Fails with no_capability when nothing fits — then use unbrowse.browse.open once and it is learned.",
@@ -468,6 +538,51 @@
       "inputSchema": {
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.index",
+      "description": "Index a website on purpose: Unbrowse's own agent opens the site in a cloud browser, performs its core read-only capabilities (search, listings, item pages, filters…), compiles each into a tool and proves it with a browserless replay. Runs in the background (minutes); returns a jobId for unbrowse.index.status. The tools land in your tool list (and, when shared, in the public registry). Use it before a user needs a site, so their first call is instant. Never signs in or changes anything on the site.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The site or start page, e.g. https://www.ikea.com/sg/en/"
+          },
+          "focus": {
+            "type": "string",
+            "description": "Optional: what to cover, in plain words (\"product search and store stock\")"
+          },
+          "maxCapabilities": {
+            "type": "number",
+            "description": "At most this many tools (default 6, max 12)"
+          },
+          "public": {
+            "type": "boolean",
+            "description": "Admins only: index into the public registry for everyone"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.index.status",
+      "description": "An index job's progress: queued, running, done or failed, the steps taken and every tool indexed (inputs, whether it runs without a browser, verified, public id). Waits up to `waitSeconds` (default 20, max 50) for it to finish. Without a jobId, lists your recent jobs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "waitSeconds": {
+            "type": "number"
+          }
+        },
         "additionalProperties": false
       }
     },

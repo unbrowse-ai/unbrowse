@@ -5,31 +5,33 @@ description: Search and call websites through Unbrowse's hosted API or remote MC
 
 # Unbrowse
 
-Use the hosted service at `https://v3.unbrowse.ai`. Execution, indexed routes and website sessions stay server-side. This skill supplies operating guidance; it does not authenticate the user or start a local MCP server.
+Use the hosted service at `https://unbrowse.ai`. Execution, indexed routes and website sessions stay server-side. This skill supplies operating guidance; it does not authenticate the user or start a local MCP server.
 
 ## Connect
 
 Prefer the remote MCP for agents:
 
 ```sh
-claude mcp add --transport http unbrowse https://v3.unbrowse.ai/mcp
+claude mcp add --transport http unbrowse https://unbrowse.ai/mcp
 ```
 
 Complete sign-in through the MCP client's OAuth flow. Other clients can use:
 
 ```json
-{"mcpServers":{"unbrowse":{"url":"https://v3.unbrowse.ai/mcp"}}}
+{"mcpServers":{"unbrowse":{"url":"https://unbrowse.ai/mcp"}}}
 ```
 
 CLI installation and SDK instructions: https://github.com/unbrowse-ai/unbrowse-skill#readme
 Use the client version identified there; older npm versions may target a different service.
-For automation, supply an API key via `UNBROWSE_API_KEY` using the caller's secret manager. Do not put keys into committed config, prompts, command arguments or logs. Create a key in the signed-in console at https://v3.unbrowse.ai/app.
+For automation, supply an API key via `UNBROWSE_API_KEY` using the caller's secret manager. Do not put keys into committed config, prompts, command arguments or logs. Create a key in the signed-in console at https://unbrowse.ai/app.
 
 ## Choose the interface
 
 - MCP: discovery, runs, page reading, cloud browsing, saved-login requests and live canvas cards.
 - CLI: `unbrowse discover`, `run`, `inspect`, `resume`, `registry`; `unbrowse install` prints MCP configuration. `unbrowse help` describes the installed version.
 - SDK: REST integration and scripting. Consult the public SDK docs for its supported methods; MCP tools and REST methods are not interchangeable names.
+
+Core MCP tools: `unbrowse.discover`, `unbrowse.run`, `unbrowse.inspect`, `unbrowse.resume`, `unbrowse.cancel`, `unbrowse.scrape`, `unbrowse.map`, `unbrowse.sites`, `unbrowse.usage`, `unbrowse.credits`, `unbrowse.forget`, `unbrowse.learn`, `unbrowse.index`, `unbrowse.index.status`, `unbrowse.credentials.list`, `unbrowse.credentials.request`, `unbrowse.credentials.status`, and the cloud browser `unbrowse.browse.open`, `unbrowse.browse.snapshot`, `unbrowse.browse.act`, `unbrowse.browse.finish`, `unbrowse.browse.close`.
 
 [references/tools.json](references/tools.json) contains the exported core MCP input schemas. The connected server's `tools/list` is authoritative: it also includes dynamic tools available to this user's workspace. Never invent a capability ID or input schema.
 
@@ -52,6 +54,8 @@ Use `unbrowse.scrape {url}` for a page; `unbrowse.map {url}` finds same-site pag
 3. Use `browse.finish {sessionId}` to return the final page and compile observed routes. Two sessions with different inputs help identify reusable parameters. Check `learnError` and `newTool`; browsing success alone does not prove a reusable route exists.
 4. Close sessions when finished. `browse.close` still indexes unless `discard:true`.
 
+To cover a whole site ahead of need, `unbrowse.index {url, focus?}` starts a background job: Unbrowse's own agent performs the site's core read-only capabilities, proves each with a browserless replay and adds them to your tools. Follow it with `unbrowse.index.status {jobId}`.
+
 An existing HAR pair can be sent through `unbrowse.learn`. Only submit recordings the user authorized; HARs can contain private data. Private and loopback destinations are refused by the hosted service.
 
 ## Website sign-in
@@ -65,9 +69,20 @@ Unbrowse account sign-in and a website's saved login are separate. Never ask for
 
 Read-only secretless learned routes may be scrubbed and shared to the public registry. The owner can opt out in the console. Logins, private session values and writes are not public tool definitions.
 
+## Serving many users (orgs)
+
+When the caller is an agent a builder runs for its own users, it uses an org key and names the user on every call: `X-Unbrowse-End-User: <that user's id>` (REST and MCP headers). Each user has their own logins and sessions.
+
+- Always send the id of the user the task is for. Never reuse one user's id for another user's task, and never omit it: without it the call acts as the org itself, not any user.
+- A `signIn.url` (a `/connect/…` link) is for that same user: deliver it to them, not to the builder or another user. They save the login there without an Unbrowse account; wait for `unbrowse.credentials.status` to be `fulfilled`, then call again.
+- `org__…` tools are shared by the org's users (read-only, no logins); `my__…` tools are the current user's own.
+- Quota errors are the org's balance, not the user's. Report them to the builder.
+
+Guide: https://github.com/lekt9/unbrowse6/blob/master/docs/orgs.md
+
 ## Live canvas
 
-When `unbrowse.canvas.read` and `.put` are listed, they connect to https://v3.unbrowse.ai/app/canvas in the same signed-in workspace.
+When `unbrowse.canvas.read` and `.put` are listed, they connect to https://unbrowse.ai/app/canvas in the same signed-in workspace.
 
 Use notes and plans for static text; results for source data; drafts for proposed responses. Give child cards `parentId` to unfold from a result. Read current card revisions before updating; supply `expectedRevision` and preserve human edits. Put source links beside factual claims. Label proposed text as a draft.
 
