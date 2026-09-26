@@ -19,7 +19,7 @@ Unbrowse learns those requests once, in a cloud browser, and compiles them into 
 
 ## What ships today
 
-Unbrowse is a hosted service (`https://v3.unbrowse.ai`, closed source) with an open-source client (this repo).
+Unbrowse is a hosted service (`https://unbrowse.ai`, closed source) with an open-source client (this repo).
 
 The service:
 

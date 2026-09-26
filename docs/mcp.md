@@ -1,16 +1,16 @@
 # MCP
 
-Unbrowse is a remote MCP server: `https://v3.unbrowse.ai/mcp` (Streamable HTTP, protocol
+Unbrowse is a remote MCP server: `https://unbrowse.ai/mcp` (Streamable HTTP, protocol
 2025-11-25). Sign-in is OAuth 2.1 with PKCE and dynamic client registration; your MCP client runs
 it. An API key works as `Authorization: Bearer ub_live_…`.
 
 ```bash
-claude mcp add --transport http unbrowse https://v3.unbrowse.ai/mcp
-codex mcp add unbrowse --url https://v3.unbrowse.ai/mcp && codex mcp login unbrowse
+claude mcp add --transport http unbrowse https://unbrowse.ai/mcp
+codex mcp add unbrowse --url https://unbrowse.ai/mcp && codex mcp login unbrowse
 ```
 
 ```json
-{ "mcpServers": { "unbrowse": { "url": "https://v3.unbrowse.ai/mcp" } } }
+{ "mcpServers": { "unbrowse": { "url": "https://unbrowse.ai/mcp" } } }
 ```
 
 There is no local MCP server. Agents connect to the hosted one; shells and scripts use the CLI.
@@ -43,7 +43,7 @@ Each compiled site is its own MCP server with its tools plus `run_task`, `browse
 and `run_answer`:
 
 ```
-https://v3.unbrowse.ai/api/v1/sites/<host>/mcp
+https://unbrowse.ai/api/v1/sites/<host>/mcp
 ```
 
 `unbrowse site <host>` lists the site's tools.
@@ -66,6 +66,6 @@ The full agent contract is [skill/SKILL.md](../skill/SKILL.md).
 
 ## Live canvas
 
-When listed, `unbrowse.canvas.read` and `.put` read or create notes, plans, results and reply drafts on [your canvas](https://v3.unbrowse.ai/app/canvas). Use the same account in both places. Card creation does not send external messages. Updates use revisions and preserve human edits.
+When listed, `unbrowse.canvas.read` and `.put` read or create notes, plans, results and reply drafts on [your canvas](https://unbrowse.ai/app/canvas). Use the same account in both places. Card creation does not send external messages. Updates use revisions and preserve human edits.
 
 `unbrowse.scrape` reads a page; `unbrowse.map` discovers same-site URLs. Consult the returned schemas for supported options.

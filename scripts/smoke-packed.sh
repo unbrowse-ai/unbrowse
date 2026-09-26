@@ -13,7 +13,7 @@ test -f node_modules/unbrowse/SKILL.md
 test -f node_modules/unbrowse/references/tools.json
 node --input-type=module -e '
   import { Unbrowse, DEFAULT_BASE_URL } from "@unbrowse/sdk";
-  if (DEFAULT_BASE_URL !== "https://v3.unbrowse.ai/api/v1") throw new Error("wrong default base URL");
+  if (DEFAULT_BASE_URL !== "https://unbrowse.ai/api/v1") throw new Error("wrong default base URL");
   if (process.env.SMOKE_LIVE === "1") {
     const s = await new Unbrowse({ apiKey: "" }).sites("wikipedia");
     if (!(s.total > 0)) throw new Error("public registry returned nothing");
