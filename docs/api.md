@@ -5,7 +5,7 @@ The authenticated principal decides the workspace; a caller-supplied workspace i
 authority. MCP (`/mcp`) is an adapter over the same runs and authorization.
 
 ```
-POST /runs                          { task | capability, targetUrl?, input?, interactionMode?, idempotencyKey? }
+POST /runs                          { task | capability, targetUrl?, input?, interactionMode?, idempotency_key? }
 GET  /runs/:id
 POST /runs/:id/responses            { expected_state_revision, responses: [{ requirement_id, expected_revision, action, values }] }
 POST /runs/:id/cancel
@@ -35,6 +35,10 @@ GET  /sites/:host/openapi.json      OpenAPI 3.1, one operation per tool
 POST /sites/:host/call/:tool        run one tool (auth or x402)
 ```
 
+The idempotency key goes in the body as `idempotency_key` or in an `Idempotency-Key` header; without
+one the server makes its own, so a retried request starts a new run. Answers to `/responses` use
+snake_case too (`requirement_id`, `expected_revision`).
+
 Errors: `{ "error": { "code": "…", "message": "…" } }` with an HTTP status. `402 quota_exceeded`
 is returned before any upstream request once a workspace's monthly quota is used.
 
@@ -45,4 +49,6 @@ payment requirements (exact scheme, USDC, $0.001 per call, and a Bazaar discover
 the input and output schema). Retry with a `payment-signature` header; the payment settles only if
 the run succeeds, and `payment-response` carries the receipt.
 
-The CLI does not sign x402 payments; use an x402-capable HTTP client.
+Neither the CLI nor `@unbrowse/sdk` signs x402 payments; use an x402-capable HTTP client.
+
+Every route has an `@unbrowse/sdk` method: see [sdk.md](sdk.md).

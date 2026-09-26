@@ -3,7 +3,9 @@
 Unbrowse compiles websites into APIs, and APIs into tools agents call. A site is browsed once;
 after that, the task replays the site's own first-party HTTP requests without a browser.
 
-Everything below runs in the hosted service. The client in this repo only sends tool calls.
+Everything below runs in the hosted service. The client in this repo (`@unbrowse/sdk` and the
+`unbrowse` CLI) only sends REST calls to `/api/v1`; agents drive the cloud browser through the
+hosted MCP.
 
 ## The two passes
 

@@ -35,9 +35,14 @@ operate a browser. You do not reverse-engineer HAR files. You call Unbrowse.
 
 ```ts
 import { Unbrowse } from "@unbrowse/sdk";
-const ub = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY, baseUrl: "https://v3.unbrowse.ai/api/v1" });
-const run = await ub.run({ task: "top stories on Hacker News" });
+const ub = new Unbrowse(); // UNBROWSE_API_KEY, https://v3.unbrowse.ai/api/v1
+let run = await ub.run({ task: "top stories on Hacker News", idempotencyKey: crypto.randomUUID() });
+run = await ub.wait(run.runId);                                  // input_required → ub.answer(run.runId, { field: value })
 ```
+
+4. CLI (same REST API, from a shell): `npx unbrowse login`, then `npx unbrowse run "top stories on Hacker News"`.
+   `unbrowse resume <runId> field=value` answers on the same run. Exit codes: 0 verified, 2 input required,
+   3 sign-in or saved login needed (it opens the save-login page), 4 not verified, 1 error.
 
 Canonical REST lives at `/api/v1`. MCP is an adapter over the same authorization
 and run actor. Never talk to a website directly if Unbrowse can.

@@ -69,7 +69,7 @@ test("run POSTs /runs with task, typed inputs and an idempotency key; exit 0 on 
   const post = seen.find((s) => s.path === "runs")!;
   expect(post.auth).toBe(`Bearer ${TOKEN}`);
   expect(post.body).toMatchObject({ task: "top stories", input: { page: 2 }, targetUrl: "https://news.ycombinator.com", interactionMode: "unattended" });
-  expect(typeof post.body.idempotencyKey).toBe("string");
+  expect(typeof post.body.idempotency_key).toBe("string");
 });
 
 test("a working run is polled until it settles", async () => {

@@ -79,7 +79,8 @@ export type RunRequest = {
   accountRefs?: string[];
   interactionMode?: InteractionMode;
   authorizationRef?: string;
-  idempotencyKey: string;
+  /** Optional: the server makes one when absent. */
+  idempotencyKey?: string;
   allowedDestinations?: string[];
   budget?: { maxOperations?: number };
   executionPlane?: DeploymentProfile;

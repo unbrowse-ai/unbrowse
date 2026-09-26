@@ -48,7 +48,8 @@ test("every method maps to its /api/v1 route", async () => {
   const { sent, fetch } = stub();
   const ub = new Unbrowse({ apiKey: "k", baseUrl: "https://x.test", fetch });
   const calls: Array<[() => Promise<unknown>, string, string, unknown?]> = [
-    [() => ub.run({ task: "t", idempotencyKey: "i" }), "POST", "/runs", { task: "t", idempotencyKey: "i" }],
+    [() => ub.run({ task: "t", idempotencyKey: "i" }), "POST", "/runs", { task: "t", idempotency_key: "i" }],
+    [() => ub.run({ task: "t" }), "POST", "/runs", { task: "t" }],
     [() => ub.inspect("r1"), "GET", "/runs/r1"],
     [() => ub.events("r1"), "GET", "/runs/r1/events"],
     [() => ub.cancel("r1"), "POST", "/runs/r1/cancel"],
@@ -125,4 +126,14 @@ test("harness.yaml and skill.md come back as text", async () => {
   const ub = new Unbrowse({ apiKey: "k", fetch });
   expect(await ub.harnessYaml("learned.a")).toBe("apiVersion: unbrowse/v1alpha1");
   expect(await ub.skillMd("learned.a")).toBe("# Skill");
+});
+
+test("run sends the idempotency key the way the route reads it: idempotency_key and the header", async () => {
+  const seen: Array<{ body: unknown; header: string | null }> = [];
+  const fetch = (async (_url: string, init: RequestInit = {}) => {
+    seen.push({ body: JSON.parse(String(init.body)), header: new Headers(init.headers).get("idempotency-key") });
+    return Response.json({ runId: "r1", status: "succeeded" });
+  }) as typeof globalThis.fetch;
+  await new Unbrowse({ apiKey: "k", fetch }).run({ task: "t", idempotencyKey: "retry-1" });
+  expect(seen[0]).toEqual({ body: { task: "t", idempotency_key: "retry-1" }, header: "retry-1" });
 });

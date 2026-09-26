@@ -69,9 +69,17 @@ export class Unbrowse {
 
   // Runs
 
-  /** Start a run by capability id or plain-language task. `idempotencyKey` makes retries safe. */
+  /**
+   * Start a run by capability id or plain-language task. `idempotencyKey` makes retries safe; the route
+   * reads it as `idempotency_key` or an `Idempotency-Key` header (camelCase in the body is ignored).
+   */
   run(request: RunRequest): Promise<RunView> {
-    return this.post("/runs", request);
+    const { idempotencyKey, ...rest } = request;
+    return this.req("/runs", {
+      method: "POST",
+      body: JSON.stringify(idempotencyKey ? { ...rest, idempotency_key: idempotencyKey } : rest),
+      ...(idempotencyKey ? { headers: { "idempotency-key": idempotencyKey } } : {}),
+    });
   }
 
   inspect(runId: string): Promise<RunView> {

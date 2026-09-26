@@ -1,6 +1,8 @@
 # Logins and the vault
 
-Unbrowse keeps logins in its password manager. Agents, the CLI and the SDK never see a password.
+Unbrowse keeps logins in its password manager. Agents and the CLI never see a password. The SDK
+only sends one when your own code saves a login (`logins.save`, `accounts.connect`), for services
+that run their own save-login page; nothing ever reads a value back.
 
 ## Saving a login
 

@@ -64,8 +64,11 @@ save-login page and exits 3. See [logins-and-vault.md](logins-and-vault.md).
 
 ## MCP
 
-`unbrowse install` prints the commands that add the hosted MCP to Claude Code, Codex and other
-clients. They carry the server URL only; the client runs the OAuth sign-in.
+| Command | Does |
+|---|---|
+| `install` | Prints the commands that add the hosted MCP to Claude Code, Codex and other clients |
+
+They carry the server URL only; your MCP client runs the OAuth sign-in.
 
 ## Exit codes
 

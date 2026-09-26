@@ -71,10 +71,6 @@ bun run cli help
 
 ## Release
 
-CI/CD publishes. Bump `version` in `packages/sdk/package.json` and `packages/cli/package.json`, merge,
-then push the tag: `git tag v12.0.0-alpha.1 && git push origin v12.0.0-alpha.1`. The `release` workflow
-checks the versions, tests, builds, installs the tarballs on a clean Node and publishes
-`@unbrowse/sdk` then `unbrowse` with provenance: `-pre` versions to `next`, others to `latest`.
-Needs the `NPM_TOKEN` repo secret.
+CI/CD publishes on a version tag: [docs/release.md](docs/release.md).
 
 What is here and what stays hosted: [docs/open-source.md](docs/open-source.md). MIT © Unbrowse AI

@@ -27,7 +27,7 @@ The client in this repo is a thin transport. Every row below is service behavior
 | Periodic re-verification | Shipped, check open | Registry revalidation with fresh words; repeated failures unpublish. |
 | "HTTP 200 is not success" | Shipped | `succeeded` requires an independently verified business outcome. |
 | Per-route package (`SKILL.md`, `auth.json`, generated `api.ts`) | Partial | Each capability is `unbrowse/v1alpha1` harness YAML plus a SKILL.md. Each site is an MCP server and an OpenAPI 3.1 document (check open). No `auth.json` or generated `api.ts`. |
-| MCP support | Shipped | Remote MCP at `/mcp`; the CLI in this repo calls the same tools. |
+| MCP support | Shipped | Remote MCP at `/mcp`, an adapter over the same runs as REST `/api/v1`, which `@unbrowse/sdk` and the CLI in this repo call. |
 | A2A / ANP protocol coverage | Not shipped | |
 
 ## Credentials

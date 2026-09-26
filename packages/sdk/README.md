@@ -22,6 +22,9 @@ while (flight.status === "input_required") {            // answer on the same ru
 }
 ```
 
+Pass an `idempotencyKey` when you may retry: the same key returns the same run instead of starting
+a second one.
+
 `new Unbrowse({ apiKey, baseUrl, fetch })`: `apiKey` defaults to `UNBROWSE_API_KEY` (an API key or
 an OAuth access token); `baseUrl` takes an origin or an `/api/v1` URL and defaults to
 `UNBROWSE_BASE_URL`, then v3. Public registry reads need no key.
@@ -30,7 +33,7 @@ an OAuth access token); `baseUrl` takes an origin or an `/api/v1` URL and defaul
 
 | Method | Route |
 |---|---|
-| `run({ task \| capability, targetUrl?, input?, interactionMode?, idempotencyKey })` | `POST /runs` |
+| `run({ task \| capability, targetUrl?, input?, interactionMode?, idempotencyKey? })` | `POST /runs` (key sent as `idempotency_key` + `Idempotency-Key`) |
 | `inspect(runId)` | `GET /runs/:id` |
 | `wait(runId, { timeoutMs? })` | polls `GET /runs/:id` |
 | `events(runId)` | `GET /runs/:id/events` |

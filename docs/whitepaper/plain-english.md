@@ -30,7 +30,7 @@ Same permissions. Less ceremony.
 
 ## What it looks like today
 
-Unbrowse is a hosted service. This repo is the small client that talks to it: a command-line tool, and a bridge so agent apps can use it.
+Unbrowse is a hosted service. This repo is the small client that talks to it: a TypeScript library (`@unbrowse/sdk`) and a command-line tool built on it. Agent apps connect to the hosted service directly.
 
 1. An agent asks for a task.
 2. Unbrowse checks what it already knows: the user's own sites, then a shared public list.

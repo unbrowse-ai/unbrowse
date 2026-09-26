@@ -138,7 +138,7 @@ No account is needed. `POST /api/v1/runs` and `POST /api/v1/sites/<host>/call/<t
 - Remote MCP at `/mcp` (Streamable HTTP).
 - REST at `/api/v1`. The authenticated principal decides the workspace; a caller-supplied workspace id is never authority.
 - Auth: an API key (`Authorization: Bearer ub_live_…`), or OAuth 2.1 with PKCE for remote MCP clients (**shipped, check open**).
-- This repo's client: the `unbrowse` CLI.
+- This repo's client: `@unbrowse/sdk` and the `unbrowse` CLI.
 - A Tardigrade actor that exposes learned capabilities as tools (**shipped**).
 
 ## MCP tools
