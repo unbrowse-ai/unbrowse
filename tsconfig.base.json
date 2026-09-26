@@ -8,8 +8,6 @@
     "rewriteRelativeImportExtensions": true,
     "declaration": true,
     "skipLibCheck": true,
-    "types": ["node"],
-    "outDir": "dist"
-  },
-  "include": ["src"], "exclude": ["src/**/*.test.ts"]
+    "types": ["node"]
+  }
 }

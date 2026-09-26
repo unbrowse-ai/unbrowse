@@ -21,9 +21,8 @@ Closest alternatives:
 
 **Client (this repo, open source).**
 
-- `src/cli.ts`: the `unbrowse` CLI.
-- `src/client.ts`: the REST client from the service's own codebase.
-- `src/types.ts`, `src/mcp-install.ts`: its run types and MCP install helpers.
+- `packages/sdk`: `@unbrowse/sdk`, the REST client grown from the service's own codebase.
+- `packages/cli`: the `unbrowse` CLI built on it.
 - `skill/SKILL.md`: the agent contract.
 
 The client runs no browser and keeps no index.

@@ -10,6 +10,7 @@ jobs:
         with: { node-version: 18 }
       - run: bun install
       - run: bun run typecheck
-      - run: bun test
+      - run: bun test packages
       - run: bun run build
-      - run: node dist/cli.js --version && node dist/cli.js help > /dev/null
+      - run: node packages/cli/dist/cli.js --version
+      - run: node --input-type=module -e 'import("./packages/sdk/dist/index.js").then(m => { if (!new m.Unbrowse().baseUrl.endsWith("/api/v1")) process.exit(1) })'

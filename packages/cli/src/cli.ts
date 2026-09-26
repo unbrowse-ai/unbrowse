@@ -5,9 +5,8 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import * as auth from "./auth.ts";
-import { Unbrowse } from "./client.ts";
-import { mcpCommands } from "./mcp-install.ts";
-import type { Json, RunView } from "./types.ts";
+import { Unbrowse, mcpCommands } from "@unbrowse/sdk";
+import type { Json, RunView } from "@unbrowse/sdk";
 
 declare const __VERSION__: string | undefined;
 const VERSION = typeof __VERSION__ === "string" ? __VERSION__ : "dev";
@@ -79,7 +78,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
   const origin = String(args.flags["base-url"] ?? process.env.UNBROWSE_BASE_URL ?? auth.load().baseUrl ?? DEFAULT_ORIGIN).replace(/\/+$/, "");
   const flag = (k: string) => (typeof args.flags[k] === "string" ? (args.flags[k] as string) : undefined);
   const print = (v: unknown) => io.out(JSON.stringify(v, null, 2));
-  const client = async () => new Unbrowse({ apiKey: await auth.currentToken(origin), baseUrl: `${origin}/api/v1` });
+  const client = async () => new Unbrowse({ apiKey: (await auth.currentToken(origin)) ?? "", baseUrl: origin });
 
   try {
     const ub = await client();
@@ -131,15 +130,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
           answers[pair.slice(0, k)] = coerce(pair.slice(k + 1));
         }
         if (!Object.keys(answers).length) throw new UsageError("usage: unbrowse resume <runId> key=value…");
-        const view = await ub.inspect(runId);
-        const open = view.requirements.filter((r) => r.state === "open");
-        const responses = Object.entries(answers).map(([field, value]) => {
-          const req = open.find((r) => r.affectedAction === field || r.id === field);
-          if (!req) throw new UsageError(`${field} is not an open requirement. Open: ${open.map((r) => r.affectedAction).join(", ") || "none"}`);
-          return { requirementId: req.id, expectedRevision: req.revision, action: "accept", values: { [req.affectedAction]: value } };
-        });
-        await ub.resume(runId, view.stateRevision, responses as unknown as Json[]);
-        return settle(ub, await ub.inspect(runId), args, io, print);
+        return settle(ub, await ub.answer(runId, answers), args, io, print);
       }
       case "cancel":
         print(await ub.cancel(need(rest[0], "cancel <runId>")));
@@ -175,6 +166,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     if (err instanceof UsageError) return io.err(err.message), 1;
     if (err instanceof SyntaxError) return io.err(`invalid JSON: ${err.message}`), 1;
     const e = err as Error & { status?: number; body?: unknown };
+    if (e.status === 422 && (e as { code?: string }).code === "invalid_answer") return io.err(e.message), 1;
     if (args.flags.json) print({ error: { status: e.status ?? null, message: e.message, details: e.body ?? null } });
     else io.err(e.status === 401 ? `Not signed in to ${origin}. Run \`unbrowse login\`, or set UNBROWSE_API_KEY.` : `error${e.status ? ` (HTTP ${e.status})` : ""}: ${e.message}`);
     return e.status === 401 ? 3 : 1;
@@ -183,11 +175,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
 
 /** Wait for a run to settle, print it, and turn its status into an exit code. */
 async function settle(ub: Unbrowse, view: RunView, args: Args, io: Io, print: (v: unknown) => void): Promise<number> {
-  const deadline = Date.now() + Number(args.flags.timeout ?? 600) * 1000;
-  for (let delay = 500; !args.flags["no-wait"] && (view.status === "accepted" || view.status === "working") && Date.now() < deadline; delay = Math.min(delay * 2, 5000)) {
-    await new Promise((r) => setTimeout(r, delay));
-    view = await ub.inspect(view.runId);
-  }
+  if (!args.flags["no-wait"] && (view.status === "accepted" || view.status === "working")) view = await ub.wait(view.runId, { timeoutMs: Number(args.flags.timeout ?? 600) * 1000 });
   print(view);
   if (view.signIn?.url) {
     io.err(`This site needs a login. Save it in Unbrowse (the CLI never sees it): ${view.signIn.url}`);

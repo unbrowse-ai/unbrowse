@@ -1,0 +1,16 @@
+{
+  "name": "unbrowse",
+  "version": "12.0.0-alpha.0",
+  "description": "Call websites as APIs: a thin CLI over the Unbrowse API.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://unbrowse.ai",
+  "repository": { "type": "git", "url": "git+https://github.com/unbrowse-ai/unbrowse.git", "directory": "packages/cli" },
+  "bin": { "unbrowse": "dist/cli.js" },
+  "files": ["dist", "SKILL.md", "README.md"],
+  "engines": { "node": ">=18.17" },
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": { "@unbrowse/sdk": "workspace:*" }
+}

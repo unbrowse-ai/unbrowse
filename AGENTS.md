@@ -1,18 +1,18 @@
 # unbrowse (client) — guide for agents
 
-Thin CLI over the hosted Unbrowse REST API (`/api/v1`). No browser, no local MCP, no site logic.
+Open-source client for the hosted Unbrowse REST API (`/api/v1`). No browser, no local MCP, no site logic.
 
 | Path | Owns |
 |---|---|
-| `src/client.ts`, `src/types.ts`, `src/mcp-install.ts`, `skill/SKILL.md` | From unbrowse6 (`src/lib/unbrowse/`, `skill/`). Change upstream first |
-| `src/cli.ts` | Commands, run polling, exit codes |
-| `src/auth.ts` | API key and OAuth (PKCE, loopback) storage |
-| `tests/cli.test.ts` | CLI against a local stand-in of the REST API |
+| `packages/sdk` | `@unbrowse/sdk`: every `/api/v1` route. `client.ts`, `types.ts`, `mcp-install.ts` come from unbrowse6 `src/lib/unbrowse/`; change upstream too |
+| `packages/cli` | `unbrowse` CLI on the SDK (bundled in). `auth.ts`: API key and OAuth storage |
+| `skill/SKILL.md` | Agent contract, from unbrowse6 `skill/`; shipped in the CLI package |
+| `docs/` | User docs and the whitepaper |
 
-Commands: `bun test` · `bun run typecheck` · `bun run build` · `bun src/cli.ts help`.
+Commands: `bun install` · `bun test packages` · `bun run typecheck` · `bun run build` · `bun run cli help`.
 
 Rules:
-- A command maps to one REST route. Add it to `docs/cli.md` and a test.
+- A new API route gets an SDK method and a row in `packages/sdk/tests/client.test.ts`; a CLI command maps to one SDK method.
 - Never accept, log or print a password or token.
-- `dist/cli.js` must run on plain Node 18.17+.
+- Built output runs on plain Node 18.17+.
 - Root CLAUDE.md is a byte copy of this file.

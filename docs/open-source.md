@@ -1,17 +1,17 @@
 # What is open source
 
-This repository is the Unbrowse client, MIT-licensed. It started as the client-side code of the
-hosted service (unbrowse6 `7e408b90`), with a CLI on top.
+This repository is the Unbrowse client, MIT-licensed. Two packages: `@unbrowse/sdk`, grown from the
+hosted service's own client (unbrowse6 `7e408b90`), and the `unbrowse` CLI built on it.
 
 | Path | What | From |
 |---|---|---|
-| `src/client.ts` | `Unbrowse` REST client | unbrowse6 `src/lib/unbrowse/client.ts`, plus REST reads and the `resume` fix ([upstream PR](https://github.com/lekt9/unbrowse6/pull/1)) |
-| `src/types.ts` | Run and requirement types the API returns | unbrowse6 `src/lib/unbrowse/types.ts`, trimmed to the public shapes |
-| `src/mcp-install.ts` | Install links and commands for the hosted MCP | unbrowse6 `src/lib/unbrowse/mcp-install.ts` |
-| `skill/SKILL.md` | The agent contract | unbrowse6 `skill/SKILL.md` (imports from `unbrowse`) |
-| `src/cli.ts` | The `unbrowse` command | new |
-| `src/auth.ts` | API key and OAuth sign-in storage | new |
-| `tests/` | CLI tests against a local stand-in API | new |
+| `packages/sdk/src/client.ts` | `@unbrowse/sdk`: every `/api/v1` route | unbrowse6 `src/lib/unbrowse/client.ts`, extended; `resume` fix ([upstream PR](https://github.com/lekt9/unbrowse6/pull/1)) |
+| `packages/sdk/src/types.ts` | Run and requirement types the API returns | unbrowse6 `src/lib/unbrowse/types.ts`, trimmed to the public shapes |
+| `packages/sdk/src/mcp-install.ts` | Install links and commands for the hosted MCP | unbrowse6 `src/lib/unbrowse/mcp-install.ts` |
+| `skill/SKILL.md` | The agent contract | unbrowse6 `skill/SKILL.md`  |
+| `packages/cli/src/cli.ts` | The `unbrowse` command, on the SDK | new |
+| `packages/cli/src/auth.ts` | API key and OAuth sign-in storage | new |
+| `packages/*/tests/` | SDK route tests, CLI tests against a local stand-in API | new |
 | `docs/` | These docs and the [whitepaper](whitepaper/README.md) | new |
 
 The hosted service is not here: the cloud browser, the learn loop, replay, render fallback, the
@@ -27,5 +27,5 @@ It stores one file, `~/.config/unbrowse/cli.json` (0600), and sends no telemetry
 
 ## Keeping in step with the service
 
-`client.ts`, `types.ts`, `mcp-install.ts` and `skill/SKILL.md` track the service. Changes there
+The SDK sources and `skill/SKILL.md` track the service. Changes there
 go upstream first. `--base-url` targets any deployment with the same `/api/v1` contract.

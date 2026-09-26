@@ -32,7 +32,7 @@ The service:
 - bills only verified calls: 500 a month free, then $10 per 10,000; x402 pay-per-call without an account
 - routes plain-language tasks with Jev, with a deterministic fallback
 
-The client is a thin CLI over the service's REST API (`/api/v1`); agents use the remote MCP (`/mcp`).
+The client is `@unbrowse/sdk` and a thin CLI over the service's REST API (`/api/v1`); agents use the remote MCP (`/mcp`).
 
 Not built: per-route pricing, contributor payouts, validator markets, attestation.
 

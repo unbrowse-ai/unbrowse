@@ -1,53 +1,16 @@
 {
-  "name": "unbrowse",
-  "version": "12.0.0-alpha.0",
-  "description": "Thin CLI and client for the Unbrowse API.",
-  "license": "MIT",
+  "name": "unbrowse-workspace",
+  "private": true,
   "type": "module",
-  "homepage": "https://unbrowse.ai",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/unbrowse-ai/unbrowse.git"
-  },
-  "bin": {
-    "unbrowse": "dist/cli.js"
-  },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "dist",
-    "skill",
-    "README.md",
-    "LICENSE"
-  ],
-  "engines": {
-    "node": ">=18.17"
-  },
+  "workspaces": ["packages/sdk", "packages/cli"],
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "test": "bun test",
-    "typecheck": "tsc --noEmit",
-    "cli": "bun src/cli.ts",
-    "prepublishOnly": "npm run build && npm test"
+    "build": "bun run --filter '@unbrowse/sdk' build && bun run --filter 'unbrowse' build",
+    "test": "bun test packages",
+    "typecheck": "tsc -p packages/sdk --noEmit && tsc -p packages/cli --noEmit",
+    "cli": "bun packages/cli/src/cli.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0"
-  },
-  "keywords": [
-    "unbrowse",
-    "mcp",
-    "agents",
-    "web",
-    "api",
-    "cli",
-    "skill"
-  ]
+  }
 }

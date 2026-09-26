@@ -1,7 +1,8 @@
 # Unbrowse
 
 Call websites as APIs. This is the open-source client for the hosted Unbrowse service
-(`https://v3.unbrowse.ai`): a thin CLI over its REST API, built on the service's own client code.
+(`https://v3.unbrowse.ai`): the `@unbrowse/sdk` TypeScript client for its REST API, and the
+`unbrowse` CLI built on it.
 
 ```bash
 npx unbrowse login
@@ -38,6 +39,16 @@ unbrowse install                    add the hosted MCP to Claude Code, Codex, ot
 All commands: [docs/cli.md](docs/cli.md). Exit codes: 0 ok, 1 error, 2 input required,
 3 sign-in or login needed, 4 not verified.
 
+## SDK
+
+```ts
+import { Unbrowse } from "@unbrowse/sdk";
+const ub = new Unbrowse(); // UNBROWSE_API_KEY
+const run = await ub.wait((await ub.run({ task: "top stories on Hacker News", idempotencyKey: crypto.randomUUID() })).runId);
+```
+
+Every `/api/v1` route: [docs/sdk.md](docs/sdk.md).
+
 ## Agents
 
 Agents connect to the hosted MCP (`https://v3.unbrowse.ai/mcp`; `unbrowse install` prints the
@@ -52,9 +63,10 @@ commands) and follow [skill/SKILL.md](skill/SKILL.md). There is no local MCP ser
 
 ```bash
 bun install
-bun test              # CLI tests against a local stand-in API
-bun run build         # dist/cli.js runs on Node 18.17+
-bun src/cli.ts help
+bun test packages     # SDK route tests + CLI tests against a local stand-in API
+bun run typecheck
+bun run build         # packages/sdk/dist, packages/cli/dist/cli.js (Node 18.17+)
+bun run cli help
 ```
 
 What is here and what stays hosted: [docs/open-source.md](docs/open-source.md). MIT © Unbrowse AI

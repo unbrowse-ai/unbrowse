@@ -21,7 +21,7 @@ Unbrowse works one layer down. It learns the requests behind the interface, then
 Unbrowse is a hosted service with an open-source client.
 
 - **The hosted service** runs a cloud browser, learns capabilities from recorded sessions, replays them, and keeps a vault and a public registry.
-- **The client** (this repo) is a thin CLI. It calls the service's REST API. It runs no browser.
+- **The client** (this repo) is `@unbrowse/sdk` and a thin CLI. Both call the service's REST API. It runs no browser.
 
 The loop:
 

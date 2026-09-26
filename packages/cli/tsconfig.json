@@ -1,0 +1,1 @@
+{ "extends": "../../tsconfig.base.json", "compilerOptions": { "paths": { "@unbrowse/sdk": ["../sdk/src/index.ts"] } }, "include": ["src"] }
