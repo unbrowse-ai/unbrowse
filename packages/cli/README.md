@@ -1,7 +1,7 @@
 # unbrowse
 
 Call websites as APIs from a shell. A thin CLI over the Unbrowse REST API
-(`https://v3.unbrowse.ai/api/v1`), built on [`@unbrowse/sdk`](https://www.npmjs.com/package/@unbrowse/sdk).
+(`https://unbrowse.ai/api/v1`), built on [`@unbrowse/sdk`](https://www.npmjs.com/package/@unbrowse/sdk).
 
 ```bash
 unbrowse login                               # browser sign-in, or: login --key ub_live_…

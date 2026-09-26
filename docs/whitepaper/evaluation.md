@@ -15,7 +15,7 @@ These are paper results. They have not been re-run against the current service. 
 
 ## Current service evaluations
 
-The service's own evaluations run against production (`v3.unbrowse.ai`). The numbers below come from the service's evaluation reports (`docs/eval/*latest.json` and matching reports in the closed-source service repo) and its acceptance ledger. Dates are when each was run.
+The service's own evaluations run against production (`unbrowse.ai`). The numbers below come from the service's evaluation reports (`docs/eval/*latest.json` and matching reports in the closed-source service repo) and its acceptance ledger. Dates are when each was run.
 
 ### Lean evaluation (2026-09-24)
 

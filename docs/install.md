@@ -7,7 +7,7 @@ Pick what you need. Installing the skill adds instructions; connecting MCP or si
 | An agent that can discover, browse and call sites | Remote MCP plus the skill |
 | Shell commands and scripts | CLI |
 | A TypeScript integration | SDK |
-| Notes, plans and results appearing live | Remote MCP plus the signed-in [canvas](https://v3.unbrowse.ai/app/canvas) |
+| Notes, plans and results appearing live | Remote MCP plus the signed-in [canvas](https://unbrowse.ai/app/canvas) |
 
 ## Agent skill
 
@@ -24,7 +24,7 @@ The skill alone doesn't connect an account. Add MCP next.
 ## Remote MCP
 
 ```sh
-claude mcp add --transport http unbrowse https://v3.unbrowse.ai/mcp
+claude mcp add --transport http unbrowse https://unbrowse.ai/mcp
 ```
 
 Complete OAuth in your client's browser sign-in. For other clients, see [MCP configuration](mcp.md). Use the same Unbrowse account in your agent and console if you want the same saved sites and canvas.

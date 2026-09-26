@@ -1,7 +1,7 @@
 # Unbrowse
 
 Call websites as APIs. This is the open-source client for the hosted Unbrowse service
-(`https://v3.unbrowse.ai`): the `@unbrowse/sdk` TypeScript client for its REST API, and the
+(`https://unbrowse.ai`): the `@unbrowse/sdk` TypeScript client for its REST API, and the
 `unbrowse` CLI built on it.
 
 Install the agent skill:
@@ -13,7 +13,7 @@ npx skills add unbrowse-ai/unbrowse-skill --skill unbrowse
 Connect your agent:
 
 ```bash
-claude mcp add --transport http unbrowse https://v3.unbrowse.ai/mcp
+claude mcp add --transport http unbrowse https://unbrowse.ai/mcp
 ```
 
 Complete OAuth sign-in in your client. **For the CLI or SDK, use the pinned hosted-client release in [the installation guide](docs/install.md)**; npm `latest` may still target the older service.
@@ -62,7 +62,7 @@ Supported REST methods: [docs/sdk.md](docs/sdk.md).
 
 ## Agents
 
-Agents connect to the hosted MCP (`https://v3.unbrowse.ai/mcp`; `unbrowse install` prints the
+Agents connect to the hosted MCP (`https://unbrowse.ai/mcp`; `unbrowse install` prints the
 commands) and follow [skill/SKILL.md](skill/SKILL.md). There is no local MCP server.
 
 ## Pricing

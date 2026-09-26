@@ -1,6 +1,6 @@
 # @unbrowse/sdk
 
-TypeScript client for the Unbrowse API (`https://v3.unbrowse.ai/api/v1`). Node 18.17+, Bun, Deno,
+TypeScript client for the Unbrowse API (`https://unbrowse.ai/api/v1`). Node 18.17+, Bun, Deno,
 or any runtime with `fetch`. No dependencies. The `unbrowse` CLI is built on it.
 
 ```bash
@@ -10,7 +10,7 @@ npm i @unbrowse/sdk
 ```ts
 import { Unbrowse } from "@unbrowse/sdk";
 
-const ub = new Unbrowse(); // UNBROWSE_API_KEY, https://v3.unbrowse.ai/api/v1
+const ub = new Unbrowse(); // UNBROWSE_API_KEY, https://unbrowse.ai/api/v1
 
 let run = await ub.run({ task: "top stories on Hacker News", idempotencyKey: crypto.randomUUID() });
 run = await ub.wait(run.runId);                         // until it leaves accepted/working
@@ -80,4 +80,4 @@ Every failure throws `UnbrowseError` with `status`, `code` (the server's, e.g. `
 ## Install helpers
 
 `mcpCommands(url)`, `cursorInstallLink(url)`, `vscodeInstallLink(url)` build install commands and
-links for the hosted MCP (`https://v3.unbrowse.ai/mcp`). They never carry a key.
+links for the hosted MCP (`https://unbrowse.ai/mcp`). They never carry a key.

@@ -1,6 +1,6 @@
 # REST API
 
-Base: `https://v3.unbrowse.ai/api/v1`. Auth: `Authorization: Bearer <API key or OAuth token>`.
+Base: `https://unbrowse.ai/api/v1`. Auth: `Authorization: Bearer <API key or OAuth token>`.
 The authenticated principal decides the workspace; a caller-supplied workspace id is never
 authority. MCP (`/mcp`) is an adapter over the same runs and authorization.
 

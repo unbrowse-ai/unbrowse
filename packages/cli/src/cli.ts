@@ -10,7 +10,7 @@ import type { Json, RunView } from "@unbrowse/sdk";
 
 declare const __VERSION__: string | undefined;
 const VERSION = typeof __VERSION__ === "string" ? __VERSION__ : "dev";
-export const DEFAULT_ORIGIN = "https://v3.unbrowse.ai";
+export const DEFAULT_ORIGIN = "https://unbrowse.ai";
 
 const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse API
 

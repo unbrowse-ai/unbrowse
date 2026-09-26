@@ -85,6 +85,6 @@ They carry the server URL only; your MCP client runs the OAuth sign-in.
 | Variable | Default |
 |---|---|
 | `UNBROWSE_API_KEY` | — |
-| `UNBROWSE_BASE_URL` | `https://v3.unbrowse.ai` |
+| `UNBROWSE_BASE_URL` | `https://unbrowse.ai` |
 | `UNBROWSE_CONFIG_DIR` | `~/.config/unbrowse` |
 | `UNBROWSE_NO_OPEN` | unset; set it to never open a browser |

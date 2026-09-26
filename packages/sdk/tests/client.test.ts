@@ -27,9 +27,9 @@ test("defaults to the v3 API and UNBROWSE_API_KEY", async () => {
   const { sent, fetch } = stub();
   const ub = new Unbrowse({ fetch });
   expect(ub.baseUrl).toBe(DEFAULT_BASE_URL);
-  expect(DEFAULT_BASE_URL).toBe("https://v3.unbrowse.ai/api/v1");
+  expect(DEFAULT_BASE_URL).toBe("https://unbrowse.ai/api/v1");
   await ub.me();
-  expect(sent[0]).toMatchObject({ url: "https://v3.unbrowse.ai/api/v1/me", auth: "Bearer ub_live_env" });
+  expect(sent[0]).toMatchObject({ url: "https://unbrowse.ai/api/v1/me", auth: "Bearer ub_live_env" });
 });
 
 test("an origin or an /api/v1 URL both work as baseUrl", () => {

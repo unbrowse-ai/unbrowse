@@ -11,7 +11,7 @@
     },
     "packages/cli": {
       "name": "unbrowse",
-      "version": "12.0.0-alpha.0",
+      "version": "12.0.0-preview.1",
       "bin": {
         "unbrowse": "dist/cli.js",
       },
@@ -21,7 +21,7 @@
     },
     "packages/sdk": {
       "name": "@unbrowse/sdk",
-      "version": "12.0.0-alpha.0",
+      "version": "12.0.0-preview.1",
     },
   },
   "packages": {
