@@ -1,0 +1,60 @@
+# Unbrowse
+
+Call websites as APIs. This is the open-source client for the hosted Unbrowse service
+(`https://v3.unbrowse.ai`): a thin CLI over its REST API, built on the service's own client code.
+
+```bash
+npx unbrowse login
+npx unbrowse run "top stories on Hacker News"
+```
+
+## How it works
+
+1. **Discover.** Unbrowse searches your private capabilities, then a public registry of sites
+   already compiled into tools.
+2. **Run.** A matching capability replays the site's own first-party HTTP requests. No browser.
+   A run succeeds only when its result is verified.
+3. **Learn once.** No match: an agent does the task in Unbrowse's recorded cloud browser (MCP), or
+   you upload two HAR recordings (`unbrowse learn`). Unbrowse compiles the requests into a
+   one-call capability. Next time is step 2.
+
+Passwords stay in the Unbrowse password manager; the CLI never takes one.
+
+More: [docs/how-it-works.md](docs/how-it-works.md) · Paper: [Internal APIs Are All You Need](docs/whitepaper/README.md) (arXiv:2604.00694)
+
+## Commands
+
+```text
+unbrowse login [--key ub_live_…]    sign in (browser OAuth) or store an API key
+unbrowse discover <query>           your capabilities, then the public registry
+unbrowse run <task…> [--set k=v]    run a task; waits for a verified result
+unbrowse resume <runId> k=v…        answer what the run asked for, on the same run
+unbrowse learn a.har b.har          compile two recordings into a capability
+unbrowse logins                     saved logins, masked
+unbrowse registry [query]           public compiled sites (no account)
+unbrowse install                    add the hosted MCP to Claude Code, Codex, others
+```
+
+All commands: [docs/cli.md](docs/cli.md). Exit codes: 0 ok, 1 error, 2 input required,
+3 sign-in or login needed, 4 not verified.
+
+## Agents
+
+Agents connect to the hosted MCP (`https://v3.unbrowse.ai/mcp`; `unbrowse install` prints the
+commands) and follow [skill/SKILL.md](skill/SKILL.md). There is no local MCP server.
+
+## Pricing
+
+500 verified calls a month free, then $10 per 10,000. Only verified successes bill.
+[docs/pricing.md](docs/pricing.md)
+
+## Develop
+
+```bash
+bun install
+bun test              # CLI tests against a local stand-in API
+bun run build         # dist/cli.js runs on Node 18.17+
+bun src/cli.ts help
+```
+
+What is here and what stays hosted: [docs/open-source.md](docs/open-source.md). MIT © Unbrowse AI
