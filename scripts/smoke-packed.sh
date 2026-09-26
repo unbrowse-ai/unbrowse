@@ -21,4 +21,18 @@ node --input-type=module -e '
   }
   console.log("sdk ok");'
 
+# Signed in, against the live service: what a new user does right after install.sh. Releases set
+# SMOKE_SIGNED_IN=1 with the release-QA account's key; a missing key fails instead of skipping.
+if [ "${SMOKE_SIGNED_IN:-0}" = "1" ]; then
+  if [ -z "${UNBROWSE_API_KEY:-}" ]; then echo "SMOKE_SIGNED_IN=1 needs UNBROWSE_API_KEY (the release-QA key)" >&2; exit 1; fi
+  export HOME="$DIR/home"; mkdir -p "$HOME"
+  ./node_modules/.bin/unbrowse whoami --json > whoami.json
+  node -e 'const w=require("./whoami.json"); if (w.origin !== "https://unbrowse.ai" || !w.workspaceId) { console.error(w); process.exit(1) } console.log("signed in:", w.origin)'
+  ./node_modules/.bin/unbrowse run "top stories on Hacker News" --json > run.json
+  node -e 'const r=require("./run.json"); const n=r.result?.stories?.length ?? 0;
+    if (r.status !== "succeeded" || r.phase !== "verified" || n < 5) { console.error(JSON.stringify(r).slice(0, 800)); process.exit(1) }
+    console.log("first run:", r.capabilityId, n, "stories, verified")'
+  echo SIGNED_IN_OK
+fi
+
 echo PACKED_CLIENT_OK
