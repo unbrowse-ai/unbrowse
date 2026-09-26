@@ -1,0 +1,79 @@
+name: release
+
+# Push a tag vX.Y.Z (or vX.Y.Z-pre.N) whose version matches packages/sdk and packages/cli.
+# Publishes @unbrowse/sdk, then unbrowse. Prereleases go to the `next` dist-tag, releases to `latest`.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)release, e.g. v12.0.0-alpha.0"
+        required: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.tag || github.ref }}" }
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, registry-url: "https://registry.npmjs.org" }
+
+      - name: Versions match the tag
+        id: gate
+        run: echo "dist_tag=$(node scripts/release-check.mjs "$TAG")" >> "$GITHUB_OUTPUT"
+
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test packages
+      - run: bun run build
+
+      - name: Pack
+        id: pack
+        run: |
+          mkdir -p out
+          (cd packages/sdk && npm pack --pack-destination ../../out >/dev/null)
+          (cd packages/cli && npm pack --pack-destination ../../out >/dev/null)
+          echo "sdk=$(ls out/unbrowse-sdk-*.tgz)" >> "$GITHUB_OUTPUT"
+          echo "cli=$(ls out/unbrowse-[0-9]*.tgz)" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke the tarballs on a clean install
+        run: bash scripts/smoke-packed.sh "${{ steps.pack.outputs.sdk }}" "${{ steps.pack.outputs.cli }}"
+        env: { SMOKE_LIVE: "1" }
+
+      - name: Publish (SDK first; skips versions already on npm)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DIST_TAG: ${{ steps.gate.outputs.dist_tag }}
+        run: |
+          VERSION="${TAG#v}"
+          publish() {
+            local name="$1" tgz="$2"
+            if [ "$(npm view "$name@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
+              echo "::notice::$name@$VERSION is already on npm; skipping"
+            else
+              npm publish "$tgz" --access public --provenance --tag "$DIST_TAG"
+            fi
+            test "$(npm view "$name" "dist-tags.$DIST_TAG")" = "$VERSION"
+          }
+          publish @unbrowse/sdk "${{ steps.pack.outputs.sdk }}"
+          publish unbrowse "${{ steps.pack.outputs.cli }}"
+
+      - name: GitHub release with the tarballs
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          PRE=""; [ "${{ steps.gate.outputs.dist_tag }}" = next ] && PRE="--prerelease"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" $PRE --generate-notes
+          gh release upload "$TAG" out/*.tgz --clobber
