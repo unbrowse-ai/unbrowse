@@ -7,7 +7,7 @@
   "homepage": "https://unbrowse.ai",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/unbrowse-ai/unbrowse.git",
+    "url": "git+https://github.com/unbrowse-ai/unbrowse-skill.git",
     "directory": "packages/sdk"
   },
   "main": "dist/index.js",

@@ -5,7 +5,7 @@ hosted service's own client (unbrowse6 `7e408b90`), and the `unbrowse` CLI built
 
 | Path | What | From |
 |---|---|---|
-| `packages/sdk/src/client.ts` | `@unbrowse/sdk`: every `/api/v1` route | unbrowse6 `src/lib/unbrowse/client.ts`, extended; `resume` and idempotency-key fixes ([upstream PR](https://github.com/lekt9/unbrowse6/pull/1)) |
+| `packages/sdk/src/client.ts` | `@unbrowse/sdk`: every `/api/v1` route | unbrowse6 `src/lib/unbrowse/client.ts`, extended; `resume` and idempotency-key fixes (also sent upstream) |
 | `packages/sdk/src/types.ts` | Run and requirement types the API returns | unbrowse6 `src/lib/unbrowse/types.ts`, trimmed to the public shapes |
 | `packages/sdk/src/mcp-install.ts` | Install links and commands for the hosted MCP | unbrowse6 `src/lib/unbrowse/mcp-install.ts` |
 | `skill/SKILL.md` | The agent contract | unbrowse6 `skill/SKILL.md`  |

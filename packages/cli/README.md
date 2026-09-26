@@ -24,4 +24,4 @@ Exit codes: 0 verified, 1 error, 2 input required, 3 sign-in or saved login need
 Env: `UNBROWSE_API_KEY`, `UNBROWSE_BASE_URL`. Node 18.17+, no dependencies.
 
 The agent contract ships as `SKILL.md` in this package. Full reference, docs and the whitepaper:
-https://github.com/unbrowse-ai/unbrowse
+https://github.com/unbrowse-ai/unbrowse-skill

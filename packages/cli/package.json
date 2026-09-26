@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "homepage": "https://unbrowse.ai",
-  "repository": { "type": "git", "url": "git+https://github.com/unbrowse-ai/unbrowse.git", "directory": "packages/cli" },
+  "repository": { "type": "git", "url": "git+https://github.com/unbrowse-ai/unbrowse-skill.git", "directory": "packages/cli" },
   "bin": { "unbrowse": "dist/cli.js" },
   "files": ["dist", "SKILL.md", "README.md"],
   "engines": { "node": ">=18.17" },
