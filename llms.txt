@@ -1,0 +1,13 @@
+# Unbrowse client
+
+Hosted website execution through remote MCP, CLI and TypeScript SDK.
+
+- [Install](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/install.md): choose an interface and authenticate.
+- [Agent skill](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/skill/SKILL.md): execution order, requirements, login handoffs and verified outcomes.
+- [MCP](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/mcp.md): remote server and workspace tools.
+- [CLI](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/cli.md): commands and exit codes.
+- [SDK](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/sdk.md): supported REST methods.
+- [Troubleshooting](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/troubleshooting.md): recovery and version selection.
+
+Server: https://v3.unbrowse.ai/mcp
+The skill supplies guidance, not authentication. Never infer current site support from examples. Use tools/list and discovery.

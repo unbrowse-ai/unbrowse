@@ -15,6 +15,8 @@ codex mcp add unbrowse --url https://v3.unbrowse.ai/mcp && codex mcp login unbro
 
 There is no local MCP server. Agents connect to the hosted one; shells and scripts use the CLI.
 
+Install the [agent skill](install.md#agent-skill) for operating guidance. Exported core input schemas: [tools.json](../skill/references/tools.json). The connected server's `tools/list` also includes user-specific tools.
+
 ## Core tools
 
 | Tool | Use |
@@ -61,3 +63,9 @@ on an autofill error).
 4. `no_capability` → do it once with `unbrowse.browse.*`; it is learned.
 
 The full agent contract is [skill/SKILL.md](../skill/SKILL.md).
+
+## Live canvas
+
+When listed, `unbrowse.canvas.read` and `.put` read or create notes, plans, results and reply drafts on [your canvas](https://v3.unbrowse.ai/app/canvas). Use the same account in both places. Card creation does not send external messages. Updates use revisions and preserve human edits.
+
+`unbrowse.scrape` reads a page; `unbrowse.map` discovers same-site URLs. Consult the returned schemas for supported options.

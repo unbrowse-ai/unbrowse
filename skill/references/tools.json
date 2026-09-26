@@ -1,0 +1,490 @@
+{
+  "endpoint": "https://v3.unbrowse.ai/mcp",
+  "tools": [
+    {
+      "name": "unbrowse.run",
+      "description": "Start a durable Unbrowse run by capability id or natural-language task. For a learned capability, pass `input` keyed by the inputs unbrowse.discover lists (e.g. {origin, destination, date, passenger}); anything missing is asked for on the same run. Fails with no_capability when nothing fits — then use unbrowse.browse.open once and it is learned.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "capability": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string"
+          },
+          "targetUrl": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object"
+          },
+          "accountRefs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "interactionMode": {
+            "type": "string",
+            "enum": [
+              "interactive",
+              "unattended",
+              "external_handler"
+            ]
+          },
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.inspect",
+      "description": "Inspect a run: status, requirements, verified result, known effects, routing explanation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId"
+        ]
+      }
+    },
+    {
+      "name": "unbrowse.resume",
+      "description": "Answer the run's open requirements and continue the same run. Simplest: {runId, answers: {<affectedAction>: value}} — e.g. {\"origin\": \"CDG\"} or, for a choice, {\"selected_offer\": <an option's value>}. Answer several at once.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "answers": {
+            "type": "object",
+            "description": "Map of requirement affectedAction → value",
+            "additionalProperties": true
+          },
+          "expectedStateRevision": {
+            "type": "number",
+            "description": "Optional; defaults to the run's current revision"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "responses": {
+            "type": "array",
+            "description": "Alternative long form",
+            "items": {
+              "type": "object",
+              "properties": {
+                "requirementId": {
+                  "type": "string"
+                },
+                "value": {
+                  "description": "The answer"
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "accept",
+                    "decline",
+                    "clear"
+                  ]
+                }
+              },
+              "required": [
+                "requirementId"
+              ]
+            }
+          }
+        },
+        "required": [
+          "runId"
+        ]
+      }
+    },
+    {
+      "name": "unbrowse.cancel",
+      "description": "Cancel a run. Returns a receipt of dispatched, uncertain and unstarted effects.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId"
+        ]
+      }
+    },
+    {
+      "name": "unbrowse.learn",
+      "description": "Compile browser traces or HAR files of a task done by hand into a reusable one-call capability. Send two or more traces with different inputs so Unbrowse can diff them into fillable parameters and trace values (csrf, ids, tokens) to the responses that produced them. Returns the harness YAML, the agent skill, and the capability id to pass to unbrowse.run.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "traces": {
+            "type": "array",
+            "description": "Unbrowse traces ({origin, actions, exchanges})"
+          },
+          "har": {
+            "description": "One HAR 1.2 document or an array of them"
+          },
+          "goal": {
+            "type": "string",
+            "description": "Operation id or request family that marks completion; defaults to the last mutation"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "name": "unbrowse.browse.open",
+      "description": "Open a cloud browser (patchright) on a URL when no capability fits yet. Recording is on from the first navigation, so doing the task here fulfils it now and teaches Unbrowse the site. Returns a snapshot of interactive elements with @refs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string",
+            "description": "What you are doing, in plain words"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      }
+    },
+    {
+      "name": "unbrowse.browse.snapshot",
+      "description": "Current page text and interactive elements with @refs. Refs change after every action; always act on the latest snapshot.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionId"
+        ]
+      }
+    },
+    {
+      "name": "unbrowse.browse.act",
+      "description": "click | fill | select | check | press | wait on a @ref, or autofill. For fill, pass `name` as the business field (origin, date, email…) so the learned API gets readable inputs. For logins never ask the user for a password: `autofill` fills the page's login form (username or email, password, 2FA code) from the user's Unbrowse password manager, or fill one @ref with `vault: \"username\" | \"email\" | \"password\" | \"totp\"`. The values go straight into the page and never pass through you. If no login is saved for the site, the error carries a link: give it to the user, wait with unbrowse.credentials.status, then repeat the action.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "click",
+              "fill",
+              "select",
+              "check",
+              "press",
+              "wait",
+              "autofill"
+            ]
+          },
+          "ref": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "vault": {
+            "type": "string",
+            "enum": [
+              "username",
+              "email",
+              "password",
+              "totp"
+            ],
+            "description": "Fill from the password manager instead of value"
+          },
+          "credential": {
+            "type": "string",
+            "description": "A vault:// login ref from unbrowse.credentials.list, when several are saved for the site"
+          },
+          "key": {
+            "type": "string"
+          },
+          "ms": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "sessionId",
+          "action"
+        ]
+      }
+    },
+    {
+      "name": "unbrowse.forget",
+      "description": "Delete one of your own learned capabilities (a shortcut that answers the wrong thing, or is no longer wanted), or unpin a public one from your tools. You cannot delete another workspace's capability.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "capability": {
+            "type": "string",
+            "description": "The capability id, e.g. learned.www_instagram_com.read_x_embed"
+          }
+        },
+        "required": [
+          "capability"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.credentials.list",
+      "description": "The user's saved logins (Unbrowse password manager): site, label, masked username/email hints and which fields are saved. Never values — logins are filled into pages with unbrowse.browse.act (autofill, or vault on a field) and used by learned capabilities automatically.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "origin": {
+            "type": "string",
+            "description": "Only logins usable on this site, e.g. https://github.com"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.credentials.request",
+      "description": "Ask the user to save a login you need, without seeing it: returns a one-time link to give them. They open it, sign in to Unbrowse and save the username/email, password and optional 2FA seed. Then call unbrowse.credentials.status.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "origin": {
+            "type": "string",
+            "description": "The site, e.g. https://github.com"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "username",
+                "email",
+                "password",
+                "totp"
+              ]
+            }
+          },
+          "reason": {
+            "type": "string",
+            "description": "One line the user sees: what the login is for"
+          }
+        },
+        "required": [
+          "origin"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.credentials.status",
+      "description": "Whether the user has saved the login for a request (pending, fulfilled, declined, expired). Waits up to `waitSeconds` (default 20, max 50) for it to change.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "waitSeconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.browse.finish",
+      "description": "End the session. Returns the page the task ended on and compiles every recorded session for this site into a learned.* capability you can call with unbrowse.run next time — no browser.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short name for the learned capability, e.g. 'Book a flight on Skylark Air'"
+          },
+          "goal": {
+            "type": "string",
+            "description": "Optional: what the task was, in plain words"
+          }
+        },
+        "required": [
+          "sessionId"
+        ]
+      }
+    },
+    {
+      "name": "unbrowse.browse.close",
+      "description": "End a browser session. It is still indexed (passive learning) unless discard is true.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "discard": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "sessionId"
+        ]
+      }
+    },
+    {
+      "name": "unbrowse.scrape",
+      "description": "Read one page as clean markdown (main content only by default — no navigation, cookie banners or footers), with its links and metadata (title, description, canonical, language, status). Plain HTTP when the server's HTML has the content; otherwise Unbrowse's cloud browser renders it, signed in when a session is kept for the site. Use it to read a page you have a URL for; use unbrowse.run for a task on a site. One verified call.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The page, e.g. https://docs.rs/serde"
+          },
+          "formats": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "markdown",
+                "html",
+                "text",
+                "links"
+              ]
+            },
+            "description": "What to return (default: markdown)"
+          },
+          "onlyMainContent": {
+            "type": "boolean",
+            "description": "Drop navigation, headers, footers and asides (default true)"
+          },
+          "render": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "always",
+              "never"
+            ],
+            "description": "auto (default): HTTP first, browser if the page needs it"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.map",
+      "description": "List a site's URLs: the sitemaps its robots.txt names (or /sitemap.xml, following one level of sitemap indexes), then the links on the given page. Same-site only. Filter with search. Use it to find the right page before scraping it. One verified call.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Any page on the site, e.g. https://docs.rs"
+          },
+          "search": {
+            "type": "string",
+            "description": "Only URLs containing this text"
+          },
+          "limit": {
+            "type": "number",
+            "description": "At most this many URLs (default 200, max 5000)"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.sites",
+      "description": "What Unbrowse knows about each website this workspace has touched, before you act: access (public, or only behind a sign-in), the kept signed-in session (active, expired, logged_out or none — and when), the last sign-in, whether a login is saved, the tools already learned there and public tools, and any bot check that blocked it. Check it first: an active session means no sign-in is needed; a learned tool means no browsing is needed. Pass a site for one, or nothing for all.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "site": {
+            "type": "string",
+            "description": "A site or URL, e.g. instagram.com or https://www.instagram.com/direct/inbox/"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.credits",
+      "description": "This workspace's credits: the free monthly allowance left (pays for Unbrowse's own verified calls only; resets monthly) and paid credits (bought by the user; never expire), plus recent credit history and the top-up link. 1 credit = one verified call = $0.001. Pass a pack (p10 = $10 → 10,000, p50 = $50 → 50,000, p200 = $200 → 200,000) to get a Stripe Checkout link for the user to open — you never pay or see card details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pack": {
+            "type": "string",
+            "enum": [
+              "p10",
+              "p50",
+              "p200"
+            ],
+            "description": "Get a checkout link for this pack"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.usage",
+      "description": "This workspace's metered usage for the current month: verified calls billed, how many were rendered (and the hosted renderer's passthrough cost), the monthly quota and what remains. Only verified successes bill; failed, refused, challenged and input_required runs are free.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.discover",
+      "description": "Search the caller's private space (connected public and passworded sites as flat primitives) and the public registry (second priority, connect-on-the-fly). Each capability carries `hints.health` (healthy, degraded, untested, failing, ...) from its recent runs. Public tools that are failing are left out unless the query names their site; `withheld.count` says how many, and for those sites unbrowse.browse.open learns a fresh route.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      }
+    }
+  ]
+}

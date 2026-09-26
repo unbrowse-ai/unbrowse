@@ -1,5 +1,7 @@
 name: ci
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -7,10 +9,24 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-node@v4
-        with: { node-version: 18 }
-      - run: bun install
+        with: { node-version: 22 }
+      - run: bun install --frozen-lockfile
+      - run: bun run check:public
       - run: bun run typecheck
       - run: bun test packages
       - run: bun run build
       - run: node packages/cli/dist/cli.js --version
       - run: node --input-type=module -e 'import("./packages/sdk/dist/index.js").then(m => { if (!new m.Unbrowse().baseUrl.endsWith("/api/v1")) process.exit(1) })'
+      - name: Pack and install clients
+        run: |
+          mkdir -p out
+          (cd packages/sdk && npm pack --pack-destination ../../out)
+          (cd packages/cli && npm pack --pack-destination ../../out)
+          bash scripts/smoke-packed.sh out/unbrowse-sdk-*.tgz out/unbrowse-[0-9]*.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-client
+          path: |
+            out/*.tgz
+            skill/
+            docs/public-surface.json

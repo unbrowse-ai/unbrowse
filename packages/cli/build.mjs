@@ -1,6 +1,6 @@
 // One Node bundle (the SDK is bundled in, so the CLI has no runtime dependencies) plus the agent skill.
 import { execFileSync } from "node:child_process";
-import { chmodSync, copyFileSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, copyFileSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
 const { version } = JSON.parse(readFileSync("package.json", "utf8"));
 rmSync("dist", { recursive: true, force: true });
@@ -9,3 +9,6 @@ const cli = readFileSync("dist/cli.js", "utf8");
 writeFileSync("dist/cli.js", cli.startsWith("#!") ? cli : `#!/usr/bin/env node\n${cli}`);
 chmodSync("dist/cli.js", 0o755);
 copyFileSync("../../skill/SKILL.md", "SKILL.md");
+
+rmSync("references", { recursive: true, force: true });
+cpSync("../../skill/references", "references", { recursive: true });
