@@ -9,6 +9,10 @@ on:
         description: "Existing release tag (e.g. v11.4.2) whose unbrowse-VERSION.tgz should be published"
         required: true
         type: string
+      dist_tag:
+        description: "npm dist-tag override (e.g. next). Default: preview for -preview.N versions, else latest."
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -46,7 +50,12 @@ jobs:
           fi
           echo "tarball=unbrowse-${VERSION}.tgz" >> "$GITHUB_ENV"
           echo "version=$VERSION" >> "$GITHUB_ENV"
+          DT="${{ inputs.dist_tag }}"
+          if [ -z "$DT" ]; then case "$VERSION" in *-preview.*) DT=preview ;; *) DT=latest ;; esac; fi
+          echo "DIST_TAG=$DT" >> "$GITHUB_ENV"
       - name: Assert packed linux-x64 kuri is a real ELF
+        # 12.x is the v3 client: a pure Node CLI with no bundled browser broker.
+        if: ${{ !startsWith(inputs.tag, 'v12.') }}
         run: |
           MEMBER="package/vendor/kuri/linux-x64/kuri"
           tar -tzf "$tarball" | grep -F "$MEMBER"
@@ -71,14 +80,14 @@ jobs:
         if: steps.version-check.outputs.skip_publish != '1'
         run: |
           # npm 11 uses GitHub OIDC. Do not set NODE_AUTH_TOKEN here.
-          npm publish "$tarball" --access public --provenance --tag "$(case "$version" in *-preview.*) echo preview ;; *) echo latest ;; esac)"
+          npm publish "$tarball" --access public --provenance --tag "$DIST_TAG"
       - name: Publish to npm via NPM_TOKEN fallback
         if: steps.version-check.outputs.skip_publish != '1' && steps.oidc.conclusion != 'success'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$HOME/.npmrc"
-          npm publish "$tarball" --access public --tag "$(case "$version" in *-preview.*) echo preview ;; *) echo latest ;; esac)"
+          npm publish "$tarball" --access public --tag "$DIST_TAG"
       - name: Verify version and dist-tag
         if: steps.version-check.outputs.skip_publish != '1'
         run: |
@@ -91,8 +100,8 @@ jobs:
             sleep 10
           done
           test "$PUBLISHED" = "$version"
-          # Previews go to the preview dist-tag; releases to latest. Tags lag the version briefly.
-          case "$version" in *-preview.*) TAG=preview ;; *) TAG=latest ;; esac
+          # The dist-tag chosen above (input, else preview/latest). Tags lag the version briefly.
+          TAG="$DIST_TAG"
           for i in $(seq 1 60); do
             ACTUAL="$(npm view unbrowse "dist-tags.${TAG}" 2>/dev/null || true)"
             [ "$ACTUAL" = "$version" ] && break
@@ -133,6 +142,9 @@ jobs:
           test "$NAME" = "@unbrowse/sdk@${VERSION}" || { echo "::error::tarball is $NAME, expected @unbrowse/sdk@${VERSION}"; exit 1; }
           echo "sdk_tarball=$ASSET" >> "$GITHUB_ENV"
           echo "version=$VERSION" >> "$GITHUB_ENV"
+          DT="${{ inputs.dist_tag }}"
+          if [ -z "$DT" ]; then case "$VERSION" in *-preview.*) DT=preview ;; *) DT=latest ;; esac; fi
+          echo "DIST_TAG=$DT" >> "$GITHUB_ENV"
       - name: Refuse if version already exists
         id: version-check
         if: steps.asset.outputs.skip != '1'
@@ -144,11 +156,11 @@ jobs:
       - name: Publish via Trusted Publishing
         if: steps.asset.outputs.skip != '1' && steps.version-check.outputs.skip_publish != '1'
         # --loglevel verbose shows the OIDC token exchange, so a Trusted Publisher mismatch is diagnosable.
-        run: npm publish "$sdk_tarball" --access public --provenance --loglevel verbose --tag "$(case "$version" in *-preview.*) echo preview ;; *) echo latest ;; esac)"
+        run: npm publish "$sdk_tarball" --access public --provenance --loglevel verbose --tag "$DIST_TAG"
       - name: Verify version and dist-tag
         if: steps.asset.outputs.skip != '1' && steps.version-check.outputs.skip_publish != '1'
         run: |
-          case "$version" in *-preview.*) TAG=preview ;; *) TAG=latest ;; esac
+          TAG="$DIST_TAG"
           for i in $(seq 1 60); do
             [ "$(npm view "@unbrowse/sdk@${version}" version 2>/dev/null || true)" = "$version" ] && \
             [ "$(npm view @unbrowse/sdk "dist-tags.${TAG}" 2>/dev/null || true)" = "$version" ] && exit 0
