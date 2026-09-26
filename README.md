@@ -4,10 +4,21 @@ Call websites as APIs. This is the open-source client for the hosted Unbrowse se
 (`https://v3.unbrowse.ai`): the `@unbrowse/sdk` TypeScript client for its REST API, and the
 `unbrowse` CLI built on it.
 
+Install the agent skill:
+
 ```bash
-npx unbrowse login
-npx unbrowse run "top stories on Hacker News"
+npx skills add unbrowse-ai/unbrowse-skill --skill unbrowse
 ```
+
+Connect your agent:
+
+```bash
+claude mcp add --transport http unbrowse https://v3.unbrowse.ai/mcp
+```
+
+Complete OAuth sign-in in your client. **For the CLI or SDK, use the pinned hosted-client release in [the installation guide](docs/install.md)**; npm `latest` may still target the older service.
+
+[Install](docs/install.md) · [CLI](docs/cli.md) · [MCP](docs/mcp.md) · [SDK](docs/sdk.md) · [Troubleshooting](docs/troubleshooting.md)
 
 ## How it works
 
@@ -47,7 +58,7 @@ const ub = new Unbrowse(); // UNBROWSE_API_KEY
 const run = await ub.wait((await ub.run({ task: "top stories on Hacker News", idempotencyKey: crypto.randomUUID() })).runId);
 ```
 
-Every `/api/v1` route: [docs/sdk.md](docs/sdk.md).
+Supported REST methods: [docs/sdk.md](docs/sdk.md).
 
 ## Agents
 
@@ -56,7 +67,7 @@ commands) and follow [skill/SKILL.md](skill/SKILL.md). There is no local MCP ser
 
 ## Pricing
 
-500 verified calls a month free, then $10 per 10,000. Only verified successes bill.
+Check your current account plan and `unbrowse usage` for quota and pricing.
 [docs/pricing.md](docs/pricing.md)
 
 ## Develop

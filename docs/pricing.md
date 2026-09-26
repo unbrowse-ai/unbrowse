@@ -1,16 +1,7 @@
-# Pricing
+# Pricing and usage
 
-**500 verified calls a month free. Then $10 per 10,000.**
+Your account's current plan, credits and returned payment requirements are authoritative. Check `unbrowse usage`, `GET /api/v1/usage`, or the signed-in [billing page](https://v3.unbrowse.ai/app/billing). When available, the `unbrowse.credits` MCP tool returns free and paid balances and a checkout link for the user.
 
-A call is one verified run: a result with data, from first-party HTTP or a browser render. Not
-billed: failed, refused, challenged and `input_required` runs, policy denials, failed grants and
-destination blocks. Each successful run bills once.
+Verified successful runs are metered; failed, refused or input-required runs are not completed billable outcomes. Inspect the returned usage fields for your plan. A quota or credit refusal includes recovery information; do not blindly retry payments.
 
-- Rendered runs that used a hosted renderer add its cost as passthrough, shown in `unbrowse usage`.
-- Past the monthly quota, runs are refused with `402 quota_exceeded` before any upstream request.
-- No account: pay $0.001 per call with x402 ([api.md](api.md#x402)).
-
-Check usage: `unbrowse usage` or `GET /api/v1/usage`.
-
-Enterprise and customer-private execution planes keep captures, vault material and inference
-inside the contracted boundary. Same meter, different custody.
+Anonymous pay-per-call requests can use x402 when offered by the endpoint. Read its current `402` payment requirements rather than assuming a fixed price. The CLI and SDK do not sign payments: use an x402-capable client. See [api.md](api.md).

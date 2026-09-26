@@ -4,10 +4,10 @@ Call websites as APIs from a shell. A thin CLI over the Unbrowse REST API
 (`https://v3.unbrowse.ai/api/v1`), built on [`@unbrowse/sdk`](https://www.npmjs.com/package/@unbrowse/sdk).
 
 ```bash
-npx unbrowse login                               # browser sign-in, or: login --key ub_live_…
-npx unbrowse run "top stories on Hacker News"    # waits for a verified result
-npx unbrowse run --capability skyscanner.flights # asks for inputs → exit 2
-npx unbrowse resume <runId> origin=SIN           # answer on the same run
+unbrowse login                               # browser sign-in, or: login --key ub_live_…
+unbrowse run "top stories on Hacker News"    # waits for a verified result
+unbrowse discover "flight search"             # choose a returned capability
+unbrowse resume <runId> origin=SIN           # answer on the same run
 ```
 
 | Command | Does |
@@ -20,8 +20,10 @@ npx unbrowse resume <runId> origin=SIN           # answer on the same run
 | `registry [query]`, `site <host>` | Public compiled sites, no account |
 | `install` | Add the hosted MCP to Claude Code, Codex and others |
 
-Exit codes: 0 verified, 1 error, 2 input required, 3 sign-in or saved login needed, 4 not verified.
+Exit codes: 0 accepted/ok (check status and verified), 1 error, 2 input required, 3 sign-in or saved login needed, 4 not verified.
 Env: `UNBROWSE_API_KEY`, `UNBROWSE_BASE_URL`. Node 18.17+, no dependencies.
 
-The agent contract ships as `SKILL.md` in this package. Full reference, docs and the whitepaper:
+Install the hosted-client preview from the [installation guide](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/install.md); npm latest may be an older client.
+
+The agent contract ships as `SKILL.md` with `references/` in this package. Full reference, docs and the whitepaper:
 https://github.com/unbrowse-ai/unbrowse-skill

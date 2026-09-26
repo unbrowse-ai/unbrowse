@@ -4,7 +4,7 @@ TypeScript client for the Unbrowse API (`https://v3.unbrowse.ai/api/v1`). Node 1
 or any runtime with `fetch`. No dependencies. The `unbrowse` CLI is built on it.
 
 ```bash
-npm i @unbrowse/sdk
+npm install https://github.com/unbrowse-ai/unbrowse-skill/releases/download/v12.0.0-alpha.1/unbrowse-sdk-12.0.0-alpha.1.tgz
 ```
 
 ```ts
@@ -15,11 +15,8 @@ const ub = new Unbrowse(); // UNBROWSE_API_KEY, https://v3.unbrowse.ai/api/v1
 let run = await ub.run({ task: "top stories on Hacker News", idempotencyKey: crypto.randomUUID() });
 run = await ub.wait(run.runId);                         // until it leaves accepted/working
 
-let flight = await ub.run({ capability: "skyscanner.flights", idempotencyKey: crypto.randomUUID() });
-while (flight.status === "input_required") {            // answer on the same run, by field name
-  const field = flight.requirements.find((r) => r.state === "open")!.affectedAction;
-  flight = await ub.answer(flight.runId, { [field]: myValueFor(field) });
-}
+// Discover actual capabilities and schemas before selecting a site-specific run.
+console.log(await ub.discover("flight search"));
 ```
 
 Pass an `idempotencyKey` when you may retry: the same key returns the same run instead of starting

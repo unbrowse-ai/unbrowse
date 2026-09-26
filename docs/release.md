@@ -1,6 +1,6 @@
 # Release
 
-CI/CD publishes both packages from a tag. Nobody runs `npm publish` by hand.
+CI/CD builds and releases both package tarballs from a tag. GitHub release assets are the guaranteed distribution path; npm publication is optional and checked separately.
 
 1. Bump `version` in `packages/sdk/package.json` and `packages/cli/package.json` to the same value.
 2. Merge to the default branch.
@@ -20,6 +20,8 @@ The `release` workflow (`.github/workflows/release.yml`) then:
 Versions with a pre-release suffix (`-alpha.1`) go to the `next` dist-tag; others to `latest`.
 Re-run a tag from the Actions tab (`workflow_dispatch`, input `tag`).
 
-Needs the repo secret `NPM_TOKEN` with publish rights to `unbrowse` and `@unbrowse/sdk`.
+GitHub release assets use the workflow token. To also publish on npm, configure the repo secret `NPM_TOKEN` with publish rights to `unbrowse` and `@unbrowse/sdk`. Without it, CI explicitly reports npm publication skipped; the GitHub release remains installable.
 
-`ci.yml` runs typecheck, tests and build on every push and pull request.
+`ci.yml` checks source-export hashes and skill/docs links, runs typecheck and tests, builds both clients, and installs packed tarballs on every push and pull request. The CLI package must include both SKILL.md and its references.
+
+Source synchronization: [public-sync.md](public-sync.md). Installation: [install.md](install.md).

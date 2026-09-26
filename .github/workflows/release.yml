@@ -36,6 +36,7 @@ jobs:
         run: echo "dist_tag=$(node scripts/release-check.mjs "$TAG")" >> "$GITHUB_OUTPUT"
 
       - run: bun install --frozen-lockfile
+      - run: bun run check:public
       - run: bun run typecheck
       - run: bun test packages
       - run: bun run build
@@ -53,7 +54,24 @@ jobs:
         run: bash scripts/smoke-packed.sh "${{ steps.pack.outputs.sdk }}" "${{ steps.pack.outputs.cli }}"
         env: { SMOKE_LIVE: "1" }
 
-      - name: Publish (SDK first; skips versions already on npm)
+      - name: GitHub release with the tarballs
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          PRE=""; [ "${{ steps.gate.outputs.dist_tag }}" = next ] && PRE="--prerelease"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" $PRE --generate-notes
+          gh release upload "$TAG" out/*.tgz --clobber
+
+      - name: Detect npm publication configuration
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo 'NPM_CONFIGURED=true' >> "$GITHUB_ENV"
+          else
+            echo '::notice::GitHub assets released. npm publication skipped: no NPM_TOKEN configured.'
+          fi
+      - name: Publish to npm when credentials are configured
+        if: env.NPM_CONFIGURED == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DIST_TAG: ${{ steps.gate.outputs.dist_tag }}
@@ -70,10 +88,3 @@ jobs:
           }
           publish @unbrowse/sdk "${{ steps.pack.outputs.sdk }}"
           publish unbrowse "${{ steps.pack.outputs.cli }}"
-
-      - name: GitHub release with the tarballs
-        env: { GH_TOKEN: "${{ github.token }}" }
-        run: |
-          PRE=""; [ "${{ steps.gate.outputs.dist_tag }}" = next ] && PRE="--prerelease"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" $PRE --generate-notes
-          gh release upload "$TAG" out/*.tgz --clobber
