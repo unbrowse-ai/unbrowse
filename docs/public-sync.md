@@ -16,3 +16,7 @@ The public CI verifies hashes, skill references and documentation links, then te
 The SDK, CLI and remaining docs are maintained here. Changes to upstream-owned files must be made in the source and exported together, otherwise `node scripts/check-public-surface.mjs` fails. Consumer fixes should include a behavioral test and updated docs.
 
 The release workflow builds installable GitHub assets. npm publication runs only when a publish token is configured; GitHub and npm availability are separate checks. See [release.md](release.md).
+
+## Maintainer setup
+
+Automatic cross-repository updates require the source repository's `PUBLIC_CLIENT_TOKEN` Actions secret: a fine-grained token restricted to Contents read/write on this public repository. Deploy keys are disabled here. Without the secret, source CI validates the export and records its manifest but explicitly skips pushing it. Initial contracts were synced manually; automatic sync remains unconfigured until that secret is added.
