@@ -36,4 +36,4 @@ if (run.status === "input_required") {
 | `siteMcpUrl(host)` | `/sites/:host/mcp` |
 
 Errors throw with `message`, `status` and the server's `body`. Types (`RunView`, `Requirement`,
-`RunRequest`, …) are exported from `types.ts`.
+`RunRequest`, …) are exported too.

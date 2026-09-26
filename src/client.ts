@@ -1,7 +1,11 @@
 import type { Json, RunRequest, RunView } from "./types.ts";
 
 export class Unbrowse {
-  constructor(private opts: { apiKey?: string; baseUrl: string }) {}
+  private opts: { apiKey?: string; baseUrl: string };
+
+  constructor(opts: { apiKey?: string; baseUrl: string }) {
+    this.opts = opts;
+  }
 
   private async req(path: string, init?: RequestInit) {
     const res = await fetch(`${this.opts.baseUrl}${path}`, {

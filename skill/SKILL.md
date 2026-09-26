@@ -34,7 +34,7 @@ operate a browser. You do not reverse-engineer HAR files. You call Unbrowse.
 3. SDK (same contract as MCP):
 
 ```ts
-import { Unbrowse } from "@unbrowse/sdk";
+import { Unbrowse } from "unbrowse";
 const ub = new Unbrowse({ apiKey: process.env.UNBROWSE_API_KEY, baseUrl: "https://v3.unbrowse.ai/api/v1" });
 const run = await ub.run({ task: "top stories on Hacker News" });
 ```

@@ -5,10 +5,10 @@ hosted service (unbrowse6 `7e408b90`), with a CLI on top.
 
 | Path | What | From |
 |---|---|---|
-| `src/client.ts` | `Unbrowse` REST client | unbrowse6 `src/lib/unbrowse/client.ts`, plus REST reads and a `resume` fix |
-| `src/types.ts` | Run, requirement and harness types | unbrowse6 `src/lib/unbrowse/types.ts` |
+| `src/client.ts` | `Unbrowse` REST client | unbrowse6 `src/lib/unbrowse/client.ts`, plus REST reads and the `resume` fix ([upstream PR](https://github.com/lekt9/unbrowse6/pull/1)) |
+| `src/types.ts` | Run and requirement types the API returns | unbrowse6 `src/lib/unbrowse/types.ts`, trimmed to the public shapes |
 | `src/mcp-install.ts` | Install links and commands for the hosted MCP | unbrowse6 `src/lib/unbrowse/mcp-install.ts` |
-| `skill/SKILL.md` | The agent contract | unbrowse6 `skill/SKILL.md` |
+| `skill/SKILL.md` | The agent contract | unbrowse6 `skill/SKILL.md` (imports from `unbrowse`) |
 | `src/cli.ts` | The `unbrowse` command | new |
 | `src/auth.ts` | API key and OAuth sign-in storage | new |
 | `tests/` | CLI tests against a local stand-in API | new |
