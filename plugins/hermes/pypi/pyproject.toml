@@ -1,0 +1,32 @@
+# Optional pip distribution of the Hermes plugin (entry-point group `hermes_agent.plugins`).
+#
+# It lives in this subdirectory, not next to plugin.yaml, on purpose: a pyproject.toml beside
+# plugin.yaml makes Hermes treat the directory plugin as a Python-dependency workspace member, which
+# adds a dependency-consent step and makes `hermes plugins install ... --enable` refuse to enable
+# non-interactively. The plugin itself is stdlib-only.
+#
+# Build or install from here (in-tree build; the package source is the parent directory):
+#   pip install ./plugins/hermes/pypi
+#   pip install "git+https://github.com/unbrowse-ai/unbrowse#subdirectory=plugins/hermes/pypi"
+[project]
+name = "unbrowse-hermes"
+version = "12.1.0"
+description = "Unbrowse plugin for Hermes Agent: hosted website tools over the Unbrowse remote MCP"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.urls]
+Homepage = "https://unbrowse.ai"
+Source = "https://github.com/unbrowse-ai/unbrowse/tree/main/plugins/hermes"
+
+[project.entry-points."hermes_agent.plugins"]
+unbrowse = "unbrowse_hermes"
+
+[tool.setuptools]
+package-dir = { "unbrowse_hermes" = ".." }
+packages = ["unbrowse_hermes"]
+include-package-data = false
+
+[tool.setuptools.package-data]
+unbrowse_hermes = ["plugin.yaml", "skills/unbrowse/*.md", "skills/unbrowse/references/*.json"]
