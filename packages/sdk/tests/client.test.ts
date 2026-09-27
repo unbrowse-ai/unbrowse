@@ -137,3 +137,52 @@ test("run sends the idempotency key the way the route reads it: idempotency_key 
   await new Unbrowse({ apiKey: "k", fetch }).run({ task: "t", idempotencyKey: "retry-1" });
   expect(seen[0]).toEqual({ body: { task: "t", idempotency_key: "retry-1" }, header: "retry-1" });
 });
+
+test("runOnClient sends each site request itself and posts the response back until the run finishes", async () => {
+  const site: string[] = [];
+  const api = stub((s) => {
+    if (s.url.endsWith("/runs")) {
+      expect(s.body).toMatchObject({ capability: "hn.top_stories", egress: "client" });
+      return Response.json({ status: "egress_required", egressId: "eg_1", requests: [{ id: "rq_1", method: "GET", url: "https://site.example/api?q=1", headers: { accept: "application/json" }, redirect: "manual", curl: "curl …" }] }, { status: 202 });
+    }
+    expect(s.url).toBe("https://unbrowse.ai/api/v1/egress/eg_1");
+    const b = s.body as { requestId: string; response: { status: number; body: string; bodyEncoding: string; headers: [string, string][] } };
+    expect(b.requestId).toBe("rq_1");
+    expect(b.response.status).toBe(200);
+    expect(atob(b.response.body)).toBe('{"hits":[1]}');
+    expect(b.response.headers).toContainEqual(["x-site", "yes"]);
+    return Response.json({ runId: "run_1", status: "succeeded", result: { stories: [1] } });
+  });
+  const ub = new Unbrowse({ apiKey: "ub_live_x", fetch: api.fetch });
+  const siteFetch = (async (url: string, init: RequestInit = {}) => {
+    site.push(`${init.method} ${url} redirect=${init.redirect}`);
+    return new Response('{"hits":[1]}', { status: 200, headers: { "x-site": "yes" } });
+  }) as typeof globalThis.fetch;
+  const run = await ub.runOnClient({ capability: "hn.top_stories" }, { fetch: siteFetch });
+  expect(run.status).toBe("succeeded");
+  expect(site).toEqual(["GET https://site.example/api?q=1 redirect=manual"]);
+  // The API key went to Unbrowse only, never to the site.
+  expect(api.sent.every((s) => s.auth === "Bearer ub_live_x")).toBe(true);
+});
+
+test("runOnClient reports a request it could not send, or one onRequest refused, as an error", async () => {
+  const answers: unknown[] = [];
+  let n = 0;
+  const api = stub((s) => {
+    if (s.url.endsWith("/runs")) return Response.json({ status: "egress_required", egressId: "eg_2", requests: [{ id: "rq_1", method: "GET", url: "https://a.example/", headers: {}, redirect: "follow", curl: "" }] }, { status: 202 });
+    answers.push(s.body);
+    return ++n === 1
+      ? Response.json({ status: "egress_required", egressId: "eg_2", requests: [{ id: "rq_2", method: "POST", url: "https://b.example/", headers: {}, body: "aGk=", bodyEncoding: "base64", redirect: "follow", curl: "" }] }, { status: 202 })
+      : Response.json({ runId: "run_2", status: "failed", error: { code: "upstream_error" } });
+  });
+  const ub = new Unbrowse({ apiKey: "k", fetch: api.fetch });
+  const failing = (async () => {
+    throw new TypeError("getaddrinfo ENOTFOUND a.example");
+  }) as typeof globalThis.fetch;
+  const run = await ub.runOnClient({ task: "x" }, { fetch: failing, onRequest: (r) => (r.url.startsWith("https://b.") ? false : undefined) });
+  expect(run.status).toBe("failed");
+  expect(answers).toEqual([
+    { requestId: "rq_1", error: "getaddrinfo ENOTFOUND a.example" },
+    { requestId: "rq_2", error: "refused by onRequest" },
+  ]);
+});
