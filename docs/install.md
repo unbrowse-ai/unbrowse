@@ -36,7 +36,7 @@ First ask: “Use Unbrowse to discover tools for Hacker News. Show which match, 
 Node 18.17+ is required; Node 22 is used for release verification. The npm `latest` tag may still be the older client. Install this version's GitHub release explicitly:
 
 ```sh
-npm install -g https://github.com/unbrowse-ai/unbrowse-skill/releases/download/v12.0.0-alpha.1/unbrowse-12.0.0-alpha.1.tgz
+npm install -g https://github.com/unbrowse-ai/unbrowse/releases/download/v12.0.1/unbrowse-12.0.1.tgz
 unbrowse --version
 unbrowse registry wikipedia
 unbrowse login
@@ -50,7 +50,7 @@ For headless automation, set `UNBROWSE_API_KEY` through a secret manager. Avoid 
 ## SDK
 
 ```sh
-npm install https://github.com/unbrowse-ai/unbrowse-skill/releases/download/v12.0.0-alpha.1/unbrowse-sdk-12.0.0-alpha.1.tgz
+npm install https://github.com/unbrowse-ai/unbrowse/releases/download/v12.0.1/unbrowse-sdk-12.0.1.tgz
 ```
 
 ```ts
