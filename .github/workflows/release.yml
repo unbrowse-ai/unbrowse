@@ -79,7 +79,14 @@ jobs:
             else
               npm publish "./$tgz" --access public --provenance --tag "$DIST_TAG"
             fi
-            test "$(npm view "$name" "dist-tags.$DIST_TAG")" = "$VERSION"
+            for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+              if [ "$(npm view "$name" "dist-tags.$DIST_TAG" 2>/dev/null || true)" = "$VERSION" ]; then
+                return 0
+              fi
+              sleep 15
+            done
+            echo "::error::$name@$VERSION did not appear as $DIST_TAG"
+            return 1
           }
           publish @unbrowse/sdk "${{ steps.pack.outputs.sdk }}"
           publish unbrowse "${{ steps.pack.outputs.cli }}"
