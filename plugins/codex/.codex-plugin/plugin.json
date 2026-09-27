@@ -1,0 +1,31 @@
+{
+  "name": "unbrowse",
+  "version": "12.1.0",
+  "description": "Websites as APIs for Codex: the hosted Unbrowse MCP (discover, run, scrape, cloud browser, saved logins) plus its skill. Steers web work away from web search and local browsers to Unbrowse.",
+  "author": {
+    "name": "Unbrowse",
+    "url": "https://unbrowse.ai"
+  },
+  "homepage": "https://unbrowse.ai",
+  "repository": "https://github.com/unbrowse-ai/unbrowse",
+  "license": "MIT",
+  "keywords": [
+    "browser",
+    "web",
+    "scraping",
+    "mcp",
+    "unbrowse"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Unbrowse",
+    "shortDescription": "Call websites as APIs: read pages, run site tasks, drive a cloud browser.",
+    "developerName": "Unbrowse",
+    "category": "Productivity",
+    "defaultPrompt": [
+      "Read https://news.ycombinator.com with Unbrowse and list the top 5 stories."
+    ]
+  }
+}

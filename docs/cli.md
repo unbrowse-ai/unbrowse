@@ -62,6 +62,14 @@ save-login page and exits 3. See [logins-and-vault.md](logins-and-vault.md).
 | `registry [query]` | `GET /sites?q=` |
 | `site <host>` | `GET /sites/:host` |
 
+## Local MCP proxy
+
+`unbrowse mcp` serves MCP over stdio and forwards every call to the hosted MCP (`<origin>/api/mcp`, or `--url` / `UNBROWSE_MCP_URL`) with the CLI's credentials: `UNBROWSE_API_KEY`, `login --key`, or the `login` OAuth token, refreshed per call. Tool names are rewritten to `[A-Za-z0-9_-]` (`unbrowse.scrape` → `unbrowse_scrape`) and mapped back on each call, for hosts such as Grok Build that reject dots. `--end-user ID` (or `UNBROWSE_END_USER`) sends `X-Unbrowse-End-User` for org keys. Nothing but protocol goes to stdout.
+
+```json
+{"mcpServers":{"unbrowse":{"command":"npx","args":["-y","unbrowse","mcp"]}}}
+```
+
 The remote MCP (`/mcp`) is a separate client. This CLI does not speak it and does not install it.
 Connect an agent with the commands in [install.md](install.md) and [mcp.md](mcp.md).
 
