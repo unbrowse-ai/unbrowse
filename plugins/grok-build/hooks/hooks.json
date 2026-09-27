@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "WebSearch|web_search|web_fetch|Bash|playwright__.*|puppeteer__.*|browserbase__.*|chrome-devtools__.*",
+        "hooks": [{ "type": "command", "command": "sh \"${GROK_PLUGIN_ROOT}/scripts/redirect.sh\" unbrowse__unbrowse_", "timeout": 5 }]
+      }
+    ]
+  }
+}

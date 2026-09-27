@@ -1,0 +1,13 @@
+{
+  "name": "unbrowse",
+  "owner": { "name": "Unbrowse", "url": "https://unbrowse.ai" },
+  "metadata": { "description": "Unbrowse plugins: websites as APIs for coding agents." },
+  "plugins": [
+    {
+      "name": "unbrowse",
+      "source": "./plugins/claude-code",
+      "description": "Hosted Unbrowse MCP + skill; replaces WebFetch, WebSearch and browser MCPs with Unbrowse.",
+      "category": "productivity"
+    }
+  ]
+}

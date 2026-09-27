@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "unbrowse": {
+      "type": "streamable-http",
+      "url": "https://unbrowse.ai/mcp"
+    }
+  }
+}

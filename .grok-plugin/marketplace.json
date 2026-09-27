@@ -1,0 +1,12 @@
+{
+  "name": "unbrowse",
+  "owner": { "name": "Unbrowse", "url": "https://unbrowse.ai" },
+  "plugins": [
+    {
+      "name": "unbrowse",
+      "description": "Hosted Unbrowse MCP + skill; replaces web_search, web_fetch and agent-browser navigation with Unbrowse.",
+      "category": "productivity",
+      "source": { "type": "local", "path": "./plugins/grok-build" }
+    }
+  ]
+}

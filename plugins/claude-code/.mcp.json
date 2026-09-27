@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "unbrowse": {
+      "type": "http",
+      "url": "${UNBROWSE_MCP_URL:-https://unbrowse.ai/mcp}",
+      "headersHelper": "${CLAUDE_PLUGIN_ROOT}/scripts/headers.sh"
+    }
+  }
+}

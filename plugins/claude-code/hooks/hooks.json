@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/session.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "WebFetch|WebSearch|Bash|mcp__claude-in-chrome__.*|mcp__playwright__.*|mcp__plugin_playwright_playwright__.*|mcp__puppeteer__.*|mcp__browserbase__.*|mcp__chrome-devtools__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/redirect.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

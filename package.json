@@ -8,10 +8,11 @@
   ],
   "scripts": {
     "build": "bun run --filter '@unbrowse/sdk' build && bun run --filter 'unbrowse' build",
-    "test": "bun test packages",
+    "test": "bun test ./packages ./tests",
     "typecheck": "tsc -p packages/sdk --noEmit && tsc -p packages/cli --noEmit",
     "cli": "bun packages/cli/src/cli.ts",
-    "check:public": "node scripts/check-public-surface.mjs"
+    "check:public": "node scripts/check-public-surface.mjs",
+    "check:plugins": "node scripts/sync-plugins.mjs --check"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

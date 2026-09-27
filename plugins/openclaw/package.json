@@ -1,0 +1,34 @@
+{
+  "name": "@unbrowse/openclaw",
+  "version": "12.1.0",
+  "description": "Unbrowse for OpenClaw: websites as APIs. Hosted discover, run, scrape and cloud-browser tools, a web_fetch provider, and a hook that replaces the built-in browser for web pages.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://unbrowse.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unbrowse-ai/unbrowse.git",
+    "directory": "plugins/openclaw"
+  },
+  "keywords": ["openclaw", "openclaw-plugin", "unbrowse", "browser", "web", "scraping", "mcp"],
+  "main": "dist/index.js",
+  "files": ["dist", "skills", "openclaw.plugin.json", "README.md"],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check",
+    "test": "node scripts/build.mjs && bun test tests",
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.5.17"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": { "optional": true }
+  },
+  "openclaw": {
+    "extensions": ["./dist/index.js"]
+  }
+}

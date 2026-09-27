@@ -25,6 +25,17 @@ CLI installation and SDK instructions: https://github.com/unbrowse-ai/unbrowse-s
 Use the client version identified there; older npm versions may target a different service.
 For automation, supply an API key via `UNBROWSE_API_KEY` using the caller's secret manager. Do not put keys into committed config, prompts, command arguments or logs. Create a key in the signed-in console at https://unbrowse.ai/app.
 
+## Host plugins
+
+Packaged installs that bundle this skill, connect Unbrowse and redirect the host's own browser to it (https://github.com/unbrowse-ai/unbrowse/tree/main/plugins):
+
+- Claude Code: `claude plugin marketplace add unbrowse-ai/unbrowse`, then `claude plugin install unbrowse@unbrowse`.
+- Codex: `codex plugin marketplace add unbrowse-ai/unbrowse`, then `codex plugin add unbrowse@unbrowse`; set `web_search = "disabled"` to drop built-in search.
+- Grok Build: `grok plugin install unbrowse-ai/unbrowse#plugins/grok-build --trust`.
+- OpenClaw (`@unbrowse/openclaw`), Hermes (`plugins/hermes`), elizaOS (`@unbrowse/plugin-unbrowse`): native tools or actions over the same MCP.
+
+Hosts that need a stdio server or reject dotted tool names can run `npx unbrowse mcp`: tool names there use `_` (`unbrowse_scrape`). With a plugin installed, built-in web fetch, web search and browser navigation to non-local URLs are refused with a pointer to the matching Unbrowse tool; `UNBROWSE_ALLOW_BUILTIN_BROWSER=1` lifts that for a session.
+
 ## Choose the interface
 
 - MCP: discovery, runs, page reading, cloud browsing, saved-login requests and live canvas cards.
