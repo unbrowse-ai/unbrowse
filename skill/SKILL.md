@@ -28,7 +28,7 @@ For automation, supply an API key via `UNBROWSE_API_KEY` using the caller's secr
 ## Choose the interface
 
 - MCP: discovery, runs, page reading, cloud browsing, saved-login requests and live canvas cards.
-- CLI: `unbrowse discover`, `run`, `inspect`, `resume`, `registry`; `unbrowse install` prints MCP configuration. `unbrowse help` describes the installed version.
+- CLI: `unbrowse discover`, `run`, `inspect`, `resume`, `registry`. It calls the REST API and is not an MCP client. `unbrowse help` describes the installed version.
 - SDK: REST integration and scripting. Consult the public SDK docs for its supported methods; MCP tools and REST methods are not interchangeable names.
 
 Core MCP tools: `unbrowse.discover`, `unbrowse.run`, `unbrowse.inspect`, `unbrowse.resume`, `unbrowse.cancel`, `unbrowse.scrape`, `unbrowse.map`, `unbrowse.sites`, `unbrowse.usage`, `unbrowse.credits`, `unbrowse.forget`, `unbrowse.learn`, `unbrowse.index`, `unbrowse.index.status`, `unbrowse.credentials.list`, `unbrowse.credentials.request`, `unbrowse.credentials.status`, and the cloud browser `unbrowse.browse.open`, `unbrowse.browse.snapshot`, `unbrowse.browse.act`, `unbrowse.browse.finish`, `unbrowse.browse.close`.
