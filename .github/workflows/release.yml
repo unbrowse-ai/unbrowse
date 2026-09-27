@@ -22,6 +22,10 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: write
+      id-token: write
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
     steps:
@@ -29,7 +33,7 @@ jobs:
         with: { ref: "${{ inputs.tag || github.ref }}" }
       - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-node@v4
-        with: { node-version: 22, registry-url: "https://registry.npmjs.org" }
+        with: { node-version: 22 }
 
       - name: Versions match the tag
         id: gate
@@ -61,19 +65,10 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" $PRE --generate-notes
           gh release upload "$TAG" out/*.tgz --clobber
 
-      - name: Detect npm publication configuration
+      - name: Install npm 11
+        run: npm install -g npm@11 && npm --version
+      - name: Publish to npm via Trusted Publishing
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -n "$NPM_TOKEN" ]; then
-            echo 'NPM_CONFIGURED=true' >> "$GITHUB_ENV"
-          else
-            echo '::notice::GitHub assets released. npm publication skipped: no NPM_TOKEN configured.'
-          fi
-      - name: Publish to npm when credentials are configured
-        if: env.NPM_CONFIGURED == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DIST_TAG: ${{ steps.gate.outputs.dist_tag }}
         run: |
           VERSION="${TAG#v}"
