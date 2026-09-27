@@ -12,7 +12,7 @@ The `release` workflow (`.github/workflows/release.yml`) then:
 |---|---|
 | `scripts/release-check.mjs` | the tag is not `vX.Y.Z[-pre]`, or either package has another version |
 | typecheck, `bun test packages`, build | any error or failing test |
-| pack, then `scripts/smoke-packed.sh` | the tarballs don't install and run on a clean Node, or the live public registry returns nothing |
+| pack, then `scripts/smoke-packed.sh` | the tarballs don't install and run on a clean Node, or the live public registry returns nothing. No API key |
 | `npm publish --provenance` | `@unbrowse/sdk` first, then `unbrowse`; a version already on npm is skipped |
 | dist-tag check | the published dist-tag does not point at the new version |
 | GitHub release | — attaches both tarballs |

@@ -52,7 +52,7 @@ jobs:
 
       - name: Smoke the tarballs on a clean install
         run: bash scripts/smoke-packed.sh "${{ steps.pack.outputs.sdk }}" "${{ steps.pack.outputs.cli }}"
-        env: { SMOKE_LIVE: "1", SMOKE_SIGNED_IN: "1", UNBROWSE_API_KEY: "${{ secrets.UNBROWSE_QA_KEY }}" }
+        env: { SMOKE_LIVE: "1" }
 
       - name: GitHub release with the tarballs
         env: { GH_TOKEN: "${{ github.token }}" }
