@@ -1,0 +1,14 @@
+{
+  "description": "Unbrowse is the browser: context at session start; agent-browser navigation and browser MCPs are redirected to Unbrowse.",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "sh \"$PLUGIN_ROOT/scripts/session.sh\" mcp__unbrowse__unbrowse_", "timeout": 5 }] }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|mcp__playwright__.*|mcp__puppeteer__.*|mcp__browserbase__.*|mcp__chrome-devtools__.*|mcp__chrome_devtools__.*",
+        "hooks": [{ "type": "command", "command": "sh \"$PLUGIN_ROOT/scripts/redirect.sh\" mcp__unbrowse__unbrowse_", "timeout": 5 }]
+      }
+    ]
+  }
+}

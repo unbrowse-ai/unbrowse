@@ -3,5 +3,8 @@ dist/
 *.tgz
 packages/cli/SKILL.md
 packages/cli/references/
-.agents/
+.agents/*
+!.agents/plugins/
 skills-lock.json
+__pycache__/
+.pytest_cache/

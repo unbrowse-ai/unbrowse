@@ -1,0 +1,81 @@
+name: unbrowse
+version: 12.1.0
+manifest_version: 2
+api_version: 1
+description: >-
+  Unbrowse for Hermes: hosted website tools (scrape, discover/run, cloud browser, credentials) over the
+  Unbrowse remote MCP, Unbrowse as a web_extract backend, and a guard that routes public-web browsing
+  from the built-in browser to Unbrowse. Requires UNBROWSE_API_KEY.
+author: Unbrowse
+license: MIT
+homepage: https://github.com/unbrowse-ai/unbrowse/tree/main/plugins/hermes
+tags: [web, browser, scraping, mcp, unbrowse]
+requires_env:
+  - name: UNBROWSE_API_KEY
+    description: "Unbrowse API key (ub_live_...) or OAuth access token"
+    url: "https://unbrowse.ai"
+    secret: true
+provides_tools:
+  - unbrowse_canvas_read
+  - unbrowse_canvas_put
+  - unbrowse_run
+  - unbrowse_inspect
+  - unbrowse_resume
+  - unbrowse_cancel
+  - unbrowse_learn
+  - unbrowse_browse_open
+  - unbrowse_browse_snapshot
+  - unbrowse_browse_act
+  - unbrowse_forget
+  - unbrowse_credentials_list
+  - unbrowse_credentials_request
+  - unbrowse_credentials_status
+  - unbrowse_browse_finish
+  - unbrowse_browse_close
+  - unbrowse_scrape
+  - unbrowse_map
+  - unbrowse_sites
+  - unbrowse_credits
+  - unbrowse_usage
+  - unbrowse_index
+  - unbrowse_index_status
+  - unbrowse_discover
+provides_hooks:
+  - pre_tool_call
+provides_web_providers:
+  - unbrowse
+config_schema:
+  mcpUrl:
+    type: str
+    default: ""
+    label: MCP URL
+    description: "Hosted MCP endpoint. Empty = UNBROWSE_MCP_URL, else https://unbrowse.ai/mcp"
+  endUser:
+    type: str
+    default: ""
+    label: End user
+    description: "Org keys only: the end user calls are made for (X-Unbrowse-End-User). UNBROWSE_END_USER wins."
+  timeout:
+    type: int
+    default: 180
+    description: "Seconds to wait for one Unbrowse call"
+  blockBrowser:
+    type: bool
+    default: true
+    label: Replace built-in browser
+    description: "Block browser_* tools on public sites and point the agent at Unbrowse (local pages still allowed)"
+  blockWebExtract:
+    type: str
+    choices: [auto, "true", "false"]
+    default: auto
+    label: Route web_extract
+    description: "auto = block web_extract on public URLs unless web.extract_backend is unbrowse"
+  blockWebSearch:
+    type: bool
+    default: false
+    description: "Also block web_search (Unbrowse has no general web search; off by default)"
+  apiKey:
+    type: secret
+    env: UNBROWSE_API_KEY
+    label: API key
+    description: "Stored in $HERMES_HOME/.env as UNBROWSE_API_KEY. A plain settings.apiKey value also works but is discouraged."

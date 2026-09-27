@@ -1,0 +1,103 @@
+{
+  "id": "unbrowse",
+  "name": "Unbrowse",
+  "description": "Websites as APIs: Unbrowse's hosted tools (discover, run, scrape, cloud browser, saved logins) plus a web_fetch provider; replaces the built-in browser for web pages.",
+  "version": "12.1.0",
+  "categories": [
+    "web"
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "skills": [
+    "./skills"
+  ],
+  "setup": {
+    "providers": [
+      {
+        "id": "unbrowse",
+        "envVars": [
+          "UNBROWSE_API_KEY"
+        ]
+      }
+    ]
+  },
+  "uiHints": {
+    "apiKey": {
+      "label": "Unbrowse API key",
+      "help": "ub_live_… key from https://unbrowse.ai (fallback: UNBROWSE_API_KEY env var).",
+      "sensitive": true,
+      "placeholder": "ub_live_..."
+    },
+    "mcpUrl": {
+      "label": "Unbrowse MCP URL",
+      "help": "Hosted remote MCP endpoint (fallback: UNBROWSE_MCP_URL, then https://unbrowse.ai/mcp)."
+    },
+    "endUser": {
+      "label": "End user",
+      "help": "Org keys only: the end user calls are made for (fallback: UNBROWSE_END_USER)."
+    },
+    "replaceBrowser": {
+      "label": "Replace the built-in browser",
+      "help": "Block the browser tool for non-local URLs and point the agent at the Unbrowse tools."
+    },
+    "blockWebFetch": {
+      "label": "Replace web_fetch",
+      "help": "Also block web_fetch for non-local URLs in favour of unbrowse_scrape."
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "apiKey": {
+        "type": "string"
+      },
+      "mcpUrl": {
+        "type": "string"
+      },
+      "endUser": {
+        "type": "string"
+      },
+      "replaceBrowser": {
+        "type": "boolean",
+        "default": true
+      },
+      "blockWebFetch": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  },
+  "contracts": {
+    "webFetchProviders": [
+      "unbrowse"
+    ],
+    "tools": [
+      "unbrowse_canvas_read",
+      "unbrowse_canvas_put",
+      "unbrowse_run",
+      "unbrowse_inspect",
+      "unbrowse_resume",
+      "unbrowse_cancel",
+      "unbrowse_learn",
+      "unbrowse_browse_open",
+      "unbrowse_browse_snapshot",
+      "unbrowse_browse_act",
+      "unbrowse_forget",
+      "unbrowse_credentials_list",
+      "unbrowse_credentials_request",
+      "unbrowse_credentials_status",
+      "unbrowse_browse_finish",
+      "unbrowse_browse_close",
+      "unbrowse_scrape",
+      "unbrowse_map",
+      "unbrowse_sites",
+      "unbrowse_credits",
+      "unbrowse_usage",
+      "unbrowse_index",
+      "unbrowse_index_status",
+      "unbrowse_discover"
+    ]
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["node"],
+    "paths": { "@unbrowse/sdk": ["../../packages/sdk/src/index.ts"] }
+  },
+  "include": ["src", "tests", "types"]
+}
