@@ -49,7 +49,7 @@ export async function currentToken(baseUrl: string, fetchImpl: typeof fetch = fe
   if (!o) return undefined;
   if (o.expiresAt && o.refreshToken && Date.now() > o.expiresAt - 60_000) {
     try {
-      const fresh = await tokenRequest(baseUrl, { grant_type: "refresh_token", refresh_token: o.refreshToken, client_id: o.clientId }, fetchImpl);
+      const fresh = await tokenRequest(baseUrl, { grant_type: "refresh_token", refresh_token: o.refreshToken, client_id: o.clientId, resource: apiResource(baseUrl) }, fetchImpl);
       save({ ...stored, oauth: { clientId: o.clientId, ...fresh, refreshToken: fresh.refreshToken ?? o.refreshToken } });
       return fresh.accessToken;
     } catch {
@@ -74,6 +74,11 @@ export function mask(key: string): string {
 
 type Tokens = { accessToken: string; refreshToken?: string; expiresAt?: number };
 
+/** OAuth audience for this CLI. The REST API, not the remote MCP server. */
+export function apiResource(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/api`;
+}
+
 async function tokenRequest(baseUrl: string, form: Record<string, string>, fetchImpl: typeof fetch): Promise<Tokens> {
   const res = await fetchImpl(`${baseUrl}/oauth/token`, {
     method: "POST",
@@ -88,8 +93,9 @@ async function tokenRequest(baseUrl: string, form: Record<string, string>, fetch
 const b64url = (buf: Buffer) => buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 /**
- * Browser sign-in. Registers a public client for a loopback redirect, opens the authorize page,
- * waits for the code on 127.0.0.1, exchanges it with the PKCE verifier and stores the tokens.
+ * Browser sign-in for the REST API. Registers a public client for a loopback redirect, opens the
+ * authorize page with resource `{origin}/api`, waits for the code on 127.0.0.1, exchanges it
+ * with the PKCE verifier and stores the tokens. This client does not request the MCP audience.
  */
 export async function oauthLogin(
   baseUrl: string,
@@ -141,7 +147,7 @@ export async function oauthLogin(
       code_challenge_method: "S256",
       state,
       scope: "unbrowse",
-      resource: `${baseUrl}/mcp`,
+      resource: apiResource(baseUrl),
     }).toString();
     opts.log(`Opening ${url.origin}/authorize in your browser. If it does not open, visit:\n${url.toString()}`);
     opts.open(url.toString());
@@ -153,7 +159,7 @@ export async function oauthLogin(
 
     const tokens = await tokenRequest(
       baseUrl,
-      { grant_type: "authorization_code", code: answer.code, redirect_uri: redirectUri, client_id: client.client_id, code_verifier: verifier },
+      { grant_type: "authorization_code", code: answer.code, redirect_uri: redirectUri, client_id: client.client_id, code_verifier: verifier, resource: apiResource(baseUrl) },
       fetchImpl,
     );
     save({ baseUrl, oauth: { clientId: client.client_id, ...tokens } });

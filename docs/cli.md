@@ -9,7 +9,7 @@ messages go to stderr. Agents that need the cloud browser use the hosted MCP ([m
 
 | Command | Route |
 |---|---|
-| `login` | Browser sign-in: OAuth 2.1 with PKCE and a loopback redirect; stores the token |
+| `login` | Browser sign-in: OAuth 2.1 with PKCE and a loopback redirect. The token's resource is `{origin}/api` (this REST API), not `/mcp` |
 | `login --key ub_live_…` | Stores an API key (create one in the console, MCP & keys) |
 | `logout` | Deletes the stored sign-in |
 | `whoami` | `GET /me` |
@@ -62,13 +62,8 @@ save-login page and exits 3. See [logins-and-vault.md](logins-and-vault.md).
 | `registry [query]` | `GET /sites?q=` |
 | `site <host>` | `GET /sites/:host` |
 
-## MCP
-
-| Command | Does |
-|---|---|
-| `install` | Prints the commands that add the hosted MCP to Claude Code, Codex and other clients |
-
-They carry the server URL only; your MCP client runs the OAuth sign-in.
+The remote MCP (`/mcp`) is a separate client. This CLI does not speak it and does not install it.
+Connect an agent with the commands in [install.md](install.md) and [mcp.md](mcp.md).
 
 ## Exit codes
 

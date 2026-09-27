@@ -18,7 +18,8 @@ unbrowse resume <runId> origin=SIN           # answer on the same run
 | `learn a.har b.har`, `learned [id]` | Teach a site from two recordings |
 | `logins`, `logins remove <origin>` | Saved logins, masked. The CLI never takes a password |
 | `registry [query]`, `site <host>` | Public compiled sites, no account |
-| `install` | Add the hosted MCP to Claude Code, Codex and others |
+
+The CLI is the REST client. The remote MCP is a separate client; see the [install guide](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/install.md).
 
 Exit codes: 0 accepted/ok (check status and verified), 1 error, 2 input required, 3 sign-in or saved login needed, 4 not verified.
 Env: `UNBROWSE_API_KEY`, `UNBROWSE_BASE_URL`. Node 18.17+, no dependencies.

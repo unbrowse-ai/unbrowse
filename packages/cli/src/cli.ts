@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import * as auth from "./auth.ts";
-import { Unbrowse, mcpCommands } from "@unbrowse/sdk";
+import { Unbrowse } from "@unbrowse/sdk";
 import type { Json, RunView } from "@unbrowse/sdk";
 
 declare const __VERSION__: string | undefined;
@@ -33,7 +33,6 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
 
   registry [query]                Public compiled sites (no account)
   site <host>                     One site's tools (no account)
-  install                         Add the Unbrowse MCP to Claude Code, Codex or any client
 
 Options: --json (errors as JSON) · --base-url URL · --no-open
 Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN})
@@ -154,11 +153,6 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       case "site":
         print(await ub.site(need(rest[0], "site <host>")));
         return 0;
-      case "install": {
-        const c = mcpCommands(`${origin}/mcp`);
-        io.out(`Claude Code:  ${c.claudeCode}\nCodex:        ${c.codex}\nOther clients:\n${c.json}`);
-        return 0;
-      }
       default:
         throw new UsageError(`unknown command "${cmd}". Run \`unbrowse help\`.`);
     }

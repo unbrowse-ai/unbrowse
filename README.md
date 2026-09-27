@@ -44,7 +44,6 @@ unbrowse resume <runId> k=v…        answer what the run asked for, on the same
 unbrowse learn a.har b.har          compile two recordings into a capability
 unbrowse logins                     saved logins, masked
 unbrowse registry [query]           public compiled sites (no account)
-unbrowse install                    add the hosted MCP to Claude Code, Codex, others
 ```
 
 All commands: [docs/cli.md](docs/cli.md). Exit codes: 0 ok, 1 error, 2 input required,
@@ -62,8 +61,8 @@ Supported REST methods: [docs/sdk.md](docs/sdk.md).
 
 ## Agents
 
-Agents connect to the hosted MCP (`https://unbrowse.ai/mcp`; `unbrowse install` prints the
-commands) and follow [skill/SKILL.md](skill/SKILL.md). There is no local MCP server.
+Agents connect to the hosted MCP (`https://unbrowse.ai/mcp`, see [docs/install.md](docs/install.md))
+and follow [skill/SKILL.md](skill/SKILL.md). The CLI is the REST alternative. There is no local MCP server.
 
 ## Pricing
 
