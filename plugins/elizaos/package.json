@@ -1,0 +1,72 @@
+{
+  "name": "@unbrowse/plugin-unbrowse",
+  "version": "12.1.0",
+  "description": "elizaOS plugin for Unbrowse: read pages, run website tasks and use a cloud browser through the hosted Unbrowse MCP. Drop-in replacement for the default browser.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://unbrowse.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unbrowse-ai/unbrowse.git",
+    "directory": "plugins/elizaos"
+  },
+  "keywords": ["elizaos", "elizaos-plugin", "unbrowse", "browser", "web", "scrape", "mcp"],
+  "main": "dist/index.js",
+  "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "types",
+    "skill",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "sync-skill": "cd ../.. && node scripts/sync-plugins.mjs",
+    "build": "rm -rf dist && bun build src/index.ts --target node --format esm --outfile dist/index.js",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "bun test tests",
+    "test:live": "UNBROWSE_LIVE=1 bun test tests/live.test.ts",
+    "prepack": "bun run build"
+  },
+  "peerDependencies": {
+    "@elizaos/core": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@elizaos/core": "1.7.2",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "agentConfig": {
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "UNBROWSE_API_KEY": {
+        "type": "string",
+        "description": "Unbrowse API key (ub_live_…) or OAuth access token. Create one at https://unbrowse.ai/app.",
+        "required": true,
+        "sensitive": true
+      },
+      "UNBROWSE_MCP_URL": {
+        "type": "string",
+        "description": "Hosted Unbrowse MCP endpoint.",
+        "required": false,
+        "default": "https://unbrowse.ai/mcp",
+        "sensitive": false
+      },
+      "UNBROWSE_END_USER": {
+        "type": "string",
+        "description": "Org keys only: the end user every call is made for (sent as X-Unbrowse-End-User).",
+        "required": false,
+        "sensitive": false
+      }
+    }
+  }
+}

@@ -34,8 +34,11 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   registry [query]                Public compiled sites (no account)
   site <host>                     One site's tools (no account)
 
+  mcp                             Local stdio MCP server proxying the hosted one (tool names use _ not .)
+      [--url URL] [--end-user ID]   for agent hosts that need stdio or strict tool names (Grok Build)
+
 Options: --json (errors as JSON) · --base-url URL · --no-open
-Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN})
+Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
 const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended"]);
@@ -78,6 +81,18 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
   const flag = (k: string) => (typeof args.flags[k] === "string" ? (args.flags[k] as string) : undefined);
   const print = (v: unknown) => io.out(JSON.stringify(v, null, 2));
   const client = async () => new Unbrowse({ apiKey: (await auth.currentToken(origin)) ?? "", baseUrl: origin });
+
+  if (cmd === "mcp") {
+    // stdout carries the protocol: nothing else may be printed there.
+    const { serveStdio } = await import("./mcp-proxy.ts");
+    await serveStdio({
+      url: flag("url") ?? process.env.UNBROWSE_MCP_URL ?? `${origin}/api/mcp`,
+      token: async () => (await auth.currentToken(origin)) ?? undefined,
+      version: VERSION,
+      endUser: flag("end-user") ?? process.env.UNBROWSE_END_USER,
+    });
+    return 0;
+  }
 
   try {
     const ub = await client();
