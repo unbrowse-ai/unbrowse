@@ -82,7 +82,7 @@ jobs:
             if [ "$(npm view "$name@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
               echo "::notice::$name@$VERSION is already on npm; skipping"
             else
-              npm publish "$tgz" --access public --provenance --tag "$DIST_TAG"
+              npm publish "./$tgz" --access public --provenance --tag "$DIST_TAG"
             fi
             test "$(npm view "$name" "dist-tags.$DIST_TAG")" = "$VERSION"
           }
