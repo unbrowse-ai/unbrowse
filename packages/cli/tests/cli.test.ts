@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { apiResource, currentToken, oauthLogin, save } from "../src/auth.ts";
 import { main, parseArgs } from "../src/cli.ts";
 
 // A stand-in for the hosted REST API (/api/v1), shaped like unbrowse6's http.ts.
@@ -156,8 +157,53 @@ test("a server error prints its message; --json prints it as JSON", async () => 
   expect(r.json().error).toMatchObject({ status: 404, message: "No route for /v1/learned/missing" });
 });
 
-test("install prints OAuth install commands for the hosted MCP, never a key", async () => {
+test("help is the REST client and does not install MCP", async () => {
+  const r = await cli(["help"]);
+  expect(r.code).toBe(0);
+  expect(r.out[0]).not.toContain("install");
+  expect(r.out[0]).not.toContain("/mcp");
+});
+
+test("install is not a CLI command", async () => {
   const r = await cli(["install"]);
-  expect(r.out[0]).toContain(`claude mcp add --transport http unbrowse ${BASE}/mcp`);
-  expect(r.out[0]).not.toContain(TOKEN);
+  expect(r.code).toBe(1);
+  expect(r.err.join("")).toContain('unknown command "install"');
+});
+
+test("oauth login and refresh request the REST API resource, not MCP", async () => {
+  const origin = "https://unbrowse.test";
+  const seen: Array<{ url: string; body: string }> = [];
+  const fetchImpl: typeof fetch = async (url, init) => {
+    const u = String(url);
+    const body = typeof init?.body === "string" ? init.body : "";
+    seen.push({ url: u, body });
+    if (u.endsWith("/oauth/register")) return Response.json({ client_id: "cid_test" });
+    if (u.endsWith("/oauth/token")) return Response.json({ access_token: "atk_test", refresh_token: "rtk_test", expires_in: 3600 });
+    return Response.json({ error: "unexpected" }, { status: 500 });
+  };
+  await oauthLogin(origin, {
+    fetch: fetchImpl,
+    log: () => {},
+    timeoutMs: 2000,
+    open: (authorize) => {
+      const u = new URL(authorize);
+      expect(u.searchParams.get("resource")).toBe(apiResource(origin));
+      expect(u.searchParams.get("resource")).not.toContain("/mcp");
+      const redirect = new URL(u.searchParams.get("redirect_uri")!);
+      redirect.searchParams.set("code", "code_1");
+      redirect.searchParams.set("state", u.searchParams.get("state")!);
+      void fetch(redirect);
+    },
+  });
+  const codeGrant = new URLSearchParams(seen.find((s) => s.url.endsWith("/oauth/token"))!.body);
+  expect(codeGrant.get("grant_type")).toBe("authorization_code");
+  expect(codeGrant.get("resource")).toBe("https://unbrowse.test/api");
+
+  save({ baseUrl: origin, oauth: { clientId: "cid_test", accessToken: "old", refreshToken: "rtk_test", expiresAt: Date.now() - 1000 } });
+  delete process.env.UNBROWSE_API_KEY;
+  const refreshed = await currentToken(origin, fetchImpl);
+  expect(refreshed).toBe("atk_test");
+  const refreshGrant = new URLSearchParams(seen.filter((s) => s.url.endsWith("/oauth/token")).at(-1)!.body);
+  expect(refreshGrant.get("grant_type")).toBe("refresh_token");
+  expect(refreshGrant.get("resource")).toBe("https://unbrowse.test/api");
 });
