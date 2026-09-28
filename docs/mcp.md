@@ -13,7 +13,7 @@ codex mcp add unbrowse --url https://unbrowse.ai/mcp && codex mcp login unbrowse
 { "mcpServers": { "unbrowse": { "url": "https://unbrowse.ai/mcp" } } }
 ```
 
-There is no local MCP server. Agents connect to the hosted one; shells and scripts use the CLI.
+Agents connect to the hosted server. For hosts that need a local stdio server, or reject tool names with dots (Grok Build), `npx -y unbrowse mcp` proxies to it with the CLI's sign-in; tool names there use `_` (`unbrowse_scrape`). See [cli.md](cli.md#local-mcp-proxy). Shells and scripts use the CLI.
 
 Install the [agent skill](install.md#agent-skill) for operating guidance. Exported core input schemas: [tools.json](../skill/references/tools.json). The connected server's `tools/list` also includes user-specific tools.
 
