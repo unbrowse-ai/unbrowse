@@ -1,0 +1,15 @@
+[package]
+name = "mcp_server_unbrowse"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+
+[lib]
+path = "src/mcp_server_unbrowse.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+schemars = "0.8"
+zed_extension_api = "0.7.0"

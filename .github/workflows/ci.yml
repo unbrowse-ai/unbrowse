@@ -36,6 +36,9 @@ jobs:
       - name: LlamaIndex package
         working-directory: plugins/llamaindex
         run: python -m pip install -q -e '.[test]' && python -m pytest -q
+      - name: Zed extension
+        working-directory: plugins/zed
+        run: rustup target add wasm32-wasip2 && rustup component add rustfmt clippy && cargo fmt --check && cargo clippy --target wasm32-wasip2 -- -D warnings && cargo build --release --target wasm32-wasip2
       - run: bun run build
       - run: node packages/cli/dist/cli.js --version
       - run: node --input-type=module -e 'import("./packages/sdk/dist/index.js").then(m => { if (!new m.Unbrowse().baseUrl.endsWith("/api/v1")) process.exit(1) })'
