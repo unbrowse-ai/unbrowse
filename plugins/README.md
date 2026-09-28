@@ -15,6 +15,7 @@ Each plugin ships the Unbrowse skill (`skill/`, synced by `node scripts/sync-plu
 | [n8n](n8n/README.md) | n8n → Settings → Community Nodes → `n8n-nodes-unbrowse` | node **Unbrowse** (Scrape Page, Discover, Run Task; usable as an AI Agent tool) + **Unbrowse API** credential | none: nodes are opt-in per workflow |
 | [LangChain](langchain/README.md) | `pip install langchain-unbrowse` | `UnbrowseScrapeTool`, `UnbrowseDiscoverTool`, `UnbrowseRunTool`, `UnbrowseToolkit` (hosted API, `UNBROWSE_API_KEY`) | none: tools are opt-in per agent |
 | [LlamaIndex](llamaindex/README.md) | `pip install llama-index-tools-unbrowse` | `UnbrowseToolSpec`: `unbrowse_scrape`, `unbrowse_discover`, `unbrowse_run` (hosted API, `UNBROWSE_API_KEY`) | none: tools are opt-in per agent |
+| [Zed](zed/README.md) | Zed → Extensions → **Unbrowse MCP Server** (id `mcp-server-unbrowse`) | `unbrowse mcp` (stdio, npm package run by Zed's Node; `unbrowse_api_key` setting) | none: MCP tools sit beside Zed's own tools in the Agent Panel |
 
 All of them keep local pages (`localhost`, `127.*`) open for app QA, and `UNBROWSE_ALLOW_BUILTIN_BROWSER=1` turns the redirect off for a session.
 
@@ -30,6 +31,7 @@ python -m pytest plugins/dify/tests                    # needs dify_plugin; UNBR
 (cd plugins/n8n && npm ci --ignore-scripts && npm run lint && npm run build && npm test)  # UNBROWSE_LIVE=1 + UNBROWSE_API_KEY for live calls
 (cd plugins/langchain && pip install -e '.[test]' && pytest)     # mocked HTTP + LangChain standard tests; UNBROWSE_LIVE=1 + UNBROWSE_API_KEY for live calls
 (cd plugins/llamaindex && pip install -e '.[test]' && pytest)    # UNBROWSE_LIVE=1 + UNBROWSE_API_KEY for live calls
+(cd plugins/zed && cargo build --release --target wasm32-wasip2 && cargo fmt --check && cargo clippy --target wasm32-wasip2 -- -D warnings)
 ```
 
 Host-level checks run against the real hosts are listed in each plugin's README.
@@ -39,3 +41,5 @@ Dify package: `dify plugin package plugins/dify -o unbrowse-<version>.difypkg` (
 n8n package: `n8n-nodes-unbrowse` is published with npm provenance by `.github/workflows/n8n-publish.yml` on a tag `n8n-nodes-unbrowse@<version>`; n8n verification is requested in the n8n Creator Portal.
 
 Python packages: `langchain-unbrowse` and `llama-index-tools-unbrowse` are published to PyPI by `.github/workflows/pypi-publish.yml` (Trusted Publishing) on a tag `<package>@<version>` matching the plugin's `pyproject.toml`. LangChain lists it after an Integration listing issue in langchain-ai/docs; LlamaIndex no longer takes new integration packages in its repo, so the PyPI package is the listing.
+
+Zed extension: the registry entry lives in zed-industries/extensions (`extensions.toml` + submodule `extensions/mcp-server-unbrowse` → this repo, `path = "plugins/zed"`). Package locally with Zed's CI tool: `zed-extension --source-dir plugins/zed --scratch-dir /tmp/s --output-dir /tmp/o` (binary URL in that repo's `.github/workflows/ci.yml`).
