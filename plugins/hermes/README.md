@@ -156,3 +156,10 @@ loader, the tool registry, `model_tools.handle_function_call`, `web_extract` rou
 
 `skills/unbrowse` is copied from the repo's `skill/` directory by `node scripts/sync-plugins.mjs`. Do
 not edit the copy.
+
+## Network, credentials, license
+
+- **Network:** only `https://unbrowse.ai/mcp` (or `UNBROWSE_MCP_URL`), called with the Python standard library (`urllib`). Pages are fetched by Unbrowse's hosted service. There is no telemetry and there are no runtime dependencies.
+- **Credentials:** `UNBROWSE_API_KEY` (or the `apiKey` setting), sent only to Unbrowse as a bearer token. It is never logged or returned in tool results. Website passwords stay in Unbrowse's server-side vault.
+- **Hooks:** one `pre_tool_call` guard. It denies `browser_*` and `web_extract` calls to public URLs and points to the Unbrowse tools. Local and private addresses pass, and `UNBROWSE_ALLOW_BUILTIN_BROWSER=1` turns it off.
+- **License:** MIT.
