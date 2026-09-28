@@ -26,7 +26,9 @@ test("skill copies and shared hook scripts match their sources", () => {
 });
 
 test("every plugin version matches the CLI package", () => {
-  const { version } = json("packages/cli/package.json");
+  const { version, mcpName } = json("packages/cli/package.json");
+  const server = json("server.json");
+  expect(server).toMatchObject({ name: mcpName, version, packages: [{ identifier: "unbrowse", version }], remotes: [{ url: "https://unbrowse.ai/mcp" }] });
   expect(json("plugins/claude-code/.claude-plugin/plugin.json").version).toBe(version);
   expect(json("plugins/codex/.codex-plugin/plugin.json").version).toBe(version);
   expect(json("plugins/grok-build/.grok-plugin/plugin.json").version).toBe(version);

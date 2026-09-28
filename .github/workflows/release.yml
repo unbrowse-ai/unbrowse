@@ -96,3 +96,12 @@ jobs:
           publish unbrowse "${{ steps.pack.outputs.cli }}"
           publish @unbrowse/openclaw "${{ steps.pack.outputs.openclaw }}"
           publish @unbrowse/plugin-unbrowse "${{ steps.pack.outputs.elizaos }}"
+
+      - name: Publish to the MCP Registry (GitHub OIDC, io.github.unbrowse-ai/*)
+        if: steps.gate.outputs.dist_tag == 'latest'
+        run: |
+          VERSION="${TAG#v}"
+          node -e 'const s=require("./server.json"); if (s.version!==process.argv[1] || s.packages[0].version!==process.argv[1]) { console.error("server.json version is not "+process.argv[1]); process.exit(1) }' "$VERSION"
+          curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
