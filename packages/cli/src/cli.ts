@@ -22,6 +22,7 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   discover <query>                Your capabilities first, then the public registry
   run <task…>                     Run a task and wait for a verified result
       [--capability ID] [--url URL] [--set key=value]… [--input JSON] [--unattended] [--no-wait]
+      [--from-here]                 send the site requests from this machine (your IP); Unbrowse decides and reads them
   inspect <runId>                 A run's status, requirements and result
   resume <runId> key=value…       Answer open requirements on the same run
   cancel <runId>                  Stop a run; prints the effect receipt
@@ -123,14 +124,18 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         const capability = flag("capability");
         if (!task && !capability) throw new UsageError("usage: unbrowse run <task…> | --capability ID");
         const input = { ...(flag("input") ? JSON.parse(flag("input")!) : {}), ...mapValues(args.sets) };
-        const view = await ub.run({
+        const request = {
           ...(task ? { task } : {}),
           ...(capability ? { capability } : {}),
           ...(flag("url") ? { targetUrl: flag("url") } : {}),
           ...(Object.keys(input).length ? { input } : {}),
           ...(args.flags.unattended ? { interactionMode: "unattended" as const } : {}),
           idempotencyKey: flag("idempotency-key") ?? randomUUID(),
-        });
+        };
+        // --from-here: this machine sends every site request (client egress); each one is noted on stderr.
+        const view = args.flags["from-here"]
+          ? await ub.runOnClient(request, { onRequest: (r) => void io.err(`→ ${r.method} ${r.url}`) })
+          : await ub.run(request);
         return settle(ub, view, args, io, print);
       }
       case "inspect":
