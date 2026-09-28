@@ -64,6 +64,31 @@ task in the cloud browser is an MCP flow (`unbrowse.browse.*`), not a CLI comman
 The CLI never takes a password. When a run needs a login nobody saved, it opens the one-time
 save-login page and exits 3. See [logins-and-vault.md](logins-and-vault.md).
 
+## Cookies — reuse your browser's sessions
+
+Sign in to a site in your normal browser, then hand those cookies to Unbrowse so your runs act as
+your signed-in self. The cookies are read locally (decrypted with your OS keychain where the browser
+encrypts them), sent to Unbrowse, and kept per site — sealed in your vault, so the session persists.
+
+| Command | What it does |
+|---|---|
+| `cookies list` | Browsers and profiles found on this machine. `--json` for an agent to choose from. |
+| `cookies sync` | Read cookies and upload them (`POST /cookies`). |
+
+```sh
+unbrowse cookies list
+unbrowse cookies sync --domain github.com        # just one site
+unbrowse cookies sync --browser Chrome --profile Default
+unbrowse cookies sync --all                      # every profile found
+```
+
+Options: `--browser NAME`, `--profile NAME` (from `cookies list`), `--domain d` (one site and its
+subdomains), `--all` (every profile; otherwise the default profile is used). Supported: Chrome,
+Chromium, Arc, Brave, Edge, Opera, Vivaldi, Firefox, LibreWolf, Waterfox, on macOS, Linux and
+Windows. Cookies a browser encrypts with a locked keyring, or a sandboxed (Flatpak/Snap) install
+whose key is not reachable, are reported and skipped. Everything is read locally; only the cookies
+you sync leave your machine. Reads work best with the browser closed.
+
 ## Public registry (no account)
 
 | Command | Route |
