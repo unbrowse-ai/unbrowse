@@ -10,6 +10,7 @@ export const SKILL_TARGETS = [
   "plugins/openclaw/skills/unbrowse",
   "plugins/hermes/skills/unbrowse",
   "plugins/elizaos/skill",
+  "plugins/cursor/skills/unbrowse",
 ];
 
 function files(dir, base = dir) {
