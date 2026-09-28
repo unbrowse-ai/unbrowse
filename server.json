@@ -1,0 +1,43 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.unbrowse-ai/unbrowse",
+  "title": "Unbrowse",
+  "description": "Websites as APIs: read pages, run site tasks via learned APIs, cloud browser with saved logins.",
+  "version": "12.1.1",
+  "websiteUrl": "https://unbrowse.ai",
+  "repository": {
+    "url": "https://github.com/unbrowse-ai/unbrowse",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "unbrowse",
+      "version": "12.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "UNBROWSE_API_KEY",
+          "description": "Unbrowse API key from https://unbrowse.ai/app (or run `npx unbrowse login` once instead)",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://unbrowse.ai/mcp"
+    }
+  ]
+}
