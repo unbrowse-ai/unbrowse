@@ -27,6 +27,7 @@ GET  /vault                         refs and audit, never secrets
 GET  /logins                        saved logins as masked hints
 POST /logins                        save or update one login per origin
 POST /logins/remove                 { origin } | { ref }
+POST /cookies                       { cookies: [{ domain, name, value, path?, secure?, expires? }] } → kept sessions
 GET  /usage
 GET  /me
 

@@ -27,6 +27,10 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   resume <runId> key=value…       Answer open requirements on the same run
   cancel <runId>                  Stop a run; prints the effect receipt
 
+  cookies list                    Browsers and profiles found on this machine (--json for agents)
+  cookies sync                    Send your browser cookies so runs act as your signed-in self
+      [--browser NAME] [--profile NAME] [--domain d] [--all]
+
   learn <a.har> <b.har>…          Compile two HAR recordings into a capability [--title T] [--goal G]
   learned [id]                    Your learned capabilities, or one with its harness and skill
   logins                          Saved logins as masked hints
@@ -42,7 +46,7 @@ Options: --json (errors as JSON) · --base-url URL · --no-open
 Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
-const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended"]);
+const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "all"]);
 
 export type Args = { _: string[]; flags: Record<string, string | boolean>; sets: Record<string, string> };
 
@@ -154,6 +158,51 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       case "cancel":
         print(await ub.cancel(need(rest[0], "cancel <runId>")));
         return 0;
+      case "cookies": {
+        const { findProfiles, readCookies } = await import("./cookies.ts");
+        const sub = rest[0] ?? "sync";
+        const profiles = findProfiles();
+        if (sub === "list") {
+          const rows = profiles.map((p) => ({ browser: p.browser, profile: p.profile, engine: p.engine, id: `${p.browser}:${p.profile}` }));
+          if (args.flags.json) print({ profiles: rows });
+          else if (!rows.length) io.err("No browsers found. Chrome, Chromium, Arc, Brave, Edge, Firefox and others are supported.");
+          else for (const r of rows) io.out(`${r.id}  (${r.engine})`);
+          return 0;
+        }
+        if (sub !== "sync") throw new UsageError("usage: unbrowse cookies [list | sync] [--browser NAME] [--profile NAME] [--domain d] [--all]");
+        if (!profiles.length) { io.err("No browsers found to sync cookies from."); return 1; }
+        const wantBrowser = flag("browser")?.toLowerCase();
+        const wantProfile = flag("profile");
+        let chosen = profiles.filter((p) => (!wantBrowser || p.browser.toLowerCase() === wantBrowser) && (!wantProfile || p.profile === wantProfile));
+        // No browser named and several to choose from: the default profile of the first browser, unless --all.
+        if (!args.flags.all && !wantBrowser && !wantProfile && chosen.length > 1) {
+          const def = chosen.find((p) => p.profile === "Default") ?? chosen[0]!;
+          chosen = [def];
+          io.err(`Using ${def.browser}:${def.profile}. Pick another with --browser/--profile, all with --all, or list them: unbrowse cookies list`);
+        }
+        if (!chosen.length) { io.err(`No profile matched. List them with: unbrowse cookies list`); return 1; }
+        const domain = flag("domain");
+        const jar = new Map<string, { domain: string; name: string; value: string; path?: string; secure?: boolean; httpOnly?: boolean; expires?: number }>();
+        let readErrors = 0, locked = 0;
+        for (const p of chosen) {
+          try {
+            const cookies = readCookies(p, domain ? { domain } : {});
+            const usable = cookies.filter((c) => c.value);
+            locked += cookies.length - usable.length;
+            for (const c of usable) jar.set(`${c.domain}|${c.name}|${c.path}`, c);
+          } catch (e) {
+            readErrors++;
+            io.err(`${p.browser}:${p.profile}: could not read (${(e as Error).message}). Close the browser and retry.`);
+          }
+        }
+        const cookies = [...jar.values()];
+        if (locked) io.err(`${locked} cookie(s) could not be decrypted (a locked keyring or a sandboxed/flatpak browser).`);
+        if (!cookies.length) { io.err(readErrors ? "No cookies read." : "No cookies to sync."); return readErrors ? 1 : 0; }
+        const result = await ub.importCookies(cookies);
+        if (args.flags.json) print(result);
+        else io.err(`Synced ${result.cookies} cookies across ${result.sites} site(s) from ${chosen.map((p) => `${p.browser}:${p.profile}`).join(", ")}. Runs now act as your signed-in self on those sites.`);
+        return 0;
+      }
       case "learn": {
         need(rest[0], "learn <a.har> <b.har>…");
         const har = rest.map((f) => JSON.parse(readFileSync(f, "utf8")) as Json);
