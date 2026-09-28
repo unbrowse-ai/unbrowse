@@ -1,0 +1,4 @@
+{
+  /// Your Unbrowse API key (starts with ub_live_). Create one at https://unbrowse.ai/app
+  "unbrowse_api_key": "YOUR_API_KEY"
+}
