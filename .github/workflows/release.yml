@@ -53,6 +53,10 @@ jobs:
           (cd packages/cli && npm pack --pack-destination ../../out >/dev/null)
           echo "sdk=$(ls out/unbrowse-sdk-*.tgz)" >> "$GITHUB_OUTPUT"
           echo "cli=$(ls out/unbrowse-[0-9]*.tgz)" >> "$GITHUB_OUTPUT"
+          (cd plugins/openclaw && npm run build && npm pack --pack-destination ../../out >/dev/null)
+          (cd plugins/elizaos && bun install --frozen-lockfile && bun run build && npm pack --pack-destination ../../out >/dev/null)
+          echo "openclaw=$(ls out/unbrowse-openclaw-*.tgz)" >> "$GITHUB_OUTPUT"
+          echo "elizaos=$(ls out/unbrowse-plugin-unbrowse-*.tgz)" >> "$GITHUB_OUTPUT"
 
       - name: Smoke the tarballs on a clean install
         run: bash scripts/smoke-packed.sh "${{ steps.pack.outputs.sdk }}" "${{ steps.pack.outputs.cli }}"
@@ -79,7 +83,7 @@ jobs:
             else
               npm publish "./$tgz" --access public --provenance --tag "$DIST_TAG"
             fi
-            for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            for _ in $(seq 1 24); do  # npm can take several minutes to show a new version
               if [ "$(npm view "$name" "dist-tags.$DIST_TAG" 2>/dev/null || true)" = "$VERSION" ]; then
                 return 0
               fi
@@ -90,3 +94,5 @@ jobs:
           }
           publish @unbrowse/sdk "${{ steps.pack.outputs.sdk }}"
           publish unbrowse "${{ steps.pack.outputs.cli }}"
+          publish @unbrowse/openclaw "${{ steps.pack.outputs.openclaw }}"
+          publish @unbrowse/plugin-unbrowse "${{ steps.pack.outputs.elizaos }}"
