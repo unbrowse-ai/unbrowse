@@ -172,3 +172,13 @@ export type RunEvent = {
   build: string;
   payload: Record<string, Json>;
 };
+
+/** A browse op the agent issues; the local browser (CLI) runs it. */
+export type LocalBrowseOp =
+  | { op: "open"; url: string; task?: string }
+  | { op: "snapshot" }
+  | { op: "act"; action: string; ref?: string; value?: string; name?: string }
+  | { op: "finish"; title?: string; goal?: string };
+
+/** What the local browser returns for one op. `traces` only on finish. */
+export type LocalBrowseResult = { snapshot?: unknown; traces?: unknown[]; error?: string };

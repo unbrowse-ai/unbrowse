@@ -27,6 +27,9 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   resume <runId> key=value…       Answer open requirements on the same run
   cancel <runId>                  Stop a run; prints the effect receipt
 
+  browse --local                  Learn a site in your OWN browser (private to you; not the public registry)
+      [--connect SESSION] [--url URL] [--headless]   the cloud agent drives; needs patchright/playwright
+
   learn <a.har> <b.har>…          Compile two HAR recordings into a capability [--title T] [--goal G]
   learned [id]                    Your learned capabilities, or one with its harness and skill
   logins                          Saved logins as masked hints
@@ -42,7 +45,7 @@ Options: --json (errors as JSON) · --base-url URL · --no-open
 Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
-const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended"]);
+const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "local", "headless"]);
 
 export type Args = { _: string[]; flags: Record<string, string | boolean>; sets: Record<string, string> };
 
@@ -154,6 +157,28 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       case "cancel":
         print(await ub.cancel(need(rest[0], "cancel <runId>")));
         return 0;
+      case "browse": {
+        if (!args.flags.local) throw new UsageError("usage: unbrowse browse --local [--connect SESSION_ID] [--url URL] [--headless]");
+        const { localBrowser } = await import("./local-browser.ts");
+        const sessionId = flag("connect") ?? (await ub.startLocalBrowse()).sessionId;
+        io.err(`Local browser attached to session ${sessionId}. The cloud agent drives it; what it learns stays private to you.`);
+        const browser = await localBrowser({ headless: !!args.flags.headless, onEvent: (l) => io.err(`  ${l}`) });
+        try {
+          // If the user named a URL and no agent is connected, drive a minimal open→finish themselves.
+          if (!flag("connect") && flag("url")) {
+            await ub.localBrowseOp(sessionId, { op: "open", url: flag("url")!, ...(rest.length ? { task: rest.join(" ") } : {}) });
+            const learned = await ub.localBrowseOp(sessionId, { op: "finish", ...(flag("title") ? { title: flag("title")! } : {}) });
+            print(learned);
+          } else {
+            await ub.runLocalBrowser(sessionId, browser.run);
+            io.err("Session finished.");
+          }
+        } finally {
+          await browser.close();
+          if (!flag("connect")) await ub.closeLocalBrowse(sessionId).catch(() => undefined);
+        }
+        return 0;
+      }
       case "learn": {
         need(rest[0], "learn <a.har> <b.har>…");
         const har = rest.map((f) => JSON.parse(readFileSync(f, "utf8")) as Json);
