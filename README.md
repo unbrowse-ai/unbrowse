@@ -7,7 +7,7 @@ Call websites as APIs. This is the open-source client for the hosted Unbrowse se
 Install the agent skill:
 
 ```bash
-npx skills add unbrowse-ai/unbrowse-skill --skill unbrowse
+npx skills add https://unbrowse.ai
 ```
 
 Connect your agent:
