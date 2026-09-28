@@ -2,7 +2,7 @@
 
 CI/CD builds and releases both package tarballs from a tag. GitHub release assets are the guaranteed distribution path; npm publication is optional and checked separately.
 
-1. Bump `version` in `packages/sdk/package.json` and `packages/cli/package.json` to the same value.
+1. Bump `version` in `packages/sdk`, `packages/cli`, `plugins/openclaw`, `plugins/elizaos` (package.json) and the other plugin manifests to the same value; `bun test ./tests` checks they agree.
 2. Merge to the default branch.
 3. Push the tag: `git tag v12.0.0-alpha.1 && git push origin v12.0.0-alpha.1`.
 

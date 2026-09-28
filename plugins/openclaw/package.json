@@ -10,9 +10,23 @@
     "url": "git+https://github.com/unbrowse-ai/unbrowse.git",
     "directory": "plugins/openclaw"
   },
-  "keywords": ["openclaw", "openclaw-plugin", "unbrowse", "browser", "web", "scraping", "mcp"],
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "unbrowse",
+    "browser",
+    "web",
+    "scraping",
+    "mcp"
+  ],
   "main": "dist/index.js",
-  "files": ["dist", "skills", "openclaw.plugin.json", "README.md"],
+  "files": [
+    "dist",
+    "skills",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=22"
   },
@@ -26,9 +40,16 @@
     "openclaw": ">=2026.5.17"
   },
   "peerDependenciesMeta": {
-    "openclaw": { "optional": true }
+    "openclaw": {
+      "optional": true
+    }
   },
   "openclaw": {
-    "extensions": ["./dist/index.js"]
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
