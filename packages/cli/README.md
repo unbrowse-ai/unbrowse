@@ -4,8 +4,8 @@ Call websites as APIs from a shell. A thin CLI over the Unbrowse REST API
 (`https://unbrowse.ai/api/v1`), built on [`@unbrowse/sdk`](https://www.npmjs.com/package/@unbrowse/sdk).
 
 ```bash
-unbrowse login                               # browser sign-in, or: login --key ub_live_…
-unbrowse run "top stories on Hacker News"    # waits for a verified result
+unbrowse login                               # browser sign-in, or: login --key ub_live_… (first use of any command does this too)
+unbrowse run "top stories on Hacker News"    # site requests go from your IP; --from-unbrowse to send them from Unbrowse
 unbrowse discover "flight search"             # choose a returned capability
 unbrowse resume <runId> origin=SIN           # answer on the same run
 ```

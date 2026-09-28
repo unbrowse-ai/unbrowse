@@ -9,20 +9,28 @@ Use the hosted service at `https://unbrowse.ai`. Execution, indexed routes and w
 
 ## Connect
 
-Prefer the remote MCP for agents:
+The MCP and the CLI are different logins. A URL in a client config is not a signed-in session. `unbrowse whoami` succeeding does not mean the MCP is connected, and the CLI bearer is rejected by `/mcp`.
+
+- MCP: use the URL the client already configured. Hosted servers are `https://unbrowse.ai/mcp` and `https://v3.unbrowse.ai/mcp`. If `unbrowse.discover` is not in this session's tool list, stop and reconnect that server's own OAuth. Do not paste the CLI token onto the MCP URL.
+- CLI: `unbrowse login` stores an OAuth token for `https://unbrowse.ai/api/v1` only. It is a REST client, not an MCP client.
 
 ```sh
 claude mcp add --transport http unbrowse https://unbrowse.ai/mcp
 ```
 
-Complete sign-in through the MCP client's OAuth flow. Other clients can use:
-
 ```json
-{"mcpServers":{"unbrowse":{"url":"https://unbrowse.ai/mcp"}}}
+{"mcpServers":{"unbrowse":{"url":"https://v3.unbrowse.ai/mcp"}}}
 ```
 
-CLI installation and SDK instructions: https://github.com/unbrowse-ai/unbrowse-skill#readme
-Use the client version identified there; older npm versions may target a different service.
+From a terminal, with the CLI:
+
+```sh
+npx skills add unbrowse-ai/unbrowse && npx unbrowse login
+```
+
+Adds the Unbrowse skill to your agent and signs in the CLI. Then `npx unbrowse run 'top stories on hacker news'` runs any site from your terminal. The site requests go from your own IP by default; add `--from-unbrowse` to send them from Unbrowse instead. The first command run with no sign-in starts the same browser sign-in and then carries on; without a terminal it exits 3 and asks for `unbrowse login` or `UNBROWSE_API_KEY`.
+
+CLI and SDK: https://github.com/unbrowse-ai/unbrowse
 For automation, supply an API key via `UNBROWSE_API_KEY` using the caller's secret manager. Do not put keys into committed config, prompts, command arguments or logs. Create a key in the signed-in console at https://unbrowse.ai/app.
 
 ## Host plugins
@@ -38,27 +46,39 @@ Hosts that need a stdio server or reject dotted tool names can run `npx unbrowse
 
 ## Choose the interface
 
-- MCP: discovery, runs, page reading, cloud browsing, saved-login requests and live canvas cards.
-- CLI: `unbrowse discover`, `run`, `inspect`, `resume`, `registry`. It calls the REST API and is not an MCP client. `unbrowse help` describes the installed version.
+- MCP: discovery, runs, page reading, cloud browsing, indexing, saved-login requests and live canvas cards. These names are MCP tools. They are not CLI commands.
+- CLI: `unbrowse discover`, `run`, `inspect`, `resume`, `registry`, `site`, `whoami`. `unbrowse run` never drives a website in a browser (the only browser it opens is the first-use sign-in). There is no `unbrowse browse` and no `unbrowse install`. `unbrowse help` describes the installed version.
 - SDK: REST integration and scripting. Consult the public SDK docs for its supported methods; MCP tools and REST methods are not interchangeable names.
 
-Core MCP tools: `unbrowse.discover`, `unbrowse.run`, `unbrowse.inspect`, `unbrowse.resume`, `unbrowse.cancel`, `unbrowse.scrape`, `unbrowse.map`, `unbrowse.sites`, `unbrowse.usage`, `unbrowse.credits`, `unbrowse.forget`, `unbrowse.learn`, `unbrowse.index`, `unbrowse.index.status`, `unbrowse.credentials.list`, `unbrowse.credentials.request`, `unbrowse.credentials.status`, and the cloud browser `unbrowse.browse.open`, `unbrowse.browse.snapshot`, `unbrowse.browse.act`, `unbrowse.browse.finish`, `unbrowse.browse.close`.
+Core MCP tools: `unbrowse.discover`, `unbrowse.run`, `unbrowse.inspect`, `unbrowse.resume`, `unbrowse.cancel`, `unbrowse.scrape`, `unbrowse.map`, `unbrowse.sites`, `unbrowse.usage`, `unbrowse.credits`, `unbrowse.forget`, `unbrowse.learn`, `unbrowse.index`, `unbrowse.index.status`, `unbrowse.credentials.list`, `unbrowse.credentials.request`, `unbrowse.credentials.status`, and the cloud browser `unbrowse.browse.open`, `unbrowse.browse.snapshot`, `unbrowse.browse.act`, `unbrowse.browse.finish`, `unbrowse.browse.close`, and session replay `unbrowse.replay.list`, `unbrowse.replay.search`, `unbrowse.replay.get`, `unbrowse.replay.timeline`, `unbrowse.replay.ask`.
 
 [references/tools.json](references/tools.json) contains the exported core MCP input schemas. The connected server's `tools/list` is authoritative: it also includes dynamic tools available to this user's workspace. Never invent a capability ID or input schema.
 
 ## Execute a task
 
 1. Discover with `unbrowse.discover {query}`. Inspect returned inputs, choices and hints. Prefer a healthy matching capability; `warm` means HTTP replay, `rendered` needs rendering. Check `unbrowse.sites` for saved session and login state when relevant.
-2. Call the selected tool with its listed schema, or `unbrowse.run {capability, input}`. A natural-language `task` can route when no ID was selected. Use a stable `idempotencyKey` for the same intended mutation.
+2. Call the selected tool with its listed schema, or `unbrowse.run {capability, input}`. A natural-language `task` can route when no ID was selected. Use a stable `idempotencyKey` for the same intended mutation. For a large answer pass `select` (MCP run tools, `unbrowse.resume`, `unbrowse.inspect`, `POST /api/v1/runs`): paths like `["results[].{id,title,price}", "total"]`. It narrows only what comes back, after verification; billing is unchanged. Results over 40,000 characters are shortened (`truncated: true`); `selectMissing` lists paths that matched nothing.
 3. Inspect the returned status and actual result. `input_required` means answer the open requirements on the **same** run: `unbrowse.resume {runId, answers:{field:value}}`. For a choice, pass the listed option's value. Preserve revision checks when supplied.
-4. `no_capability` means no reusable route matched. If browsing is available, do the task through `unbrowse.browse.*`, then finish to learn it. Report unsupported or blocked sites honestly.
+4. `no_capability` means no reusable route matched. Follow `result.next`: `tool` is `unbrowse.index` (`POST /api/v1/index`, then `GET /api/v1/index/{jobId}`). Call `unbrowse.browse.open` only when that name is in this session's tool list. Do not POST `/api/v1/browse/open`. It is not a route. Report unsupported or blocked sites honestly.
 5. Only report completion from a verified result. `outcome_unknown` means a change may have occurred: inspect the effect receipt and destination before retrying. Cancellation stops future dispatches; it does not undo completed effects.
 
 Do not infer business success from HTTP 200, tool transport success, a screenshot, or a generated plan. Do not promise universal coverage or browserless execution on every first request. Obtain the user's authorization for posting, sending, purchasing or other external writes.
 
+## Unbrowse a URL
+
+When the person names a site:
+
+1. If `unbrowse.discover` is not in this session's tool list, the MCP is not signed in. Stop. Name the configured MCP URL and say the CLI login does not cover it.
+2. Look the host up (`unbrowse.sites`, or CLI `unbrowse site <host>`). Tools already compiled: use one. Stop.
+3. No tools: `unbrowse.index {url, focus}` or `POST /api/v1/index`. Poll `unbrowse.index.status` or `GET /api/v1/index/{jobId}`.
+4. `status: failed` and `error.code: model_unavailable`: the indexing model is out of credit. Report the job id and the message. Do not browse instead, and do not start the same job again in a loop.
+5. `status: done` with `indexed: 0` means nothing was learned. Say so. `indexed > 0` means call one tool and check the result.
+
+A 202 from `/api/v1/index` is a job id, not a compiled tool.
+
 ## Read or learn a site
 
-Use `unbrowse.scrape {url}` for a page; `unbrowse.map {url}` finds same-site pages. For interactive work with no matching route:
+Use `unbrowse.scrape {url}` for a page (a PDF or .docx URL comes back as markdown text with `metadata.pages`); `unbrowse.map {url}` finds same-site pages. For interactive work with no matching route:
 
 1. `unbrowse.browse.open {url,task}` returns the page and element refs.
 2. Use `browse.act` with the latest refs. For ordinary inputs, include a meaningful `name` such as `date` or `query`; exercise every filter the task needs. Refresh the snapshot after page changes.
@@ -68,6 +88,17 @@ Use `unbrowse.scrape {url}` for a page; `unbrowse.map {url}` finds same-site pag
 To cover a whole site ahead of need, `unbrowse.index {url, focus?}` starts a background job: Unbrowse's own agent performs the site's core read-only capabilities, proves each with a browserless replay and adds them to your tools. Follow it with `unbrowse.index.status {jobId}`.
 
 An existing HAR pair can be sent through `unbrowse.learn`. Only submit recordings the user authorized; HARs can contain private data. Private and loopback destinations are refused by the hosted service.
+
+## Session replay
+
+Every cloud-browser session is recorded: your own `unbrowse.browse.open` … `finish` sessions become replays with sid `a_<browse session id>`, with the page recording, each step you took and a screenshot per step. Visitor sessions (people on unbrowse.ai) are visible to unbrowse.ai admins only; agent sessions are visible to the workspace that ran them.
+
+- `unbrowse.replay.list` and `unbrowse.replay.search {query}` find sessions and moments (filters: `source`, `site`, `outcome`, `hasError`, `from`, `to`).
+- `unbrowse.replay.get {sid}` returns the summary: intent, outcome, drop-off reason, bugs and key moments.
+- `unbrowse.replay.timeline {sid}` returns the session as text lines with times; narrow long ones with `from`/`to` or `kinds`.
+- `unbrowse.replay.ask {question}` answers across sessions with citations (session and moment, with a link). Only cite what it returns.
+
+Use it to find out why a learn failed (`timeline` of the `a_…` session) before retrying. REST: `/api/v1/replays…`; SDK: `client.replays.*`; CLI: `unbrowse replay list|search|show|timeline|ask`.
 
 ## Website sign-in
 
@@ -101,7 +132,8 @@ Use notes and plans for static text; results for source data; drafts for propose
 
 ## Limits and recovery
 
-- 401: reconnect Unbrowse or replace the caller's expired key.
+- 401: reconnect that door. CLI 401 is `unbrowse login` for `/api/v1`. MCP 401 is the MCP server's own OAuth. One token does not fix the other.
+- `model_unavailable` on an index job: the indexing model is out of credit. Report the job id. No tools were compiled. This is not `unbrowse.usage` and not the site.
 - Quota/payment error: show the returned limit and console link; do not retry payments blindly. When listed, `unbrowse.credits` shows free/paid balances and can return a checkout link for the user. Opening a billing link does not authorize payment.
 - Verification or login block: use the returned handoff; don't present a challenge page as source content.
 - Timeout on a write: inspect the existing run before retrying.

@@ -18,6 +18,10 @@ messages go to stderr. Agents that need the cloud browser use the hosted MCP ([m
 Credentials are read in this order: `UNBROWSE_API_KEY`, the stored key, the stored OAuth token
 (refreshed when it is about to expire). Stored at `~/.config/unbrowse/cli.json`, mode 0600.
 
+First use: a command that needs an account (`run`, `discover`, `whoami`, …), run at a terminal with
+no credential, starts the same browser sign-in as `login` and then carries on. Without a terminal
+(no TTY, `CI` set, or `--json`) it exits 3 and names `unbrowse login` and `UNBROWSE_API_KEY`.
+
 ## Runs
 
 | Command | Route |
@@ -31,6 +35,11 @@ Credentials are read in this order: `UNBROWSE_API_KEY`, the stored key, the stor
 `run` options: `--capability ID` (run a known capability), `--url URL`, `--set key=value`
 (repeatable) and `--input JSON` for inputs, `--unattended` (never pause for input),
 `--idempotency-key K` (one is generated otherwise), `--no-wait`, `--timeout S` (default 600).
+
+Site requests go from this machine (your IP) by default: the run's HTTP calls to the site are
+handed to the CLI (`POST /runs` with `egress: "client"`, answered through `/egress/:id`), each noted
+on stderr. Unbrowse's own services never go through your machine. `--from-unbrowse` (or
+`UNBROWSE_EGRESS=server`) sends them from Unbrowse instead.
 
 Values are typed: `adults=2` is a number, `flex=true` a boolean, `x='{"a":1}'` JSON, anything
 else a string. `resume` names requirements by field (`origin=CDG`) and answers on the same run.

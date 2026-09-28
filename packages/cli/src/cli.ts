@@ -15,6 +15,7 @@ export const DEFAULT_ORIGIN = "https://unbrowse.ai";
 const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse API
 
   login [--key ub_live_…]         Sign in in your browser (OAuth), or store an API key
+                                  (first use of any command below signs you in the same way)
   logout                          Forget the stored sign-in
   whoami                          Workspace and usage
   usage                           Verified calls this month and quota left
@@ -22,7 +23,7 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   discover <query>                Your capabilities first, then the public registry
   run <task…>                     Run a task and wait for a verified result
       [--capability ID] [--url URL] [--set key=value]… [--input JSON] [--unattended] [--no-wait]
-      [--from-here]                 send the site requests from this machine (your IP); Unbrowse decides and reads them
+      [--from-unbrowse]             site requests go from this machine (your IP) by default; this sends them from Unbrowse
   inspect <runId>                 A run's status, requirements and result
   resume <runId> key=value…       Answer open requirements on the same run
   cancel <runId>                  Stop a run; prints the effect receipt
@@ -39,10 +40,12 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
       [--url URL] [--end-user ID]   for agent hosts that need stdio or strict tool names (Grok Build)
 
 Options: --json (errors as JSON) · --base-url URL · --no-open
-Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_MCP_URL, UNBROWSE_END_USER
+Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_EGRESS=server, UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
-const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended"]);
+const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse"]);
+/** Commands that act for a workspace; the first one run with no sign-in starts the sign-in. */
+const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "inspect", "resume", "cancel", "learn", "learned", "logins"]);
 
 export type Args = { _: string[]; flags: Record<string, string | boolean>; sets: Record<string, string> };
 
@@ -63,8 +66,13 @@ export function parseArgs(argv: string[]): Args {
   return out;
 }
 
-type Io = { out: (s: string) => void; err: (s: string) => void; open: (url: string) => void };
-const stdio: Io = { out: (s) => process.stdout.write(`${s}\n`), err: (s) => process.stderr.write(`${s}\n`), open: openInBrowser };
+type Io = { out: (s: string) => void; err: (s: string) => void; open: (url: string) => void; interactive?: boolean };
+const stdio: Io = {
+  out: (s) => process.stdout.write(`${s}\n`),
+  err: (s) => process.stderr.write(`${s}\n`),
+  open: openInBrowser,
+  interactive: !!process.stdin.isTTY && !!process.stderr.isTTY && !process.env.CI,
+};
 
 class UsageError extends Error {}
 const need = (v: string | undefined, usage: string) => {
@@ -95,7 +103,22 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     return 0;
   }
 
+  // First use: nobody is signed in yet. A person at a terminal signs in here and the command carries on;
+  // a script (no TTY, --json) is told the two ways in instead of waiting on a browser.
+  const onboard = async (): Promise<boolean> => {
+    if (!io.interactive || args.flags.json) {
+      io.err(`Not signed in to ${origin}. Run \`npx unbrowse login\` (opens your browser, nothing to paste), or set UNBROWSE_API_KEY (keys: ${origin}/app).`);
+      return false;
+    }
+    io.err(`Welcome to Unbrowse. Sign in once and every site is a command away.\nYour browser opens ${origin}; approve it and \`unbrowse ${cmd}\` carries on. (Scripts: set UNBROWSE_API_KEY instead.)`);
+    await auth.oauthLogin(origin, { open: (u) => openLink(u, args, io), log: io.err });
+    const me = await (await client()).me();
+    io.err(`Signed in (workspace ${me.workspaceId}).`);
+    return true;
+  };
+
   try {
+    if (NEEDS_ACCOUNT.has(cmd) && !(await auth.currentToken(origin)) && !(await onboard())) return 3;
     const ub = await client();
     switch (cmd) {
       case "login": {
@@ -132,8 +155,10 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
           ...(args.flags.unattended ? { interactionMode: "unattended" as const } : {}),
           idempotencyKey: flag("idempotency-key") ?? randomUUID(),
         };
-        // --from-here: this machine sends every site request (client egress); each one is noted on stderr.
-        const view = args.flags["from-here"]
+        // Client egress by default: this machine sends every site request from its own IP and each one is noted on
+        // stderr; --from-unbrowse (or UNBROWSE_EGRESS=server) sends them from Unbrowse. --from-here is still accepted.
+        const fromHere = !args.flags["from-unbrowse"] && process.env.UNBROWSE_EGRESS !== "server";
+        const view = fromHere
           ? await ub.runOnClient(request, { onRequest: (r) => void io.err(`→ ${r.method} ${r.url}`) })
           : await ub.run(request);
         return settle(ub, view, args, io, print);
