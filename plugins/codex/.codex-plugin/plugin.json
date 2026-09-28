@@ -1,6 +1,6 @@
 {
   "name": "unbrowse",
-  "version": "12.1.0",
+  "version": "12.1.1",
   "description": "Websites as APIs for Codex: the hosted Unbrowse MCP (discover, run, scrape, cloud browser, saved logins) plus its skill. Steers web work away from web search and local browsers to Unbrowse.",
   "author": {
     "name": "Unbrowse",
