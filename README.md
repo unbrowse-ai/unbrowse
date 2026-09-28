@@ -66,7 +66,8 @@ and follow [skill/SKILL.md](skill/SKILL.md). The CLI is the REST alternative. `u
 stdio proxy to the hosted MCP for hosts that need stdio or plain tool names (`unbrowse_scrape`).
 
 Plugins for Claude Code, Codex, Grok Build, OpenClaw, Hermes and elizaOS bundle the skill and make
-Unbrowse the host's browser: [plugins/](plugins/README.md).
+Unbrowse the host's browser: [plugins/](plugins/README.md). Grok, ChatGPT, Claude, Perplexity, Le Chat and
+Gemini CLI connect as a custom connector: [docs/connect.md](docs/connect.md).
 
 ## Pricing
 

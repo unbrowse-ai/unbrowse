@@ -3,6 +3,7 @@
 | Page | For |
 |---|---|
 | [install.md](install.md) | Choose skill, MCP, CLI or SDK and make a first request |
+| [connect.md](connect.md) | Add Unbrowse to Grok, ChatGPT, Claude, Perplexity, Le Chat, Gemini CLI or the xAI API |
 | [troubleshooting.md](troubleshooting.md) | Sign-in, requirements, blocked sites and versions |
 | [public-sync.md](public-sync.md) | Public contract export and CI ownership |
 | [how-it-works.md](how-it-works.md) | The two passes: learn once in a recorded browser, replay over HTTP after |
