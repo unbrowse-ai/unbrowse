@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llama-index-tools-unbrowse"
+version = "0.1.0"
+description = "llama-index tools unbrowse integration: read any web page as markdown, find site capabilities, run web tasks"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10,<4.0"
+authors = [{ name = "Unbrowse AI" }]
+maintainers = [{ name = "lekt9" }]
+keywords = ["llama-index", "llamaindex", "unbrowse", "web", "scraping", "agents", "tools", "mcp"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Internet :: WWW/HTTP",
+]
+dependencies = ["llama-index-core>=0.12.0,<0.15"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://unbrowse.ai"
+Documentation = "https://github.com/unbrowse-ai/unbrowse/tree/main/plugins/llamaindex#readme"
+Source = "https://github.com/unbrowse-ai/unbrowse/tree/main/plugins/llamaindex"
+Issues = "https://github.com/unbrowse-ai/unbrowse/issues"
+
+[tool.hatch.build.targets.wheel]
+include = ["llama_index/"]
+
+[tool.hatch.build.targets.sdist]
+include = ["llama_index/", "tests/", "README.md", "LICENSE"]
+
+[tool.llamahub]
+contains_example = false
+import_path = "llama_index.tools.unbrowse"
+
+[tool.llamahub.class_authors]
+UnbrowseToolSpec = "lekt9"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
