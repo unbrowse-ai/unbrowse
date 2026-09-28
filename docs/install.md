@@ -8,6 +8,7 @@ Pick what you need. Installing the skill adds instructions; connecting MCP or si
 | Shell commands and scripts | CLI |
 | A TypeScript integration | SDK |
 | Notes, plans and results appearing live | Remote MCP plus the signed-in [canvas](https://unbrowse.ai/app/canvas) |
+| Your own browser, IP or cookies (local execution) | **CLI** — see below |
 
 ## Agent skill
 
@@ -60,3 +61,13 @@ console.log(await client.sites('wikipedia')); // public, no key required
 ```
 
 [SDK reference](sdk.md) · [Troubleshooting](troubleshooting.md) · [Release process](release.md)
+
+## CLI or MCP?
+
+Both reach the same API. **Use the CLI when execution has to happen on your machine** — with your own browser, IP, cookies or filesystem:
+
+- `unbrowse browse --local` learns a site in your own browser (private to you).
+- `unbrowse run --from-here` sends a run's requests from your own IP.
+- `unbrowse cookies sync` reuses your browser's signed-in sessions.
+
+A hosted MCP server runs in the cloud and cannot touch your machine, so it cannot do these. Use **MCP** for a fully cloud agent (discover, run, browse in Unbrowse's cloud) that needs no local access. Both can be signed in to the same account.
