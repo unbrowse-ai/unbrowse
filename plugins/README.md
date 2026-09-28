@@ -16,6 +16,7 @@ Each plugin ships the Unbrowse skill (`skill/`, synced by `node scripts/sync-plu
 | [LangChain](langchain/README.md) | `pip install langchain-unbrowse` | `UnbrowseScrapeTool`, `UnbrowseDiscoverTool`, `UnbrowseRunTool`, `UnbrowseToolkit` (hosted API, `UNBROWSE_API_KEY`) | none: tools are opt-in per agent |
 | [LlamaIndex](llamaindex/README.md) | `pip install llama-index-tools-unbrowse` | `UnbrowseToolSpec`: `unbrowse_scrape`, `unbrowse_discover`, `unbrowse_run` (hosted API, `UNBROWSE_API_KEY`) | none: tools are opt-in per agent |
 | [Zed](zed/README.md) | Zed → Extensions → **Unbrowse MCP Server** (id `mcp-server-unbrowse`) | `unbrowse mcp` (stdio, npm package run by Zed's Node; `unbrowse_api_key` setting) | none: MCP tools sit beside Zed's own tools in the Agent Panel |
+| [Raycast](raycast/README.md) | Raycast Store → **Unbrowse** | commands Read Page and Run Site Task (hosted API, API Key preference) | none: commands run on demand |
 
 All of them keep local pages (`localhost`, `127.*`) open for app QA, and `UNBROWSE_ALLOW_BUILTIN_BROWSER=1` turns the redirect off for a session.
 
@@ -32,6 +33,7 @@ python -m pytest plugins/dify/tests                    # needs dify_plugin; UNBR
 (cd plugins/langchain && pip install -e '.[test]' && pytest)     # mocked HTTP + LangChain standard tests; UNBROWSE_LIVE=1 + UNBROWSE_API_KEY for live calls
 (cd plugins/llamaindex && pip install -e '.[test]' && pytest)    # UNBROWSE_LIVE=1 + UNBROWSE_API_KEY for live calls
 (cd plugins/zed && cargo build --release --target wasm32-wasip2 && cargo fmt --check && cargo clippy --target wasm32-wasip2 -- -D warnings)
+(cd plugins/raycast && npm ci && npm run build && npm test)  # UNBROWSE_LIVE=1 + UNBROWSE_API_KEY for live calls; npm run lint also checks the author is a Raycast user
 ```
 
 Host-level checks run against the real hosts are listed in each plugin's README.
@@ -43,3 +45,5 @@ n8n package: `n8n-nodes-unbrowse` is published with npm provenance by `.github/w
 Python packages: `langchain-unbrowse` and `llama-index-tools-unbrowse` are published to PyPI by `.github/workflows/pypi-publish.yml` (Trusted Publishing) on a tag `<package>@<version>` matching the plugin's `pyproject.toml`. LangChain lists it after an Integration listing issue in langchain-ai/docs; LlamaIndex no longer takes new integration packages in its repo, so the PyPI package is the listing.
 
 Zed extension: the registry entry lives in zed-industries/extensions (`extensions.toml` + submodule `extensions/mcp-server-unbrowse` → this repo, `path = "plugins/zed"`). Package locally with Zed's CI tool: `zed-extension --source-dir plugins/zed --scratch-dir /tmp/s --output-dir /tmp/o` (binary URL in that repo's `.github/workflows/ci.yml`).
+
+Raycast Store: the extension ships as a PR to raycast/extensions (`extensions/unbrowse`), opened by `npm run publish` (`npx @raycast/api@latest publish`) from `plugins/raycast`, which signs in to GitHub and Raycast. The `author` field must be the publisher's Raycast username.
