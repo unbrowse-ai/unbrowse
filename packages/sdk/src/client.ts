@@ -1,5 +1,5 @@
 // @unbrowse/sdk — the Unbrowse REST API (/api/v1). Grown from unbrowse6 src/lib/unbrowse/client.ts.
-import type { Json, RunRequest, RunView } from "./types.ts";
+import type { EgressRequest, EgressResponse, EgressStep, Json, RunRequest, RunView } from "./types.ts";
 
 export const DEFAULT_BASE_URL = "https://unbrowse.ai/api/v1";
 
@@ -135,6 +135,56 @@ export class Unbrowse {
     return this.req(`/runs/${runId}/cancel`, { method: "POST" });
   }
 
+  // Client egress: the site requests are sent by you, from your own IP; Unbrowse decides and reads them.
+
+  /**
+   * Run with the site requests sent from this machine. Unbrowse chooses each request and reads each response;
+   * this sends them with `fetch` (yours by default) and posts the raw responses back until the run finishes.
+   * `onRequest` sees each request first; return `false` to refuse it (the run gets a network error).
+   */
+  async runOnClient(
+    request: Omit<RunRequest, "egress">,
+    opts: { fetch?: typeof globalThis.fetch; onRequest?: (req: EgressRequest) => boolean | void | Promise<boolean | void>; timeoutMs?: number } = {},
+  ): Promise<RunView> {
+    const send = opts.fetch ?? ((...a: Parameters<typeof globalThis.fetch>) => globalThis.fetch(...a));
+    const deadline = Date.now() + (opts.timeoutMs ?? 600_000);
+    let step: RunView | EgressStep = await this.run({ ...request, egress: "client" } as RunRequest);
+    while (isEgressStep(step)) {
+      if (Date.now() > deadline) {
+        await this.closeEgress(step.egressId).catch(() => undefined);
+        throw new UnbrowseError("client-egress run did not finish in time", 408, "timeout");
+      }
+      const { egressId } = step;
+      for (const req of step.requests) {
+        let answer: { response: EgressResponse } | { error: string };
+        try {
+          if ((await opts.onRequest?.(req)) === false) throw new Error("refused by onRequest");
+          answer = { response: await sendEgress(send, req) };
+        } catch (err) {
+          answer = { error: err instanceof Error ? err.message : String(err) };
+        }
+        step = await this.answerEgress(egressId, req.id, answer);
+        if (!isEgressStep(step)) break;
+      }
+    }
+    return step;
+  }
+
+  /** What a client-egress run is waiting for: the next request(s), or the finished run. */
+  egress(egressId: string): Promise<RunView | EgressStep> {
+    return this.req(`/egress/${egressId}`);
+  }
+
+  /** Post the site's response (or why it could not be sent) for one request; returns what comes next. */
+  answerEgress(egressId: string, requestId: string, answer: { response: EgressResponse } | { error: string }): Promise<RunView | EgressStep> {
+    return this.post(`/egress/${egressId}`, { requestId, ...answer });
+  }
+
+  /** Abandon a client-egress run. */
+  closeEgress(egressId: string): Promise<{ egressId: string; status: "closed" }> {
+    return this.req(`/egress/${egressId}`, { method: "DELETE" });
+  }
+
   // Capabilities
 
   /** Your private capabilities first, then the public registry. */
@@ -233,3 +283,34 @@ export function normalizeHost(site: string): string {
 
 /** A saved login as anyone but the vault sees it: never a value. */
 export type LoginView = { ref: string; origin: string; label?: string; hints: { username?: string; email?: string }; fields: string[]; createdAt: number; rotatedAt?: number };
+
+/** Whether a run answer is a client-egress step (requests to send) rather than a run. */
+export function isEgressStep(v: unknown): v is EgressStep {
+  return !!v && typeof v === "object" && (v as { status?: unknown }).status === "egress_required";
+}
+
+/** Sends one egress request and captures the response as Unbrowse needs it. */
+async function sendEgress(send: typeof globalThis.fetch, req: EgressRequest): Promise<EgressResponse> {
+  const body: BodyInit | undefined = req.body === undefined ? undefined : req.bodyEncoding === "base64" ? (base64ToBytes(req.body) as unknown as BodyInit) : req.body;
+  const res = await send(req.url, { method: req.method, headers: req.headers, redirect: req.redirect, ...(body !== undefined ? { body } : {}) });
+  const headers: [string, string][] = [];
+  res.headers.forEach((value, name) => headers.push([name, value]));
+  // Repeated set-cookie headers are folded by forEach in some runtimes; keep each one when the runtime can.
+  const cookies = (res.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.();
+  const pairs = cookies?.length ? [...headers.filter(([n]) => n.toLowerCase() !== "set-cookie"), ...cookies.map((c) => ["set-cookie", c] as [string, string])] : headers;
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  return { status: res.status, headers: pairs, body: bytesToBase64(bytes), bodyEncoding: "base64", ...(res.url ? { url: res.url } : {}) };
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}

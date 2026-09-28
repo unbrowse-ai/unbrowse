@@ -37,6 +37,17 @@ an OAuth access token); `baseUrl` takes an origin or an `/api/v1` URL and defaul
 | `answer(runId, { field: value })` | `GET /runs/:id`, `POST /runs/:id/responses`, `GET /runs/:id` |
 | `resume(runId, expectedStateRevision, responses)` | `POST /runs/:id/responses` |
 | `cancel(runId)` | `POST /runs/:id/cancel` |
+| `runOnClient(request, { fetch?, onRequest?, timeoutMs? })` | `POST /runs` with `egress: "client"`, then `POST /egress/:id` per request |
+| `egress(egressId)` / `answerEgress(egressId, requestId, { response } \| { error })` / `closeEgress(egressId)` | `GET` / `POST` / `DELETE /egress/:id` |
+
+`runOnClient` sends the run's requests to the website from this machine, so the site sees your IP;
+Unbrowse decides each request and reads each response, and never contacts the site itself:
+
+```ts
+const run = await unbrowse.runOnClient({ capability: "hn.top_stories", input: { limit: 3 } });
+// Your own network stack or proxy, and a look at each request before it leaves:
+await unbrowse.runOnClient({ task: "search eatigo for italian" }, { fetch: myFetch, onRequest: (r) => allowed(r.url) });
+```
 
 A run is `succeeded` only when its result is verified (`verified: true`). `input_required` is not a
 failure: answer on the same run. `outcome_unknown` means a change may have happened; do not retry
