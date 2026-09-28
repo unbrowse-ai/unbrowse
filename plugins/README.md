@@ -13,6 +13,8 @@ Each plugin ships the Unbrowse skill (`skill/`, synced by `node scripts/sync-plu
 | [elizaOS](elizaos/README.md) | `bun add @unbrowse/plugin-unbrowse` | actions `WEB_FETCH`, `UNBROWSE_RUN`, `UNBROWSE_DISCOVER`, `UNBROWSE_BROWSE`, `UNBROWSE_RESUME` + provider | owns `WEB_FETCH` (first registration wins; list it first); remove `@elizaos/plugin-browser` |
 | [Dify](dify/README.md) | Dify Marketplace → Unbrowse (or upload the `.difypkg`) | tool plugin: Scrape Page, Discover, Run Task (hosted API, `UNBROWSE_API_KEY`) | none: Dify tools are opt-in per app |
 | [n8n](n8n/README.md) | n8n → Settings → Community Nodes → `n8n-nodes-unbrowse` | node **Unbrowse** (Scrape Page, Discover, Run Task; usable as an AI Agent tool) + **Unbrowse API** credential | none: nodes are opt-in per workflow |
+| [LangChain](langchain/README.md) | `pip install langchain-unbrowse` | `UnbrowseScrapeTool`, `UnbrowseDiscoverTool`, `UnbrowseRunTool`, `UnbrowseToolkit` (hosted API, `UNBROWSE_API_KEY`) | none: tools are opt-in per agent |
+| [LlamaIndex](llamaindex/README.md) | `pip install llama-index-tools-unbrowse` | `UnbrowseToolSpec`: `unbrowse_scrape`, `unbrowse_discover`, `unbrowse_run` (hosted API, `UNBROWSE_API_KEY`) | none: tools are opt-in per agent |
 
 All of them keep local pages (`localhost`, `127.*`) open for app QA, and `UNBROWSE_ALLOW_BUILTIN_BROWSER=1` turns the redirect off for a session.
 
@@ -26,6 +28,8 @@ bun test ./tests                      # Claude Code, Codex, Grok manifests and h
 python -m pytest plugins/hermes/tests                  # UNBROWSE_LIVE=1 for live calls
 python -m pytest plugins/dify/tests                    # needs dify_plugin; UNBROWSE_LIVE=1 + UNBROWSE_API_KEY for live calls
 (cd plugins/n8n && npm ci --ignore-scripts && npm run lint && npm run build && npm test)  # UNBROWSE_LIVE=1 + UNBROWSE_API_KEY for live calls
+(cd plugins/langchain && pip install -e '.[test]' && pytest)     # mocked HTTP + LangChain standard tests; UNBROWSE_LIVE=1 + UNBROWSE_API_KEY for live calls
+(cd plugins/llamaindex && pip install -e '.[test]' && pytest)    # UNBROWSE_LIVE=1 + UNBROWSE_API_KEY for live calls
 ```
 
 Host-level checks run against the real hosts are listed in each plugin's README.
@@ -33,3 +37,5 @@ Host-level checks run against the real hosts are listed in each plugin's README.
 Dify package: `dify plugin package plugins/dify -o unbrowse-<version>.difypkg` (CLI from [dify-plugin-daemon releases](https://github.com/langgenius/dify-plugin-daemon/releases)), then `python3 validator/validate-difypkg.py unbrowse-<version>.difypkg` from [dify-marketplace-toolkit](https://github.com/langgenius/dify-marketplace-toolkit). A Marketplace update is a PR to langgenius/dify-plugins adding only `unbrowse/unbrowse/unbrowse-<version>.difypkg`, with the version bumped in `manifest.yaml`.
 
 n8n package: `n8n-nodes-unbrowse` is published with npm provenance by `.github/workflows/n8n-publish.yml` on a tag `n8n-nodes-unbrowse@<version>`; n8n verification is requested in the n8n Creator Portal.
+
+Python packages: `langchain-unbrowse` and `llama-index-tools-unbrowse` are published to PyPI by `.github/workflows/pypi-publish.yml` (Trusted Publishing) on a tag `<package>@<version>` matching the plugin's `pyproject.toml`. LangChain lists it after an Integration listing issue in langchain-ai/docs; LlamaIndex no longer takes new integration packages in its repo, so the PyPI package is the listing.

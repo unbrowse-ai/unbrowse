@@ -1,0 +1,84 @@
+name: pypi-publish
+
+# Publishes the Python integrations to PyPI with Trusted Publishing (no token):
+#   plugins/langchain  -> langchain-unbrowse           tag langchain-unbrowse@X.Y.Z
+#   plugins/llamaindex -> llama-index-tools-unbrowse   tag llama-index-tools-unbrowse@X.Y.Z
+# X.Y.Z must match the plugin's pyproject.toml. Or run by hand on main and pick the package.
+#
+# PyPI setup, once per package (before the first release, as a "pending publisher"):
+# pypi.org -> Your projects -> Publishing -> Add a new pending publisher -> GitHub:
+# PyPI project name <package>, owner unbrowse-ai, repository unbrowse, workflow pypi-publish.yml,
+# environment pypi. Then create the GitHub environment "pypi" in the repo settings.
+on:
+  push:
+    tags: ["langchain-unbrowse@*", "llama-index-tools-unbrowse@*"]
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish
+        required: true
+        type: choice
+        options: [langchain-unbrowse, llama-index-tools-unbrowse]
+
+concurrency:
+  group: pypi-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.pkg.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Resolve package
+        id: pkg
+        env:
+          INPUT_PACKAGE: ${{ inputs.package }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = tag ]; then NAME="${GITHUB_REF_NAME%@*}"; else NAME="${INPUT_PACKAGE}"; fi
+          case "$NAME" in
+            langchain-unbrowse) DIR=plugins/langchain ;;
+            llama-index-tools-unbrowse) DIR=plugins/llamaindex ;;
+            *) echo "::error::unknown package $NAME"; exit 1 ;;
+          esac
+          VERSION=$(python -c "import tomllib;print(tomllib.load(open('$DIR/pyproject.toml','rb'))['project']['version'])")
+          if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "${NAME}@${VERSION}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match ${DIR}/pyproject.toml version ${VERSION}"; exit 1
+          fi
+          if curl -sf "https://pypi.org/pypi/${NAME}/${VERSION}/json" > /dev/null; then
+            echo "::notice::${NAME}==${VERSION} is already on PyPI; skipping"; echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+      - name: Test
+        if: steps.pkg.outputs.skip != '1'
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: python -m pip install -q -e '.[test]' && python -m pytest -q
+      - name: Build
+        if: steps.pkg.outputs.skip != '1'
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: python -m pip install -q build twine && python -m build -o ${{ github.workspace }}/dist && python -m twine check ${{ github.workspace }}/dist/*
+      - if: steps.pkg.outputs.skip != '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    if: needs.build.outputs.skip != '1'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
