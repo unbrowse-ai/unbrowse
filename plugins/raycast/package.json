@@ -1,0 +1,96 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "unbrowse",
+  "title": "Unbrowse",
+  "description": "Read any web page as markdown and run website tasks as API calls with Unbrowse.",
+  "icon": "extension-icon.png",
+  "author": "lekt9",
+  "categories": [
+    "Developer Tools",
+    "Web",
+    "Productivity"
+  ],
+  "keywords": [
+    "scrape",
+    "markdown",
+    "web",
+    "reader",
+    "api",
+    "agent",
+    "mcp"
+  ],
+  "license": "MIT",
+  "platforms": [
+    "macOS",
+    "Windows"
+  ],
+  "commands": [
+    {
+      "name": "read-page",
+      "title": "Read Page",
+      "subtitle": "Unbrowse",
+      "description": "Read a web page as clean markdown.",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "url",
+          "placeholder": "URL",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "run-site-task",
+      "title": "Run Site Task",
+      "subtitle": "Unbrowse",
+      "description": "Describe a task on a website in plain words and get the structured result.",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "task",
+          "placeholder": "Task",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "site",
+          "placeholder": "Site (optional)",
+          "type": "text",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "preferences": [
+    {
+      "name": "apiKey",
+      "title": "API Key",
+      "description": "Your Unbrowse API key (starts with ub_live_). Create one at unbrowse.ai/app.",
+      "type": "password",
+      "required": true,
+      "placeholder": "ub_live_..."
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^2.5.3",
+    "@raycast/utils": "^2.3.2"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "22.19.17",
+    "@types/react": "19.0.10",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build": "ray build",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint",
+    "test": "node --test --experimental-strip-types test/*.test.ts",
+    "prepublishOnly": "echo \"\\n\\nIt seems like you are trying to publish the Raycast extension to npm.\\n\\nIf you did intend to publish it to npm, remove the \\`prepublishOnly\\` script and rerun \\`npm publish\\` again.\\nIf you wanted to publish it to the Raycast Store instead, use \\`npm run publish\\` instead.\\n\\n\" && exit 1",
+    "publish": "npx @raycast/api@latest publish"
+  }
+}
