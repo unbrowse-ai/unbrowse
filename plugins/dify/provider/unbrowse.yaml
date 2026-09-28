@@ -1,0 +1,30 @@
+identity:
+  author: unbrowse
+  name: unbrowse
+  label:
+    en_US: Unbrowse
+  description:
+    en_US: 'Turn websites into APIs: scrape pages to markdown, discover learned site APIs, and run site tasks.'
+  icon: icon.svg
+  tags:
+    - search
+    - utilities
+    - productivity
+credentials_for_provider:
+  unbrowse_api_key:
+    type: secret-input
+    required: true
+    label:
+      en_US: Unbrowse API key (UNBROWSE_API_KEY)
+    placeholder:
+      en_US: ub_live_...
+    help:
+      en_US: Create a free API key in the Unbrowse app
+    url: https://unbrowse.ai/app
+tools:
+  - tools/scrape_page.yaml
+  - tools/discover.yaml
+  - tools/run_task.yaml
+extra:
+  python:
+    source: provider/unbrowse.py

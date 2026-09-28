@@ -1,0 +1,40 @@
+identity:
+  name: run_task
+  author: unbrowse
+  label:
+    en_US: Run Task
+description:
+  human:
+    en_US: Do a website task in one call and get structured JSON back, e.g. "get the top stories on hacker news". Unbrowse picks or learns the site API.
+  llm: Run a website task and return structured JSON. Give either a plain-language task or a capability id from Discover, plus optional JSON input. The result has a status of succeeded, input_required (read what is missing and call again with input) or no_capability.
+parameters:
+  - name: task
+    type: string
+    required: false
+    label:
+      en_US: Task
+    human_description:
+      en_US: The task in plain language, e.g. "get the top stories on hacker news".
+    llm_description: The website task in plain language. Required unless capability is given.
+    form: llm
+  - name: capability
+    type: string
+    required: false
+    label:
+      en_US: Capability id
+    human_description:
+      en_US: Optional. A capability id returned by Discover, to run that exact site API.
+    llm_description: Optional capability id from Discover to run a specific learned API.
+    form: llm
+  - name: input
+    type: string
+    required: false
+    label:
+      en_US: Input (JSON object)
+    human_description:
+      en_US: 'Optional. Inputs for the task as a JSON object, e.g. {"query": "laptops"}.'
+    llm_description: Optional JSON object with the task's inputs, e.g. {"query":"laptops"}. Use it to answer an input_required status.
+    form: llm
+extra:
+  python:
+    source: tools/run_task.py
