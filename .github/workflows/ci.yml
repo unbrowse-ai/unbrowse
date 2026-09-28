@@ -24,6 +24,9 @@ jobs:
       - name: n8n node
         working-directory: plugins/n8n
         run: npm ci --ignore-scripts && npm run lint && npm run build && npm test
+      - name: Raycast extension
+        working-directory: plugins/raycast
+        run: npm ci && npm run build && npm test && npx eslint src && npx prettier --check .
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
       - name: Hermes plugin
