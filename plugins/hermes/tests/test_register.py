@@ -91,7 +91,7 @@ def test_format_result_dedupes_structured():
 def test_register_against_fake_ctx(clean_env, fake_mcp):
     ctx = FakeCtx()
     pkg.register(ctx)
-    assert len(ctx.tools) == 24
+    assert len(ctx.tools) == 30
     assert {t["toolset"] for t in ctx.tools.values()} == {"unbrowse"}
     assert [h[0] for h in ctx.hooks] == ["pre_tool_call"]
     assert ctx.skills["unbrowse"].name == "SKILL.md" and ctx.skills["unbrowse"].exists()

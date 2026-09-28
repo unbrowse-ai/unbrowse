@@ -5,7 +5,7 @@ Unbrowse tools and moves public-web work off Hermes' built-in browser.
 
 What it adds:
 
-- **24 tools** in the `unbrowse` toolset, one per Unbrowse core tool: `unbrowse_scrape`,
+- **30 tools** in the `unbrowse` toolset, one per Unbrowse core tool: `unbrowse_scrape`,
   `unbrowse_discover`, `unbrowse_run`, `unbrowse_browse_open`/`_act`/`_snapshot`/`_finish`/`_close`,
   `unbrowse_credentials_*`, `unbrowse_map`, `unbrowse_sites`, `unbrowse_index`, `unbrowse_credits`, and
   more. Each call is a JSON-RPC `tools/call` to the hosted Unbrowse MCP. Dots in the MCP names become
@@ -97,13 +97,13 @@ Environment variables: `UNBROWSE_API_KEY` (required), `UNBROWSE_MCP_URL`, `UNBRO
 ## Verify
 
 ```bash
-hermes plugins doctor ~/.hermes/plugins/unbrowse --ci   # 24 tool(s), 1 hook(s)
+hermes plugins doctor ~/.hermes/plugins/unbrowse --ci   # 30 tool(s), 1 hook(s)
 hermes plugins validate ~/.hermes/plugins/unbrowse
 hermes plugins list                                      # unbrowse  enabled  user
 HERMES_PLUGINS_DEBUG=1 hermes plugins list               # discovery trace
 ```
 
-In a session, `/plugins` lists `unbrowse v0.1.0 (24 tools, 1 hooks)`. Then ask for something like
+In a session, `/plugins` lists `unbrowse v0.1.0 (30 tools, 1 hooks)`. Then ask for something like
 "read https://example.com". The model should call `unbrowse_scrape`, and a `browser_navigate` to a
 public site gets blocked with guidance.
 
