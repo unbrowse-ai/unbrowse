@@ -44,7 +44,7 @@ It is accurate to say Unbrowse ships:
 - a render fallback for reads HTTP cannot finish
 - a public registry of read-only site tools
 - a password manager the model never reads, with auto sign-in
-- a flat meter (500 verified calls a month free, then $10 per 10,000) and x402 pay-per-call
+- a flat meter (500 verified calls a month free, then $10 per 10,000)
 
 It is not accurate to say Unbrowse ships:
 

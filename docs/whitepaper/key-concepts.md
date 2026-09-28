@@ -74,7 +74,7 @@ A TypeSafe System One model that picks among eligible capabilities for a plain-l
 
 ## Verified call
 
-The billing unit. 500 a month free, then $10 per 10,000. Also payable per call with x402.
+The billing unit. 500 a month free, then $10 per 10,000.
 
 ## Read next
 

@@ -44,8 +44,6 @@ The client in this repo is a thin transport. Every row below is service behavior
 | --- | --- | --- |
 | Adoption condition: route fee below rediscovery cost | Not shipped | Pricing is one flat meter, not priced per route. |
 | Metered usage | Shipped | 500 verified calls a month free, then $10 per 10,000. Only verified successes bill. |
-| HTTP 402 handshake and x402 settlement | Shipped, check open | x402 v2, USDC on Base, $0.001 per call, settles only on success. No account needed. |
-| Solana settlement | Not shipped | x402 runs on Base. |
 | Route-level pricing | Not shipped | |
 | Fee splits across contributors, maintainers, infra, treasury | Not shipped | |
 | Contributor payouts and delta-based attribution | Not shipped | Auto-shared routes carry no payout. |
@@ -77,4 +75,4 @@ The client in this repo is a thin transport. Every row below is service behavior
 
 - The paper's core thesis (first-party routes, learn once, replay over HTTP) is what the service does.
 - The shared-graph idea ships as a read-only public registry, still maturing.
-- The route economy (per-route prices, splits, payouts) and the cryptographic trust layer do not exist. Billing is a flat meter plus x402 pay-per-call.
+- The route economy (per-route prices, splits, payouts) and the cryptographic trust layer do not exist. Billing is one flat meter.
