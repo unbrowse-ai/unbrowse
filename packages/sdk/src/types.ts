@@ -84,6 +84,38 @@ export type RunRequest = {
   allowedDestinations?: string[];
   budget?: { maxOperations?: number };
   executionPlane?: DeploymentProfile;
+  /** `client`: you send the site requests from your own IP (see `Unbrowse.runOnClient`). Default `server`. */
+  egress?: "server" | "client";
+};
+
+/** A site request for you to send, in a client-egress run. */
+export type EgressRequest = {
+  /** Answer with this as `requestId`. */
+  id: string;
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body?: string;
+  bodyEncoding?: "text" | "base64";
+  /** `manual`: do not follow redirects; return the 3xx as it came. */
+  redirect: "follow" | "manual";
+  /** The same request as a curl command. */
+  curl: string;
+};
+
+/** A client-egress run waiting for you to send its next site request(s). */
+export type EgressStep = { status: "egress_required"; egressId: string; requests: EgressRequest[] };
+
+/** The site's response to one request, as you got it. */
+export type EgressResponse = {
+  status: number;
+  /** `[name, value]` pairs keep repeated headers (set-cookie). */
+  headers?: [string, string][] | Record<string, string | string[]>;
+  /** Decoded body (after gzip/brotli): text, or base64 with `bodyEncoding: "base64"`. Up to 10 MB. */
+  body?: string;
+  bodyEncoding?: "text" | "base64";
+  /** The final URL, if you followed redirects. */
+  url?: string;
 };
 
 export type RunView = {
