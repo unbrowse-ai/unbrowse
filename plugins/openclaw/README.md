@@ -2,7 +2,7 @@
 
 Websites as APIs inside OpenClaw. The plugin adds:
 
-- **24 native tools**, one per core Unbrowse tool (`unbrowse_discover`, `unbrowse_run`, `unbrowse_scrape`, `unbrowse_browse_open` / `_act` / `_finish`, saved logins, canvas, usage and more). Each call goes to the hosted Unbrowse MCP.
+- **30 native tools**, one per core Unbrowse tool (`unbrowse_discover`, `unbrowse_run`, `unbrowse_scrape`, `unbrowse_browse_open` / `_act` / `_finish`, saved logins, canvas, usage and more). Each call goes to the hosted Unbrowse MCP.
 - **A `web_fetch` provider** (`unbrowse`) backed by `unbrowse.scrape`, so JavaScript-heavy or blocked pages still come back as clean markdown.
 - **A `before_tool_call` hook** that stops the built-in `browser` tool from opening web pages and points the agent at the Unbrowse tools. Local pages (`localhost`, `*.localhost`, `127.x`, `0.0.0.0`, `[::1]`) and non-web URLs (`about:`, `file:`) still go through.
 - **The Unbrowse skill** (`skills/unbrowse`), which OpenClaw loads with the plugin.
@@ -99,7 +99,7 @@ A failed call throws `Unbrowse <code>: <message>`, followed by a next step when 
 
 ```bash
 openclaw plugins list --json                      # unbrowse: enabled, loaded
-openclaw plugins inspect unbrowse --runtime --json # 24 toolNames, webFetchProviderIds ["unbrowse"], typedHooks before_tool_call
+openclaw plugins inspect unbrowse --runtime --json # 30 toolNames, webFetchProviderIds ["unbrowse"], typedHooks before_tool_call
 openclaw plugins doctor                           # "…checks passed"
 ```
 

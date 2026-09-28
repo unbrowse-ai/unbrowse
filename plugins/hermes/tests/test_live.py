@@ -39,7 +39,7 @@ def test_live_scrape_discover_and_guard(tmp_path):
     ], **live_env())
     key = os.environ["UNBROWSE_API_KEY"]
     assert key not in json.dumps(report)
-    assert report["plugin"]["enabled"] and report["plugin"]["tools"] == 24 and report["check_fn"] is True
+    assert report["plugin"]["enabled"] and report["plugin"]["tools"] == 30 and report["check_fn"] is True
 
     scrape, discover, nav, extract, http_scrape = report["results"]
     scraped = json.loads(http_scrape["result"])

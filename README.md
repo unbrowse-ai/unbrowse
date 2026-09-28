@@ -39,7 +39,7 @@ More: [docs/how-it-works.md](docs/how-it-works.md) · Paper: [Internal APIs Are 
 ```text
 unbrowse login [--key ub_live_…]    sign in (browser OAuth) or store an API key
 unbrowse discover <query>           your capabilities, then the public registry
-unbrowse run <task…> [--set k=v]    run a task; waits for a verified result
+unbrowse run <task…> [--set k=v]    run a task from your IP (--from-unbrowse: from Unbrowse); waits for a verified result
 unbrowse resume <runId> k=v…        answer what the run asked for, on the same run
 unbrowse learn a.har b.har          compile two recordings into a capability
 unbrowse logins                     saved logins, masked

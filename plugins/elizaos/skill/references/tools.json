@@ -2,6 +2,55 @@
   "endpoint": "https://unbrowse.ai/mcp",
   "tools": [
     {
+      "name": "unbrowse.canvas.rows",
+      "description": "Append rows to a live table on the user's canvas (/app/canvas), creating the table on first call. Use it to show what you are doing as you go: each row appears for the person immediately. Pass the same id to keep appending; columns are inferred from row keys (optionally give columns [{key,label}] for order and headings). Up to 200 rows per call, 1000 per table. No revision needed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Table id, e.g. \"leads\". Reuse it to append."
+          },
+          "title": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key"
+              ]
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "minItems": 1,
+            "maxItems": 200
+          },
+          "parentId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "rows"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "unbrowse.canvas.read",
       "description": "Read the signed-in user's live canvas, card revisions, selected context and conversation. Open /app/canvas to watch cards appear.",
       "inputSchema": {
@@ -12,7 +61,7 @@
     },
     {
       "name": "unbrowse.canvas.put",
-      "description": "Insert/update a live UI card on the user's canvas. kind: note, plan, results, draft, activity. Plain text for plans/notes; data for actual API results. Use parentId to unfold from a prior card. Draft action is optional: {capabilityId,input,bodyField}; the human reviews and sends in the UI. Never send from this tool. Updates require expectedRevision; human edits are protected. No HTML or JavaScript.",
+      "description": "Insert/update a live UI card on the user's canvas. kind: note, plan, results, draft, activity, table (data {columns:[{key,label}], rows:[{...}]}; to add rows use unbrowse.canvas.rows). Plain text for plans/notes; data for actual API results. Use parentId to unfold from a prior card. Draft action is optional: {capabilityId,input,bodyField}; the human reviews and sends in the UI. Never send from this tool. Updates require expectedRevision; human edits are protected. No HTML or JavaScript.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -30,7 +79,8 @@
               "results",
               "draft",
               "activity",
-              "search"
+              "search",
+              "table"
             ]
           },
           "title": {
@@ -73,7 +123,7 @@
     },
     {
       "name": "unbrowse.run",
-      "description": "Start a durable Unbrowse run by capability id or natural-language task. For a learned capability, pass `input` keyed by the inputs unbrowse.discover lists (e.g. {origin, destination, date, passenger}); anything missing is asked for on the same run. Fails with no_capability when nothing fits — then use unbrowse.browse.open once and it is learned.",
+      "description": "Start a durable Unbrowse run by capability id or natural-language task. For a learned capability, pass `input` keyed by the inputs unbrowse.discover lists (e.g. {origin, destination, date, passenger}); anything missing is asked for on the same run. Fails with no_capability when nothing fits. result.next.tool is unbrowse.index (POST /api/v1/index). unbrowse.browse.open is only for a session whose tool list includes it. It is not a REST route, and the CLI does not open a browser.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -105,6 +155,13 @@
           },
           "idempotencyKey": {
             "type": "string"
+          },
+          "select": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keep only these parts of the result, e.g. [\"results[].{id,title,price}\", \"data.items[].name\", \"total\"]. Dots walk keys, [] maps over a list, [n] takes one item, a final {a,b} keeps several keys. Applied after the run is verified; billing is the same. Use it when a result is large (over 40,000 characters it is shortened)."
           }
         },
         "additionalProperties": false
@@ -118,6 +175,13 @@
         "properties": {
           "runId": {
             "type": "string"
+          },
+          "select": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keep only these parts of the result, e.g. [\"results[].{id,title,price}\", \"data.items[].name\", \"total\"]. Dots walk keys, [] maps over a list, [n] takes one item, a final {a,b} keeps several keys. Applied after the run is verified; billing is the same. Use it when a result is large (over 40,000 characters it is shortened)."
           }
         },
         "required": [
@@ -145,6 +209,13 @@
           },
           "idempotencyKey": {
             "type": "string"
+          },
+          "select": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keep only these parts of the result, e.g. [\"results[].{id,title,price}\", \"data.items[].name\", \"total\"]. Dots walk keys, [] maps over a list, [n] takes one item, a final {a,b} keeps several keys. Applied after the run is verified; billing is the same. Use it when a result is large (over 40,000 characters it is shortened)."
           },
           "responses": {
             "type": "array",
@@ -228,6 +299,10 @@
           "task": {
             "type": "string",
             "description": "What you are doing, in plain words"
+          },
+          "country": {
+            "type": "string",
+            "description": "Exit country for the whole session: two-letter ISO code (US, GB, DE…) or GLOBAL. Default: the service's egress"
           }
         },
         "required": [
@@ -433,7 +508,7 @@
     },
     {
       "name": "unbrowse.scrape",
-      "description": "Read one page as clean markdown (main content only by default — no navigation, cookie banners or footers), with its links and metadata (title, description, canonical, language, status). Plain HTTP when the server's HTML has the content; otherwise Unbrowse's cloud browser renders it, signed in when a session is kept for the site. Use it to read a page you have a URL for; use unbrowse.run for a task on a site. One verified call.",
+      "description": "Read one page as clean markdown (main content only by default — no navigation, cookie banners or footers), with its links and metadata (title, description, canonical, language, status). Plain HTTP when the server's HTML has the content; otherwise Unbrowse's cloud browser renders it, signed in when a session is kept for the site. A PDF or Word (.docx) URL comes back as its text in markdown, with metadata.pages (up to 20 MB, over HTTP). Use it to read a page you have a URL for; use unbrowse.run for a task on a site. One verified call.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -449,10 +524,11 @@
                 "markdown",
                 "html",
                 "text",
-                "links"
+                "links",
+                "raw"
               ]
             },
-            "description": "What to return (default: markdown)"
+            "description": "What to return (default: markdown). raw: the response body as sent (JSON APIs, feeds), over HTTP only, never rendered"
           },
           "onlyMainContent": {
             "type": "boolean",
@@ -466,6 +542,17 @@
               "never"
             ],
             "description": "auto (default): HTTP first, browser if the page needs it"
+          },
+          "country": {
+            "type": "string",
+            "description": "Exit country for the HTTP fetch: two-letter ISO code (US, GB, DE…) or GLOBAL. Prices, currency and availability follow it. Default: the service's egress"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Extra request headers, limited to accept, accept-language, referer, origin, x-requested-with, x-ig-app-id, x-asbd-id; others are ignored"
           }
         },
         "required": [
@@ -599,6 +686,238 @@
         "required": [
           "query"
         ]
+      }
+    },
+    {
+      "name": "unbrowse.replay.list",
+      "description": "Recorded sessions, newest first: when, source, site, duration, pages, outcome, errors and frustration signals, and the one-line intent once summarized. Each carries a link to watch it. Visitor sessions (people on unbrowse.ai) are for unbrowse.ai admins only; agent sessions are your workspace's own. Your own cloud-browser sessions (unbrowse.browse.open … finish) become replays too, with sid \"a_<browse session id>\".",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "visitor",
+              "agent"
+            ],
+            "description": "visitor: people on unbrowse.ai (admins only); agent: cloud-browser sessions"
+          },
+          "site": {
+            "type": "string",
+            "description": "Only sessions on this site, e.g. unbrowse.ai"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "converted",
+              "signed_up",
+              "abandoned",
+              "error",
+              "completed",
+              "learned",
+              "failed"
+            ]
+          },
+          "hasError": {
+            "type": "boolean",
+            "description": "Only sessions with a page error or a failed request"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "from": {
+            "type": "number",
+            "description": "Sessions started at or after this time (epoch ms)"
+          },
+          "to": {
+            "type": "number",
+            "description": "Sessions started before this time (epoch ms)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "At most this many (default 20, max 100)"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.replay.search",
+      "description": "Search what happened in recorded sessions, in plain words (\"pricing page then left\", \"captcha\", \"checkout error\"). Returns the matching moments: session, time into it, a snippet and a link that opens the replay there. Visitor sessions (people on unbrowse.ai) are for unbrowse.ai admins only; agent sessions are your workspace's own. Your own cloud-browser sessions (unbrowse.browse.open … finish) become replays too, with sid \"a_<browse session id>\".",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "visitor",
+              "agent"
+            ],
+            "description": "visitor: people on unbrowse.ai (admins only); agent: cloud-browser sessions"
+          },
+          "site": {
+            "type": "string",
+            "description": "Only sessions on this site, e.g. unbrowse.ai"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "converted",
+              "signed_up",
+              "abandoned",
+              "error",
+              "completed",
+              "learned",
+              "failed"
+            ]
+          },
+          "hasError": {
+            "type": "boolean",
+            "description": "Only sessions with a page error or a failed request"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "from": {
+            "type": "number",
+            "description": "Sessions started at or after this time (epoch ms)"
+          },
+          "to": {
+            "type": "number",
+            "description": "Sessions started before this time (epoch ms)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "At most this many (default 20, max 100)"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.replay.get",
+      "description": "One recorded session: its details, signals and summary (intent, outcome, where and why it dropped off, bugs, key moments), with a link to watch it. Visitor sessions (people on unbrowse.ai) are for unbrowse.ai admins only; agent sessions are your workspace's own. Your own cloud-browser sessions (unbrowse.browse.open … finish) become replays too, with sid \"a_<browse session id>\".",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sid": {
+            "type": "string",
+            "description": "The session id from list or search"
+          }
+        },
+        "required": [
+          "sid"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.replay.timeline",
+      "description": "A session as text, one line per thing that happened (pages, clicks, typing with values masked, scrolls, errors, rage and dead clicks, agent steps), each with its time into the session. Narrow long sessions with from/to (ms into the session) or kinds. Visitor sessions (people on unbrowse.ai) are for unbrowse.ai admins only; agent sessions are your workspace's own. Your own cloud-browser sessions (unbrowse.browse.open … finish) become replays too, with sid \"a_<browse session id>\".",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sid": {
+            "type": "string"
+          },
+          "from": {
+            "type": "number",
+            "description": "ms into the session"
+          },
+          "to": {
+            "type": "number",
+            "description": "ms into the session"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "nav",
+                "click",
+                "input",
+                "scroll",
+                "error",
+                "console",
+                "network",
+                "rage",
+                "dead",
+                "agent",
+                "shot",
+                "end"
+              ]
+            }
+          }
+        },
+        "required": [
+          "sid"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "unbrowse.replay.ask",
+      "description": "Ask a question across recorded sessions (\"why do people leave the pricing page?\", \"why did my learns on ikea fail?\"). Answers only from what the sessions show, with citations: each names a session and a moment, with a link that opens the replay there. Visitor sessions (people on unbrowse.ai) are for unbrowse.ai admins only; agent sessions are your workspace's own. Your own cloud-browser sessions (unbrowse.browse.open … finish) become replays too, with sid \"a_<browse session id>\".",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "visitor",
+              "agent"
+            ],
+            "description": "visitor: people on unbrowse.ai (admins only); agent: cloud-browser sessions"
+          },
+          "site": {
+            "type": "string",
+            "description": "Only sessions on this site, e.g. unbrowse.ai"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "converted",
+              "signed_up",
+              "abandoned",
+              "error",
+              "completed",
+              "learned",
+              "failed"
+            ]
+          },
+          "hasError": {
+            "type": "boolean",
+            "description": "Only sessions with a page error or a failed request"
+          },
+          "tag": {
+            "type": "string"
+          },
+          "from": {
+            "type": "number",
+            "description": "Sessions started at or after this time (epoch ms)"
+          },
+          "to": {
+            "type": "number",
+            "description": "Sessions started before this time (epoch ms)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "At most this many (default 20, max 100)"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "additionalProperties": false
       }
     }
   ]
