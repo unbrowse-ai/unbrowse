@@ -10,7 +10,15 @@
     "url": "git+https://github.com/unbrowse-ai/unbrowse.git",
     "directory": "plugins/elizaos"
   },
-  "keywords": ["elizaos", "elizaos-plugin", "unbrowse", "browser", "web", "scrape", "mcp"],
+  "keywords": [
+    "elizaos",
+    "elizaos-plugin",
+    "unbrowse",
+    "browser",
+    "web",
+    "scrape",
+    "mcp"
+  ],
   "main": "dist/index.js",
   "types": "types/index.d.ts",
   "exports": {
@@ -24,7 +32,8 @@
     "dist",
     "types",
     "skill",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=18.17"
@@ -50,7 +59,7 @@
     "pluginParameters": {
       "UNBROWSE_API_KEY": {
         "type": "string",
-        "description": "Unbrowse API key (ub_live_…) or OAuth access token. Create one at https://unbrowse.ai/app.",
+        "description": "Unbrowse API key (ub_live_\u2026) or OAuth access token. Create one at https://unbrowse.ai/app.",
         "required": true,
         "sensitive": true
       },
@@ -68,5 +77,8 @@
         "sensitive": false
       }
     }
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
