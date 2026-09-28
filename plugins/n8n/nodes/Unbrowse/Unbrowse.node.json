@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-unbrowse.unbrowse",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Development", "Data & Storage"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/unbrowse-ai/unbrowse/tree/main/plugins/n8n#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/unbrowse-ai/unbrowse/tree/main/plugins/n8n#readme"
+			}
+		]
+	}
+}
