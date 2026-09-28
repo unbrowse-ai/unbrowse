@@ -35,7 +35,7 @@ GET  /sites?q=                      compiled sites in the public registry, with 
 GET  /sites/:host                   that site's tools and schemas
 GET  /sites/:host/openapi.json      OpenAPI 3.1, one operation per tool
      /sites/:host/mcp               the site as its own MCP server
-POST /sites/:host/call/:tool        run one tool (auth or x402)
+POST /sites/:host/call/:tool        run one tool (auth)
 ```
 
 The idempotency key goes in the body as `idempotency_key` or in an `Idempotency-Key` header; without
@@ -64,14 +64,5 @@ server-side run returns it. 120 s per request; billing is unchanged.
 
 Errors: `{ "error": { "code": "…", "message": "…" } }` with an HTTP status. `402 quota_exceeded`
 is returned before any upstream request once a workspace's monthly quota is used.
-
-## x402
-
-`POST /runs` and `POST /sites/:host/call/:tool` without credentials answer `402` with x402 v2
-payment requirements (exact scheme, USDC with the current quoted price, and a Bazaar discovery extension with
-the input and output schema). Retry with a `payment-signature` header; the payment settles only if
-the run succeeds, and `payment-response` carries the receipt.
-
-Neither the CLI nor `@unbrowse/sdk` signs x402 payments; use an x402-capable HTTP client.
 
 Supported `@unbrowse/sdk` methods: see [sdk.md](sdk.md).

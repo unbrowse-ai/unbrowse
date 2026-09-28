@@ -129,10 +129,6 @@ Status: all **shipped, check open** except the vault's core sealing and restart 
 
 Status: **shipped.**
 
-### x402 pay-per-call
-
-No account is needed. `POST /api/v1/runs` and `POST /api/v1/sites/<host>/call/<tool>` without credentials answer 402 with x402 v2 payment requirements: exact scheme, USDC on Base, $0.001 per call, plus a Bazaar discovery extension with the endpoint's schemas. The caller retries with a `payment-signature` header. It settles only if the run succeeds. **Shipped, check open.**
-
 ## Access surfaces
 
 - Remote MCP at `/mcp` (Streamable HTTP).

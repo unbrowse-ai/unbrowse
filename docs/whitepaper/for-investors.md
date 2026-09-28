@@ -51,7 +51,6 @@ Service's own production evaluations (details and dates in [Evaluation](./evalua
 
 - 500 verified calls a month free, then $10 per 10,000.
 - Only verified successes bill. Failures, refusals and policy denials are free.
-- Agents without an account pay per call with x402 ($0.001, USDC on Base), settled only on success.
 
 ## Why it can compound
 

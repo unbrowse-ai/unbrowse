@@ -9,7 +9,7 @@
 | [cli.md](cli.md) | Every `unbrowse` command, flags, exit codes |
 | [mcp.md](mcp.md) | Remote MCP, per-site servers, sign-in elicitation |
 | [sdk.md](sdk.md) | `@unbrowse/sdk`: supported REST methods |
-| [api.md](api.md) | REST `/api/v1` and x402 |
+| [api.md](api.md) | REST `/api/v1` |
 | [logins-and-vault.md](logins-and-vault.md) | Password manager, autofill, session reuse, custody |
 | [pricing.md](pricing.md) | Current plan and metering |
 | [open-source.md](open-source.md) | What this repo holds and what stays hosted |
