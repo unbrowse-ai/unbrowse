@@ -14,10 +14,10 @@ Pick what you need. Installing the skill adds instructions; connecting MCP or si
 From a terminal with Node and npm:
 
 ```sh
-npx skills add unbrowse-ai/unbrowse-skill --skill unbrowse
+npx skills add https://unbrowse.ai
 ```
 
-Choose your agent in the installer. Restart or reload its skills if needed. This uses the [skills installer](https://github.com/vercel-labs/skills). To install manually, copy the **whole `skill` directory**, including `references`, into your agent's skill directory as `unbrowse`. For Codex use `~/.agents/skills/unbrowse`; for Claude Code use `~/.claude/skills/unbrowse`.
+Choose your agent in the installer. Restart or reload its skills if needed. This uses the [skills installer](https://github.com/vercel-labs/skills). It resolves through `unbrowse.ai/.well-known/agent-skills`; `npx skills add unbrowse-ai/unbrowse` (the GitHub repo) works too. To install manually, copy the **whole `skill` directory**, including `references`, into your agent's skill directory as `unbrowse`. For Codex use `~/.agents/skills/unbrowse`; for Claude Code use `~/.claude/skills/unbrowse`.
 
 The skill alone doesn't connect an account. Add MCP next.
 
