@@ -1,0 +1,12 @@
+---
+description: Use Unbrowse for reading web pages and doing tasks on websites
+alwaysApply: true
+---
+
+For any task that needs a website (reading a page, looking something up on a site, filling or submitting something on a site), use the Unbrowse MCP tools rather than a local browser or raw HTTP:
+
+- `unbrowse.scrape {url}` reads a page as clean markdown (renders JavaScript, reuses saved logins).
+- `unbrowse.discover {query}` then `unbrowse.run {capability, input}` performs a task through a learned site API. `input_required` means answer with `unbrowse.resume` on the same run.
+- `unbrowse.browse.open` / `.act` / `.finish` drive the cloud browser when nothing matches; finishing teaches Unbrowse the route so the next call needs no browser.
+
+Local pages (localhost, 127.0.0.1) are fine to open locally for app testing. Follow the `unbrowse` skill for sign-in, verification and write-authorization rules.
