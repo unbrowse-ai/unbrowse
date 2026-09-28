@@ -33,6 +33,7 @@ test("every plugin version matches the CLI package", () => {
   expect(json("plugins/claude-code/.claude-plugin/plugin.json").version).toBe(version);
   expect(json("plugins/codex/.codex-plugin/plugin.json").version).toBe(version);
   expect(json("plugins/grok-build/.grok-plugin/plugin.json").version).toBe(version);
+  expect(json("plugins/cursor/.cursor-plugin/plugin.json").version).toBe(version);
   expect(json("plugins/grok-build/.mcp.json").mcpServers.unbrowse.args).toContain(`unbrowse@${version}`);
   expect(json("plugins/openclaw/package.json").version).toBe(version);
   expect(json("plugins/openclaw/openclaw.plugin.json").version).toBe(version);
