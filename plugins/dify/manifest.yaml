@@ -1,0 +1,33 @@
+version: 0.1.0
+type: plugin
+author: unbrowse
+name: unbrowse
+label:
+  en_US: Unbrowse
+description:
+  en_US: 'Turn websites into APIs your agents and workflows can call: scrape any page to clean markdown, discover learned site APIs, and run site tasks in one call.'
+icon: icon.svg
+resource:
+  memory: 268435456
+  permission: {}
+plugins:
+  tools:
+    - provider/unbrowse.yaml
+meta:
+  version: 0.0.1
+  arch:
+    - amd64
+    - arm64
+  runner:
+    language: python
+    version: "3.12"
+    entrypoint: main
+  minimum_dify_version: 1.0.0
+created_at: 2026-09-28T12:00:00.000000000+08:00
+privacy: PRIVACY.md
+repo: https://github.com/unbrowse-ai/unbrowse
+contact: hello@unbrowse.ai
+verified: false
+network:
+  domains:
+    - unbrowse.ai

@@ -1,0 +1,22 @@
+identity:
+  name: discover
+  author: unbrowse
+  label:
+    en_US: Discover
+description:
+  human:
+    en_US: Find site APIs Unbrowse has already learned for a goal, e.g. "hacker news top stories" or "flight prices".
+  llm: Search Unbrowse's index of learned website APIs (capabilities) for a goal. Returns capability ids, sites and descriptions you can pass to Run Task.
+parameters:
+  - name: query
+    type: string
+    required: true
+    label:
+      en_US: Query
+    human_description:
+      en_US: What you want to do or which site, in plain language.
+    llm_description: The goal or site to find learned APIs for, in plain language.
+    form: llm
+extra:
+  python:
+    source: tools/discover.py

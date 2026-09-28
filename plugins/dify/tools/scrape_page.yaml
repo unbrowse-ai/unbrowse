@@ -1,0 +1,50 @@
+identity:
+  name: scrape_page
+  author: unbrowse
+  label:
+    en_US: Scrape Page
+description:
+  human:
+    en_US: Read any web page as clean markdown, with its title, metadata and links. Falls back to a cloud browser only when the page needs one.
+  llm: Fetch a web page and return its main content as markdown, plus title, metadata and links. Use it to read any public URL.
+parameters:
+  - name: url
+    type: string
+    required: true
+    label:
+      en_US: URL
+    human_description:
+      en_US: The page to read, e.g. https://docs.rs/serde
+    llm_description: The full http(s) URL of the page to read.
+    form: llm
+  - name: only_main_content
+    type: boolean
+    required: false
+    default: true
+    label:
+      en_US: Only main content
+    human_description:
+      en_US: Drop navigation, headers, footers and asides.
+    form: form
+  - name: render
+    type: select
+    required: false
+    default: auto
+    label:
+      en_US: Render
+    human_description:
+      en_US: 'auto: plain HTTP first, a browser only if the page needs it. always: always use a browser. never: HTTP only.'
+    options:
+      - value: auto
+        label:
+          en_US: Auto
+      - value: always
+        label:
+          en_US: Always (browser)
+      - value: never
+        label:
+          en_US: Never (HTTP only)
+    form: form
+extra:
+  python:
+    source: tools/scrape_page.py
