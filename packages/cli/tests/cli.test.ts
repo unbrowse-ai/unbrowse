@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { apiResource, currentToken, oauthLogin, save } from "../src/auth.ts";
+import { apiResource, clear, currentToken, oauthLogin, save } from "../src/auth.ts";
 import { main, parseArgs } from "../src/cli.ts";
 
 // A stand-in for the hosted REST API (/api/v1), shaped like unbrowse6's http.ts.
@@ -22,6 +22,8 @@ const server = Bun.serve({
     const auth = req.headers.get("authorization");
     const body = req.method === "POST" ? await req.json().catch(() => null) : null;
     seen.push({ method: req.method, path: path + url.search, body, auth });
+    if (url.pathname === "/oauth/register") return Response.json({ client_id: "cid_cli" });
+    if (url.pathname === "/oauth/token") return Response.json({ access_token: TOKEN, refresh_token: "rtk", expires_in: 3600 });
     if (path.startsWith("sites")) return Response.json(path === "sites" ? { total: 1, sites: [{ host: "en.wikipedia.org" }] } : { host: path.split("/")[1], tools: [] });
     if (auth !== `Bearer ${TOKEN}`) return Response.json({ error: { code: "unauthorized", message: "Unauthorized" } }, { status: 401 });
     if (req.method === "POST" && path === "runs") {
@@ -43,11 +45,12 @@ const server = Bun.serve({
 });
 const BASE = `http://127.0.0.1:${server.port}`;
 
-function cli(argv: string[]) {
+function cli(argv: string[], over: { interactive?: boolean; open?: (u: string) => void } = {}) {
   const out: string[] = [];
   const err: string[] = [];
   const opened: string[] = [];
-  return main([...argv, "--base-url", BASE], { out: (s) => out.push(s), err: (s) => err.push(s), open: (u) => opened.push(u) }).then((code) => ({ code, out, err, opened, json: () => JSON.parse(out[0]!) }));
+  const open = (u: string) => (opened.push(u), over.open?.(u));
+  return main([...argv, "--base-url", BASE], { out: (s) => out.push(s), err: (s) => err.push(s), open, interactive: over.interactive }).then((code) => ({ code, out, err, opened, json: () => JSON.parse(out[0]!) }));
 }
 
 beforeAll(() => {
@@ -71,6 +74,19 @@ test("run POSTs /runs with task, typed inputs and an idempotency key; exit 0 on 
   expect(post.auth).toBe(`Bearer ${TOKEN}`);
   expect(post.body).toMatchObject({ task: "top stories", input: { page: 2 }, targetUrl: "https://news.ycombinator.com", interactionMode: "unattended" });
   expect(typeof post.body.idempotency_key).toBe("string");
+});
+
+test("site requests go from this machine by default; --from-unbrowse sends them from Unbrowse", async () => {
+  expect((await cli(["run", "--from-here", "top", "stories"])).code).toBe(0);
+  expect(seen.find((s) => s.path === "runs")!.body).toMatchObject({ task: "top stories", egress: "client" });
+  seen.length = 0;
+  expect((await cli(["run", "top", "stories"])).code).toBe(0);
+  expect(seen.find((s) => s.path === "runs")!.body.egress).toBe("client");
+  seen.length = 0;
+  expect((await cli(["run", "--from-unbrowse", "top", "stories"])).code).toBe(0);
+  const body = seen.find((s) => s.path === "runs")!.body;
+  expect(body.task).toBe("top stories");
+  expect(body.egress).toBeUndefined();
 });
 
 test("a working run is polled until it settles", async () => {
@@ -149,6 +165,37 @@ test("not signed in: exit 3 with a login hint", async () => {
   const r = await cli(["usage"]);
   expect(r.code).toBe(3);
   expect(r.err[0]).toContain("unbrowse login");
+});
+
+test("first use at a terminal signs in through the browser, then the command carries on", async () => {
+  delete process.env.UNBROWSE_API_KEY;
+  clear();
+  const r = await cli(["usage"], {
+    interactive: true,
+    open: (authorize) => {
+      const u = new URL(authorize);
+      const redirect = new URL(u.searchParams.get("redirect_uri")!);
+      redirect.searchParams.set("code", "code_1");
+      redirect.searchParams.set("state", u.searchParams.get("state")!);
+      void fetch(redirect);
+    },
+  });
+  expect(r.code).toBe(0);
+  expect(r.err[0]).toContain("Welcome to Unbrowse");
+  expect(r.opened[0]).toContain("/authorize");
+  expect(r.json()).toEqual({ remaining: 500 });
+  expect(await currentToken(BASE)).toBe(TOKEN);
+  clear();
+});
+
+test("a script with no sign-in is not left waiting on a browser", async () => {
+  delete process.env.UNBROWSE_API_KEY;
+  clear();
+  const r = await cli(["run", "top", "stories"]);
+  expect(r.code).toBe(3);
+  expect(r.opened).toHaveLength(0);
+  expect(r.err[0]).toContain("npx unbrowse login");
+  expect(seen.filter((s) => s.path === "runs")).toHaveLength(0);
 });
 
 test("a server error prints its message; --json prints it as JSON", async () => {

@@ -1,8 +1,8 @@
 {
   "format": 1,
   "files": {
-    "skill/SKILL.md": "a78b35b1b60b3b7283edb679548b87c7ad9cbda14bde6436d9e69857834274ef",
+    "skill/SKILL.md": "d8ea2e997aec7b997bb4b4c65442c6246da8a77042183dbebbe9c9774d8f38c0",
     "packages/sdk/src/mcp-install.ts": "eeecab27772fbce47d00a86ab7efb5530122b5c215ae4f7988b0b64082f1c1a9",
-    "skill/references/tools.json": "761972fb93d33e8dd1a0dfc99be4f46a475808e01eaefe587eb979424cbcc349"
+    "skill/references/tools.json": "df44b3736420d26b21343b6c95e69e6bae24981dea34947d4689e7dd0251ebe7"
   }
 }

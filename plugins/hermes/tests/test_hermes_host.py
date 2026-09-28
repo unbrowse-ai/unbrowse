@@ -67,9 +67,9 @@ def test_loader_registry_and_dispatch(tmp_path, fake_mcp):
         {"tool": "web_extract", "args": {"urls": ["https://example.com"]}},
     ], UNBROWSE_API_KEY="ub_fake_key", UNBROWSE_MCP_URL=fake_mcp.url)
 
-    assert report["plugin"] == {"name": "unbrowse", "enabled": True, "tools": 24, "hooks": 1, "error": None,
+    assert report["plugin"] == {"name": "unbrowse", "enabled": True, "tools": 30, "hooks": 1, "error": None,
                                 "source": "user"}
-    assert len(report["tools"]) == 24 and "unbrowse_scrape" in report["tools"]
+    assert len(report["tools"]) == 30 and "unbrowse_scrape" in report["tools"]
     assert report["check_fn"] is True
     assert report["skill"].endswith("skills/unbrowse/SKILL.md")
     assert report["web_provider"] == {"name": "unbrowse", "extract": True, "search": False, "available": True}
@@ -131,6 +131,6 @@ def test_plugin_doctor_and_validate(tmp_path):
     for args in (["plugins", "doctor", str(PLUGIN_DIR), "--ci"], ["plugins", "validate", str(PLUGIN_DIR)]):
         out = subprocess.run(cmd + args, env=child_env(home), capture_output=True, text=True, timeout=600)
         assert out.returncode == 0, out.stdout[-3000:] + out.stderr[-3000:]
-    assert "24 tool(s), 1 hook(s)" in subprocess.run(
+    assert "30 tool(s), 1 hook(s)" in subprocess.run(
         cmd + ["plugins", "doctor", str(PLUGIN_DIR), "--ci"], env=child_env(home), capture_output=True, text=True,
         timeout=600).stdout
