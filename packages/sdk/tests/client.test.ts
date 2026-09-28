@@ -186,3 +186,13 @@ test("runOnClient reports a request it could not send, or one onRequest refused,
     { requestId: "rq_2", error: "refused by onRequest" },
   ]);
 });
+
+test("importCookies posts the jar to /cookies", async () => {
+  const { sent, fetch } = stub(() => Response.json({ sites: 2, cookies: 5, origins: [{ origin: "https://example.com", cookies: 3 }] }));
+  const ub = new Unbrowse({ apiKey: "k", fetch });
+  const out = await ub.importCookies([{ domain: ".example.com", name: "sid", value: "a" }]);
+  expect(out.sites).toBe(2);
+  expect(sent[0]!.method).toBe("POST");
+  expect(sent[0]!.url).toBe("https://unbrowse.ai/api/v1/cookies");
+  expect((sent[0]!.body as { cookies: unknown[] }).cookies).toHaveLength(1);
+});
