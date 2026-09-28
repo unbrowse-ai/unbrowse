@@ -1,0 +1,56 @@
+name: n8n-publish
+
+# Publishes plugins/n8n (npm package n8n-nodes-unbrowse) with an npm provenance statement,
+# which n8n requires for verified community nodes. Push a tag n8n-nodes-unbrowse@X.Y.Z whose
+# X.Y.Z matches plugins/n8n/package.json, or run this workflow by hand on main.
+#
+# npm auth: Trusted Publishing (npmjs.com → n8n-nodes-unbrowse → Settings → Trusted Publisher:
+# GitHub Actions, owner unbrowse-ai, repository unbrowse, workflow n8n-publish.yml). Until the
+# package exists on npm (first publish), set an NPM_TOKEN repository secret (granular token,
+# read and write) instead; delete it once Trusted Publishing is configured.
+on:
+  push:
+    tags: ["n8n-nodes-unbrowse@*"]
+  workflow_dispatch:
+
+concurrency:
+  group: n8n-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/n8n
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Install npm 11 (Trusted Publishing)
+        run: npm install -g npm@11 && npm --version
+      - name: Version matches the tag
+        id: version
+        run: |
+          VERSION=$(node -p 'require("./package.json").version')
+          if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "n8n-nodes-unbrowse@${VERSION}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json version ${VERSION}"; exit 1
+          fi
+          if [ "$(npm view "n8n-nodes-unbrowse@${VERSION}" version 2>/dev/null)" = "${VERSION}" ]; then
+            echo "::notice::n8n-nodes-unbrowse@${VERSION} is already on npm; skipping"; echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.version.outputs.skip != '1'
+        run: npm ci --ignore-scripts
+      - if: steps.version.outputs.skip != '1'
+        run: npm run build && npm test
+      - name: Publish with provenance (n8n-node release lints, builds and runs npm publish in CI)
+        if: steps.version.outputs.skip != '1'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          [ -n "$NPM_TOKEN" ] && npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          npm run release

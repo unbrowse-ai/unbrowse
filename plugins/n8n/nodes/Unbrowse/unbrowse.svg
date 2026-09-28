@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- unbrowse monogram: a "u" whose right stem ends at a route node -->
+  <rect width="100" height="100" rx="24" fill="#111111"/>
+  <path d="M31 30 V53 a19 19 0 0 0 38 0 V36" fill="none" stroke="#FBFAF6" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="69" cy="29" r="10.5" fill="#1F5EFF"/>
+</svg>
