@@ -85,7 +85,7 @@ describe("plugin shape", () => {
   test("package.json agentConfig declares the settings", async () => {
     const pkg = await import("../package.json", { with: { type: "json" } }).then((m) => m.default as Record<string, any>);
     expect(pkg.name).toBe("@unbrowse/plugin-unbrowse");
-    expect(pkg.version).toBe("12.1.0");
+    expect(pkg.version).toBe(JSON.parse(require("node:fs").readFileSync(new URL("../../../packages/cli/package.json", import.meta.url), "utf8")).version);
     expect(pkg.agentConfig.pluginType).toBe("elizaos:plugin:1.0.0");
     expect(pkg.agentConfig.pluginParameters.UNBROWSE_API_KEY).toMatchObject({ type: "string", required: true, sensitive: true });
     expect(Object.keys(pkg.agentConfig.pluginParameters)).toEqual(["UNBROWSE_API_KEY", "UNBROWSE_MCP_URL", "UNBROWSE_END_USER"]);

@@ -10,7 +10,7 @@
 #   pip install "git+https://github.com/unbrowse-ai/unbrowse#subdirectory=plugins/hermes/pypi"
 [project]
 name = "unbrowse-hermes"
-version = "12.1.0"
+version = "12.1.1"
 description = "Unbrowse plugin for Hermes Agent: hosted website tools over the Unbrowse remote MCP"
 license = "MIT"
 requires-python = ">=3.11"
