@@ -3,7 +3,11 @@
     "unbrowse": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "unbrowse@^12.1.0", "mcp"]
+      "args": [
+        "-y",
+        "unbrowse@12.1.0",
+        "mcp"
+      ]
     }
   }
 }
