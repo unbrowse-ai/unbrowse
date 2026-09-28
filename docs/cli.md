@@ -35,6 +35,17 @@ Credentials are read in this order: `UNBROWSE_API_KEY`, the stored key, the stor
 Values are typed: `adults=2` is a number, `flex=true` a boolean, `x='{"a":1}'` JSON, anything
 else a string. `resume` names requirements by field (`origin=CDG`) and answers on the same run.
 
+## Your own browser (local browse)
+
+`unbrowse browse --local` learns a site in **your** browser, on your machine — your IP, your logged-in session — while the cloud agent decides what to do. What it learns is **private to your workspace and never shared to the public registry** (your machine is not a trusted recorder). This is a CLI-only capability: a hosted MCP server cannot drive a local browser.
+
+```sh
+unbrowse browse --local --url https://example.com/search   # learn one page yourself
+unbrowse browse --local --connect <sessionId>              # attach to a session an agent started
+```
+
+Needs a local browser engine — `npx patchright install chromium` (or Playwright). Runs headful by default so you can watch it; `--headless` to hide it. Preview.
+
 ## Teaching
 
 | Command | Route |

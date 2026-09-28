@@ -1,5 +1,5 @@
 // @unbrowse/sdk — the Unbrowse REST API (/api/v1). Grown from unbrowse6 src/lib/unbrowse/client.ts.
-import type { EgressRequest, EgressResponse, EgressStep, Json, RunRequest, RunView } from "./types.ts";
+import type { EgressRequest, EgressResponse, EgressStep, Json, LocalBrowseOp, LocalBrowseResult, RunRequest, RunView } from "./types.ts";
 
 export const DEFAULT_BASE_URL = "https://unbrowse.ai/api/v1";
 
@@ -183,6 +183,52 @@ export class Unbrowse {
   /** Abandon a client-egress run. */
   closeEgress(egressId: string): Promise<{ egressId: string; status: "closed" }> {
     return this.req(`/egress/${egressId}`, { method: "DELETE" });
+  }
+
+  // Local browse: the agent drives; a local browser (the CLI's `unbrowse browse --local`) runs the ops.
+
+  /** Start a local-browse session. Drive it with `localBrowseOp`; the CLI executes with `runLocalBrowser`. */
+  startLocalBrowse(): Promise<{ sessionId: string; connect: string; ops: string }> {
+    return this.post("/browse-local", {});
+  }
+
+  /** Agent side: issue one browse op and wait for the local browser's result (finish returns the private tool). */
+  localBrowseOp(sessionId: string, op: LocalBrowseOp): Promise<Json> {
+    return this.post(`/browse-local/${sessionId}/op`, op);
+  }
+
+  /** CLI side: the next op to run (long-poll), or `{ idle: true }`. */
+  localBrowseNext(sessionId: string): Promise<{ id: string; op: LocalBrowseOp } | { idle: true }> {
+    return this.req(`/browse-local/${sessionId}/next`);
+  }
+
+  /** CLI side: the result of the op it ran. */
+  localBrowseResult(sessionId: string, opId: string, result: LocalBrowseResult): Promise<{ ok: true }> {
+    return this.post(`/browse-local/${sessionId}/result`, { opId, result });
+  }
+
+  /** Close a local-browse session. */
+  closeLocalBrowse(sessionId: string): Promise<{ sessionId: string; status: "closed" }> {
+    return this.req(`/browse-local/${sessionId}`, { method: "DELETE" });
+  }
+
+  /**
+   * CLI side: run a local browser for a session. `execute` runs one op in the local browser and returns its
+   * result; this pulls ops, calls `execute`, and posts results until the session finishes or closes.
+   */
+  async runLocalBrowser(sessionId: string, execute: (op: LocalBrowseOp) => Promise<LocalBrowseResult>, opts: { signal?: AbortSignal } = {}): Promise<void> {
+    while (!opts.signal?.aborted) {
+      const next = await this.localBrowseNext(sessionId).catch(() => ({ idle: true }) as const);
+      if ("idle" in next) continue;
+      let result: LocalBrowseResult;
+      try {
+        result = await execute(next.op);
+      } catch (err) {
+        result = { error: err instanceof Error ? err.message : String(err) };
+      }
+      await this.localBrowseResult(sessionId, next.id, result).catch(() => undefined);
+      if (next.op.op === "finish") return;
+    }
   }
 
   // Capabilities

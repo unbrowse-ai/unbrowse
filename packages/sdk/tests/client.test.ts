@@ -186,3 +186,42 @@ test("runOnClient reports a request it could not send, or one onRequest refused,
     { requestId: "rq_2", error: "refused by onRequest" },
   ]);
 });
+
+test("runLocalBrowser pulls ops, runs them, posts results, and stops on finish", async () => {
+  const posted: unknown[] = [];
+  let queue = [
+    { id: "o1", op: { op: "open", url: "https://s.example/" } },
+    { id: "o2", op: { op: "finish", title: "T" } },
+  ];
+  const fetch = (async (url: string, init: RequestInit = {}) => {
+    const u = new URL(url);
+    if (u.pathname.endsWith("/next")) return Response.json(queue.shift() ?? { idle: true });
+    if (u.pathname.endsWith("/result")) { posted.push(JSON.parse(String(init.body))); return Response.json({ ok: true }); }
+    return Response.json({});
+  }) as typeof globalThis.fetch;
+  const ub = new Unbrowse({ apiKey: "k", fetch });
+  const ran: string[] = [];
+  await ub.runLocalBrowser("lb_1", async (op) => {
+    ran.push(op.op);
+    return op.op === "finish" ? { traces: [{ id: "t0" }] } : { snapshot: { url: "https://s.example/" } };
+  });
+  expect(ran).toEqual(["open", "finish"]);
+  expect((posted[0] as { opId: string }).opId).toBe("o1");
+  expect((posted[1] as { result: { traces: unknown[] } }).result.traces).toHaveLength(1);
+});
+
+test("an op that throws in the executor is reported as an error result", async () => {
+  let sent: unknown;
+  let served = false;
+  const fetch = (async (url: string, init: RequestInit = {}) => {
+    const u = new URL(url);
+    if (u.pathname.endsWith("/next")) { if (served) return Response.json({ idle: true }); served = true; return Response.json({ id: "o1", op: { op: "snapshot" } }); }
+    if (u.pathname.endsWith("/result")) { sent = JSON.parse(String(init.body)); return Response.json({ ok: true }); }
+    return Response.json({});
+  }) as typeof globalThis.fetch;
+  const ub = new Unbrowse({ apiKey: "k", fetch });
+  const ac = new AbortController();
+  const p = ub.runLocalBrowser("lb_1", async () => { ac.abort(); throw new Error("boom"); }, { signal: ac.signal });
+  await p;
+  expect((sent as { result: { error: string } }).result.error).toBe("boom");
+});
