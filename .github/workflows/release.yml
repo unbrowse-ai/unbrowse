@@ -94,8 +94,6 @@ jobs:
           }
           publish @unbrowse/sdk "${{ steps.pack.outputs.sdk }}"
           publish unbrowse "${{ steps.pack.outputs.cli }}"
-          publish @unbrowse/openclaw "${{ steps.pack.outputs.openclaw }}"
-          publish @unbrowse/plugin-unbrowse "${{ steps.pack.outputs.elizaos }}"
 
       - name: Publish to the MCP Registry (GitHub OIDC, io.github.unbrowse-ai/*)
         if: steps.gate.outputs.dist_tag == 'latest'
@@ -105,3 +103,15 @@ jobs:
           curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
+
+      - name: Publish host plugin packages to npm (Trusted Publishing)
+        env:
+          DIST_TAG: ${{ steps.gate.outputs.dist_tag }}
+        run: |
+          VERSION="${TAG#v}"
+          for pair in "@unbrowse/openclaw:${{ steps.pack.outputs.openclaw }}" "@unbrowse/plugin-unbrowse:${{ steps.pack.outputs.elizaos }}"; do
+            name="${pair%%:*}"; tgz="${pair#*:}"
+            if [ "$(npm view "$name@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then echo "::notice::$name@$VERSION already on npm"; continue; fi
+            npm publish "./$tgz" --access public --provenance --tag "$DIST_TAG" --loglevel verbose 2>&1 | grep -viE "^npm (http|timing)"
+            [ "${PIPESTATUS[0]}" = 0 ] || { echo "::error::$name@$VERSION publish failed"; exit 1; }
+          done
