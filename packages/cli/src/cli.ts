@@ -24,6 +24,7 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   run <task…>                     Run a task and wait for a verified result
       [--capability ID] [--url URL] [--set key=value]… [--input JSON] [--unattended] [--no-wait]
       [--from-unbrowse]             site requests go from this machine (your IP) by default; this sends them from Unbrowse
+                                    (--no-wait always sends from Unbrowse: a run from your IP needs this process to finish)
   inspect <runId>                 A run's status, requirements and result
   resume <runId> key=value…       Answer open requirements on the same run
   cancel <runId>                  Stop a run; prints the effect receipt
@@ -107,7 +108,9 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
   // a script (no TTY, --json) is told the two ways in instead of waiting on a browser.
   const onboard = async (): Promise<boolean> => {
     if (!io.interactive || args.flags.json) {
-      io.err(`Not signed in to ${origin}. Run \`npx unbrowse login\` (opens your browser, nothing to paste), or set UNBROWSE_API_KEY (keys: ${origin}/app).`);
+      const message = `Not signed in to ${origin}. Run \`npx unbrowse login\` (opens your browser, nothing to paste), or set UNBROWSE_API_KEY (keys: ${origin}/app).`;
+      if (args.flags.json) print({ error: { status: 401, code: "not_signed_in", message, details: null } });
+      else io.err(message);
       return false;
     }
     io.err(`Welcome to Unbrowse. Sign in once and every site is a command away.\nYour browser opens ${origin}; approve it and \`unbrowse ${cmd}\` carries on. (Scripts: set UNBROWSE_API_KEY instead.)`);
@@ -157,7 +160,8 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         };
         // Client egress by default: this machine sends every site request from its own IP and each one is noted on
         // stderr; --from-unbrowse (or UNBROWSE_EGRESS=server) sends them from Unbrowse. --from-here is still accepted.
-        const fromHere = !args.flags["from-unbrowse"] && process.env.UNBROWSE_EGRESS !== "server";
+        // --no-wait returns at once, so nothing here would be left to send the requests: that run goes from Unbrowse.
+        const fromHere = !args.flags["from-unbrowse"] && !args.flags["no-wait"] && process.env.UNBROWSE_EGRESS !== "server";
         const view = fromHere
           ? await ub.runOnClient(request, { onRequest: (r) => void io.err(`→ ${r.method} ${r.url}`) })
           : await ub.run(request);
@@ -206,6 +210,11 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     if (err instanceof SyntaxError) return io.err(`invalid JSON: ${err.message}`), 1;
     const e = err as Error & { status?: number; body?: unknown };
     if (e.status === 422 && (e as { code?: string }).code === "invalid_answer") return io.err(e.message), 1;
+    // A network failure (no HTTP status) names the server it could not reach and why.
+    if (e.status === undefined && /fetch failed|Unable to connect|ConnectionRefused|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT/i.test(`${e.message} ${String((e as { cause?: unknown }).cause ?? "")}`)) {
+      const cause = (e as { cause?: { code?: string; message?: string } }).cause;
+      e.message = `could not reach ${origin}${cause?.code ? ` (${cause.code})` : cause?.message ? ` (${cause.message})` : ""}. Check the connection, or --base-url / UNBROWSE_BASE_URL.`;
+    }
     if (args.flags.json) print({ error: { status: e.status ?? null, message: e.message, details: e.body ?? null } });
     else io.err(e.status === 401 ? `Not signed in to ${origin}. Run \`unbrowse login\`, or set UNBROWSE_API_KEY.` : `error${e.status ? ` (HTTP ${e.status})` : ""}: ${e.message}`);
     return e.status === 401 ? 3 : 1;
