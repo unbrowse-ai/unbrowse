@@ -89,6 +89,26 @@ test("site requests go from this machine by default; --from-unbrowse sends them 
   expect(body.egress).toBeUndefined();
 });
 
+test("--no-wait sends the site requests from Unbrowse: nothing would be left to send them from here", async () => {
+  expect((await cli(["run", "--no-wait", "top", "stories"])).code).toBe(0);
+  expect(seen.find((s) => s.path === "runs")!.body.egress).toBeUndefined();
+});
+
+test("not signed in with --json: the error is JSON on stdout", async () => {
+  delete process.env.UNBROWSE_API_KEY;
+  clear();
+  const r = await cli(["whoami", "--json"]);
+  expect(r.code).toBe(3);
+  expect(r.json().error).toMatchObject({ status: 401, code: "not_signed_in" });
+});
+
+test("an unreachable server is named, not just 'fetch failed'", async () => {
+  const r = await main(["whoami", "--base-url", "http://127.0.0.1:9"], { out: () => {}, err: (s) => errs.push(s), open: () => {} });
+  expect(r).toBe(1);
+  expect(errs.join(" ")).toContain("could not reach http://127.0.0.1:9");
+});
+const errs: string[] = [];
+
 test("a working run is polled until it settles", async () => {
   expect((await cli(["run", "slow"])).code).toBe(0);
   expect(seen.filter((s) => s.path === "runs/r2")).toHaveLength(2);
