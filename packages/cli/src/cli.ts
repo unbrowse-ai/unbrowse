@@ -267,5 +267,7 @@ function openInBrowser(url: string) {
 }
 
 if (/(^|[\\/])(cli\.(ts|js)|unbrowse)$/.test(process.argv[1] ?? "")) {
-  main(process.argv.slice(2)).then((code) => process.exit(code));
+  // Exit only once stdout has drained: a pipe takes 64 KiB before the rest is queued, and process.exit
+  // drops the queue (`unbrowse discover … | jq` got cut-off JSON at exactly 65,536 bytes).
+  main(process.argv.slice(2)).then((code) => process.stdout.write("", () => process.exit(code)));
 }
