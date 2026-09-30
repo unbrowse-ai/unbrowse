@@ -16,7 +16,7 @@ Connect your agent:
 claude mcp add --transport http unbrowse https://unbrowse.ai/mcp
 ```
 
-Complete OAuth sign-in in your client. **For the CLI or SDK, use the pinned hosted-client release in [the installation guide](docs/install.md)**; npm `latest` may still target the older service.
+Complete OAuth sign-in in your client. For the CLI: `npm install -g unbrowse && unbrowse login`. Agents with no browser set `UNBROWSE_API_KEY` from [unbrowse.ai/app/keys](https://unbrowse.ai/app/keys).
 
 [Install](docs/install.md) · [CLI](docs/cli.md) · [MCP](docs/mcp.md) · [SDK](docs/sdk.md) · [Troubleshooting](docs/troubleshooting.md)
 
