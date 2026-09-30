@@ -71,6 +71,27 @@ blindly. A run whose site needs a login nobody saved carries `signIn.url`: give 
 | `accounts.connect({ origin, username, password })`, `accounts.register({ origin, username })` | `/accounts/connections`, `/accounts/register` |
 | `vault()` | `GET /vault` — refs and audit, never secrets |
 
+## Saved queries
+
+A question compiled once into your own API. Write what changes as `{placeholders}`; compiling runs it once with the
+example values (a real, verified run), pins the tool it used and learns where each value goes. Calls then run that
+tool directly — no routing, no model, the same answer shape every time — at `GET /api/v1/q/:id?param=…`.
+
+```ts
+const q = await ub.compile("search hn for {topic}", { example: { topic: "rust" }, maxAge: 300 });
+const { result, cached } = await q.call({ topic: "python" });   // or ub.query(q.id, { topic: "python" })
+```
+
+| Method | Route |
+|---|---|
+| `compile(query, { example?, map?, name?, maxAge? })` | `POST /queries` |
+| `query(id, params, { fresh? })`, `handle.call(params)` | `POST /q/:id` |
+| `queries.list()`, `.get(id)`, `.settings(id, { name?, maxAge? })`, `.recompile(id, example?)`, `.remove(id)` | `/queries[/:id[/settings\|/recompile]]` |
+
+`maxAge` (seconds, default 0) reuses an answer for the same params; a reused answer (`cached: true`) is not billed.
+When the site changes, a call fails with `schema_changed` (the answer lost fields it had) or `stale` (its tool is
+gone) instead of returning something different: `queries.recompile(id)` accepts the new shape.
+
 ## Public registry
 
 | Method | Route |
