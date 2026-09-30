@@ -250,6 +250,40 @@ export class Unbrowse {
     return this.req("/vault");
   }
 
+  // Saved queries: a question compiled once into your own API (GET /api/v1/q/:id).
+
+  /**
+   * Compile a question into an API. Write what changes as {placeholders} and give an example value for each:
+   * Unbrowse runs it once with them, pins the tool it used and learns where each value goes. The handle's `call`
+   * runs that tool directly with new values — no routing, no model, the same answer shape every time.
+   *
+   *   const q = await ub.compile("search hn for {topic}", { example: { topic: "rust" }, maxAge: 300 });
+   *   const { result } = await q.call({ topic: "python" });
+   */
+  async compile(query: string, opts: { example?: Record<string, string>; map?: Record<string, string>; name?: string; maxAge?: number } = {}): Promise<SavedQueryHandle> {
+    const q = (await this.post("/queries", { query, ...opts })) as SavedQuery;
+    return this.handle(q);
+  }
+
+  /** Call a saved query by id with its params. `fresh` skips its cache. */
+  query(id: string, params: Record<string, string | number> = {}, opts: { fresh?: boolean } = {}): Promise<QueryAnswer> {
+    return this.post(`/q/${encodeURIComponent(id)}`, { ...params, ...(opts.fresh ? { fresh: true } : {}) });
+  }
+
+  queries = {
+    list: async (): Promise<SavedQuery[]> => ((await this.req("/queries")) as { queries: SavedQuery[] }).queries,
+    get: async (id: string): Promise<SavedQueryHandle> => this.handle((await this.req(`/queries/${encodeURIComponent(id)}`)) as SavedQuery),
+    /** Rename it, or set how many seconds an answer may be reused (0 = never). */
+    settings: (id: string, s: { name?: string; maxAge?: number }): Promise<SavedQuery> => this.post(`/queries/${encodeURIComponent(id)}/settings`, s),
+    /** After `schema_changed` or `stale`: run it again and pin what it answers now (same id). */
+    recompile: (id: string, example?: Record<string, string>): Promise<SavedQuery> => this.post(`/queries/${encodeURIComponent(id)}/recompile`, example ? { example } : {}),
+    remove: (id: string): Promise<{ removed: boolean }> => this.req(`/queries/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  };
+
+  private handle(q: SavedQuery): SavedQueryHandle {
+    return { ...q, call: (params = {}, opts = {}) => this.query(q.id, params, opts) };
+  }
+
   // Public registry: compiled sites as tools. No account needed to read.
 
   sites(query = "") {
@@ -314,3 +348,27 @@ function bytesToBase64(bytes: Uint8Array): string {
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
 }
+
+/** A saved query: a question compiled into its own API. */
+export type SavedQuery = {
+  id: string;
+  name: string;
+  template: string;
+  params: { name: string; example: string }[];
+  capabilityId: string;
+  /** Seconds an answer may be reused (0 = never). */
+  maxAge: number;
+  status: "active" | "stale";
+  calls: number;
+  /** GET this with the params as a query string. */
+  url: string;
+  /** The URL with the example values filled in. */
+  example: string;
+  sample: unknown;
+  shape: string[];
+  createdAt: number;
+  updatedAt: number;
+};
+export type SavedQueryHandle = SavedQuery & { call(params?: Record<string, string | number>, opts?: { fresh?: boolean }): Promise<QueryAnswer> };
+/** A saved query's answer. `cached` answers are reused ones (not billed), `age` seconds old. */
+export type QueryAnswer = { query: string; status: RunView["status"]; result: Json; verified: boolean; cached: boolean; age?: number; runId?: string; capabilityId: string; requirements?: unknown; signIn?: { url: string } };

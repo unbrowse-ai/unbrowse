@@ -186,3 +186,27 @@ test("runOnClient reports a request it could not send, or one onRequest refused,
     { requestId: "rq_2", error: "refused by onRequest" },
   ]);
 });
+
+test("saved queries: compile returns a handle whose call hits /q/:id; queries.* manage them", async () => {
+  const q = { id: "q_abc123", name: "HN", template: "search hn for {topic}", params: [{ name: "topic", example: "rust" }], capabilityId: "hn.search", maxAge: 0, status: "active", calls: 0, url: "https://unbrowse.ai/api/v1/q/q_abc123", example: "https://unbrowse.ai/api/v1/q/q_abc123?topic=rust", sample: null, shape: [], createdAt: 1, updatedAt: 1 };
+  const { sent, fetch } = stub((s) =>
+    s.url.endsWith("/queries") && s.method === "POST" ? Response.json(q, { status: 201 })
+    : s.url.endsWith("/queries") ? Response.json({ queries: [q] })
+    : /\/q\/q_abc123$/.test(s.url) ? Response.json({ query: q.id, status: "succeeded", result: { hits: [] }, verified: true, cached: false, capabilityId: "hn.search" })
+    : Response.json({ removed: true }));
+  const ub = new Unbrowse({ apiKey: "ub_live_k", fetch });
+  const handle = await ub.compile("search hn for {topic}", { example: { topic: "rust" }, maxAge: 300 });
+  expect(sent[0]).toMatchObject({ method: "POST", url: "https://unbrowse.ai/api/v1/queries", body: { query: "search hn for {topic}", example: { topic: "rust" }, maxAge: 300 } });
+  const answer = await handle.call({ topic: "python" });
+  expect(answer.status).toBe("succeeded");
+  expect(sent[1]).toMatchObject({ method: "POST", url: "https://unbrowse.ai/api/v1/q/q_abc123", body: { topic: "python" } });
+  await ub.query("q_abc123", { topic: "go" }, { fresh: true });
+  expect(sent[2].body).toEqual({ topic: "go", fresh: true });
+  expect((await ub.queries.list()).map((x) => x.id)).toEqual(["q_abc123"]);
+  await ub.queries.settings("q_abc123", { maxAge: 60 });
+  expect(sent[4]).toMatchObject({ method: "POST", url: "https://unbrowse.ai/api/v1/queries/q_abc123/settings", body: { maxAge: 60 } });
+  await ub.queries.recompile("q_abc123");
+  expect(sent[5]).toMatchObject({ method: "POST", url: "https://unbrowse.ai/api/v1/queries/q_abc123/recompile" });
+  await ub.queries.remove("q_abc123");
+  expect(sent[6]).toMatchObject({ method: "DELETE", url: "https://unbrowse.ai/api/v1/queries/q_abc123" });
+});
