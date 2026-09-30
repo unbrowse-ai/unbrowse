@@ -1,14 +1,14 @@
 import { afterEach, expect, test } from "bun:test";
 import { DEFAULT_BASE_URL, Unbrowse, UnbrowseError } from "../src/index.ts";
 
-type Sent = { method: string; url: string; auth: string | null; body: unknown };
+type Sent = { method: string; url: string; auth: string | null; client: string | null; body: unknown };
 
 /** A fetch that records every request and answers from `reply`. */
 function stub(reply: (s: Sent) => Response = () => Response.json({ ok: true })) {
   const sent: Sent[] = [];
   const fetch = (async (url: string, init: RequestInit = {}) => {
     const headers = new Headers(init.headers);
-    const s = { method: init.method ?? "GET", url, auth: headers.get("authorization"), body: init.body ? JSON.parse(String(init.body)) : undefined };
+    const s = { method: init.method ?? "GET", url, auth: headers.get("authorization"), client: headers.get("x-unbrowse-client"), body: init.body ? JSON.parse(String(init.body)) : undefined };
     sent.push(s);
     return reply(s);
   }) as typeof globalThis.fetch;
@@ -30,6 +30,15 @@ test("defaults to the v3 API and UNBROWSE_API_KEY", async () => {
   expect(DEFAULT_BASE_URL).toBe("https://unbrowse.ai/api/v1");
   await ub.me();
   expect(sent[0]).toMatchObject({ url: "https://unbrowse.ai/api/v1/me", auth: "Bearer ub_live_env" });
+});
+
+test("names the caller in x-unbrowse-client: sdk by default, the CLI passes its own", async () => {
+  const a = stub();
+  await new Unbrowse({ fetch: a.fetch }).me();
+  expect(a.sent[0]?.client).toBe("sdk");
+  const b = stub();
+  await new Unbrowse({ fetch: b.fetch, client: "cli/12.2.0" }).me();
+  expect(b.sent[0]?.client).toBe("cli/12.2.0");
 });
 
 test("an origin or an /api/v1 URL both work as baseUrl", () => {

@@ -31,12 +31,12 @@ Complete OAuth in your client's browser sign-in. For other clients, see [MCP con
 
 First ask: “Use Unbrowse to discover tools for Hacker News. Show which match, without posting anything.” Confirm real returned tools before running one. If no capability fits, the agent can use Unbrowse's cloud browser to learn a route; support varies by site.
 
-## CLI — hosted client preview
+## CLI
 
-Node 18.17+ is required; Node 22 is used for release verification. The npm `latest` tag may still be the older client. Install this version's GitHub release explicitly:
+Node 18.17+ is required; Node 22 is used for release verification.
 
 ```sh
-npm install -g https://github.com/unbrowse-ai/unbrowse/releases/download/v12.0.1/unbrowse-12.0.1.tgz
+npm install -g unbrowse
 unbrowse --version
 unbrowse registry wikipedia
 unbrowse login

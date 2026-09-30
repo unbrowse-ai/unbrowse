@@ -9,6 +9,8 @@ export type UnbrowseOptions = {
   /** Defaults to `UNBROWSE_BASE_URL` (origin or `/api/v1` URL), then https://unbrowse.ai/api/v1. */
   baseUrl?: string;
   fetch?: typeof globalThis.fetch;
+  /** Who is calling, sent as `x-unbrowse-client` (e.g. `cli/12.2.0`) so usage can be told apart. Defaults to `sdk`. */
+  client?: string;
 };
 
 /** An API error: the HTTP status, the server's error code and its body. */
@@ -35,11 +37,13 @@ export class Unbrowse {
   readonly baseUrl: string;
   private apiKey?: string;
   private fetchImpl: typeof globalThis.fetch;
+  private client: string;
 
   constructor(opts: UnbrowseOptions = {}) {
     this.baseUrl = apiBase(opts.baseUrl ?? env("UNBROWSE_BASE_URL") ?? DEFAULT_BASE_URL);
     this.apiKey = opts.apiKey ?? env("UNBROWSE_API_KEY");
     this.fetchImpl = opts.fetch ?? ((...a) => globalThis.fetch(...a));
+    this.client = opts.client ?? "sdk";
   }
 
   private async send(path: string, init?: RequestInit): Promise<Response> {
@@ -48,6 +52,8 @@ export class Unbrowse {
       headers: {
         ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
         "content-type": "application/json",
+        // Not from a browser page: a custom header there costs a CORS preflight, and the User-Agent already says "web".
+        ...((globalThis as { document?: unknown }).document === undefined ? { "x-unbrowse-client": this.client } : {}),
         ...(init?.headers ?? {}),
       },
     });
