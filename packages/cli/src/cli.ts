@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // The Unbrowse CLI: a thin shell over the REST API (`/api/v1`) through the Unbrowse client.
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { createInterface } from "node:readline/promises";
 import * as auth from "./auth.ts";
 import { Unbrowse } from "@unbrowse/sdk";
 import type { Json, RunView } from "@unbrowse/sdk";
@@ -32,6 +34,9 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   cookies list                    Browsers and profiles found on this machine (--json for agents)
   cookies sync                    Send your browser cookies so runs act as your signed-in self
       [--browser NAME] [--profile NAME] [--domain d] [--all]
+  cookies watch --domain a,b      Keep those sites' cookies in sync (re-upload on change) [--interval MIN]
+  cookies daemon start|status|stop
+                                  The same as a background service (systemd / launchd) [--domain a,b] [--yes]
 
   learn <a.har> <b.har>…          Compile two HAR recordings into a capability [--title T] [--goal G]
   learned [id]                    Your learned capabilities, or one with its harness and skill
@@ -74,12 +79,35 @@ export function parseArgs(argv: string[]): Args {
   return out;
 }
 
-type Io = { out: (s: string) => void; err: (s: string) => void; open: (url: string) => void; interactive?: boolean };
+type Io = {
+  out: (s: string) => void;
+  err: (s: string) => void;
+  open: (url: string) => void;
+  interactive?: boolean;
+  /** A question at the terminal (only asked when interactive). */
+  ask?: (q: string) => Promise<string>;
+  /** Runs a service command (systemctl, launchctl). */
+  exec?: (cmd: string[]) => { status: number | null; stdout: string; stderr: string };
+  /** Where a user service would be written and what it would run (tests point these at a temp dir). */
+  service?: { os?: NodeJS.Platform; home?: string; node?: string; cli?: string };
+};
 const stdio: Io = {
   out: (s) => process.stdout.write(`${s}\n`),
   err: (s) => process.stderr.write(`${s}\n`),
   open: openInBrowser,
   interactive: !!process.stdin.isTTY && !!process.stderr.isTTY && !process.env.CI,
+  ask: async (q) => {
+    const rl = createInterface({ input: process.stdin, output: process.stderr });
+    try {
+      return await rl.question(q);
+    } finally {
+      rl.close();
+    }
+  },
+  exec: (cmd) => {
+    const r = spawnSync(cmd[0]!, cmd.slice(1), { encoding: "utf8" });
+    return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? String(r.error?.message ?? "") };
+  },
 };
 
 class UsageError extends Error {}
@@ -111,6 +139,88 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     return 0;
   }
 
+  // Continuous cookie sync (cookie-daemon.ts): the sites to keep in sync, a one-off check, and the user service.
+  const cookieSync = async () => {
+    const D = await import("./cookie-daemon.ts");
+    const C = await import("./cookies.ts");
+    const dir = D.configDir(auth.configPath());
+    const saved = D.readJson<Partial<import("./cookie-daemon.ts").SyncConfig>>(D.configFile(dir), {});
+    const config = (): import("./cookie-daemon.ts").SyncConfig => {
+      const sites = flag("domain") ?? flag("sites") ? D.parseSites(flag("domain") ?? flag("sites")) : (saved.sites ?? []);
+      const interval = Number(flag("interval") ?? saved.intervalMin ?? D.DEFAULT_INTERVAL_MIN);
+      if (!(interval >= 1)) throw new UsageError("--interval takes minutes (1 or more)");
+      return { sites, intervalMin: interval, ...((flag("browser") ?? saved.browser) ? { browser: flag("browser") ?? saved.browser } : {}), ...((flag("profile") ?? saved.profile) ? { profile: flag("profile") ?? saved.profile } : {}), ...(origin !== DEFAULT_ORIGIN ? { baseUrl: origin } : {}) };
+    };
+    const deps = async (): Promise<import("./cookie-daemon.ts").SyncDeps> => {
+      const ub = await client();
+      return { findProfiles: C.findProfiles, readCookies: C.readCookies, upload: (cookies) => ub.importCookies(cookies), now: Date.now };
+    };
+    return { D, dir, saved, config, deps };
+  };
+
+  /** Install (or update) the cookie sync service after one sync that proves reading and uploading both work. */
+  const installCookieDaemon = async (cfg: import("./cookie-daemon.ts").SyncConfig, confirmed: boolean): Promise<number> => {
+    const { D, dir, deps } = await cookieSync();
+    if (!cfg.sites.length) throw new UsageError("name the sites to keep in sync: unbrowse cookies daemon start --domain github.com,linkedin.com");
+    const node = io.service?.node ?? process.execPath;
+    let cli = io.service?.cli ?? process.argv[1] ?? "";
+    try {
+      cli = realpathSync(cli);
+    } catch {
+      /* keep it as given */
+    }
+    if (!io.service?.cli && D.ephemeralCli(cli)) {
+      io.err("This CLI runs from a temporary npx copy, which a background service cannot point at. Install it first: npm i -g unbrowse — then run this again.");
+      return 1;
+    }
+    const plan = D.servicePlan({ os: io.service?.os, home: io.service?.home, node, cli, env: { ...(origin !== DEFAULT_ORIGIN ? { UNBROWSE_BASE_URL: origin } : {}), ...(process.env.UNBROWSE_CONFIG_DIR ? { UNBROWSE_CONFIG_DIR: process.env.UNBROWSE_CONFIG_DIR } : {}), ...(process.env.UNBROWSE_COOKIES_HOME ? { UNBROWSE_COOKIES_HOME: process.env.UNBROWSE_COOKIES_HOME } : {}) } });
+    if (!plan) {
+      io.err("No background service on this OS yet. Keep it running with: unbrowse cookies watch (e.g. from Task Scheduler at logon).");
+      return 1;
+    }
+    if (!confirmed) {
+      if (!io.interactive || !io.ask) {
+        io.err(`Re-run with --yes to confirm: cookies for ${cfg.sites.join(", ")} will be uploaded to ${origin} every ${cfg.intervalMin} min.`);
+        return 1;
+      }
+      const ok = (await io.ask(`Keep your browser cookies for ${cfg.sites.join(", ")} in sync with Unbrowse (every ${cfg.intervalMin} min, in the background)? Only these sites leave this machine. [y/N] `)).trim().toLowerCase();
+      if (ok !== "y" && ok !== "yes") return io.err("Not installed."), 1;
+    }
+    // One sync first: a service that cannot read the browser or reach Unbrowse would only fail quietly.
+    const state = D.readJson<import("./cookie-daemon.ts").SyncState>(D.stateFile(dir), { sites: {} });
+    state.sites ??= {};
+    const first = await D.syncOnce(await deps(), cfg, state);
+    D.writeJson(D.stateFile(dir), state);
+    io.err(D.describe(first));
+    if (first.error) return 1;
+    D.writeJson(D.configFile(dir), cfg);
+    mkdirSync(dirname(plan.path), { recursive: true });
+    writeFileSync(plan.path, plan.content, { mode: 0o644 });
+    const exec = io.exec ?? (() => ({ status: 1, stdout: "", stderr: "no exec" }));
+    for (const [i, cmd] of plan.enable.entries()) {
+      const r = exec(cmd);
+      // launchd: unloading a service that was not loaded fails, and that is fine.
+      if (r.status !== 0 && !(plan.kind === "launchd" && i === 0)) {
+        io.err(`Could not start the service (${cmd.join(" ")}): ${r.stderr.trim() || `exit ${r.status}`}. The unit is at ${plan.path}; run \`unbrowse cookies watch\` to sync in the foreground meanwhile.`);
+        return 1;
+      }
+    }
+    io.err(`Cookie sync is running in the background (${plan.kind}, every ${cfg.intervalMin} min): ${cfg.sites.join(", ")}. Status: unbrowse cookies daemon status · log: ${plan.log} · stop: unbrowse cookies daemon stop`);
+    return 0;
+  };
+
+  /** After a sign-in at a terminal: offer, once, to keep chosen sites' browser sign-ins in sync. Never by default. */
+  const offerCookieSync = async () => {
+    if (!io.interactive || !io.ask || args.flags.json) return;
+    const { D, dir } = await cookieSync();
+    if (existsSync(D.configFile(dir))) return;
+    io.err("Optional: let runs act as you on sites you are signed into in your browser. Unbrowse keeps those sites' cookies in sync in the background (sealed in your vault; only the sites you name leave this machine).");
+    const answer = (await io.ask("Sites to keep in sync (e.g. github.com, linkedin.com), or Enter to skip: ")).trim();
+    const sites = D.parseSites(answer);
+    if (!sites.length) return void io.err("Skipped. Later: unbrowse cookies daemon start --domain <sites>");
+    await installCookieDaemon({ sites, intervalMin: D.DEFAULT_INTERVAL_MIN, ...(origin !== DEFAULT_ORIGIN ? { baseUrl: origin } : {}) }, true);
+  };
+
   // First use: nobody is signed in yet. A person at a terminal signs in here and the command carries on;
   // a script (no TTY, --json) is told the two ways in instead of waiting on a browser.
   const onboard = async (): Promise<boolean> => {
@@ -124,6 +234,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     await auth.oauthLogin(origin, { open: (u) => openLink(u, args, io), log: io.err });
     const me = await (await client()).me();
     io.err(`Signed in (workspace ${me.workspaceId}).`);
+    await offerCookieSync().catch((e: Error) => io.err(`Cookie sync not set up: ${e.message}`));
     return true;
   };
 
@@ -137,6 +248,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         else await auth.oauthLogin(origin, { open: (u) => openLink(u, args, io), log: io.err });
         const me = await (await client()).me();
         io.err(`Signed in to ${origin} (workspace ${me.workspaceId}).`);
+        await offerCookieSync().catch((e: Error) => io.err(`Cookie sync not set up: ${e.message}`));
         return 0;
       }
       case "logout":
@@ -201,7 +313,54 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
           else for (const r of rows) io.out(`${r.id}  (${r.engine})`);
           return 0;
         }
-        if (sub !== "sync") throw new UsageError("usage: unbrowse cookies [list | sync] [--browser NAME] [--profile NAME] [--domain d] [--all]");
+        if (sub === "watch") {
+          // The daemon's loop (also usable in the foreground): the sites from --domain, else the saved config.
+          const { D, dir, config, deps } = await cookieSync();
+          const cfg = config();
+          if (!cfg.sites.length) throw new UsageError("name the sites: unbrowse cookies watch --domain github.com,linkedin.com (or run it in the background: unbrowse cookies daemon start --domain …)");
+          const stop = new AbortController();
+          for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => stop.abort());
+          io.err(`Keeping ${cfg.sites.join(", ")} in sync every ${cfg.intervalMin} min. Ctrl-C stops.`);
+          await D.watch({ deps, cfg, statePath: D.stateFile(dir), log: io.err, signal: stop.signal });
+          return 0;
+        }
+        if (sub === "daemon") {
+          const action = rest[1] ?? "status";
+          const { D, dir, saved, config } = await cookieSync();
+          const plan = D.servicePlan({ os: io.service?.os, home: io.service?.home, node: io.service?.node ?? process.execPath, cli: io.service?.cli ?? process.argv[1] ?? "" });
+          const exec = io.exec ?? (() => ({ status: 1, stdout: "", stderr: "no exec" }));
+          if (action === "start" || action === "install") return await installCookieDaemon(config(), !!args.flags.yes);
+          if (action === "stop" || action === "uninstall") {
+            if (plan) for (const cmd of plan.disable) exec(cmd);
+            if (plan && existsSync(plan.path)) rmSync(plan.path, { force: true });
+            rmSync(D.configFile(dir), { force: true });
+            rmSync(D.stateFile(dir), { force: true });
+            io.err("Cookie sync stopped and removed. Sessions already kept in Unbrowse stay until they expire; remove them in the console (Vault).");
+            return 0;
+          }
+          if (action === "status") {
+            const state = D.readJson<import("./cookie-daemon.ts").SyncState>(D.stateFile(dir), { sites: {} });
+            const installed = !!plan && existsSync(plan.path);
+            const active = installed && plan ? exec(plan.status).status === 0 : false;
+            const out = {
+              installed,
+              running: active,
+              service: plan?.kind ?? null,
+              sites: saved.sites ?? [],
+              intervalMin: saved.intervalMin ?? null,
+              ...(saved.browser ? { browser: saved.browser } : {}),
+              lastSync: state.lastOk ? new Date(state.lastOk).toISOString() : null,
+              ...(state.lastError ? { lastError: state.lastError } : {}),
+              uploaded: Object.fromEntries(Object.entries(state.sites ?? {}).map(([k, v]) => [k, { cookies: v.cookies, at: new Date(v.uploadedAt).toISOString() }])),
+              ...(plan ? { log: plan.log } : {}),
+            };
+            if (args.flags.json) print(out);
+            else io.err(installed ? `Cookie sync ${active ? "running" : "installed but not running"} (${plan!.kind}): ${out.sites.join(", ")} every ${out.intervalMin} min. Last sync: ${out.lastSync ?? "never"}${state.lastError ? ` — last error: ${state.lastError}` : ""}.` : "Cookie sync is not running. Start it: unbrowse cookies daemon start --domain github.com,linkedin.com");
+            return installed && !active ? 1 : 0;
+          }
+          throw new UsageError("usage: unbrowse cookies daemon [start --domain a,b [--interval MIN] [--browser NAME] [--profile NAME] [--yes] | status | stop]");
+        }
+        if (sub !== "sync") throw new UsageError("usage: unbrowse cookies [list | sync | watch | daemon] [--browser NAME] [--profile NAME] [--domain d] [--all]");
         if (!profiles.length) { io.err("No browsers found to sync cookies from."); return 1; }
         const wantBrowser = flag("browser")?.toLowerCase();
         const wantProfile = flag("profile");
