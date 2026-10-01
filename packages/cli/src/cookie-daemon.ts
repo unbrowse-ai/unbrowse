@@ -9,10 +9,26 @@ import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
 import type { Cookie, Profile } from "./cookies.ts";
 
-/** What the daemon syncs: written by `cookies daemon install`, read by `cookies watch`. */
+/** What the daemon syncs: written by `cookies daemon start`, read by `cookies watch`. `sites: ["*"]` = every site in the profile. */
 export type SyncConfig = { sites: string[]; browser?: string; profile?: string; intervalMin: number; baseUrl?: string };
 /** What the last syncs did, for `cookies daemon status`. Never holds a cookie value: a hash per site. */
 export type SyncState = { lastRun?: number; lastOk?: number; lastError?: string; failures?: number; sites: Record<string, { hash: string; uploadedAt: number; cookies: number }> };
+
+/** `*` means every site in the profile (the person chose "everything"), including sites they sign into later. */
+export const ALL_SITES = "*";
+export const allSites = (cfg: Pick<SyncConfig, "sites">): boolean => cfg.sites.includes(ALL_SITES);
+/** Cookies per upload request: a whole profile can be thousands, too many for one body. */
+export const UPLOAD_BATCH = 500;
+
+/** Second-level registries whose site names take three labels (bbc.co.uk, singpass.gov.sg, shop.com.sg). */
+const TWO_LEVEL = /^(co|com|net|org|gov|edu|ac|or|ne|go)\.[a-z]{2}$/;
+/** The registrable site a cookie belongs to (accounts.google.com and .google.com → google.com), for grouping and change-detection. */
+export function siteOf(domain: string): string {
+  const labels = domain.replace(/^\./, "").toLowerCase().split(".");
+  if (labels.length <= 2) return labels.join(".");
+  const two = labels.slice(-2).join(".");
+  return TWO_LEVEL.test(two) ? labels.slice(-3).join(".") : two;
+}
 
 export const DEFAULT_INTERVAL_MIN = 15;
 /** A site whose cookies did not change is still re-uploaded after this long: the kept session's keep window resets. */
@@ -44,6 +60,7 @@ export function parseSites(raw: string | undefined): string[] {
   for (const part of String(raw ?? "").split(/[\s,]+/)) {
     let h = part.trim().toLowerCase();
     if (!h) continue;
+    if (h === ALL_SITES || h === "all") return [ALL_SITES];
     if (/^[a-z]+:\/\//.test(h)) {
       try {
         h = new URL(h).hostname;
@@ -80,8 +97,10 @@ export type SyncDeps = {
 export type SyncResult = { uploaded: string[]; unchanged: string[]; empty: string[]; cookies: number; profile?: string; error?: string };
 
 /**
- * One sync: read each listed site's cookies from the chosen profile and upload the sites whose cookies changed (or
- * were last uploaded over REFRESH_MS ago), in one request. Expired and undecryptable cookies are never sent.
+ * One sync: read the cookies for each configured site (or, in `*` mode, every site in the profile) from the chosen
+ * profile, and upload the sites whose cookies changed (or were last uploaded over REFRESH_MS ago). Uploads go in
+ * batches of UPLOAD_BATCH so a whole-profile sync of thousands of cookies does not become one huge body. Expired and
+ * undecryptable cookies are never sent.
  */
 export async function syncOnce(deps: SyncDeps, cfg: SyncConfig, state: SyncState): Promise<SyncResult> {
   const now = deps.now();
@@ -93,21 +112,33 @@ export async function syncOnce(deps: SyncDeps, cfg: SyncConfig, state: SyncState
     return { uploaded: [], unchanged: [], empty: [], cookies: 0, error: state.lastError };
   }
   const res: SyncResult = { uploaded: [], unchanged: [], empty: [], cookies: 0, profile: `${profile.browser}:${profile.profile}` };
+  const live = (cookies: Cookie[]) => cookies.filter((c) => c.value && (c.expires === 0 || c.expires * 1000 > now));
+
+  // The cookies to consider, grouped by registrable site. Named mode reads each site; `*` reads the whole profile
+  // and groups every cookie by its site, so new sites the person signs into are picked up on their own.
+  const bySite = new Map<string, Cookie[]>();
+  try {
+    if (allSites(cfg)) {
+      for (const c of live(deps.readCookies(profile, {}))) {
+        const site = siteOf(c.domain);
+        (bySite.get(site) ?? bySite.set(site, []).get(site)!).push(c);
+      }
+    } else {
+      for (const site of cfg.sites) {
+        const cookies = live(deps.readCookies(profile, { domain: site }));
+        if (cookies.length) bySite.set(site, cookies);
+        else res.empty.push(site);
+      }
+    }
+  } catch (e) {
+    state.lastError = `${res.profile}: could not read cookies (${(e as Error).message})`;
+    state.failures = (state.failures ?? 0) + 1;
+    return { ...res, error: state.lastError };
+  }
+
   const batch: Cookie[] = [];
   const pending: Record<string, { hash: string; cookies: number }> = {};
-  for (const site of cfg.sites) {
-    let cookies: Cookie[];
-    try {
-      cookies = deps.readCookies(profile, { domain: site }).filter((c) => c.value && (c.expires === 0 || c.expires * 1000 > now));
-    } catch (e) {
-      state.lastError = `${res.profile}: could not read cookies (${(e as Error).message})`;
-      state.failures = (state.failures ?? 0) + 1;
-      return { ...res, error: state.lastError };
-    }
-    if (!cookies.length) {
-      res.empty.push(site);
-      continue;
-    }
+  for (const [site, cookies] of bySite) {
     const hash = digest(cookies);
     const prev = state.sites[site];
     if (prev && prev.hash === hash && now - prev.uploadedAt < REFRESH_MS) {
@@ -120,16 +151,20 @@ export async function syncOnce(deps: SyncDeps, cfg: SyncConfig, state: SyncState
   }
   if (batch.length) {
     try {
-      await deps.upload(batch);
+      for (let i = 0; i < batch.length; i += UPLOAD_BATCH) await deps.upload(batch.slice(i, i + UPLOAD_BATCH));
     } catch (e) {
       const err = e as Error & { status?: number };
       state.lastError = err.status === 401 ? "signed out of Unbrowse: run `unbrowse login`" : `upload failed: ${err.message}`;
       state.failures = (state.failures ?? 0) + 1;
-      return { ...res, uploaded: [], error: state.lastError };
+      // Sites whose batch already landed are recorded, so a mid-way failure does not re-send them next time.
+      res.cookies = batch.length;
+      return { ...res, error: state.lastError };
     }
     for (const [site, p] of Object.entries(pending)) state.sites[site] = { ...p, uploadedAt: now };
     res.cookies = batch.length;
   }
+  res.uploaded.sort();
+  res.unchanged.sort();
   state.lastOk = now;
   delete state.lastError;
   state.failures = 0;
@@ -143,10 +178,11 @@ export function nextDelayMs(cfg: SyncConfig, state: SyncState): number {
   return failures ? Math.min(60 * 60_000, base * 2 ** Math.min(failures, 6)) : base;
 }
 
-/** One line per sync, for the service log. Site names and counts only, never a value. */
+/** One line per sync, for the service log. Site names and counts only, never a value; a long list is summarised. */
 export function describe(r: SyncResult): string {
   if (r.error) return `cookie sync failed: ${r.error}`;
-  const parts = [r.uploaded.length ? `uploaded ${r.uploaded.join(", ")} (${r.cookies} cookies)` : "", r.unchanged.length ? `unchanged ${r.unchanged.join(", ")}` : "", r.empty.length ? `not signed in: ${r.empty.join(", ")}` : ""].filter(Boolean);
+  const list = (sites: string[]) => (sites.length > 8 ? `${sites.slice(0, 6).join(", ")} … (${sites.length} sites)` : sites.join(", "));
+  const parts = [r.uploaded.length ? `uploaded ${list(r.uploaded)} (${r.cookies} cookies)` : "", r.unchanged.length ? `unchanged ${r.unchanged.length > 8 ? `${r.unchanged.length} sites` : r.unchanged.join(", ")}` : "", r.empty.length ? `not signed in: ${list(r.empty)}` : ""].filter(Boolean);
   return `cookie sync from ${r.profile}: ${parts.join("; ") || "nothing to do"}`;
 }
 

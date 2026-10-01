@@ -96,12 +96,13 @@ you sync leave your machine. Reads work best with the browser closed.
 ### Keep sites in sync continuously
 
 ```sh
-unbrowse cookies daemon start --domain github.com,linkedin.com   # asks to confirm; --yes in scripts
+unbrowse cookies daemon start --domain github.com,linkedin.com   # named sites; asks to confirm, --yes in scripts
+unbrowse cookies daemon start --all-sites                        # EVERY site you are signed into (incl. banking/email): confirm carefully
 unbrowse cookies daemon status
 unbrowse cookies daemon stop
 ```
 
-The daemon syncs only the sites you name, from one browser profile (`--browser`, `--profile`; else the
+The daemon syncs the sites you name — or every site in the profile with `--all-sites` (uploaded in batches, grouped by registrable site; new sites you sign into are picked up on their own). It reads from one browser profile (`--browser`, `--profile`; else the
 default profile), every `--interval` minutes (default 15). A site is uploaded when its cookies change, and
 at least once a day so the kept session never ages out; expired cookies are never sent. `start` first runs
 one sync and refuses to start if it cannot read the browser or reach Unbrowse. Failures back off (doubling,
