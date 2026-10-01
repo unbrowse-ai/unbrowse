@@ -35,7 +35,10 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   logins remove <origin>          Remove the saved login for a site
 
   registry [query]                Public compiled sites (no account)
-  site <host>                     One site's tools (no account)
+  site <host>                     One site's tools, each with its inputs, an example and how to call it (no account)
+  openapi <host>                  The site's OpenAPI 3.1 document: one operation per tool (no account)
+  call <host> <tool> [JSON]       Run one site tool with its inputs (or --set key=value…); prints the run
+      [--deadline MS] [--select PATH,…] [--idempotency-key K] [--end-user ID]
 
   mcp                             Local stdio MCP server proxying the hosted one (tool names use _ not .)
       [--url URL] [--end-user ID]   for agent hosts that need stdio or strict tool names (Grok Build)
@@ -46,7 +49,7 @@ Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not 
 
 const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse"]);
 /** Commands that act for a workspace; the first one run with no sign-in starts the sign-in. */
-const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "inspect", "resume", "cancel", "learn", "learned", "logins"]);
+const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "inspect", "resume", "cancel", "learn", "learned", "logins", "call"]);
 
 export type Args = { _: string[]; flags: Record<string, string | boolean>; sets: Record<string, string> };
 
@@ -202,6 +205,31 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       case "site":
         print(await ub.site(need(rest[0], "site <host>")));
         return 0;
+      case "openapi":
+        print(await ub.openapi(need(rest[0], "openapi <host>")));
+        return 0;
+      case "call": {
+        const usage = "call <host> <tool> [JSON] [--set key=value]…";
+        const host = need(rest[0], usage);
+        const tool = need(rest[1], usage);
+        const input = { ...(rest[2] ? (JSON.parse(rest.slice(2).join(" ")) as Record<string, Json>) : {}), ...(flag("input") ? JSON.parse(flag("input")!) : {}), ...mapValues(args.sets) };
+        const deadline = flag("deadline");
+        if (deadline !== undefined && !(Number(deadline) > 0)) throw new UsageError("--deadline takes milliseconds, e.g. --deadline 90000");
+        const run = await ub.callTool(host, tool, input, {
+          ...(deadline ? { deadlineMs: Number(deadline) } : {}),
+          ...(flag("select") ? { select: flag("select")!.split(",").map((x) => x.trim()).filter(Boolean) } : {}),
+          idempotencyKey: flag("idempotency-key") ?? randomUUID(),
+          ...((flag("end-user") ?? process.env.UNBROWSE_END_USER) ? { endUser: (flag("end-user") ?? process.env.UNBROWSE_END_USER)! } : {}),
+        });
+        print(run);
+        if (run.status === "input_required") {
+          const fields = (run.requirements ?? []).filter((r) => r.state === "open").map((r) => `${r.affectedAction}=…`);
+          return io.err(`Input required: unbrowse resume ${run.runId} ${fields.join(" ")}`), 2;
+        }
+        if (run.status === "succeeded") return 0;
+        if (run.status === "outcome_unknown") return io.err("Outcome unknown: a change may have happened. Inspect before retrying."), 4;
+        return io.err(`${run.status}${run.error ? `: ${run.error.code} — ${run.error.message}` : ""}`), 1;
+      }
       default:
         throw new UsageError(`unknown command "${cmd}". Run \`unbrowse help\`.`);
     }
