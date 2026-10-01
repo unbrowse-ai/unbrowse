@@ -73,7 +73,11 @@ encrypts them), sent to Unbrowse, and kept per site — sealed in your vault, so
 | Command | What it does |
 |---|---|
 | `cookies list` | Browsers and profiles found on this machine. `--json` for an agent to choose from. |
-| `cookies sync` | Read cookies and upload them (`POST /cookies`). |
+| `cookies sync` | Read cookies and upload them once (`POST /cookies`). |
+| `cookies watch` | Keep the chosen sites in sync in the foreground: re-read every interval, upload a site when its cookies change (and at least daily). |
+| `cookies daemon start` | The same as a background service that survives logouts and reboots (systemd user unit on Linux, LaunchAgent on macOS). |
+| `cookies daemon status` | Running or not, the sites, the last sync and the last error. `--json` for an agent. |
+| `cookies daemon stop` | Stop and remove the service, its config and state. |
 
 ```sh
 unbrowse cookies list
@@ -88,6 +92,26 @@ Chromium, Arc, Brave, Edge, Opera, Vivaldi, Firefox, LibreWolf, Waterfox, on mac
 Windows. Cookies a browser encrypts with a locked keyring, or a sandboxed (Flatpak/Snap) install
 whose key is not reachable, are reported and skipped. Everything is read locally; only the cookies
 you sync leave your machine. Reads work best with the browser closed.
+
+### Keep sites in sync continuously
+
+```sh
+unbrowse cookies daemon start --domain github.com,linkedin.com   # asks to confirm; --yes in scripts
+unbrowse cookies daemon status
+unbrowse cookies daemon stop
+```
+
+The daemon syncs only the sites you name, from one browser profile (`--browser`, `--profile`; else the
+default profile), every `--interval` minutes (default 15). A site is uploaded when its cookies change, and
+at least once a day so the kept session never ages out; expired cookies are never sent. `start` first runs
+one sync and refuses to start if it cannot read the browser or reach Unbrowse. Failures back off (doubling,
+up to an hour) and show in `status`; a sign-out from Unbrowse says to run `unbrowse login`. The service runs
+the installed CLI (`npm i -g unbrowse` first: a temporary `npx` copy is refused). Logs: `journalctl --user -u
+unbrowse-cookies -f` (Linux), `~/Library/Logs/unbrowse-cookies.log` (macOS). Windows: run `unbrowse cookies
+watch` from Task Scheduler at logon.
+
+After `unbrowse login` at a terminal, the CLI offers this once: name the sites (or press Enter to skip).
+Nothing is synced unless you name a site; scripts and agents (no terminal, `--json`) are never asked.
 
 ## Public registry (no account)
 

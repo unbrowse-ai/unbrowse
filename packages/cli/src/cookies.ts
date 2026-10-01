@@ -21,7 +21,8 @@ export type Cookie = {
 
 export type Profile = { browser: string; profile: string; label: string; path: string; engine: "chromium" | "firefox" };
 
-const HOME = homedir();
+// UNBROWSE_COOKIES_HOME: read browsers under another home (tests, or a second OS account the person can read).
+const HOME = process.env.UNBROWSE_COOKIES_HOME ?? homedir();
 const OS = platform();
 
 /** Where each browser keeps its profiles, per OS, and the keychain service its key lives under (Chromium). */
