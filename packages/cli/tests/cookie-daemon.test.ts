@@ -100,6 +100,31 @@ test("pure parts: sites are hosts, the fingerprint follows values, backoff doubl
   expect(mac.content).toContain("<string>cookies</string><string>watch</string>");
   expect(mac.enable.at(-1)).toEqual(["launchctl", "bootstrap", "gui/501", mac.path]);
   expect(D.servicePlan({ os: "win32", node: "n", cli: "c" })).toBeUndefined();
+  // "everything": `*` (or `all`) wins over any names; registrable-site grouping folds subdomains and multi-label TLDs.
+  expect(D.parseSites("github.com, *")).toEqual(["*"]);
+  expect(D.parseSites("all")).toEqual(["*"]);
+  expect(D.allSites({ sites: ["*"] })).toBe(true);
+  expect(D.siteOf("accounts.google.com")).toBe("google.com");
+  expect(D.siteOf(".google.com")).toBe("google.com");
+  expect(D.siteOf("id.singpass.gov.sg")).toBe("singpass.gov.sg");
+  expect(D.siteOf("www.bbc.co.uk")).toBe("bbc.co.uk");
+});
+
+test("all-sites: syncOnce uploads every site in the profile, grouped by registrable site, in batches", async () => {
+  const { findProfiles, readCookies } = await import("../src/cookies.ts");
+  const batches: number[] = [];
+  const state: D.SyncState = { sites: {} };
+  // Profile holds github (chosen test seed), a bank and plain github.com + .github.com (one registrable site).
+  const r = await D.syncOnce({ findProfiles, readCookies, upload: async (c) => (batches.push(c.length), { sites: 1, cookies: c.length }), now: Date.now }, { sites: ["*"], intervalMin: 15 }, state);
+  expect(r.error).toBeUndefined();
+  expect(r.uploaded).toContain("github.com");
+  expect(r.uploaded).toContain("mybank.example"); // "everything" means the bank too
+  expect(state.sites["github.com"]!.cookies).toBe(2); // github.com + .github.com folded, expired "old" dropped
+  expect(batches.every((n) => n <= D.UPLOAD_BATCH)).toBe(true);
+  // Nothing changed: a second pass uploads nothing.
+  const again = await D.syncOnce({ findProfiles, readCookies, upload: async () => ({ sites: 0, cookies: 0 }), now: Date.now }, { sites: ["*"], intervalMin: 15 }, state);
+  expect(again.uploaded).toEqual([]);
+  expect(again.unchanged).toContain("github.com");
 });
 
 test("install: one real sync of only the chosen site (live cookies), then a systemd user service that runs `cookies watch`", async () => {
@@ -178,6 +203,25 @@ test("install needs consent: not interactive and no --yes is refused, nothing is
   const noSites = await cli(["cookies", "daemon", "start", "--yes"]);
   expect(noSites.code).toBe(1);
   expect(noSites.err.join("\n")).toContain("name the sites");
+});
+
+test("daemon start --all-sites: confirms the full scope, then syncs every site and saves sites: ['*']", async () => {
+  const r = await cli(["cookies", "daemon", "start", "--all-sites", "--yes"]);
+  expect(r.code).toBe(0);
+  // Both the chosen seed site and the bank are uploaded (everything).
+  expect(JSON.stringify(uploads)).toContain("user_session");
+  expect(JSON.stringify(uploads)).toContain("bank-secret");
+  expect(JSON.parse(readFileSync(join(cfgDir, "cookie-sync.json"), "utf8")).sites).toEqual(["*"]);
+  const st = await cli(["cookies", "daemon", "status"]);
+  expect(st.err.join("\n")).toContain("every site");
+});
+
+test("all-sites install without --yes names the full scope in the confirmation and refuses when not interactive", async () => {
+  const r = await cli(["cookies", "daemon", "start", "--all-sites"]);
+  expect(r.code).toBe(1);
+  expect(r.err.join("\n")).toContain("EVERY site");
+  expect(r.err.join("\n")).toMatch(/banking|payments/);
+  expect(existsSync(unit)).toBe(false);
 });
 
 test("uninstall stops the service and removes the unit, config and state", async () => {

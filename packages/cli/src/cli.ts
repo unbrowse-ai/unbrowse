@@ -34,9 +34,9 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   cookies list                    Browsers and profiles found on this machine (--json for agents)
   cookies sync                    Send your browser cookies so runs act as your signed-in self
       [--browser NAME] [--profile NAME] [--domain d] [--all]
-  cookies watch --domain a,b      Keep those sites' cookies in sync (re-upload on change) [--interval MIN]
+  cookies watch --domain a,b      Keep those sites' cookies in sync (re-upload on change) [--interval MIN] [--all-sites]
   cookies daemon start|status|stop
-                                  The same as a background service (systemd / launchd) [--domain a,b] [--yes]
+                                  The same as a background service (systemd / launchd) [--domain a,b | --all-sites] [--yes]
 
   learn <a.har> <b.har>…          Compile two HAR recordings into a capability [--title T] [--goal G]
   learned [id]                    Your learned capabilities, or one with its harness and skill
@@ -56,7 +56,7 @@ Options: --json (errors as JSON) · --base-url URL · --no-open
 Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_EGRESS=server, UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
-const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "yes"]);
+const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes"]);
 /** Commands that act for a workspace; the first one run with no sign-in starts the sign-in. */
 const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "inspect", "resume", "cancel", "learn", "learned", "logins", "call", "cookies"]);
 
@@ -146,7 +146,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     const dir = D.configDir(auth.configPath());
     const saved = D.readJson<Partial<import("./cookie-daemon.ts").SyncConfig>>(D.configFile(dir), {});
     const config = (): import("./cookie-daemon.ts").SyncConfig => {
-      const sites = flag("domain") ?? flag("sites") ? D.parseSites(flag("domain") ?? flag("sites")) : (saved.sites ?? []);
+      const sites = args.flags["all-sites"] ? [D.ALL_SITES] : flag("domain") ?? flag("sites") ? D.parseSites(flag("domain") ?? flag("sites")) : (saved.sites ?? []);
       const interval = Number(flag("interval") ?? saved.intervalMin ?? D.DEFAULT_INTERVAL_MIN);
       if (!(interval >= 1)) throw new UsageError("--interval takes minutes (1 or more)");
       return { sites, intervalMin: interval, ...((flag("browser") ?? saved.browser) ? { browser: flag("browser") ?? saved.browser } : {}), ...((flag("profile") ?? saved.profile) ? { profile: flag("profile") ?? saved.profile } : {}), ...(origin !== DEFAULT_ORIGIN ? { baseUrl: origin } : {}) };
@@ -157,11 +157,13 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     };
     return { D, dir, saved, config, deps };
   };
+  // How a config's sites read in a message: the explicit list, or a clear warning for "everything" (sites: ["*"]).
+  const sitesLabel = (cfg: import("./cookie-daemon.ts").SyncConfig) => (cfg.sites.includes("*") ? "EVERY site you are signed into in that browser (including banking, email and payments)" : cfg.sites.join(", "));
 
   /** Install (or update) the cookie sync service after one sync that proves reading and uploading both work. */
   const installCookieDaemon = async (cfg: import("./cookie-daemon.ts").SyncConfig, confirmed: boolean): Promise<number> => {
     const { D, dir, deps } = await cookieSync();
-    if (!cfg.sites.length) throw new UsageError("name the sites to keep in sync: unbrowse cookies daemon start --domain github.com,linkedin.com");
+    if (!cfg.sites.length) throw new UsageError("name the sites to keep in sync: unbrowse cookies daemon start --domain github.com,linkedin.com (or --all-sites for every site)");
     const node = io.service?.node ?? process.execPath;
     let cli = io.service?.cli ?? process.argv[1] ?? "";
     try {
@@ -180,10 +182,11 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     }
     if (!confirmed) {
       if (!io.interactive || !io.ask) {
-        io.err(`Re-run with --yes to confirm: cookies for ${cfg.sites.join(", ")} will be uploaded to ${origin} every ${cfg.intervalMin} min.`);
+        io.err(`Re-run with --yes to confirm: cookies for ${sitesLabel(cfg)} will be uploaded to ${origin} every ${cfg.intervalMin} min and sealed in your vault.`);
         return 1;
       }
-      const ok = (await io.ask(`Keep your browser cookies for ${cfg.sites.join(", ")} in sync with Unbrowse (every ${cfg.intervalMin} min, in the background)? Only these sites leave this machine. [y/N] `)).trim().toLowerCase();
+      const scope = D.allSites(cfg) ? `EVERY site you are signed into in that browser — including banking, email, payments and government logins — will be uploaded to ${origin} and refreshed every ${cfg.intervalMin} min` : `cookies for ${cfg.sites.join(", ")} will be uploaded to ${origin} every ${cfg.intervalMin} min; only these sites leave this machine`;
+      const ok = (await io.ask(`Keep your browser cookies in sync with Unbrowse? ${scope}. [y/N] `)).trim().toLowerCase();
       if (ok !== "y" && ok !== "yes") return io.err("Not installed."), 1;
     }
     // One sync first: a service that cannot read the browser or reach Unbrowse would only fail quietly.
@@ -205,7 +208,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         return 1;
       }
     }
-    io.err(`Cookie sync is running in the background (${plan.kind}, every ${cfg.intervalMin} min): ${cfg.sites.join(", ")}. Status: unbrowse cookies daemon status · log: ${plan.log} · stop: unbrowse cookies daemon stop`);
+    io.err(`Cookie sync is running in the background (${plan.kind}, every ${cfg.intervalMin} min): ${sitesLabel(cfg)}. Status: unbrowse cookies daemon status · log: ${plan.log} · stop: unbrowse cookies daemon stop`);
     return 0;
   };
 
@@ -317,7 +320,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
           // The daemon's loop (also usable in the foreground): the sites from --domain, else the saved config.
           const { D, dir, config, deps } = await cookieSync();
           const cfg = config();
-          if (!cfg.sites.length) throw new UsageError("name the sites: unbrowse cookies watch --domain github.com,linkedin.com (or run it in the background: unbrowse cookies daemon start --domain …)");
+          if (!cfg.sites.length) throw new UsageError("name the sites: unbrowse cookies watch --domain github.com,linkedin.com (or --all-sites; or run it in the background: unbrowse cookies daemon start)");
           const stop = new AbortController();
           for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => stop.abort());
           io.err(`Keeping ${cfg.sites.join(", ")} in sync every ${cfg.intervalMin} min. Ctrl-C stops.`);
@@ -354,8 +357,9 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
               uploaded: Object.fromEntries(Object.entries(state.sites ?? {}).map(([k, v]) => [k, { cookies: v.cookies, at: new Date(v.uploadedAt).toISOString() }])),
               ...(plan ? { log: plan.log } : {}),
             };
+            const shownSites = D.allSites({ sites: out.sites }) ? `every site (${Object.keys(state.sites ?? {}).length} synced so far)` : out.sites.join(", ");
             if (args.flags.json) print(out);
-            else io.err(installed ? `Cookie sync ${active ? "running" : "installed but not running"} (${plan!.kind}): ${out.sites.join(", ")} every ${out.intervalMin} min. Last sync: ${out.lastSync ?? "never"}${state.lastError ? ` — last error: ${state.lastError}` : ""}.` : "Cookie sync is not running. Start it: unbrowse cookies daemon start --domain github.com,linkedin.com");
+            else io.err(installed ? `Cookie sync ${active ? "running" : "installed but not running"} (${plan!.kind}): ${shownSites} every ${out.intervalMin} min. Last sync: ${out.lastSync ?? "never"}${state.lastError ? ` — last error: ${state.lastError}` : ""}.` : "Cookie sync is not running. Start it: unbrowse cookies daemon start --domain github.com,linkedin.com");
             return installed && !active ? 1 : 0;
           }
           throw new UsageError("usage: unbrowse cookies daemon [start --domain a,b [--interval MIN] [--browser NAME] [--profile NAME] [--yes] | status | stop]");
@@ -389,9 +393,17 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         const cookies = [...jar.values()];
         if (locked) io.err(`${locked} cookie(s) could not be decrypted (a locked keyring or a sandboxed/flatpak browser).`);
         if (!cookies.length) { io.err(readErrors ? "No cookies read." : "No cookies to sync."); return readErrors ? 1 : 0; }
-        const result = await ub.importCookies(cookies);
-        if (args.flags.json) print(result);
-        else io.err(`Synced ${result.cookies} cookies across ${result.sites} site(s) from ${chosen.map((p) => `${p.browser}:${p.profile}`).join(", ")}. Runs now act as your signed-in self on those sites.`);
+        // A whole profile is thousands of cookies: upload in batches so no single request is huge.
+        const { UPLOAD_BATCH } = await import("./cookie-daemon.ts");
+        let synced = 0;
+        const sites = new Set<string>();
+        for (let i = 0; i < cookies.length; i += UPLOAD_BATCH) {
+          const r = await ub.importCookies(cookies.slice(i, i + UPLOAD_BATCH));
+          synced += r.cookies;
+          for (const o of r.origins) sites.add(o.origin);
+        }
+        if (args.flags.json) print({ cookies: synced, sites: sites.size });
+        else io.err(`Synced ${synced} cookies across ${sites.size} site(s) from ${chosen.map((p) => `${p.browser}:${p.profile}`).join(", ")}. Runs now act as your signed-in self on those sites.`);
         return 0;
       }
       case "learn": {
