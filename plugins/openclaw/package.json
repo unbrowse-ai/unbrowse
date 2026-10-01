@@ -1,6 +1,6 @@
 {
   "name": "@unbrowse/openclaw",
-  "version": "12.1.1",
+  "version": "12.2.0",
   "description": "Unbrowse for OpenClaw: websites as APIs. Hosted discover, run, scrape and cloud-browser tools, a web_fetch provider, and a hook that replaces the built-in browser for web pages.",
   "license": "MIT",
   "type": "module",
