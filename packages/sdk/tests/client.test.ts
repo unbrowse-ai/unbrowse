@@ -186,3 +186,63 @@ test("runOnClient reports a request it could not send, or one onRequest refused,
     { requestId: "rq_2", error: "refused by onRequest" },
   ]);
 });
+
+/** A fetch that also records request headers. */
+function stubWithHeaders(reply: () => Response = () => Response.json({ runId: "lrun_1", status: "succeeded", result: { title: "serde" } })) {
+  const sent: { method: string; url: string; headers: Headers; body: unknown }[] = [];
+  const fetch = (async (url: string, init: RequestInit = {}) => {
+    sent.push({ method: init.method ?? "GET", url, headers: new Headers(init.headers), body: init.body ? JSON.parse(String(init.body)) : undefined });
+    return reply();
+  }) as typeof globalThis.fetch;
+  return { sent, fetch };
+}
+
+test("callTool sends the call options as the headers and body keys the endpoint reads", async () => {
+  const { sent, fetch } = stubWithHeaders();
+  const ub = new Unbrowse({ apiKey: "ub_live_k", fetch });
+  const run = await ub.callTool<{ title: string }>("https://www.Docs.rs/x", "docs_rs__get_search", { query: "serde" }, { deadlineMs: 90000, idempotencyKey: "job-7", select: ["results[].title"], endUser: "u_42" });
+  expect(run.result?.title).toBe("serde");
+  const s = sent[0]!;
+  expect(s).toMatchObject({ method: "POST", url: "https://unbrowse.ai/api/v1/sites/docs.rs/call/docs_rs__get_search", body: { query: "serde", select: ["results[].title"] } });
+  expect(s.headers.get("x-unbrowse-deadline-ms")).toBe("90000");
+  expect(s.headers.get("idempotency-key")).toBe("job-7");
+  expect(s.headers.get("x-unbrowse-end-user")).toBe("u_42");
+  expect(s.headers.get("authorization")).toBe("Bearer ub_live_k");
+});
+
+test("callTool without options sends exactly the inputs, as before", async () => {
+  const { sent, fetch } = stubWithHeaders();
+  await new Unbrowse({ fetch }).callTool("docs.rs", "docs_rs__get_search", { query: "serde" });
+  expect(sent[0]!.body).toEqual({ query: "serde" });
+  expect(sent[0]!.headers.get("x-unbrowse-deadline-ms")).toBeNull();
+  expect(sent[0]!.headers.get("idempotency-key")).toBeNull();
+});
+
+test("a run_timeout throws with the runId to wait on", async () => {
+  const { fetch } = stubWithHeaders(() => Response.json({ error: { code: "run_timeout", message: "did not finish", runId: "prun_9", poll: "GET /api/v1/runs/prun_9" } }, { status: 504 }));
+  const err = await new Unbrowse({ fetch }).callTool("docs.rs", "t", {}).catch((e) => e);
+  expect(err).toBeInstanceOf(UnbrowseError);
+  expect(err.code).toBe("run_timeout");
+  expect((err.body as { error: { runId: string } }).error.runId).toBe("prun_9");
+});
+
+test("forSite: one site's tools, OpenAPI, calls by name and its MCP URL", async () => {
+  const { sent, fetch } = stubWithHeaders();
+  const ub = new Unbrowse({ fetch });
+  const docs = ub.forSite("WWW.docs.rs");
+  expect(docs.host).toBe("docs.rs");
+  await docs.tools();
+  await docs.openapi();
+  await docs.call("docs_rs__get_search", { query: "a" }, { deadlineMs: 5000 });
+  const search = docs.tool("docs_rs__get_search");
+  await search({ query: "b" });
+  expect(sent.map((s) => `${s.method} ${s.url}`)).toEqual([
+    "GET https://unbrowse.ai/api/v1/sites/docs.rs",
+    "GET https://unbrowse.ai/api/v1/sites/docs.rs/openapi.json",
+    "POST https://unbrowse.ai/api/v1/sites/docs.rs/call/docs_rs__get_search",
+    "POST https://unbrowse.ai/api/v1/sites/docs.rs/call/docs_rs__get_search",
+  ]);
+  expect(sent[2]!.headers.get("x-unbrowse-deadline-ms")).toBe("5000");
+  expect(sent[3]!.body).toEqual({ query: "b" });
+  expect(docs.mcpUrl).toBe("https://unbrowse.ai/api/v1/sites/docs.rs/mcp");
+});

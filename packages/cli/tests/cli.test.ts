@@ -24,6 +24,14 @@ const server = Bun.serve({
     seen.push({ method: req.method, path: path + url.search, body, auth });
     if (url.pathname === "/oauth/register") return Response.json({ client_id: "cid_cli" });
     if (url.pathname === "/oauth/token") return Response.json({ access_token: TOKEN, refresh_token: "rtk", expires_in: 3600 });
+    const call = /^sites\/([^/]+)\/call\/([^/]+)$/.exec(path);
+    if (call && req.method === "POST") {
+      if (auth !== `Bearer ${TOKEN}`) return Response.json({ error: { code: "unauthorized", message: "Unauthorized" } }, { status: 401 });
+      const headers = Object.fromEntries(["x-unbrowse-deadline-ms", "idempotency-key", "x-unbrowse-end-user"].map((h) => [h, req.headers.get(h)]));
+      if (body?.query === "ask") return Response.json({ runId: "c2", status: "input_required", requirements: [{ id: "q_size", affectedAction: "size", state: "open" }] }, { status: 202 });
+      if (body?.query === "broken") return Response.json({ runId: "c3", status: "failed", error: { code: "upstream_error", message: "the site answered 500" } });
+      return Response.json({ runId: "c1", status: "succeeded", capabilityId: `public.${call[1]}.x`, result: { echo: body, headers } });
+    }
     if (path.startsWith("sites")) return Response.json(path === "sites" ? { total: 1, sites: [{ host: "en.wikipedia.org" }] } : { host: path.split("/")[1], tools: [] });
     if (auth !== `Bearer ${TOKEN}`) return Response.json({ error: { code: "unauthorized", message: "Unauthorized" } }, { status: 401 });
     if (req.method === "POST" && path === "runs") {
@@ -273,4 +281,35 @@ test("oauth login and refresh request the REST API resource, not MCP", async () 
   const refreshGrant = new URLSearchParams(seen.filter((s) => s.url.endsWith("/oauth/token")).at(-1)!.body);
   expect(refreshGrant.get("grant_type")).toBe("refresh_token");
   expect(refreshGrant.get("resource")).toBe("https://unbrowse.test/api");
+});
+
+test("call runs one site tool: inputs from JSON and --set, options as headers and body keys", async () => {
+  save({ baseUrl: BASE, apiKey: TOKEN });
+  const r = await cli(["call", "docs.rs", "docs_rs__get_search", '{"query":"serde"}', "--set", "page=2", "--deadline", "90000", "--select", "results[].title, total", "--idempotency-key", "k1", "--end-user", "u9"]);
+  expect(r.code).toBe(0);
+  const run = r.json();
+  expect(run.status).toBe("succeeded");
+  expect(run.result.echo).toEqual({ query: "serde", page: 2, select: ["results[].title", "total"] });
+  expect(run.result.headers).toEqual({ "x-unbrowse-deadline-ms": "90000", "idempotency-key": "k1", "x-unbrowse-end-user": "u9" });
+  expect(seen.at(-1)).toMatchObject({ method: "POST", path: "sites/docs.rs/call/docs_rs__get_search" });
+});
+
+test("call: input_required exits 2 naming the fields; a failed run exits 1 with its error; a bad deadline is a usage error", async () => {
+  save({ baseUrl: BASE, apiKey: TOKEN });
+  const ask = await cli(["call", "shop.example", "t", '{"query":"ask"}']);
+  expect(ask.code).toBe(2);
+  expect(ask.err.join("\n")).toContain("unbrowse resume c2 size=");
+  const broken = await cli(["call", "shop.example", "t", '{"query":"broken"}']);
+  expect(broken.code).toBe(1);
+  expect(broken.err.join("\n")).toContain("upstream_error");
+  const bad = await cli(["call", "shop.example", "t", "--deadline", "soon"]);
+  expect(bad.code).toBe(1);
+  expect(bad.err.join("\n")).toContain("--deadline takes milliseconds");
+});
+
+test("openapi prints the site's OpenAPI document without an account", async () => {
+  clear();
+  const r = await cli(["openapi", "docs.rs"]);
+  expect(r.code).toBe(0);
+  expect(seen.at(-1)).toMatchObject({ method: "GET", path: "sites/docs.rs/openapi.json" });
 });

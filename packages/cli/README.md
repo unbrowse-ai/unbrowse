@@ -17,7 +17,8 @@ unbrowse resume <runId> origin=SIN           # answer on the same run
 | `run <task…>`, `inspect`, `resume`, `cancel` | Runs |
 | `learn a.har b.har`, `learned [id]` | Teach a site from two recordings |
 | `logins`, `logins remove <origin>` | Saved logins, masked. The CLI never takes a password |
-| `registry [query]`, `site <host>` | Public compiled sites, no account |
+| `registry [query]`, `site <host>`, `openapi <host>` | Public compiled sites, a site's tools, its OpenAPI 3.1 document — no account |
+| `call <host> <tool> [JSON]` | Run one site tool (`--set k=v`, `--deadline MS`, `--select a,b`, `--idempotency-key K`, `--end-user ID`) |
 
 The CLI is the REST client. The remote MCP is a separate client; see the [install guide](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/install.md).
 
