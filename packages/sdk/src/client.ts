@@ -107,6 +107,14 @@ export class Unbrowse {
     return this.post(`/runs/${runId}/responses`, { expected_state_revision: expectedStateRevision, responses: wire });
   }
 
+  /**
+   * Import cookies exported from the user's own browser as kept sessions, so later runs act as the signed-in
+   * user (see the CLI's `unbrowse cookies sync`). Values are sent to Unbrowse and sealed there, never returned.
+   */
+  importCookies(cookies: Array<{ domain: string; name: string; value: string; path?: string; secure?: boolean; httpOnly?: boolean; expires?: number }>): Promise<{ sites: number; cookies: number; origins: Array<{ origin: string; cookies: number }> }> {
+    return this.post("/cookies", { cookies });
+  }
+
   /** Answer open requirements by field name — `{ origin: "SIN" }` — and return the updated run. */
   async answer(runId: string, answers: Record<string, Json>): Promise<RunView> {
     const view = await this.inspect(runId);
