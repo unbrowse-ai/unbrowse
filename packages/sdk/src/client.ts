@@ -264,14 +264,120 @@ export class Unbrowse {
     return this.req(`/sites/${normalizeHost(host)}/openapi.json`);
   }
 
-  /** Run one site tool (metered like a run). */
-  callTool(host: string, tool: string, input: Record<string, Json> = {}) {
-    return this.post(`/sites/${normalizeHost(host)}/call/${encodeURIComponent(tool)}`, input);
+  /**
+   * Run one site tool: `POST /sites/{host}/call/{tool}` with its inputs as the body (metered like a run; only a
+   * verified success bills). Resolves with the run for 200 and 202 (`input_required`: answer it with `answer`).
+   * Past `deadlineMs` it throws an UnbrowseError with code `run_timeout` whose body names the `runId` to `wait` on;
+   * the run keeps going. The tool's inputs, typed request and result: `openapi(host)`.
+   */
+  callTool<R = Json>(host: string, tool: string, input: Record<string, Json> = {}, opts: SiteCallOptions = {}): Promise<SiteRun<R>> {
+    const headers: Record<string, string> = {};
+    if (opts.deadlineMs !== undefined) headers["x-unbrowse-deadline-ms"] = String(opts.deadlineMs);
+    if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
+    if (opts.endUser) headers["x-unbrowse-end-user"] = opts.endUser;
+    const body = opts.select?.length ? { ...input, select: opts.select } : input;
+    return this.req(`/sites/${normalizeHost(host)}/call/${encodeURIComponent(tool)}`, { method: "POST", body: JSON.stringify(body), headers });
+  }
+
+  /**
+   * One indexed site as a client: its tools, its OpenAPI document, and calls by tool name.
+   *
+   *     const docs = ub.forSite("docs.rs");
+   *     const run = await docs.call("docs_rs__get_search", { query: "serde" });
+   */
+  forSite(host: string): SiteClient {
+    return new SiteClient(this, normalizeHost(host));
   }
 
   /** One site as its own MCP server: its compiled tools, a plain-words task, and the recorded browser on that site. */
   siteMcpUrl(host: string): string {
     return `${this.baseUrl}/sites/${normalizeHost(host)}/mcp`;
+  }
+}
+
+/** Options for one site tool call. */
+export type SiteCallOptions = {
+  /** Answer within this many ms (5,000–300,000; default 60,000). Past it: UnbrowseError `run_timeout` with the runId. */
+  deadlineMs?: number;
+  /** A retry with the same key returns the same run instead of starting another. */
+  idempotencyKey?: string;
+  /** Keep only these parts of the result, e.g. `["results[].{title,url}", "total"]`. Billing is unchanged. */
+  select?: string[];
+  /** With an organisation key: run as this end user, in their own workspace. */
+  endUser?: string;
+};
+
+/** What a site tool call answers: the run, with the site's verified `result` when `status` is `succeeded`. */
+export type SiteRun<R = Json> = {
+  runId: string;
+  status: RunView["status"];
+  capabilityId?: string | null;
+  result?: R;
+  error?: { code: string; message: string } | null;
+  /** Open questions when `status` is `input_required`: answer them with `answer(runId, …)`. */
+  requirements?: RunView["requirements"];
+  via?: "http" | "rendered" | null;
+  /** The result was over 40,000 characters and was shortened: pass `select`. */
+  truncated?: boolean;
+  /** `select` paths that matched nothing. */
+  selectMissing?: string[];
+};
+
+/** One tool as `GET /sites/{host}` lists it. */
+export type SiteToolInfo = {
+  name: string;
+  title: string;
+  description: string;
+  inputSchema: Record<string, Json>;
+  /** An input the tool is known to work with: send it as-is for a first call that works. */
+  example?: Record<string, Json>;
+  readOnly: boolean;
+  version: string;
+  public: boolean;
+  browserless: boolean;
+  /** Runs signed in as you on the site. */
+  personal?: boolean;
+  /** POST here with the inputs as JSON. */
+  endpoint?: string;
+  /** The shape of a succeeded run's `result`. */
+  resultSchema?: Record<string, Json>;
+  /** The same call as curl, TypeScript and Python. */
+  samples?: { lang: "curl" | "typescript" | "python"; label: string; source: string }[];
+};
+
+/** `GET /sites/{host}`: a site's tools and where its MCP server and OpenAPI document are. */
+export type SiteInfo = { host: string; tools: SiteToolInfo[]; mcp: string; openapi: string; docs?: string };
+
+/** One indexed site: `ub.forSite(host)`. */
+export class SiteClient {
+  constructor(
+    private readonly ub: Unbrowse,
+    readonly host: string,
+  ) {}
+
+  /** The site's tools, each with its inputs, an example, its result shape and ready-to-copy calls. */
+  tools(): Promise<SiteInfo> {
+    return this.ub.site(this.host) as Promise<SiteInfo>;
+  }
+
+  /** The site's OpenAPI 3.1 document: one operation per tool. */
+  openapi(): Promise<Record<string, Json>> {
+    return this.ub.openapi(this.host) as Promise<Record<string, Json>>;
+  }
+
+  /** Run one of the site's tools by name. */
+  call<R = Json>(tool: string, input: Record<string, Json> = {}, opts: SiteCallOptions = {}): Promise<SiteRun<R>> {
+    return this.ub.callTool<R>(this.host, tool, input, opts);
+  }
+
+  /** A tool as a function: `const search = site.tool("docs_rs__get_search"); await search({ query: "serde" })`. */
+  tool<R = Json>(name: string): (input?: Record<string, Json>, opts?: SiteCallOptions) => Promise<SiteRun<R>> {
+    return (input = {}, opts = {}) => this.call<R>(name, input, opts);
+  }
+
+  /** The site as its own MCP server. */
+  get mcpUrl(): string {
+    return this.ub.siteMcpUrl(this.host);
   }
 }
 

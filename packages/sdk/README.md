@@ -76,9 +76,21 @@ blindly. A run whose site needs a login nobody saved carries `signIn.url`: give 
 | Method | Route |
 |---|---|
 | `sites(query?)`, `site(host)` | `GET /sites`, `GET /sites/:host` (no key) |
-| `openapi(host)` | `GET /sites/:host/openapi.json` |
-| `callTool(host, tool, input)` | `POST /sites/:host/call/:tool` (metered like a run) |
+| `openapi(host)` | `GET /sites/:host/openapi.json` — OpenAPI 3.1, one operation per tool |
+| `callTool(host, tool, input, opts?)` | `POST /sites/:host/call/:tool` (metered like a run; only a verified success bills) |
+| `forSite(host)` | one site as a client: `.tools()`, `.openapi()`, `.call(tool, input, opts?)`, `.tool(name)`, `.mcpUrl` |
 | `siteMcpUrl(host)` | the site as its own MCP server |
+
+`opts`: `deadlineMs` (5,000–300,000; past it the call throws `run_timeout` with the `runId` to `wait` on — the run keeps going), `idempotencyKey` (a retry returns the same run), `select` (keep only these result paths), `endUser` (organisation keys). The answer is the run: `status` `succeeded` carries the site's `result`; `input_required` lists `requirements` to `answer`.
+
+```ts
+const docs = ub.forSite("docs.rs");
+const { tools } = await docs.tools(); // each with inputs, an example, its result shape and curl/TS/Python
+const run = await docs.call<{ links: { text: string; href: string }[] }>("docs_rs__get_search", { query: "serde" }, { deadlineMs: 30_000 });
+if (run.status === "succeeded") console.log(run.result?.links);
+```
+
+The contract (statuses, headers, errors): https://unbrowse.ai/docs/site-apis
 
 ## Errors
 
