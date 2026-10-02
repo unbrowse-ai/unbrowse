@@ -22,11 +22,12 @@ export type Cookie = {
 export type Profile = { browser: string; profile: string; label: string; path: string; engine: "chromium" | "firefox" };
 
 // UNBROWSE_COOKIES_HOME: read browsers under another home (tests, or a second OS account the person can read).
-const HOME = process.env.UNBROWSE_COOKIES_HOME ?? homedir();
+// Read at each call, not at import: a test (or a caller) may set it after this module first loads.
+const home = () => process.env.UNBROWSE_COOKIES_HOME ?? homedir();
 const OS = platform();
 
 /** Where each browser keeps its profiles, per OS, and the keychain service its key lives under (Chromium). */
-type BrowserDef = { name: string; engine: "chromium" | "firefox"; dirs: Partial<Record<NodeJS.Platform, string[]>>; keychain?: string };
+type BrowserDef = { name: string; engine: "chromium" | "firefox"; dirs: (home: string) => Partial<Record<NodeJS.Platform, string[]>>; keychain?: string };
 
 const BROWSERS: BrowserDef[] = [
   chromium("Chrome", ["Google/Chrome", "google-chrome"], "Chrome"),
@@ -46,11 +47,11 @@ function chromium(name: string, [mac, linux]: [string, string] | string[], keych
     name,
     engine: "chromium",
     keychain: `${keychain} Safe Storage`,
-    dirs: {
-      darwin: [join(HOME, "Library/Application Support", mac!)],
-      linux: [join(HOME, ".config", linux!), join(HOME, ".var/app", flatpakId(name), "config", linux!)],
-      win32: [join(process.env.LOCALAPPDATA ?? join(HOME, "AppData/Local"), mac!.replace(/\//g, "\\"), "User Data")],
-    },
+    dirs: (h) => ({
+      darwin: [join(h, "Library/Application Support", mac!)],
+      linux: [join(h, ".config", linux!), join(h, ".var/app", flatpakId(name), "config", linux!)],
+      win32: [join(process.env.LOCALAPPDATA ?? join(h, "AppData/Local"), mac!.replace(/\//g, "\\"), "User Data")],
+    }),
   };
 }
 
@@ -58,11 +59,11 @@ function firefox(name: string, [mac, linux, linuxHome]: string[]): BrowserDef {
   return {
     name,
     engine: "firefox",
-    dirs: {
-      darwin: [join(HOME, "Library/Application Support", mac!)],
-      linux: [join(HOME, ".config", linux!), join(HOME, linuxHome ?? `.${name.toLowerCase()}`)],
-      win32: [join(process.env.APPDATA ?? join(HOME, "AppData/Roaming"), mac!)],
-    },
+    dirs: (h) => ({
+      darwin: [join(h, "Library/Application Support", mac!)],
+      linux: [join(h, ".config", linux!), join(h, linuxHome ?? `.${name.toLowerCase()}`)],
+      win32: [join(process.env.APPDATA ?? join(h, "AppData/Roaming"), mac!)],
+    }),
   };
 }
 
@@ -76,7 +77,7 @@ function flatpakId(name: string): string {
 export function findProfiles(): Profile[] {
   const raw: Profile[] = [];
   for (const def of BROWSERS) {
-    for (const base of def.dirs[OS] ?? []) {
+    for (const base of def.dirs(home())[OS] ?? []) {
       if (!existsSync(base)) continue;
       raw.push(...(def.engine === "chromium" ? chromiumProfiles(def, base) : firefoxProfiles(def, base)));
     }
@@ -156,7 +157,7 @@ function domainMatch(host: string, want?: string): boolean {
 function chromiumCookies(profile: Profile, opts: { domain?: string }): Cookie[] {
   const dbPath = existsSync(join(profile.path, "Network", "Cookies")) ? join(profile.path, "Network", "Cookies") : join(profile.path, "Cookies");
   const rows = readTable(loadDb(dbPath), "cookies");
-  const decryptor = chromiumDecryptor(profile.browser);
+  const decryptor = chromiumDecryptor(profile.browser, rows);
   const out: Cookie[] = [];
   for (const r of rows) {
     const host = String(r.host_key ?? "");
@@ -164,7 +165,8 @@ function chromiumCookies(profile: Profile, opts: { domain?: string }): Cookie[] 
     const plain = String(r.value ?? "");
     const enc = r.encrypted_value as Uint8Array | null;
     const value = plain || (enc && enc.length ? decryptor(enc, host) : "");
-    if (value === undefined || value === null) continue;
+    // Encrypted but not decryptable with any key we have: never sent as garbage.
+    if (!value && enc && enc.length) continue;
     out.push({
       domain: host,
       name: String(r.name ?? ""),
@@ -210,19 +212,43 @@ function chromeTimeToUnix(micros: number): number {
 // ── Chromium decryption ────────────────────────────────────────────────────────────────────────────
 
 /** A function that decrypts one Chromium `encrypted_value` for a host, or "" when it cannot. */
-function chromiumDecryptor(browser: string): (enc: Uint8Array, host: string) => string {
+export function chromiumDecryptor(browser: string, rows: Row[] = []): (enc: Uint8Array, host: string) => string {
   if (OS === "win32") {
     const key = windowsKey(browser);
     return (enc, host) => (key ? decryptGcm(enc, key, host) : "");
   }
   const iterations = OS === "darwin" ? 1003 : 1;
+  const derive = (password: string) => pbkdf2Sync(password, "saltysalt", iterations, 16, "sha1");
+  // The key for each version prefix is the candidate that decrypts this profile's own cookies: on Linux the
+  // password may live in the GNOME keyring, in KWallet (KDE, a Steam Deck), or be Chromium's fixed fallback, and a
+  // stale entry in one store decrypts nothing (CBC never errors: a wrong key yields garbage, not a failure).
   const cache = new Map<string, Buffer | null>();
   const keyFor = (version: string): Buffer | null => {
-    if (!cache.has(version)) {
-      const password = version === "v10" && OS === "linux" ? "peanuts" : chromiumPassword(browser);
-      cache.set(version, password ? pbkdf2Sync(password, "saltysalt", iterations, 16, "sha1") : null);
+    if (cache.has(version)) return cache.get(version) ?? null;
+    const passwords = OS === "linux" ? (version === "v10" ? ["peanuts"] : [...linuxPasswords(browser), "peanuts", ""]) : [chromiumPassword(browser)].filter((p): p is string => !!p);
+    const sample = rows
+      .filter((r) => {
+        const e = r.encrypted_value as Uint8Array | null;
+        return !!e && e.length > 3 && new TextDecoder().decode(e.subarray(0, 3)) === version;
+      })
+      .slice(0, 40);
+    let best: Buffer | null = null;
+    let bestScore = 0;
+    for (const pw of passwords) {
+      const key = derive(pw);
+      if (!sample.length) {
+        best = key;
+        break;
+      }
+      const score = sample.filter((r) => decryptCbc((r.encrypted_value as Uint8Array).subarray(3), key, String(r.host_key ?? "")) !== "").length;
+      if (score > bestScore) {
+        best = key;
+        bestScore = score;
+      }
+      if (score === sample.length) break;
     }
-    return cache.get(version) ?? null;
+    cache.set(version, best);
+    return best;
   };
   return (enc, host) => {
     const version = new TextDecoder().decode(enc.subarray(0, 3));
@@ -232,15 +258,24 @@ function chromiumDecryptor(browser: string): (enc: Uint8Array, host: string) => 
   };
 }
 
-/** AES-128-CBC with a fixed all-spaces IV (Chromium on macOS/Linux). Strips the host-hash prefix newer Chrome adds. */
+/** A cookie value that can be sent: printable ASCII. A wrong key yields bytes that are not. */
+const TEXT = /^[\x20-\x7e]*$/;
+
+/**
+ * AES-128-CBC with a fixed all-spaces IV (Chromium on macOS/Linux). Strips the host-hash prefix newer Chrome adds.
+ * "" unless the padding is valid and the value is text: a wrong key never comes back as a garbage value.
+ */
 function decryptCbc(body: Uint8Array, key: Buffer, host: string): string {
   try {
+    if (!body.length || body.length % 16) return "";
     const d = createDecipheriv("aes-128-cbc", key, Buffer.alloc(16, 0x20));
     d.setAutoPadding(false);
     let pt = Buffer.concat([d.update(body), d.final()]);
     const pad = pt[pt.length - 1] ?? 0;
-    if (pad > 0 && pad <= 16) pt = pt.subarray(0, pt.length - pad);
-    return stripHostHash(pt, host);
+    if (pad < 1 || pad > 16 || pt.subarray(pt.length - pad).some((b) => b !== pad)) return "";
+    pt = pt.subarray(0, pt.length - pad);
+    const value = stripHostHash(pt, host);
+    return TEXT.test(value) ? value : "";
   } catch {
     return "";
   }
@@ -255,7 +290,8 @@ function decryptGcm(enc: Uint8Array, key: Buffer, host: string): string {
     const d = createDecipheriv("aes-256-gcm", key, nonce);
     d.setAuthTag(tag);
     const pt = Buffer.concat([d.update(body), d.final()]);
-    return stripHostHash(pt, host);
+    const value = stripHostHash(pt, host);
+    return TEXT.test(value) ? value : "";
   } catch {
     return "";
   }
@@ -270,21 +306,40 @@ function stripHostHash(pt: Buffer, host: string): string {
   return pt.toString("utf8");
 }
 
-/** The Safe Storage password: the OS keychain on macOS/Linux, else undefined (fixed keys handled by the caller). */
+/**
+ * Every Safe Storage password this Linux session can read for the browser, most likely first: the GNOME keyring
+ * (libsecret) and KWallet (KDE Plasma, a Steam Deck's desktop), each holding at most one. Which one the browser uses
+ * is decided by trying them on its cookies (chromiumDecryptor), so a stale entry in the other store is harmless.
+ */
+function linuxPasswords(browser: string): string[] {
+  const out: string[] = [];
+  const add = (v: string | undefined) => {
+    if (v && !out.includes(v)) out.push(v);
+  };
+  for (const attrs of [["application", browser.toLowerCase()], ["application", "chrome"], ["application", "chromium"]]) {
+    try {
+      add(execFileSync("secret-tool", ["lookup", ...attrs], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5_000 }));
+    } catch {
+      /* no entry, or no keyring */
+    }
+  }
+  const name = keychainName(browser);
+  for (const folder of [...new Set([`${name} Keys`, "Chromium Keys", "Chrome Keys"])]) {
+    try {
+      // kwallet-query prints the password and a newline; the wallet may ask to be unlocked once.
+      add(execFileSync("kwallet-query", ["-f", folder, "-r", `${folder.replace(/ Keys$/, "")} Safe Storage`, "kdewallet"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10_000 }).replace(/\r?\n$/, ""));
+    } catch {
+      /* no KWallet, or no such entry */
+    }
+  }
+  return out.filter((v) => !/^Failed to read|not found/i.test(v));
+}
+
+/** The Safe Storage password from the macOS keychain (Linux: linuxPasswords), else undefined. */
 function chromiumPassword(browser: string): string | undefined {
   const service = `${keychainName(browser)} Safe Storage`;
   try {
     if (OS === "darwin") return execFileSync("security", ["find-generic-password", "-wa", keychainName(browser), "-s", service], { encoding: "utf8" }).trim();
-    if (OS === "linux") {
-      for (const attrs of [["application", browser.toLowerCase()], ["application", "chrome"], ["application", "chromium"]]) {
-        try {
-          const v = execFileSync("secret-tool", ["lookup", ...attrs], { encoding: "utf8" });
-          if (v) return v;
-        } catch {
-          /* try the next attribute set */
-        }
-      }
-    }
   } catch {
     /* no keychain entry; the caller falls back where it can */
   }
