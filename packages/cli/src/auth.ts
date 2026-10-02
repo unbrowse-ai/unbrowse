@@ -39,14 +39,29 @@ export function clear(): void {
   rmSync(configPath(), { force: true });
 }
 
-/** The token for a call: env key, then stored key, then OAuth (refreshed when it is about to expire). */
+/**
+ * The key the v1 CLI (before 12) saved in ~/.unbrowse/config.json. v1 keys were carried over to the hosted service
+ * and still work, so someone who upgraded is not sent to sign in to a new, empty account. Only a real v1 key
+ * (`ubr_` + 48 hex), only for the hosted origin.
+ */
+export function v1Key(baseUrl: string): string | undefined {
+  if (!/^https:\/\/(www\.|api\.|v3\.)?unbrowse\.ai\/?$/.test(baseUrl)) return undefined;
+  try {
+    const key = (JSON.parse(readFileSync(join(process.env.HOME || homedir(), ".unbrowse", "config.json"), "utf8")) as { api_key?: unknown }).api_key;
+    return typeof key === "string" && /^ubr_[0-9a-f]{48}$/.test(key) ? key : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The token for a call: env key, then stored key, then OAuth (refreshed when it is about to expire), then a v1 key. */
 export async function currentToken(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<string | undefined> {
   if (process.env.UNBROWSE_API_KEY) return process.env.UNBROWSE_API_KEY;
   const stored = load();
   if (stored.baseUrl && stored.baseUrl !== baseUrl) return undefined;
   if (stored.apiKey) return stored.apiKey;
   const o = stored.oauth;
-  if (!o) return undefined;
+  if (!o) return v1Key(baseUrl);
   if (o.expiresAt && o.refreshToken && Date.now() > o.expiresAt - 60_000) {
     try {
       const fresh = await tokenRequest(baseUrl, { grant_type: "refresh_token", refresh_token: o.refreshToken, client_id: o.clientId, resource: apiResource(baseUrl) }, fetchImpl);
@@ -65,6 +80,8 @@ export function describe(baseUrl: string): string {
   if (stored.baseUrl && stored.baseUrl !== baseUrl) return `not signed in to ${baseUrl} (stored login is for ${stored.baseUrl})`;
   if (stored.apiKey) return `API key ${mask(stored.apiKey)} in ${configPath()}`;
   if (stored.oauth) return `OAuth sign-in in ${configPath()}`;
+  const v1 = !stored.baseUrl ? v1Key(baseUrl) : undefined;
+  if (v1) return `v1 API key ${mask(v1)} from ~/.unbrowse/config.json (still works; \`unbrowse login\` replaces it)`;
   return "not signed in";
 }
 
