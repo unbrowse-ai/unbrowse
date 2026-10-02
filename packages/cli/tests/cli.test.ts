@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { apiResource, clear, currentToken, oauthLogin, save } from "../src/auth.ts";
+import { apiResource, clear, currentToken, oauthLogin, save, v1Key } from "../src/auth.ts";
 import { main, parseArgs } from "../src/cli.ts";
 
 // A stand-in for the hosted REST API (/api/v1), shaped like unbrowse6's http.ts.
@@ -312,4 +312,27 @@ test("openapi prints the site's OpenAPI document without an account", async () =
   const r = await cli(["openapi", "docs.rs"]);
   expect(r.code).toBe(0);
   expect(seen.at(-1)).toMatchObject({ method: "GET", path: "sites/docs.rs/openapi.json" });
+});
+
+test("a v1 key in ~/.unbrowse/config.json still signs the CLI in to the hosted service", async () => {
+  delete process.env.UNBROWSE_API_KEY;
+  clear();
+  const home = process.env.HOME;
+  process.env.HOME = mkdtempSync(join(tmpdir(), "unbrowse-v1-"));
+  try {
+    const key = `ubr_${"a1".repeat(24)}`;
+    mkdirSync(join(process.env.HOME, ".unbrowse"));
+    writeFileSync(join(process.env.HOME, ".unbrowse", "config.json"), JSON.stringify({ api_key: key }));
+    expect(await currentToken("https://unbrowse.ai")).toBe(key);
+    expect(v1Key("http://127.0.0.1:1")).toBeUndefined();
+    writeFileSync(join(process.env.HOME, ".unbrowse", "config.json"), JSON.stringify({ api_key: "not-a-v1-key" }));
+    expect(await currentToken("https://unbrowse.ai")).toBeUndefined();
+    // A sign-in or stored key wins over it.
+    writeFileSync(join(process.env.HOME, ".unbrowse", "config.json"), JSON.stringify({ api_key: key }));
+    save({ baseUrl: "https://unbrowse.ai", apiKey: "ub_new" });
+    expect(await currentToken("https://unbrowse.ai")).toBe("ub_new");
+  } finally {
+    process.env.HOME = home;
+    clear();
+  }
 });
