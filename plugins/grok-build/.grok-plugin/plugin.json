@@ -1,6 +1,6 @@
 {
   "name": "unbrowse",
-  "version": "12.1.1",
+  "version": "12.1.2",
   "description": "Websites as APIs for Grok Build: the hosted Unbrowse MCP (discover, run, scrape, cloud browser, saved logins) plus its skill. Replaces web_search, web_fetch and agent-browser navigation with Unbrowse.",
   "author": { "name": "Unbrowse", "url": "https://unbrowse.ai" },
   "homepage": "https://unbrowse.ai",

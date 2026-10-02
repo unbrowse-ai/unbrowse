@@ -3,7 +3,7 @@
   "name": "io.github.unbrowse-ai/unbrowse",
   "title": "Unbrowse",
   "description": "Websites as APIs: read pages, run site tasks via learned APIs, cloud browser with saved logins.",
-  "version": "12.1.1",
+  "version": "12.1.2",
   "websiteUrl": "https://unbrowse.ai",
   "repository": {
     "url": "https://github.com/unbrowse-ai/unbrowse",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "unbrowse",
-      "version": "12.1.1",
+      "version": "12.1.2",
       "transport": {
         "type": "stdio"
       },

@@ -1,6 +1,6 @@
 {
   "name": "@unbrowse/sdk",
-  "version": "12.1.1",
+  "version": "12.1.2",
   "description": "TypeScript client for the Unbrowse API (unbrowse.ai/api/v1): runs, capabilities, learning, logins and the public site registry.",
   "license": "MIT",
   "type": "module",

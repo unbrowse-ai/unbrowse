@@ -1,6 +1,6 @@
 {
   "name": "unbrowse",
-  "version": "12.1.1",
+  "version": "12.1.2",
   "mcpName": "io.github.unbrowse-ai/unbrowse",
   "description": "Call websites as APIs: a thin CLI over the Unbrowse API.",
   "license": "MIT",

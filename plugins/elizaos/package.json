@@ -1,6 +1,6 @@
 {
   "name": "@unbrowse/plugin-unbrowse",
-  "version": "12.1.1",
+  "version": "12.1.2",
   "description": "elizaOS plugin for Unbrowse: read pages, run website tasks and use a cloud browser through the hosted Unbrowse MCP. Drop-in replacement for the default browser.",
   "license": "MIT",
   "type": "module",
