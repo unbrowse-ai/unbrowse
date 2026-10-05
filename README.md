@@ -1,5 +1,5 @@
 # Unbrowse
-Every website, even those without an official API or MCP, still relies on a first party API to talk to their backend.
+Every website, even those without an official API or MCP, still rely on a first party API to talk to their backend.
 Unbrowse calls these website's first party APIs to make agentic browsing 50-100x faster and 95% cheaper than using a browser.
 
 This is the open-source client for the hosted Unbrowse service
