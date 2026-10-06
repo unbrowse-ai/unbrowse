@@ -44,12 +44,34 @@ on stderr. Unbrowse's own services never go through your machine. `--from-unbrow
 Values are typed: `adults=2` is a number, `flex=true` a boolean, `x='{"a":1}'` JSON, anything
 else a string. `resume` names requirements by field (`origin=CDG`) and answers on the same run.
 
+The printed run leaves out its event log (as MCP does); `--events` keeps it. When nothing fits
+(`no_capability`) the next steps are printed on stderr as CLI commands: `scrape` the page, `index`
+the site, or a near-match `--capability`.
+
+## Pages
+
+| Command | Route |
+|---|---|
+| `scrape <url>` | `POST /scrape` |
+
+The page's main content as markdown on stdout, so it pipes; title, final URL and HTTP status on
+stderr. `--format markdown,links` (any of `markdown`, `html`, `text`, `links`, `raw`), `--full`
+(keep navigation and footers), `--render auto|always|never`, `--country GB`, `--deadline MS`.
+`--json` prints the whole answer with its metadata. One verified call.
+
 ## Teaching
 
 | Command | Route |
 |---|---|
+| `index <url> [--focus T] [--max N]` | `POST /index`, then `GET /index/:id` until it ends |
+| `index status [jobId]` | `GET /index/:id`, or `GET /index` for all |
 | `learn a.har b.har [--title T] [--goal G]` | `POST /learn` |
 | `learned [id]` | `GET /learned`, `GET /learned/:id` |
+
+`index` has an agent explore the site in Unbrowse's cloud browser and compile each flow it can
+prove into a tool. It takes minutes; progress goes to stderr, Ctrl-C leaves the job running, and
+`--no-wait` returns the job id at once. Done means `status: done` with `indexed` above 0; then
+`unbrowse site <host>` lists the tools.
 
 Record the task twice with different inputs (a HAR export from devtools) and pass both. Doing a
 task in the cloud browser is an MCP flow (`unbrowse.browse.*`), not a CLI command.
