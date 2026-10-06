@@ -8,7 +8,7 @@ import { dirname } from "node:path";
 import { createInterface } from "node:readline/promises";
 import * as auth from "./auth.ts";
 import { Unbrowse } from "@unbrowse/sdk";
-import type { Json, RunView } from "@unbrowse/sdk";
+import type { IndexJob, Json, RunView } from "@unbrowse/sdk";
 
 declare const __VERSION__: string | undefined;
 const VERSION = typeof __VERSION__ === "string" ? __VERSION__ : "dev";
@@ -27,6 +27,12 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
       [--capability ID] [--url URL] [--set key=value]… [--input JSON] [--unattended] [--no-wait]
       [--from-unbrowse]             site requests go from this machine (your IP) by default; this sends them from Unbrowse
                                     (--no-wait always sends from Unbrowse: a run from your IP needs this process to finish)
+      [--events]                    include the run's event log
+  scrape <url>                    Read one page as clean markdown on stdout (metadata on stderr)
+      [--format markdown|html|text|links|raw,…] [--full] [--render auto|always|never] [--country XX] [--deadline MS]
+  index <url>                     Teach Unbrowse a site: it explores it and compiles each flow into a tool
+      [--focus TEXT] [--max N] [--no-wait]
+  index status [jobId]            One index job, or all of yours
   inspect <runId>                 A run's status, requirements and result
   resume <runId> key=value…       Answer open requirements on the same run
   cancel <runId>                  Stop a run; prints the effect receipt
@@ -56,9 +62,10 @@ Options: --json (errors as JSON) · --base-url URL · --no-open
 Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_EGRESS=server, UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
-const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes"]);
+const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events"]);
 /** Commands that act for a workspace; the first one run with no sign-in starts the sign-in. */
-const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "inspect", "resume", "cancel", "learn", "learned", "logins", "call", "cookies"]);
+const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "scrape", "index", "inspect", "resume", "cancel", "learn", "learned", "logins", "call", "cookies"]);
+const SCRAPE_FORMATS = ["markdown", "html", "text", "links", "raw"] as const;
 
 export type Args = { _: string[]; flags: Record<string, string | boolean>; sets: Record<string, string> };
 
@@ -289,6 +296,61 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
           : await ub.run(request);
         return settle(ub, view, args, io, print);
       }
+      case "scrape": {
+        const url = need(rest[0], "scrape <url> [--format markdown|html|text|links|raw,…]");
+        const formats = (flag("format") ?? flag("formats") ?? "markdown").split(",").map((f) => f.trim()).filter(Boolean);
+        const bad = formats.filter((f) => !(SCRAPE_FORMATS as readonly string[]).includes(f));
+        if (bad.length || !formats.length) throw new UsageError(`--format takes ${SCRAPE_FORMATS.join(", ")} (comma-separated), not ${bad.join(", ") || "nothing"}`);
+        const render = flag("render");
+        if (render !== undefined && !["auto", "always", "never"].includes(render)) throw new UsageError("--render takes auto, always or never");
+        const deadline = flag("deadline");
+        if (deadline !== undefined && !(Number(deadline) > 0)) throw new UsageError("--deadline takes milliseconds, e.g. --deadline 60000");
+        const page = await ub.scrape({
+          url,
+          formats: formats as (typeof SCRAPE_FORMATS)[number][],
+          ...(args.flags.full ? { onlyMainContent: false } : {}),
+          ...(render ? { render: render as "auto" | "always" | "never" } : {}),
+          ...(flag("country") ? { country: flag("country") } : {}),
+          ...(deadline ? { deadlineMs: Number(deadline) } : {}),
+        });
+        if (args.flags.json) return print(page), 0;
+        // The page itself on stdout, so it pipes; what it is on stderr.
+        const m = page.metadata ?? ({} as Record<string, unknown>);
+        io.err([m.title ? String(m.title) : null, `${m.finalUrl ?? m.url ?? url}`, m.status !== undefined ? `HTTP ${m.status}` : null].filter(Boolean).join(" · "));
+        for (const f of formats) {
+          const v = page[f];
+          if (v === undefined || v === null) continue;
+          io.out(Array.isArray(v) ? v.join("\n") : typeof v === "string" ? v : JSON.stringify(v, null, 2));
+        }
+        return 0;
+      }
+      case "index": {
+        if (rest[0] === "status") {
+          print(rest[1] ? jobView(await ub.indexJob(rest[1]), args) : { jobs: (await ub.indexJobs()).jobs.map((j) => jobView(j, args)) });
+          return 0;
+        }
+        const url = need(rest[0], "index <url> [--focus TEXT] [--max N] [--no-wait] | index status [jobId]");
+        const max = flag("max");
+        if (max !== undefined && !(Number(max) >= 1)) throw new UsageError("--max takes a number of tools (1 or more)");
+        let job = await ub.index({ url, ...(flag("focus") ? { focus: flag("focus") } : {}), ...(max ? { maxCapabilities: Number(max) } : {}) });
+        if (args.flags["no-wait"]) {
+          print(jobView(job, args));
+          return io.err(`Indexing ${job.host} (${job.id}). Follow it: unbrowse index status ${job.id}`), 0;
+        }
+        io.err(`Indexing ${job.host} (${job.id}): an agent explores the site and proves each tool. This takes minutes; Ctrl-C leaves it running (unbrowse index status ${job.id}).`);
+        const deadline = Date.now() + Number(args.flags.timeout ?? 1800) * 1000;
+        let shown = "";
+        while ((job.status === "queued" || job.status === "running") && Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, Number(process.env.UNBROWSE_POLL_MS ?? 5000)));
+          job = await ub.indexJob(job.id);
+          const line = `${job.status}${job.indexed ? ` · ${job.indexed} tool(s) proven` : ""}`;
+          if (line !== shown) io.err((shown = line));
+        }
+        print(jobView(job, args));
+        if (job.status === "queued" || job.status === "running") return io.err(`Still ${job.status}: unbrowse index status ${job.id}`), 0;
+        if (job.status === "done" && (job.indexed ?? 0) > 0) return io.err(`Indexed ${job.host}: ${job.indexed} tool(s). See them: unbrowse site ${job.host} · run one: unbrowse run "<task>" --url ${job.url}`), 0;
+        return io.err(`Not indexed${job.error ? `: ${job.error.code} — ${job.error.message}` : ""}. Read a page now instead: unbrowse scrape ${job.url}`), 1;
+      }
       case "inspect":
         return settle(ub, await ub.inspect(need(rest[0], "inspect <runId>")), { ...args, flags: { ...args.flags, "no-wait": true } }, io, print);
       case "resume": {
@@ -472,7 +534,13 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
 /** Wait for a run to settle, print it, and turn its status into an exit code. */
 async function settle(ub: Unbrowse, view: RunView, args: Args, io: Io, print: (v: unknown) => void): Promise<number> {
   if (!args.flags["no-wait"] && (view.status === "accepted" || view.status === "working")) view = await ub.wait(view.runId, { timeoutMs: Number(args.flags.timeout ?? 600) * 1000 });
-  print(view);
+  // The event log is long and rarely wanted (MCP leaves it out too); --events keeps it.
+  if (args.flags.events) print(view);
+  else {
+    const { events: _events, ...shown } = view as RunView & { events?: unknown };
+    void _events;
+    print(shown);
+  }
   if (view.signIn?.url) {
     io.err(`This site needs a login. Save it in Unbrowse (the CLI never sees it): ${view.signIn.url}`);
     openLink(view.signIn.url, args, io);
@@ -486,7 +554,39 @@ async function settle(ub: Unbrowse, view: RunView, args: Args, io: Io, print: (v
   if (view.status === "succeeded") return view.verified ? 0 : 4;
   if (view.status === "outcome_unknown") return io.err("Outcome unknown: a change may have happened. Inspect before retrying."), 4;
   if (view.status === "accepted" || view.status === "working") return io.err(`Still ${view.status}: unbrowse inspect ${view.runId}`), 0;
+  if (view.error?.code === "no_capability") io.err(noCapabilityHint(view, args));
+  else if (view.error) io.err(`${view.status}: ${view.error.code}${view.error.message ? ` — ${view.error.message}` : ""}`);
   return 1;
+}
+
+/**
+ * What to do when no tool fits, as CLI commands. The server's message names REST routes and MCP tools
+ * (unbrowse.browse.open) a CLI user cannot call; the CLI has scrape and index for the same steps.
+ */
+export function noCapabilityHint(view: RunView, args: Args): string {
+  const result = (view.result ?? {}) as { next?: { url?: string }; suggestions?: { tools?: Array<{ capability?: string; title?: string }> } };
+  const task = args._.slice(1).join(" ");
+  const url = (typeof args.flags.url === "string" ? args.flags.url : undefined) ?? result.next?.url ?? task.match(/https?:\/\/\S+/)?.[0];
+  const lines = ["No tool fits this task yet."];
+  if (url) {
+    lines.push(`  Read the page now:        unbrowse scrape ${url}`);
+    lines.push(`  Teach Unbrowse the site:  unbrowse index ${url}   (minutes; then run the task again)`);
+  } else {
+    lines.push(`  Name the site:            unbrowse run ${JSON.stringify(task || "<task>")} --url https://…`);
+    lines.push("  Read any page now:        unbrowse scrape https://…");
+    lines.push("  Teach Unbrowse a site:    unbrowse index https://…");
+  }
+  const tools = (result.suggestions?.tools ?? []).filter((t) => t.capability).slice(0, 3);
+  if (tools.length) lines.push(`  Or a near match:          ${tools.map((t) => `unbrowse run --capability ${t.capability}`).join("\n                            ")}`);
+  return lines.join("\n");
+}
+
+/** An index job without its step trail (the trail is for the live page); --events keeps it. */
+function jobView(job: IndexJob, args: Args): IndexJob {
+  if (args.flags.events) return job;
+  const { events: _events, ...rest } = job as IndexJob & { events?: unknown };
+  void _events;
+  return rest as IndexJob;
 }
 
 function mapValues(sets: Record<string, string>): Record<string, Json> {
