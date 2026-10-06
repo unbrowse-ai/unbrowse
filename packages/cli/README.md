@@ -15,6 +15,8 @@ unbrowse resume <runId> origin=SIN           # answer on the same run
 | `login [--key K]`, `logout`, `whoami`, `usage` | Account |
 | `discover <query>` | Your capabilities, then the public registry |
 | `run <task…>`, `inspect`, `resume`, `cancel` | Runs |
+| `scrape <url>` | One page as markdown on stdout |
+| `index <url>`, `index status [jobId]` | Teach a site: an agent explores it and compiles each flow into a tool |
 | `learn a.har b.har`, `learned [id]` | Teach a site from two recordings |
 | `logins`, `logins remove <origin>` | Saved logins, masked. The CLI never takes a password |
 | `registry [query]`, `site <host>`, `openapi <host>` | Public compiled sites, a site's tools, its OpenAPI 3.1 document — no account |
