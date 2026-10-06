@@ -1,7 +1,9 @@
 // @unbrowse/sdk — the Unbrowse REST API (/api/v1). Grown from unbrowse6 src/lib/unbrowse/client.ts.
-import type { EgressRequest, EgressResponse, EgressStep, Json, RunRequest, RunView } from "./types.ts";
+import type { EgressRequest, EgressResponse, EgressStep, IndexJob, Json, RunRequest, RunView, ScrapeRequest, ScrapeResult } from "./types.ts";
 
 export const DEFAULT_BASE_URL = "https://unbrowse.ai/api/v1";
+/** Site requests a client-egress run sends at once (a browser sends about six per host). */
+const EGRESS_CONCURRENCY = 6;
 
 export type UnbrowseOptions = {
   /** API key (`ub_live_…`) or OAuth access token. Defaults to `UNBROWSE_API_KEY`. Public routes need none. */
@@ -157,23 +159,49 @@ export class Unbrowse {
     const send = opts.fetch ?? ((...a: Parameters<typeof globalThis.fetch>) => globalThis.fetch(...a));
     const deadline = Date.now() + (opts.timeoutMs ?? 600_000);
     let step: RunView | EgressStep = await this.run({ ...request, egress: "client" } as RunRequest);
+    // Requests already sent (or being sent): a later step can still list one until its answer lands.
+    const sent = new Set<string>();
     while (isEgressStep(step)) {
+      const { egressId } = step;
       if (Date.now() > deadline) {
-        await this.closeEgress(step.egressId).catch(() => undefined);
+        await this.closeEgress(egressId).catch(() => undefined);
         throw new UnbrowseError("client-egress run did not finish in time", 408, "timeout");
       }
-      const { egressId } = step;
-      for (const req of step.requests) {
-        let answer: { response: EgressResponse } | { error: string };
-        try {
-          if ((await opts.onRequest?.(req)) === false) throw new Error("refused by onRequest");
-          answer = { response: await sendEgress(send, req) };
-        } catch (err) {
-          answer = { error: err instanceof Error ? err.message : String(err) };
-        }
-        step = await this.answerEgress(egressId, req.id, answer);
-        if (!isEgressStep(step)) break;
+      const fresh = step.requests.filter((r) => !sent.has(r.id));
+      // Nothing new to send: ask where the run stands now (the route waits for the next request or the end).
+      if (!fresh.length) {
+        step = await this.egress(egressId);
+        continue;
       }
+      for (const r of fresh) sent.add(r.id);
+      // A page asks for many requests at once (its scripts, styles, APIs): send them together, a few at a time,
+      // and answer each as it lands. The latest answer says what comes next; a finished run ends the loop.
+      let latest: RunView | EgressStep = step;
+      let finished: RunView | undefined;
+      const queue = [...fresh];
+      const worker = async () => {
+        for (let req = queue.shift(); req && !finished; req = queue.shift()) {
+          let answer: { response: EgressResponse } | { error: string };
+          try {
+            if ((await opts.onRequest?.(req)) === false) throw new Error("refused by onRequest");
+            answer = { response: await sendEgress(send, req) };
+          } catch (err) {
+            answer = { error: err instanceof Error ? err.message : String(err) };
+          }
+          if (finished) return;
+          try {
+            const next = await this.answerEgress(egressId, req.id, answer);
+            if (isEgressStep(next)) latest = next;
+            else finished = next;
+          } catch (err) {
+            // The run stopped waiting for this one (it timed out or was aborted server-side): skip it, the run goes on.
+            if (err instanceof UnbrowseError && err.status === 409) continue;
+            throw err;
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(EGRESS_CONCURRENCY, fresh.length) }, worker));
+      step = finished ?? latest;
     }
     return step;
   }
@@ -223,6 +251,30 @@ export class Unbrowse {
 
   async skillMd(id: string): Promise<string> {
     return (await this.send(`/learned/${encodeURIComponent(id)}/skill.md`)).text();
+  }
+
+  // Pages and indexing
+
+  /**
+   * Read one page as clean markdown (or html, text, links, raw), with its metadata. Plain HTTP when the server's HTML
+   * has the content, else Unbrowse's cloud browser. The route defaults to html; this defaults to markdown, like MCP
+   * `unbrowse.scrape`. One verified call.
+   */
+  scrape(request: ScrapeRequest): Promise<ScrapeResult> {
+    return this.post("/scrape", { formats: ["markdown"], ...request });
+  }
+
+  /** Teach Unbrowse a site: an agent explores it and compiles each flow into a tool. Poll with `indexJob`. */
+  index(request: { url: string; focus?: string; maxCapabilities?: number }): Promise<IndexJob> {
+    return this.post("/index", request);
+  }
+
+  indexJob(jobId: string): Promise<IndexJob> {
+    return this.req(`/index/${encodeURIComponent(jobId)}`);
+  }
+
+  indexJobs(): Promise<{ jobs: IndexJob[] }> {
+    return this.req("/index");
   }
 
   // Account

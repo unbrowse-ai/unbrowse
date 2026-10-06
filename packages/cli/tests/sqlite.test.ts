@@ -33,7 +33,7 @@ test("handles interior b-tree pages and overflow blobs across thousands of rows"
     expect(r.host_key).toBe(`.site${i % 30}.com`);
     expect((r.encrypted_value as Uint8Array).length).toBe(i % 50 === 0 ? 9000 : 20 + (i % 40));
   }
-});
+}, 30_000); // builds a 4000-row database: 7–10 s on a 2-vCPU CI runner
 
 test("throws on a non-SQLite file and a missing table", () => {
   expect(() => readTable(new Uint8Array([1, 2, 3]), "cookies")).toThrow(/SQLite/);

@@ -38,8 +38,13 @@ const server = Bun.serve({
       if (body.task === "slow") return Response.json(run({ runId: "r2", status: "working" }));
       if (body.task === "login") return Response.json(run({ status: "failed", signIn: { url: "https://x.test/app/vault-request/q1" } }));
       if (body.task === "ask") return Response.json(run({ runId: "r3", status: "input_required", stateRevision: 4, requirements: [{ id: "q_origin", revision: 2, affectedAction: "origin", state: "open" }] }));
-      return Response.json(run());
+      if (body.task === "nothing fits") return Response.json(run({ status: "failed", verified: false, error: { code: "no_capability", message: "unbrowse.browse.open is an MCP tool" }, result: { next: { tool: "unbrowse.index", ...(body.targetUrl ? { url: body.targetUrl } : {}) }, suggestions: { tools: [{ capability: "public.api_weather_gov.get_cwsu", title: "Cwsu" }] } } }));
+      return Response.json(run({ events: [{ type: "RunAccepted" }] }));
     }
+    if (req.method === "POST" && path === "scrape") return Response.json({ markdown: "# Serde\n\nA framework.", links: ["https://serde.rs"], metadata: { url: body.url, finalUrl: body.url, status: 200, title: "serde - Rust" } });
+    if (req.method === "POST" && path === "index") return Response.json({ id: "ix_1", url: body.url, host: new URL(body.url).host, status: "queued", events: [{ step: 1 }] }, { status: 202 });
+    if (path === "index/ix_1") return Response.json({ id: "ix_1", url: "https://a.test", host: "a.test", status: ++polls < 2 ? "running" : "done", indexed: polls < 2 ? 0 : 2, events: [{ step: 2 }] });
+    if (path === "index") return Response.json({ jobs: [{ id: "ix_1", url: "https://a.test", host: "a.test", status: "done", indexed: 2, events: [] }] });
     if (path === "runs/r2") return Response.json(run({ runId: "r2", status: ++polls < 2 ? "working" : "succeeded" }));
     if (path === "runs/r3") return Response.json(run({ runId: "r3", status: polls++ ? "succeeded" : "input_required", stateRevision: 4, requirements: [{ id: "q_origin", revision: 2, affectedAction: "origin", state: "open" }] }));
     if (path === "runs/r3/responses") return Response.json({ ok: true });
@@ -170,6 +175,56 @@ test("commands map to their REST routes", async () => {
     expect(seen[0]).toMatchObject({ method, path });
   }
   expect(seen.length).toBe(1);
+});
+
+test("run leaves out the event log unless --events, like MCP", async () => {
+  expect((await cli(["run", "top", "stories"])).json().events).toBeUndefined();
+  expect((await cli(["run", "top", "stories", "--events"])).json().events).toEqual([{ type: "RunAccepted" }]);
+});
+
+test("no_capability: exit 1 and the next steps as CLI commands, not MCP tools or REST routes", async () => {
+  const bare = await cli(["run", "nothing", "fits"]);
+  expect(bare.code).toBe(1);
+  const said = bare.err.join("\n");
+  expect(said).toContain('unbrowse run "nothing fits" --url https://');
+  expect(said).toContain("unbrowse scrape https://");
+  expect(said).toContain("unbrowse run --capability public.api_weather_gov.get_cwsu");
+  expect(said).not.toContain("browse.open");
+  const named = (await cli(["run", "nothing", "fits", "--url", "https://wttr.in/London"])).err.join("\n");
+  expect(named).toContain("unbrowse scrape https://wttr.in/London");
+  expect(named).toContain("unbrowse index https://wttr.in/London");
+});
+
+test("scrape: the page on stdout as markdown, its title and status on stderr; --json is the whole answer", async () => {
+  const r = await cli(["scrape", "https://docs.rs/serde"]);
+  expect(r.code).toBe(0);
+  expect(seen.find((s) => s.path === "scrape")!.body).toEqual({ formats: ["markdown"], url: "https://docs.rs/serde" });
+  expect(r.out).toEqual(["# Serde\n\nA framework."]);
+  expect(r.err.join()).toContain("serde - Rust · https://docs.rs/serde · HTTP 200");
+  seen.length = 0;
+  const j = await cli(["scrape", "https://docs.rs/serde", "--format", "markdown,links", "--full", "--render", "never", "--json"]);
+  expect(seen.find((s) => s.path === "scrape")!.body).toEqual({ formats: ["markdown", "links"], url: "https://docs.rs/serde", onlyMainContent: false, render: "never" });
+  expect(j.json().links).toEqual(["https://serde.rs"]);
+  expect((await cli(["scrape", "https://a.test", "--format", "pdf"])).code).toBe(1);
+});
+
+test("index starts a job, follows it to done, and prints it without the step trail", async () => {
+  process.env.UNBROWSE_POLL_MS = "1";
+  try {
+    const r = await cli(["index", "https://a.test", "--focus", "search"]);
+    expect(r.code).toBe(0);
+    expect(seen.find((s) => s.path === "index")!.body).toEqual({ url: "https://a.test", focus: "search" });
+    expect(r.json()).toMatchObject({ id: "ix_1", status: "done", indexed: 2 });
+    expect(r.json().events).toBeUndefined();
+    expect(r.err.join("\n")).toContain("unbrowse site a.test");
+    const list = await cli(["index", "status"]);
+    expect(list.json().jobs[0]).toMatchObject({ id: "ix_1", indexed: 2 });
+    const quick = await cli(["index", "https://a.test", "--no-wait"]);
+    expect(quick.json()).toMatchObject({ id: "ix_1", status: "queued" });
+    expect(quick.err.join()).toContain("unbrowse index status ix_1");
+  } finally {
+    delete process.env.UNBROWSE_POLL_MS;
+  }
 });
 
 test("learn sends every HAR in one request", async () => {

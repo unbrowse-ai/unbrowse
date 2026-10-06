@@ -2,7 +2,7 @@
   "id": "unbrowse",
   "name": "Unbrowse",
   "description": "Websites as APIs: Unbrowse's hosted tools (discover, run, scrape, cloud browser, saved logins) plus a web_fetch provider; replaces the built-in browser for web pages.",
-  "version": "12.1.1",
+  "version": "12.2.0",
   "categories": [
     "web"
   ],

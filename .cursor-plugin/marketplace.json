@@ -1,7 +1,7 @@
 {
   "name": "unbrowse",
   "owner": { "name": "Unbrowse", "email": "lewis@unbrowse.ai" },
-  "metadata": { "description": "Unbrowse: websites as APIs for agents", "version": "12.1.1" },
+  "metadata": { "description": "Unbrowse: websites as APIs for agents", "version": "12.2.0" },
   "plugins": [
     { "name": "unbrowse", "source": "./plugins/cursor", "description": "Hosted Unbrowse MCP + skill + web rule" }
   ]

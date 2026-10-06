@@ -43,6 +43,8 @@ unbrowse login [--key ub_live_…]    sign in (browser OAuth) or store an API ke
 unbrowse discover <query>           your capabilities, then the public registry
 unbrowse run <task…> [--set k=v]    run a task from your IP (--from-unbrowse: from Unbrowse); waits for a verified result
 unbrowse resume <runId> k=v…        answer what the run asked for, on the same run
+unbrowse scrape <url>               read one page as markdown
+unbrowse index <url>                teach Unbrowse a site: each flow becomes a tool
 unbrowse learn a.har b.har          compile two recordings into a capability
 unbrowse logins                     saved logins, masked
 unbrowse registry [query]           public compiled sites (no account)

@@ -172,3 +172,44 @@ export type RunEvent = {
   build: string;
   payload: Record<string, Json>;
 };
+
+export type ScrapeFormat = "markdown" | "html" | "text" | "links" | "raw";
+
+/** `POST /scrape`: one page. `deadlineMs` is clamped to 5000–120000 (default 45000). */
+export type ScrapeRequest = {
+  url: string;
+  formats?: ScrapeFormat[];
+  /** Drop navigation, headers, footers and asides (default true). */
+  onlyMainContent?: boolean;
+  render?: "auto" | "always" | "never";
+  /** Exit country for the HTTP fetch: a two-letter ISO code or GLOBAL. */
+  country?: string;
+  deadlineMs?: number;
+};
+
+export type ScrapeResult = {
+  markdown?: string;
+  html?: string;
+  text?: string;
+  links?: string[];
+  raw?: string;
+  metadata: { url: string; finalUrl: string; status?: number; title?: string; description?: string; [k: string]: Json | undefined };
+  [k: string]: unknown;
+};
+
+/** An index job (`POST /index`): done means `status: "done"` and `indexed > 0`. */
+export type IndexJob = {
+  id: string;
+  url: string;
+  host: string;
+  status: "queued" | "running" | "done" | "failed";
+  /** Browserless tools it proved. */
+  indexed?: number;
+  capabilities?: Array<{ id?: string; name?: string; verified?: boolean; browserless?: boolean; [k: string]: Json | undefined }>;
+  stoppedReason?: string;
+  summary?: string;
+  error?: { code: string; message: string };
+  /** The site's tools: `GET` this path (no account). */
+  site?: string;
+  [k: string]: unknown;
+};

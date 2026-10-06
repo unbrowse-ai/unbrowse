@@ -59,6 +59,11 @@ test("every method maps to its /api/v1 route", async () => {
     [() => ub.learn({ har: { log: {} }, title: "T" }), "POST", "/learn", { har: { log: {} }, title: "T" }],
     [() => ub.learned(), "GET", "/learned"],
     [() => ub.learned("learned.a"), "GET", "/learned/learned.a"],
+    [() => ub.scrape({ url: "https://docs.rs/serde" }), "POST", "/scrape", { formats: ["markdown"], url: "https://docs.rs/serde" }],
+    [() => ub.scrape({ url: "https://a.test", formats: ["raw"], render: "never" }), "POST", "/scrape", { formats: ["raw"], url: "https://a.test", render: "never" }],
+    [() => ub.index({ url: "https://a.test", focus: "search" }), "POST", "/index", { url: "https://a.test", focus: "search" }],
+    [() => ub.indexJob("ix_abc"), "GET", "/index/ix_abc"],
+    [() => ub.indexJobs(), "GET", "/index"],
     [() => ub.usage(), "GET", "/usage"],
     [() => ub.me(), "GET", "/me"],
     [() => ub.logins.list(), "GET", "/logins"],
@@ -185,6 +190,33 @@ test("runOnClient reports a request it could not send, or one onRequest refused,
     { requestId: "rq_1", error: "getaddrinfo ENOTFOUND a.example" },
     { requestId: "rq_2", error: "refused by onRequest" },
   ]);
+});
+
+test("runOnClient sends a step's requests together and skips one the run stopped waiting for (409)", async () => {
+  let inFlight = 0;
+  let peak = 0;
+  const posted: string[] = [];
+  const reqs = ["rq_1", "rq_2", "rq_3"].map((id) => ({ id, method: "GET", url: `https://cdn.example/${id}.js`, headers: {}, redirect: "follow", curl: "" }));
+  const api = stub((s) => {
+    if (s.url.endsWith("/runs")) return Response.json({ status: "egress_required", egressId: "eg_3", requests: reqs }, { status: 202 });
+    const id = (s.body as { requestId: string }).requestId;
+    posted.push(id);
+    // rq_1 timed out server-side; the run carries on without it.
+    if (id === "rq_1") return Response.json({ error: { code: "unknown_request", message: "rq_1 is not waiting for an answer" } }, { status: 409 });
+    // A stale step can still list requests already sent: they are not sent twice.
+    if (posted.length < 3) return Response.json({ status: "egress_required", egressId: "eg_3", requests: reqs.slice(1) }, { status: 202 });
+    return Response.json({ runId: "run_3", status: "succeeded", result: { ok: true } });
+  });
+  const site = (async () => {
+    peak = Math.max(peak, ++inFlight);
+    await new Promise((r) => setTimeout(r, 5));
+    inFlight--;
+    return new Response("x");
+  }) as typeof globalThis.fetch;
+  const run = await new Unbrowse({ apiKey: "k", fetch: api.fetch }).runOnClient({ task: "x" }, { fetch: site });
+  expect(run.status).toBe("succeeded");
+  expect(peak).toBe(3);
+  expect(posted.sort()).toEqual(["rq_1", "rq_2", "rq_3"]);
 });
 
 /** A fetch that also records request headers. */
