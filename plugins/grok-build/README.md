@@ -9,7 +9,7 @@ npx unbrowse login            # OAuth, or: npx unbrowse login --key <ub_live_…
 
 ## Why a local proxy
 
-Grok drops MCP tools whose names contain anything besides letters, digits, `_` and `-`. The hosted server names its core tools `unbrowse.scrape`, `unbrowse.browse.open`, and so on, so Grok would see only site tools. The plugin runs `npx unbrowse@12.1.1 mcp` instead: a stdio server that forwards to the hosted MCP with the CLI's login and lists tools as `unbrowse_scrape`, `unbrowse_browse_open`, … In Grok they appear as `unbrowse__unbrowse_scrape`.
+Grok drops MCP tools whose names contain anything besides letters, digits, `_` and `-`. The hosted server names its core tools `unbrowse.scrape`, `unbrowse.browse.open`, and so on, so Grok would see only site tools. The plugin runs `npx unbrowse@12.2.0 mcp` instead: a stdio server that forwards to the hosted MCP with the CLI's login and lists tools as `unbrowse_scrape`, `unbrowse_browse_open`, … In Grok they appear as `unbrowse__unbrowse_scrape`.
 
 ## Replace the built-in browser
 
@@ -27,7 +27,7 @@ The sandbox reads `.grok/skills/`. Copy `skills/unbrowse` there; the agent can c
 
 ## Network, credentials, license
 
-- **Network:** the plugin talks only to Unbrowse. `npx -y unbrowse@12.1.1 mcp` (the npm package `unbrowse`, source in this repo at `packages/cli`) forwards MCP calls to `https://unbrowse.ai/api/mcp` (override with `UNBROWSE_MCP_URL`). Pages you ask it to read are fetched by Unbrowse's hosted service, not on your machine. There is no telemetry.
+- **Network:** the plugin talks only to Unbrowse. `npx -y unbrowse@12.2.0 mcp` (the npm package `unbrowse`, source in this repo at `packages/cli`) forwards MCP calls to `https://unbrowse.ai/api/mcp` (override with `UNBROWSE_MCP_URL`). Pages you ask it to read are fetched by Unbrowse's hosted service, not on your machine. There is no telemetry.
 - **Credentials:** the Unbrowse login saved by `npx unbrowse login` in `~/.config/unbrowse/cli.json` (mode 0600), or `UNBROWSE_API_KEY`. They are sent only to Unbrowse as a bearer token. Website passwords never pass through the plugin: they stay in Unbrowse's server-side vault.
 - **Hooks:** one `PreToolUse` hook, scoped by matcher to `web_search`, `web_fetch`, `run_terminal_command` and browser MCP servers. It is a local shell script (`scripts/redirect.sh`) with no network access. It reads the tool call on stdin and denies only built-in web tools, `agent-browser open|goto|navigate <remote url>` and browser MCPs, so every other shell command passes. `scripts/install-global-hook.sh` runs only if you run it.
 - **License:** MIT (`LICENSE` at the repo root).
