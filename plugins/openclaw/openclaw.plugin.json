@@ -74,9 +74,6 @@
       "unbrowse"
     ],
     "tools": [
-      "unbrowse_canvas_rows",
-      "unbrowse_canvas_read",
-      "unbrowse_canvas_put",
       "unbrowse_run",
       "unbrowse_inspect",
       "unbrowse_resume",
@@ -94,16 +91,12 @@
       "unbrowse_scrape",
       "unbrowse_map",
       "unbrowse_sites",
+      "unbrowse_connect",
       "unbrowse_credits",
       "unbrowse_usage",
       "unbrowse_index",
       "unbrowse_index_status",
-      "unbrowse_discover",
-      "unbrowse_replay_list",
-      "unbrowse_replay_search",
-      "unbrowse_replay_get",
-      "unbrowse_replay_timeline",
-      "unbrowse_replay_ask"
+      "unbrowse_discover"
     ]
   }
 }

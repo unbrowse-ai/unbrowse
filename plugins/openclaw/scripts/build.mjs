@@ -16,7 +16,8 @@ if (!existsSync(toolsPath)) {
 }
 const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const safe = (n) => n.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64);
-const tools = JSON.parse(readFileSync(toolsPath, "utf8")).tools.map((t) => safe(t.name));
+// Only unbrowse_x: the export also carries the ChatGPT-connector `search` / `fetch`, which would shadow host tools here.
+const tools = JSON.parse(readFileSync(toolsPath, "utf8")).tools.filter((t) => t.name.startsWith("unbrowse")).map((t) => safe(t.name));
 
 const manifestPath = join(root, "openclaw.plugin.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));

@@ -23,7 +23,8 @@ def safe_name(name: str) -> str:
 def load_core_tools(path: Path = TOOLS_JSON) -> List[Dict[str, Any]]:
     """The core tool list (name, description, inputSchema) shipped with the skill."""
     data = json.loads(path.read_text(encoding="utf-8"))
-    return list(data["tools"] if isinstance(data, dict) else data)
+    # Only unbrowse_x: the export also carries the ChatGPT-connector ``search`` / ``fetch``, which would shadow host tools.
+    return [t for t in (data["tools"] if isinstance(data, dict) else data) if t["name"].startswith("unbrowse")]
 
 
 def _rename_refs(text: str, known: Dict[str, str]) -> str:

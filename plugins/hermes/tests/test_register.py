@@ -50,6 +50,7 @@ def test_safe_name():
 
 def test_specs_cover_tools_json():
     raw = json.loads((PLUGIN_DIR / "skills/unbrowse/references/tools.json").read_text())["tools"]
+    raw = [t for t in raw if t["name"].startswith("unbrowse")]  # the connector search / fetch are not Hermes tools
     specs = tools_mod.tool_specs()
     assert [s["remote"] for s in specs] == [t["name"] for t in raw]
     for spec in specs:
@@ -91,7 +92,7 @@ def test_format_result_dedupes_structured():
 def test_register_against_fake_ctx(clean_env, fake_mcp):
     ctx = FakeCtx()
     pkg.register(ctx)
-    assert len(ctx.tools) == 30
+    assert len(ctx.tools) == len(tools_mod.tool_specs())
     assert {t["toolset"] for t in ctx.tools.values()} == {"unbrowse"}
     assert [h[0] for h in ctx.hooks] == ["pre_tool_call"]
     assert ctx.skills["unbrowse"].name == "SKILL.md" and ctx.skills["unbrowse"].exists()
@@ -104,7 +105,7 @@ def test_register_against_fake_ctx(clean_env, fake_mcp):
     out = json.loads(scrape["handler"]({"url": "https://example.com"}, task_id="t1", session_id="s"))
     assert "Example Domain" in out["text"] and "error" not in out
     sent = fake_mcp.requests[-1]
-    assert sent["body"]["params"]["name"] == "unbrowse.scrape"
+    assert sent["body"]["params"]["name"] == "unbrowse_scrape"
     assert sent["headers"]["authorization"] == "Bearer ub_k"
     assert sent["headers"]["user-agent"].startswith("unbrowse-hermes/")
 
