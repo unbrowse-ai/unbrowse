@@ -5,7 +5,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "unbrowse@12.2.1-preview.0",
+        "unbrowse@12.2.1",
         "mcp"
       ]
     }
