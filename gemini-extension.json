@@ -1,6 +1,6 @@
 {
   "name": "unbrowse",
-  "version": "12.2.0",
+  "version": "12.2.1-preview.0",
   "description": "Websites as APIs: read pages, run site tasks via learned APIs, and a cloud browser with saved logins.",
   "contextFileName": "skill/SKILL.md",
   "mcpServers": {

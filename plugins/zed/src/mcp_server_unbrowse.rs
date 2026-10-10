@@ -8,7 +8,7 @@ use zed_extension_api::{
 
 const PACKAGE_NAME: &str = "unbrowse";
 /// Pinned so an update is a reviewed extension release, not a silent npm change.
-const PACKAGE_VERSION: &str = "12.2.0";
+const PACKAGE_VERSION: &str = "12.2.1-preview.0";
 const SERVER_PATH: &str = "node_modules/unbrowse/dist/cli.js";
 const CONTEXT_SERVER_ID: &str = "mcp-server-unbrowse";
 
