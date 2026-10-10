@@ -16,9 +16,6 @@ requires_env:
     url: "https://unbrowse.ai"
     secret: true
 provides_tools:
-  - unbrowse_canvas_rows
-  - unbrowse_canvas_read
-  - unbrowse_canvas_put
   - unbrowse_run
   - unbrowse_inspect
   - unbrowse_resume
@@ -36,16 +33,12 @@ provides_tools:
   - unbrowse_scrape
   - unbrowse_map
   - unbrowse_sites
+  - unbrowse_connect
   - unbrowse_credits
   - unbrowse_usage
   - unbrowse_index
   - unbrowse_index_status
   - unbrowse_discover
-  - unbrowse_replay_list
-  - unbrowse_replay_search
-  - unbrowse_replay_get
-  - unbrowse_replay_timeline
-  - unbrowse_replay_ask
 provides_hooks:
   - pre_tool_call
 provides_web_providers:

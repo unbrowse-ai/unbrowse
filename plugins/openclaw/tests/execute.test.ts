@@ -16,7 +16,7 @@ const scrapeResult = {
 };
 
 describe("execute → hosted MCP", () => {
-  test("tools/call with the upstream (dotted) name, bearer key, JSON-RPC body", async () => {
+  test("tools/call with the upstream name, bearer key, JSON-RPC body", async () => {
     const { tools, calls } = setup({ apiKey: KEY, mcpUrl: "https://mcp.test/api/mcp/" }, () => rpcResult(scrapeResult));
     const res = await tool(tools, "unbrowse_scrape").execute("call-1", { url: "https://example.com" });
     expect(calls.length).toBe(1);
@@ -24,18 +24,18 @@ describe("execute → hosted MCP", () => {
     expect(calls[0].headers.authorization).toBe(`Bearer ${KEY}`);
     expect(calls[0].headers["user-agent"]).toMatch(/^unbrowse-openclaw\//);
     expect(calls[0].body.method).toBe("tools/call");
-    expect(calls[0].body.params).toEqual({ name: "unbrowse.scrape", arguments: { url: "https://example.com" } });
+    expect(calls[0].body.params).toEqual({ name: "unbrowse_scrape", arguments: { url: "https://example.com" } });
     expect(res.content).toEqual([{ type: "text", text: scrapeResult.content[0].text }]);
-    expect(res.details).toEqual({ unbrowseTool: "unbrowse.scrape", structured: scrapeResult.structuredContent });
+    expect(res.details).toEqual({ unbrowseTool: "unbrowse_scrape", structured: scrapeResult.structuredContent });
   });
 
-  test("nested names map back: unbrowse_browse_open → unbrowse.browse.open; SSE responses parse", async () => {
+  test("the served name goes upstream as is (unbrowse_browse_open); SSE responses parse", async () => {
     const { tools, calls } = setup({ apiKey: KEY }, () => sseResult({ content: [{ type: "text", text: "snapshot @e1" }] }));
     const res = await tool(tools, "unbrowse_browse_open").execute("c", { url: "https://news.ycombinator.com", task: "read" });
-    expect(calls[0].body.params?.name).toBe("unbrowse.browse.open");
+    expect(calls[0].body.params?.name).toBe("unbrowse_browse_open");
     expect(calls[0].url).toBe("https://unbrowse.ai/mcp");
     expect(res.content[0].text).toBe("snapshot @e1");
-    expect(res.details).toEqual({ unbrowseTool: "unbrowse.browse.open" });
+    expect(res.details).toEqual({ unbrowseTool: "unbrowse_browse_open" });
   });
 
   test("structured-only results become JSON text", async () => {
@@ -111,7 +111,7 @@ describe("error mapping", () => {
 
   test("isError tool results throw (OpenClaw: throw on failure) with the server's text", async () => {
     const { tools } = setup({ apiKey: KEY }, () => rpcResult({ isError: true, content: [{ type: "text", text: "url must be absolute" }] }));
-    await expect(tool(tools, "unbrowse_scrape").execute("c", { url: "x" })).rejects.toThrow("Unbrowse unbrowse.scrape failed: url must be absolute");
+    await expect(tool(tools, "unbrowse_scrape").execute("c", { url: "x" })).rejects.toThrow("Unbrowse unbrowse_scrape failed: url must be absolute");
   });
 
   test("network failure surfaces as an Error", async () => {

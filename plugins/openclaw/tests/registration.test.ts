@@ -9,7 +9,7 @@ import { fakeApi } from "./helpers.ts";
 const root = join(import.meta.dir, "..");
 const manifest = JSON.parse(readFileSync(join(root, "openclaw.plugin.json"), "utf8"));
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-const upstream = JSON.parse(readFileSync(join(root, "../../skill/references/tools.json"), "utf8")).tools as { name: string; inputSchema: unknown }[];
+const upstream = JSON.parse(readFileSync(join(root, "../../skill/references/tools.json"), "utf8")).tools.filter((t: { name: string }) => t.name.startsWith("unbrowse")) as { name: string; inputSchema: unknown }[]; // the connector `search` / `fetch` are not OpenClaw tools
 const RESERVED = ["status", "ok", "success", "error", "timedOut", "exitCode"];
 
 describe("registration", () => {

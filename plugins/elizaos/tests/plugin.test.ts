@@ -61,7 +61,7 @@ describe("parsing", () => {
     expect(s.path).toBeDefined();
     expect(existsSync(s.path!)).toBe(true);
     expect(s.steps.length).toBeGreaterThanOrEqual(4);
-    expect(s.steps[0]).toContain("unbrowse.discover");
+    expect(s.steps[0]).toContain("unbrowse_discover");
     expect(s.rules.join(" ")).toContain("passwords");
     expect(parseSkill("no frontmatter").steps.length).toBeGreaterThan(0); // falls back
   });
@@ -391,7 +391,7 @@ describe("UNBROWSE provider", () => {
     expect(mcp.calls.filter((c) => c.method === "tools/list")).toHaveLength(1);
     expect(r.text).toContain("connected (3 tools available)");
     expect(r.text).toContain("not BROWSER");
-    expect(r.text).toContain("unbrowse.discover");
+    expect(r.text).toContain("unbrowse_discover");
     expect(r.text).toContain("passwords");
     expect(r.text!.length).toBeLessThan(2000);
     expect(r.values).toMatchObject({ unbrowseConfigured: true, unbrowseConnected: true });

@@ -14,7 +14,8 @@ const VERSION = typeof __VERSION__ === "string" ? __VERSION__ : "dev";
 
 export type CoreTool = { name: string; description: string; inputSchema: JsonSchema };
 /** The core Unbrowse tools (the skill's references/tools.json, synced from the server export). */
-export const CORE_TOOLS: CoreTool[] = (toolsJson as { tools: CoreTool[] }).tools;
+/** Only unbrowse_x: the export also carries the ChatGPT-connector `search` / `fetch`, which would shadow host tools. */
+export const CORE_TOOLS: CoreTool[] = (toolsJson as { tools: CoreTool[] }).tools.filter((t) => t.name.startsWith("unbrowse"));
 
 /** A host-safe tool name: anything outside [A-Za-z0-9_-] becomes `_` (`unbrowse.browse.open` → `unbrowse_browse_open`). */
 export function safeToolName(name: string): string {
