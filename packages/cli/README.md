@@ -22,12 +22,12 @@ unbrowse resume <runId> origin=SIN           # answer on the same run
 | `registry [query]`, `site <host>`, `openapi <host>` | Public compiled sites, a site's tools, its OpenAPI 3.1 document — no account |
 | `call <host> <tool> [JSON]` | Run one site tool (`--set k=v`, `--deadline MS`, `--select a,b`, `--idempotency-key K`, `--end-user ID`) |
 
-The CLI is the REST client. The remote MCP is a separate client; see the [install guide](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/install.md).
+The CLI is the REST client. The remote MCP is a separate client; see the [install guide](https://github.com/unbrowse-ai/unbrowse/blob/main/docs/install.md).
 
 Exit codes: 0 accepted/ok (check status and verified), 1 error, 2 input required, 3 sign-in or saved login needed, 4 not verified.
 Env: `UNBROWSE_API_KEY`, `UNBROWSE_BASE_URL`. Node 18.17+, no dependencies.
 
-Install the hosted-client preview from the [installation guide](https://github.com/unbrowse-ai/unbrowse-skill/blob/main/docs/install.md); npm latest may be an older client.
+Install: `npx unbrowse login` (OAuth in your browser), then any command. Guide: [installation guide](https://github.com/unbrowse-ai/unbrowse/blob/main/docs/install.md).
 
 The agent contract ships as `SKILL.md` with `references/` in this package. Full reference, docs and the whitepaper:
-https://github.com/unbrowse-ai/unbrowse-skill
+https://github.com/unbrowse-ai/unbrowse

@@ -10,7 +10,7 @@ hosted MCP.
 ## The two passes
 
 **Pass 1 — learn.** No capability fits the task. The agent opens a recorded cloud browser
-(MCP `unbrowse.browse.open`), does the task, and finishes (`unbrowse.browse.finish`). Recording is on
+(MCP `unbrowse_browse_open`), does the task, and finishes (`unbrowse_browse_finish`). Recording is on
 from the first navigation, so the task is done *and* captured. Unbrowse then:
 
 - groups the recorded requests into families and drops pixels, analytics and polling;
@@ -62,14 +62,14 @@ over plain HTTP when the server sends the content in its HTML.
 
 Logins live in the Unbrowse password manager ([logins-and-vault.md](logins-and-vault.md)).
 
-- In the cloud browser, `unbrowse.browse.act` with `autofill` fills the login form from the vault. Values never
+- In the cloud browser, `unbrowse_browse_act` with `autofill` fills the login form from the vault. Values never
   pass through the agent.
 - On replay, a 401 from a site with a saved login triggers one browser sign-in; the session is
   cached and reused until it expires.
 - If no login is saved, the run carries a one-time save-login link (`signIn.url`). The CLI opens it
   and exits 3. MCP clients that support URL elicitation receive it as error `-32042`.
 
-The MCP tool `unbrowse.sites` shows what Unbrowse knows before you act: public or behind a sign-in, the
+The MCP tool `unbrowse_sites` shows what Unbrowse knows before you act: public or behind a sign-in, the
 kept session (active / expired / logged_out / none), last sign-in, saved login, learned tools and
 bot checks.
 

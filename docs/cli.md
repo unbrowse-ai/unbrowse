@@ -74,7 +74,7 @@ prove into a tool. It takes minutes; progress goes to stderr, Ctrl-C leaves the 
 `unbrowse site <host>` lists the tools.
 
 Record the task twice with different inputs (a HAR export from devtools) and pass both. Doing a
-task in the cloud browser is an MCP flow (`unbrowse.browse.*`), not a CLI command.
+task in the cloud browser is an MCP flow (`unbrowse_browse_*`), not a CLI command.
 
 ## Logins
 
@@ -145,7 +145,7 @@ Nothing is synced unless you name a site; scripts and agents (no terminal, `--js
 
 ## Local MCP proxy
 
-`unbrowse mcp` serves MCP over stdio and forwards every call to the hosted MCP (`<origin>/api/mcp`, or `--url` / `UNBROWSE_MCP_URL`) with the CLI's credentials: `UNBROWSE_API_KEY`, `login --key`, or the `login` OAuth token, refreshed per call. Tool names are rewritten to `[A-Za-z0-9_-]` (`unbrowse.scrape` → `unbrowse_scrape`) and mapped back on each call, for hosts such as Grok Build that reject dots. `--end-user ID` (or `UNBROWSE_END_USER`) sends `X-Unbrowse-End-User` for org keys. Nothing but protocol goes to stdout.
+`unbrowse mcp` serves MCP over stdio and forwards every call to the hosted MCP (`<origin>/api/mcp`, or `--url` / `UNBROWSE_MCP_URL`) with the CLI's credentials: `UNBROWSE_API_KEY`, `login --key`, or the `login` OAuth token, refreshed per call. The hosted tools are already named `unbrowse_x`; any other name with a character outside `[A-Za-z0-9_-]` is rewritten for hosts such as Grok Build and mapped back on each call. `--end-user ID` (or `UNBROWSE_END_USER`) sends `X-Unbrowse-End-User` for org keys. Nothing but protocol goes to stdout.
 
 ```json
 {"mcpServers":{"unbrowse":{"command":"npx","args":["-y","unbrowse","mcp"]}}}

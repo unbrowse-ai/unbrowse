@@ -1,0 +1,17 @@
+name: drift
+# Is the skill users get the skill in this repo? Fails (and GitHub emails the maintainers) when the
+# live server skill or the npm `latest` package differs from main. Not run on pull requests: a PR may be ahead.
+on:
+  schedule:
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node scripts/check-drift.mjs

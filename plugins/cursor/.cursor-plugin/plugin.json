@@ -1,7 +1,7 @@
 {
   "name": "unbrowse",
   "displayName": "Unbrowse",
-  "version": "12.2.0",
+  "version": "12.2.1-preview.0",
   "description": "Websites as APIs: read any page as markdown, run tasks on sites through learned first-party APIs, and a cloud browser with saved logins when nothing matches. Hosted MCP plus the Unbrowse skill.",
   "author": { "name": "Unbrowse", "url": "https://unbrowse.ai" },
   "homepage": "https://unbrowse.ai",

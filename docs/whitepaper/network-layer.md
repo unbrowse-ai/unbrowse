@@ -41,7 +41,7 @@ Stored entries have cookies, authorization and session values stripped.
 
 ## Every entry is a tool
 
-Each compiled site is its own MCP server (`/api/v1/sites/<host>/mcp`) and OpenAPI 3.1 document (`/api/v1/sites/<host>/openapi.json`). Tools carry input and output schemas. An agent can install one site as an MCP server, or search across all of them through `unbrowse.discover`.
+Each compiled site is its own MCP server (`/api/v1/sites/<host>/mcp`) and OpenAPI 3.1 document (`/api/v1/sites/<host>/openapi.json`). Tools carry input and output schemas. An agent can install one site as an MCP server, or search across all of them through `unbrowse_discover`.
 
 ## What the registry is not
 

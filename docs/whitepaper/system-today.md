@@ -19,10 +19,10 @@ The service keeps an acceptance ledger: each outcome has a check that can fail. 
 
 ## The core loop
 
-1. An agent asks for a task, by capability id or in plain language (`unbrowse.run`).
-2. The service looks in the caller's private space, then the public registry (`unbrowse.discover`).
+1. An agent asks for a task, by capability id or in plain language (`unbrowse_run`).
+2. The service looks in the caller's private space, then the public registry (`unbrowse_discover`).
 3. If a learned capability fits, it replays it over first-party HTTP. No browser.
-4. If nothing fits, the agent does the task once in the service's cloud browser (`unbrowse.browse.*`). The browser records the whole session. The task still gets done.
+4. If nothing fits, the agent does the task once in the service's cloud browser (`unbrowse_browse_*`). The browser records the whole session. The task still gets done.
 5. On finish, the service compiles the recorded sessions into a `learned.*` capability. Two sessions with different inputs give a callable capability. Next time, step 3 answers.
 
 The first request is fulfilled while the route is indexed. No separate "learn" call is needed.
@@ -31,7 +31,7 @@ The first request is fulfilled while the route is indexed. No separate "learn" c
 | --- | --- |
 | Cloud browser (patchright, headful), driven with `@ref` snapshots, recording from the first navigation | Shipped |
 | Passive indexing on `browse.finish` / `browse.close` | Shipped |
-| `unbrowse.learn` from HAR files or traces | Shipped |
+| `unbrowse_learn` from HAR files or traces | Shipped |
 | Replay over first-party HTTP, with mid-run inputs and choices | Shipped |
 | Survives restarts; each user's data in its own partition | Shipped |
 
@@ -66,7 +66,7 @@ Each capability also gets a SKILL.md. Both are readable over REST (`/api/v1/lear
 ## Run statuses
 
 - `succeeded`: the declared business outcome was independently verified. HTTP 200 is not enough.
-- `input_required`: waiting on an answer. Resume the same run (`unbrowse.resume`).
+- `input_required`: waiting on an answer. Resume the same run (`unbrowse_resume`).
 - `outcome_unknown`: a write may have landed. It is never re-sent automatically.
 - `failed` / `cancelled`: known effects are kept.
 
@@ -81,9 +81,9 @@ Each capability also gets a SKILL.md. Both are readable over REST (`/api/v1/lear
 
 ## Routing
 
-`unbrowse.run` with a plain-language task routes to a learned capability. When a TypeSafe API key is configured, Jev (TypeSafe System One) picks among eligible candidates. It may abstain. If Jev is down, routing falls back to a deterministic ranking. Jev never widens the eligible set. **Shipped.**
+`unbrowse_run` with a plain-language task routes to a learned capability. When a TypeSafe API key is configured, Jev (TypeSafe System One) picks among eligible candidates. It may abstain. If Jev is down, routing falls back to a deterministic ranking. Jev never widens the eligible set. **Shipped.**
 
-`unbrowse.discover` returns hints per capability: `health`, `state` (`warm` replays over HTTP, `rendered` uses a browser, `cold` never ran), p50/p95 latency from real runs, success rate, and `next` (the exact call or fix). **Shipped.**
+`unbrowse_discover` returns hints per capability: `health`, `state` (`warm` replays over HTTP, `rendered` uses a browser, `cold` never ran), p50/p95 latency from real runs, success rate, and `next` (the exact call or fix). **Shipped.**
 
 ## Public registry
 
@@ -114,7 +114,7 @@ See [Credential Sovereignty](./credential-sovereignty.md). In short:
 - CSV import from Chrome, Bitwarden, 1Password, LastPass, Firefox, Apple Passwords and Dashlane.
 - Auto sign-in on replay: a browserless read that hits a login wall on a site with a saved login triggers one browser sign-in, then keeps replaying over HTTP.
 - Session reuse: the signed-in session is cached and seeds later runs; the login step is skipped.
-- `unbrowse.sites` reports each site's state: public or behind a sign-in, kept session (active / expired / logged_out / none), saved login, learned tools, bot checks.
+- `unbrowse_sites` reports each site's state: public or behind a sign-in, kept session (active / expired / logged_out / none), saved login, learned tools, bot checks.
 - A zero-knowledge Private vault (only its owner can decrypt) next to an Agent vault agents use unattended. This is the newest piece.
 
 Status: all **shipped, check open** except the vault's core sealing and restart survival, which is **shipped**.
@@ -124,7 +124,7 @@ Status: all **shipped, check open** except the vault's core sealing and restart 
 - 500 verified calls a month free, then $10 per 10,000.
 - Only verified successes bill, each once. Failed, refused, challenged and `input_required` runs cost nothing. Policy denials are free.
 - A rendered run adds the hosted renderer's cost as passthrough.
-- `unbrowse.usage` and `GET /api/v1/usage` show calls, rendered runs, passthrough cost and quota left.
+- `unbrowse_usage` and `GET /api/v1/usage` show calls, rendered runs, passthrough cost and quota left.
 - Past a monthly quota, a run is refused with 402 `quota_exceeded` before any upstream request.
 
 Status: **shipped.**
@@ -143,7 +143,7 @@ No account is needed. `POST /api/v1/runs` and `POST /api/v1/sites/<host>/call/<t
 
 ## MCP tools
 
-`unbrowse.discover`, `unbrowse.sites`, `unbrowse.usage`, `unbrowse.run`, `unbrowse.inspect`, `unbrowse.resume`, `unbrowse.cancel`, `unbrowse.forget`, `unbrowse.learn`, `unbrowse.browse.open` / `.snapshot` / `.act` / `.finish` / `.close`, `unbrowse.credentials.list` / `.request` / `.status`. When three or fewer skills match, dedicated `unbrowse.skill.*` tools are listed with slot schemas from the harness YAML.
+`unbrowse_discover`, `unbrowse_sites`, `unbrowse_usage`, `unbrowse_run`, `unbrowse_inspect`, `unbrowse_resume`, `unbrowse_cancel`, `unbrowse_forget`, `unbrowse_learn`, `unbrowse_browse_open` / `_snapshot` / `_act` / `_finish` / `_close`, `unbrowse_credentials_list` / `_request` / `_status`. When three or fewer skills match, dedicated `unbrowse_skill_*` tools are listed with slot schemas from the harness YAML.
 
 ## What does not exist today
 

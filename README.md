@@ -9,7 +9,7 @@ This is the open-source client for the hosted Unbrowse service
 Install the agent skill:
 
 ```bash
-npx skills add unbrowse-ai/unbrowse-skill --skill unbrowse
+npx skills add unbrowse-ai/unbrowse --skill unbrowse
 ```
 
 Connect your agent:
@@ -18,7 +18,7 @@ Connect your agent:
 claude mcp add --transport http unbrowse https://unbrowse.ai/mcp
 ```
 
-Complete OAuth sign-in in your client. **For the CLI or SDK, use the pinned hosted-client release in [the installation guide](docs/install.md)**; npm `latest` may still target the older service.
+Complete OAuth sign-in in your client. From a terminal: `npx unbrowse login` (OAuth in your browser, nothing to paste), then `npx unbrowse run 'top stories on hacker news'`.
 
 [Install](docs/install.md) · [CLI](docs/cli.md) · [MCP](docs/mcp.md) · [SDK](docs/sdk.md) · [Troubleshooting](docs/troubleshooting.md)
 

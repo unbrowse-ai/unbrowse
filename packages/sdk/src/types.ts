@@ -106,6 +106,9 @@ export type EgressRequest = {
 /** A client-egress run waiting for you to send its next site request(s). */
 export type EgressStep = { status: "egress_required"; egressId: string; requests: EgressRequest[] };
 
+/** A client-egress run between requests: answers are in, the run has not asked for the next one (or ended) yet. */
+export type EgressWaiting = { status: "waiting_for_client" | (string & {}); egressId: string; pending?: { id: string; status: string }[] };
+
 /** The site's response to one request, as you got it. */
 export type EgressResponse = {
   status: number;

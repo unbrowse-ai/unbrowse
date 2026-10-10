@@ -9,14 +9,14 @@ that run their own save-login page; nothing ever reads a value back.
 - In the console at `/app/vault`, directly.
 - From a one-time link. When a run or autofill needs a login nobody saved, the service returns a
   `/app/vault-request/…` link. The CLI opens it (agents can make one on demand with the MCP tool
-  `unbrowse.credentials.request`); the person signs in to Unbrowse and saves the username or email, password and optional
-  2FA seed. Agents wait with `unbrowse.credentials.status`, then repeat the call.
+  `unbrowse_credentials_request`); the person signs in to Unbrowse and saves the username or email, password and optional
+  2FA seed. Agents wait with `unbrowse_credentials_status`, then repeat the call.
 - CSV import from Chrome, Bitwarden, 1Password, LastPass, Firefox, Apple and Dashlane in the
   console.
 
 ## Using a login
 
-- **Cloud browser:** `unbrowse.browse.act` with `action: "autofill"` fills the page's login form
+- **Cloud browser:** `unbrowse_browse_act` with `action: "autofill"` fills the page's login form
   (username or email, password, 2FA code). `fill` on one ref with `vault: "password"` fills
   one field. Snapshots show `[from vault]`, never the value.
 - **Replay:** learned capabilities that sign in take the login from the vault themselves. If a
