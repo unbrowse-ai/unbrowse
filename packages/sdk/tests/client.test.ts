@@ -227,7 +227,9 @@ test("runOnClient waits while the run is between requests (waiting_for_client) i
     if (s.url.endsWith("/runs")) return Response.json({ status: "egress_required", egressId: "eg_4", requests: [{ id: "rq_1", method: "GET", url: "https://hn.example/api", headers: {}, redirect: "follow", curl: "" }] }, { status: 202 });
     // The answer lands before the run has asked for its next request: production answers 202 waiting_for_client.
     if (s.method === "POST") return Response.json({ egressId: "eg_4", status: "waiting_for_client", pending: [] }, { status: 202 });
-    if (++polls < 3) return Response.json({ egressId: "eg_4", status: "waiting_for_client", pending: [] }, { status: 202 });
+    // A status this client has never seen (added by a later server) is still not the run.
+    if (++polls === 1) return Response.json({ egressId: "eg_4", status: "draining" }, { status: 202 });
+    if (polls < 3) return Response.json({ egressId: "eg_4", status: "waiting_for_client", pending: [] }, { status: 202 });
     return Response.json({ runId: "run_4", status: "succeeded", result: { stories: [1] } });
   });
   const site = (async () => new Response("{}")) as typeof globalThis.fetch;
