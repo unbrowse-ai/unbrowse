@@ -8,9 +8,9 @@ All of this runs in the hosted service. The client in this repo never handles a 
 
 The agent never sees a password and never types one.
 
-- On a login page the agent calls `unbrowse.browse.act { action: "autofill" }`, or fills one field with `vault: "username" | "email" | "password" | "totp"`.
+- On a login page the agent calls `unbrowse_browse_act { action: "autofill" }`, or fills one field with `vault: "username" | "email" | "password" | "totp"`.
 - The value goes into the page. Snapshots show `[from vault]`.
-- `unbrowse.credentials.list` shows saved logins as masked hints only.
+- `unbrowse_credentials_list` shows saved logins as masked hints only.
 - Agents see `vault://` references, never values.
 - Typed secrets are scrubbed from recorded traces and evidence. Passwords typed into chat are redacted.
 
@@ -20,7 +20,7 @@ The agent does not ask for the password. The service creates a one-time save-log
 
 - MCP clients that support URL elicitation get it as error `-32042` and open it.
 - Other clients (CLIs, REST) get the link with an instruction to open it in the user's browser.
-- The user signs in to Unbrowse and saves the login there. The agent waits with `unbrowse.credentials.status` and retries.
+- The user signs in to Unbrowse and saves the login there. The agent waits with `unbrowse_credentials_status` and retries.
 
 ## Two vaults
 
@@ -46,7 +46,7 @@ If a browserless read hits a login wall (401, 403, or a login page) on a site wi
 2. It captures the session and retries the read over HTTP.
 3. It caches the session. Later runs start signed in and skip the login step.
 
-A login that needs an emailed code needs it once. When the kept session expires or is logged out, `unbrowse.sites` says so, and the next run signs in again.
+A login that needs an emailed code needs it once. When the kept session expires or is logged out, `unbrowse_sites` says so, and the next run signs in again.
 
 ## What never leaves the workspace
 

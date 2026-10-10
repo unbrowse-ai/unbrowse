@@ -42,7 +42,7 @@ Clients that support MCP OAuth can omit `headers` and sign in in the browser whe
   "mcpServers": {
     "unbrowse": {
       "command": "npx",
-      "args": ["-y", "unbrowse@12.2.0", "mcp"],
+      "args": ["-y", "unbrowse@12.2.1-preview.0", "mcp"],
       "env": {
         "UNBROWSE_API_KEY": "ub_live_YOUR_KEY"
       },

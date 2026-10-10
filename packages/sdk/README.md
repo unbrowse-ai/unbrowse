@@ -4,7 +4,7 @@ TypeScript client for the Unbrowse API (`https://unbrowse.ai/api/v1`). Node 18.1
 or any runtime with `fetch`. No dependencies. The `unbrowse` CLI is built on it.
 
 ```bash
-npm install https://github.com/unbrowse-ai/unbrowse/releases/download/v12.0.1/unbrowse-sdk-12.0.1.tgz
+npm install @unbrowse/sdk
 ```
 
 ```ts

@@ -8,7 +8,7 @@ The reusable unit Unbrowse learns. A capability does one task on one site: searc
 
 Learned capabilities are named `learned.<site>.<goal>`. Public registry entries are named `public.<host>.<goal>`.
 
-Older docs said "skill" or "endpoint". In the current service, a *skill* is the SKILL.md that describes a capability, and `unbrowse.skill.*` tools are typed tools for one capability.
+Older docs said "skill" or "endpoint". In the current service, a *skill* is the SKILL.md that describes a capability, and `unbrowse_skill_*` tools are typed tools for one capability.
 
 ## Harness YAML
 
@@ -31,7 +31,7 @@ Session cookies, csrf values and tokens are never inputs.
 
 ## Learn
 
-Turning recorded browser sessions into a capability. Sources: the service's cloud browser (`unbrowse.browse.*`), or HAR files and traces (`unbrowse.learn`). Two sessions with different inputs are needed to tell inputs from constants.
+Turning recorded browser sessions into a capability. Sources: the service's cloud browser (`unbrowse_browse_*`), or HAR files and traces (`unbrowse_learn`). Two sessions with different inputs are needed to tell inputs from constants.
 
 ## Lifecycle
 

@@ -15,18 +15,18 @@ graph LR
 
 ## 1. Discover
 
-The agent calls `unbrowse.discover` with its intent. Results come in order:
+The agent calls `unbrowse_discover` with its intent. Results come in order:
 
 - the caller's **private space**: sites they connected or taught, public and passworded
 - the **public registry**: pre-indexed read-only capabilities anyone can run
 
-Each hit carries hints: health, state (`warm`, `rendered`, `cold`), p50/p95 latency, success rate and `next`, the exact call to make. `unbrowse.sites` says what is known about a site before acting: public or behind a sign-in, whether a session is kept, which tools exist.
+Each hit carries hints: health, state (`warm`, `rendered`, `cold`), p50/p95 latency, success rate and `next`, the exact call to make. `unbrowse_sites` says what is known about a site before acting: public or behind a sign-in, whether a session is kept, which tools exist.
 
 ## 2. Run
 
-`unbrowse.run` takes a capability id or a plain-language task. For a task, the service routes to an eligible learned capability; Jev picks when several fit.
+`unbrowse_run` takes a capability id or a plain-language task. For a task, the service routes to an eligible learned capability; Jev picks when several fit.
 
-A warm capability replays over first-party HTTP. No browser. If the flow needs an answer mid-run (pick a flight, a plan), the run returns `input_required` and the agent answers on the same run with `unbrowse.resume`.
+A warm capability replays over first-party HTTP. No browser. If the flow needs an answer mid-run (pick a flight, a plan), the run returns `input_required` and the agent answers on the same run with `unbrowse_resume`.
 
 If HTTP cannot finish:
 
@@ -37,12 +37,12 @@ If HTTP cannot finish:
 
 ## 3. Browse once when nothing fits
 
-If `unbrowse.run` returns `no_capability`, the agent does the task in the service's cloud browser:
+If `unbrowse_run` returns `no_capability`, the agent does the task in the service's cloud browser:
 
-1. `unbrowse.browse.open { url, task }` returns a snapshot with `@e1…` refs.
-2. `unbrowse.browse.act` fills, clicks, selects. The agent names each field (`origin`, `date`), and that name becomes the learned input.
+1. `unbrowse_browse_open { url, task }` returns a snapshot with `@e1…` refs.
+2. `unbrowse_browse_act` fills, clicks, selects. The agent names each field (`origin`, `date`), and that name becomes the learned input.
 3. Logins fill from the vault. The password never passes through the agent.
-4. `unbrowse.browse.finish` returns the page the task ended on.
+4. `unbrowse_browse_finish` returns the page the task ended on.
 
 Recording is on from the first navigation. The task gets done either way.
 
@@ -56,7 +56,7 @@ On finish, the service compiles every recorded session for the site. Two session
 
 The result is a `learned.*` capability: harness YAML plus a SKILL.md. Values that cannot be explained keep it `observed` (browser-backed). If the typed input never reached a replayable request, nothing is indexed and the agent is told why.
 
-A HAR export from devtools works too: `unbrowse.learn { har: [first, second] }`.
+A HAR export from devtools works too: `unbrowse_learn { har: [first, second] }`.
 
 ## 5. Verify, meter, share
 
