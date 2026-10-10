@@ -1,5 +1,5 @@
 // @unbrowse/sdk — the Unbrowse REST API (/api/v1). Grown from unbrowse6 src/lib/unbrowse/client.ts.
-import type { EgressRequest, EgressResponse, EgressStep, IndexJob, Json, RunRequest, RunView, ScrapeRequest, ScrapeResult } from "./types.ts";
+import type { EgressRequest, EgressResponse, EgressStep, EgressWaiting, IndexJob, Json, RunRequest, RunView, ScrapeRequest, ScrapeResult } from "./types.ts";
 
 export const DEFAULT_BASE_URL = "https://unbrowse.ai/api/v1";
 /** Site requests a client-egress run sends at once (a browser sends about six per host). */
@@ -158,15 +158,23 @@ export class Unbrowse {
   ): Promise<RunView> {
     const send = opts.fetch ?? ((...a: Parameters<typeof globalThis.fetch>) => globalThis.fetch(...a));
     const deadline = Date.now() + (opts.timeoutMs ?? 600_000);
-    let step: RunView | EgressStep = await this.run({ ...request, egress: "client" } as RunRequest);
+    let step: RunView | EgressStep | EgressWaiting = await this.run({ ...request, egress: "client" } as RunRequest);
     // Requests already sent (or being sent): a later step can still list one until its answer lands.
     const sent = new Set<string>();
-    while (isEgressStep(step)) {
+    let idle = 0;
+    while (isEgressStep(step) || isEgressWaiting(step)) {
       const { egressId } = step;
       if (Date.now() > deadline) {
         await this.closeEgress(egressId).catch(() => undefined);
         throw new UnbrowseError("client-egress run did not finish in time", 408, "timeout");
       }
+      // The run has every answer it asked for and has not decided what comes next: ask again shortly.
+      if (isEgressWaiting(step)) {
+        await new Promise((r) => setTimeout(r, Math.min(250 * 2 ** idle++, 2_000)));
+        step = await this.egress(egressId);
+        continue;
+      }
+      idle = 0;
       const fresh = step.requests.filter((r) => !sent.has(r.id));
       // Nothing new to send: ask where the run stands now (the route waits for the next request or the end).
       if (!fresh.length) {
@@ -176,7 +184,7 @@ export class Unbrowse {
       for (const r of fresh) sent.add(r.id);
       // A page asks for many requests at once (its scripts, styles, APIs): send them together, a few at a time,
       // and answer each as it lands. The latest answer says what comes next; a finished run ends the loop.
-      let latest: RunView | EgressStep = step;
+      let latest: EgressStep | EgressWaiting = step;
       let finished: RunView | undefined;
       const queue = [...fresh];
       const worker = async () => {
@@ -191,7 +199,7 @@ export class Unbrowse {
           if (finished) return;
           try {
             const next = await this.answerEgress(egressId, req.id, answer);
-            if (isEgressStep(next)) latest = next;
+            if (isEgressStep(next) || isEgressWaiting(next)) latest = next;
             else finished = next;
           } catch (err) {
             // The run stopped waiting for this one (it timed out or was aborted server-side): skip it, the run goes on.
@@ -207,12 +215,12 @@ export class Unbrowse {
   }
 
   /** What a client-egress run is waiting for: the next request(s), or the finished run. */
-  egress(egressId: string): Promise<RunView | EgressStep> {
+  egress(egressId: string): Promise<RunView | EgressStep | EgressWaiting> {
     return this.req(`/egress/${egressId}`);
   }
 
   /** Post the site's response (or why it could not be sent) for one request; returns what comes next. */
-  answerEgress(egressId: string, requestId: string, answer: { response: EgressResponse } | { error: string }): Promise<RunView | EgressStep> {
+  answerEgress(egressId: string, requestId: string, answer: { response: EgressResponse } | { error: string }): Promise<RunView | EgressStep | EgressWaiting> {
     return this.post(`/egress/${egressId}`, { requestId, ...answer });
   }
 
@@ -453,6 +461,18 @@ export type LoginView = { ref: string; origin: string; label?: string; hints: { 
 /** Whether a run answer is a client-egress step (requests to send) rather than a run. */
 export function isEgressStep(v: unknown): v is EgressStep {
   return !!v && typeof v === "object" && (v as { status?: unknown }).status === "egress_required";
+}
+
+/**
+ * Whether a run answer says the client-egress run is not finished but has nothing to send yet (poll `egress` again):
+ * `waiting_for_client`, or any other egress answer that is not a run. A run carries `runId`; an egress step that is not
+ * `egress_required` never is the result, so a status the server adds later keeps the loop polling (under its deadline)
+ * instead of being printed as the run.
+ */
+export function isEgressWaiting(v: unknown): v is EgressWaiting {
+  if (!v || typeof v !== "object") return false;
+  const o = v as { status?: unknown; egressId?: unknown; runId?: unknown };
+  return typeof o.egressId === "string" && o.runId === undefined && o.status !== "egress_required";
 }
 
 /** Sends one egress request and captures the response as Unbrowse needs it. */

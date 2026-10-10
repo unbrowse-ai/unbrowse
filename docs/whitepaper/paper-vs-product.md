@@ -18,7 +18,7 @@ The client in this repo is a thin transport. Every row below is service behavior
 | --- | --- | --- |
 | Agents should call first-party routes, not drive the DOM | Shipped | Learned capabilities replay over first-party HTTP. The browser is for discovery and for reads HTTP cannot finish. |
 | Passive indexing from normal use | Shipped | The cloud browser records every session. `browse.finish` compiles it. The first request is fulfilled while indexing. |
-| Learning from recorded traffic | Shipped | `unbrowse.learn` compiles HAR files or traces. Cross-session diffs find inputs; producer→consumer tracing binds tokens and ids. |
+| Learning from recorded traffic | Shipped | `unbrowse_learn` compiles HAR files or traces. Cross-session diffs find inputs; producer→consumer tracing binds tokens and ids. |
 | Three paths: local cache, shared graph, browser fallback | Changed | Private space, then public registry, then the cloud browser. A render fallback covers reads HTTP cannot finish. The client keeps no local cache. |
 | Shared route graph | Partial | A public registry of scrubbed, re-verified read-only capabilities (check open). It holds reads, not a general graph of writes. Multi-step flows live inside one capability's harness. |
 | Intent resolution by composite score (embedding, reliability, freshness, verification) | Changed | Discover ranks and returns health hints (p50/p95, success rate, warm/rendered/cold). Jev picks among eligible candidates, with a deterministic fallback. No embedding-weighted formula. |

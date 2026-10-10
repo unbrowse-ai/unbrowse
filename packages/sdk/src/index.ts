@@ -1,4 +1,4 @@
-export { DEFAULT_BASE_URL, SiteClient, Unbrowse, UnbrowseError, isEgressStep, normalizeHost } from "./client.ts";
+export { DEFAULT_BASE_URL, SiteClient, Unbrowse, UnbrowseError, isEgressStep, isEgressWaiting, normalizeHost } from "./client.ts";
 export type { LoginView, SiteCallOptions, SiteInfo, SiteRun, SiteToolInfo, UnbrowseOptions } from "./client.ts";
 export type * from "./types.ts";
 export { cursorInstallLink, mcpCommands, vscodeInstallLink } from "./mcp-install.ts";

@@ -19,6 +19,6 @@ for (const file of ['README.md','skill/SKILL.md','docs/README.md','docs/install.
 const {tools} = JSON.parse(readFileSync('skill/references/tools.json','utf8'));
 assert.ok(tools.length > 0);
 assert.equal(new Set(tools.map(t=>t.name)).size,tools.length);
-for (const t of tools) assert.ok(t.name.startsWith('unbrowse.') && t.inputSchema.type === 'object');
+for (const t of tools) assert.ok(/^(unbrowse_[a-z_]+|search|fetch)$/.test(t.name) && t.inputSchema.type === 'object');
 assert.equal(readFileSync('AGENTS.md','utf8'),readFileSync('CLAUDE.md','utf8'));
 console.log('PUBLIC_SURFACE_OK');

@@ -21,19 +21,19 @@ Install the [agent skill](install.md#agent-skill) for operating guidance. Export
 
 | Tool | Use |
 |---|---|
-| `unbrowse.discover` | Search your private space, then the public registry |
-| `unbrowse.sites` | Per-site state: public or behind sign-in, kept session, last sign-in, saved login, learned tools, bot checks |
-| `unbrowse.usage` | Verified calls this month, rendered runs, passthrough cost, quota left |
-| `unbrowse.run` | Start a run by `capability` id or plain-language `task`; `input` keyed by the capability's inputs |
-| `unbrowse.inspect` | Status, requirements, verified result, known effects, routing explanation |
-| `unbrowse.resume` | `{ runId, answers: { <field>: value } }` on the same run |
-| `unbrowse.cancel` | Stop new dispatches; effect receipt |
-| `unbrowse.forget` | Delete your learned capability, or unpin a public one |
-| `unbrowse.browse.open` / `.snapshot` / `.act` / `.finish` / `.close` | Recorded cloud browser |
-| `unbrowse.learn` | Compile HAR files or traces into a `learned.*` capability |
-| `unbrowse.credentials.list` / `.request` / `.status` | Password manager: masked hints, save-login links |
+| `unbrowse_discover` | Search your private space, then the public registry |
+| `unbrowse_sites` | Per-site state: public or behind sign-in, kept session, last sign-in, saved login, learned tools, bot checks |
+| `unbrowse_usage` | Verified calls this month, rendered runs, passthrough cost, quota left |
+| `unbrowse_run` | Start a run by `capability` id or plain-language `task`; `input` keyed by the capability's inputs |
+| `unbrowse_inspect` | Status, requirements, verified result, known effects, routing explanation |
+| `unbrowse_resume` | `{ runId, answers: { <field>: value } }` on the same run |
+| `unbrowse_cancel` | Stop new dispatches; effect receipt |
+| `unbrowse_forget` | Delete your learned capability, or unpin a public one |
+| `unbrowse_browse_open` / `_snapshot` / `_act` / `_finish` / `_close` | Recorded cloud browser |
+| `unbrowse_learn` | Compile HAR files or traces into a `learned.*` capability |
+| `unbrowse_credentials_list` / `_request` / `_status` | Password manager: masked hints, save-login links |
 
-When three or fewer capabilities match, dedicated `unbrowse.skill.*` tools are listed with slot
+When three or fewer capabilities match, dedicated `unbrowse_skill_*` tools are listed with slot
 schemas from the harness. Your compiled tools appear as `my__<site>__<op>`; `tools/list` with a
 query adds matching public ones.
 
@@ -57,15 +57,15 @@ on an autofill error).
 
 ## Operating order
 
-1. `unbrowse.discover` (and `unbrowse.sites` for a site you will sign in to).
-2. `unbrowse.run` with a capability id or task. Pass every input you know.
-3. `input_required` → `unbrowse.resume` on the same run.
-4. `no_capability` → do it once with `unbrowse.browse.*`; it is learned.
+1. `unbrowse_discover` (and `unbrowse_sites` for a site you will sign in to).
+2. `unbrowse_run` with a capability id or task. Pass every input you know.
+3. `input_required` → `unbrowse_resume` on the same run.
+4. `no_capability` → do it once with `unbrowse_browse_*`; it is learned.
 
 The full agent contract is [skill/SKILL.md](../skill/SKILL.md).
 
 ## Live canvas
 
-When listed, `unbrowse.canvas.read` and `.put` read or create notes, plans, results and reply drafts on [your canvas](https://unbrowse.ai/app/canvas). Use the same account in both places. Card creation does not send external messages. Updates use revisions and preserve human edits.
+When listed, `unbrowse_canvas_read` and `_put` read or create notes, plans, results and reply drafts on [your canvas](https://unbrowse.ai/app/canvas). Use the same account in both places. Card creation does not send external messages. Updates use revisions and preserve human edits.
 
-`unbrowse.scrape` reads a page; `unbrowse.map` discovers same-site URLs. Consult the returned schemas for supported options.
+`unbrowse_scrape` reads a page; `unbrowse_map` discovers same-site URLs. Consult the returned schemas for supported options.

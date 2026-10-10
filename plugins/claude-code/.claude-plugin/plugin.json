@@ -1,7 +1,7 @@
 {
   "name": "unbrowse",
   "displayName": "Unbrowse",
-  "version": "12.2.0",
+  "version": "12.2.1-preview.0",
   "description": "Websites as APIs for Claude Code: the hosted Unbrowse MCP (discover, run, scrape, cloud browser, saved logins) plus its skill. Replaces WebFetch, WebSearch and browser MCPs with Unbrowse.",
   "author": { "name": "Unbrowse", "url": "https://unbrowse.ai" },
   "homepage": "https://unbrowse.ai",

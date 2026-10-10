@@ -219,6 +219,25 @@ test("runOnClient sends a step's requests together and skips one the run stopped
   expect(posted.sort()).toEqual(["rq_1", "rq_2", "rq_3"]);
 });
 
+test("runOnClient waits while the run is between requests (waiting_for_client) instead of returning it as the run", async () => {
+  const calls: string[] = [];
+  let polls = 0;
+  const api = stub((s) => {
+    calls.push(`${s.method} ${s.url.replace("https://unbrowse.ai/api/v1", "")}`);
+    if (s.url.endsWith("/runs")) return Response.json({ status: "egress_required", egressId: "eg_4", requests: [{ id: "rq_1", method: "GET", url: "https://hn.example/api", headers: {}, redirect: "follow", curl: "" }] }, { status: 202 });
+    // The answer lands before the run has asked for its next request: production answers 202 waiting_for_client.
+    if (s.method === "POST") return Response.json({ egressId: "eg_4", status: "waiting_for_client", pending: [] }, { status: 202 });
+    // A status this client has never seen (added by a later server) is still not the run.
+    if (++polls === 1) return Response.json({ egressId: "eg_4", status: "draining" }, { status: 202 });
+    if (polls < 3) return Response.json({ egressId: "eg_4", status: "waiting_for_client", pending: [] }, { status: 202 });
+    return Response.json({ runId: "run_4", status: "succeeded", result: { stories: [1] } });
+  });
+  const site = (async () => new Response("{}")) as typeof globalThis.fetch;
+  const run = await new Unbrowse({ apiKey: "k", fetch: api.fetch }).runOnClient({ task: "top stories on hacker news" }, { fetch: site });
+  expect(run).toMatchObject({ runId: "run_4", status: "succeeded" });
+  expect(calls).toEqual(["POST /runs", "POST /egress/eg_4", "GET /egress/eg_4", "GET /egress/eg_4", "GET /egress/eg_4"]);
+});
+
 /** A fetch that also records request headers. */
 function stubWithHeaders(reply: () => Response = () => Response.json({ runId: "lrun_1", status: "succeeded", result: { title: "serde" } })) {
   const sent: { method: string; url: string; headers: Headers; body: unknown }[] = [];
