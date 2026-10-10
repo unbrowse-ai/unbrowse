@@ -142,6 +142,15 @@ Nothing is synced unless you name a site; scripts and agents (no terminal, `--js
 |---|---|
 | `registry [query]` | `GET /sites?q=` |
 | `site <host>` | `GET /sites/:host` |
+| `openapi <host>` | `GET /sites/:host/openapi.json`: OpenAPI 3.1, one operation per tool |
+
+## Call one site tool
+
+| Command | Route |
+|---|---|
+| `call <host> <tool> [JSON]` | `POST /sites/:host/call/:tool` with the tool's inputs as the body |
+
+Inputs as a JSON argument, `--input JSON` or `--set key=value` (repeatable). `--deadline MS`, `--select PATH,…` (narrow the result), `--idempotency-key K`, `--end-user ID` (org keys). Prints the run; needs an account.
 
 ## Local MCP proxy
 
