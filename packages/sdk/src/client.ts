@@ -463,9 +463,16 @@ export function isEgressStep(v: unknown): v is EgressStep {
   return !!v && typeof v === "object" && (v as { status?: unknown }).status === "egress_required";
 }
 
-/** Whether a run answer says the client-egress run is between requests (poll `egress` again), not finished. */
+/**
+ * Whether a run answer says the client-egress run is not finished but has nothing to send yet (poll `egress` again):
+ * `waiting_for_client`, or any other egress answer that is not a run. A run carries `runId`; an egress step that is not
+ * `egress_required` never is the result, so a status the server adds later keeps the loop polling (under its deadline)
+ * instead of being printed as the run.
+ */
 export function isEgressWaiting(v: unknown): v is EgressWaiting {
-  return !!v && typeof v === "object" && (v as { status?: unknown }).status === "waiting_for_client" && typeof (v as { egressId?: unknown }).egressId === "string";
+  if (!v || typeof v !== "object") return false;
+  const o = v as { status?: unknown; egressId?: unknown; runId?: unknown };
+  return typeof o.egressId === "string" && o.runId === undefined && o.status !== "egress_required";
 }
 
 /** Sends one egress request and captures the response as Unbrowse needs it. */
