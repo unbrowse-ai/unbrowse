@@ -40,7 +40,7 @@ From an agent's shell (no terminal for the person): run `npx unbrowse login --no
 
 Then the first call: `npx unbrowse run 'top stories on hacker news'`. The site requests go from the person's own IP by default; `--from-unbrowse` sends them from Unbrowse instead.
 
-`npx unbrowse mcp` (a stdio MCP for hosts that need one) uses the CLI sign-in. A remote MCP in a host config uses only that host's own OAuth: one sign-in does not cover the other, and the CLI token does not go into an MCP config.
+`npx unbrowse mcp` (a stdio MCP for hosts that need one) uses the CLI sign-in; `unbrowse mcp add` registers it with Claude Code and Codex, so they run on that one sign-in. The other way: with no CLI sign-in, the CLI uses Claude Code's own Unbrowse MCP sign-in (the plugin's `https://unbrowse.ai/api/mcp`; a token for `/mcp` does not work on the REST API). No token is ever written into an MCP config.
 
 For automation and CI without a browser, set `UNBROWSE_API_KEY` from the caller's secret manager (create a key in the signed-in console at https://unbrowse.ai/app). Never put keys into committed config, prompts, command arguments or logs.
 
@@ -81,7 +81,7 @@ Do not infer business success from HTTP 200, tool transport success, a screensho
 
 When the person names a site:
 
-1. If `unbrowse_discover` is not in this session's tool list, the MCP is not signed in. Stop. Name the configured MCP URL and say the CLI login does not cover it.
+1. If `unbrowse_discover` is not in this session's tool list, the MCP is not signed in. Stop. Name the configured MCP URL. A remote MCP needs the host's own OAuth; with the CLI signed in, `npx unbrowse mcp add` gives the host a server on that sign-in instead (it takes effect in a new session).
 2. Look the host up (`unbrowse_sites`, or CLI `unbrowse site <host>`). Tools already compiled: use one. Stop.
 3. No tools: `unbrowse_index {url, focus}` or `POST /api/v1/index`. Poll `unbrowse_index_status` or `GET /api/v1/index/{jobId}`.
 4. `status: failed` and `error.code: model_unavailable`: the indexing model is out of credit. Report the job id and the message. Do not browse instead, and do not start the same job again in a loop.
