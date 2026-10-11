@@ -198,7 +198,16 @@ export class Unbrowse {
           }
           if (finished) return;
           try {
-            const next = await this.answerEgress(egressId, req.id, answer);
+            let next: RunView | EgressStep | EgressWaiting;
+            try {
+              next = await this.answerEgress(egressId, req.id, answer);
+            } catch (err) {
+              // A response too large to relay: tell the run it could not be sent from here, so it ends with that
+              // reason instead of waiting for an answer that will never land.
+              if (!(err instanceof UnbrowseError && err.status === 413) || !("response" in answer)) throw err;
+              const bytes = Math.round((answer.response.body?.length ?? 0) * 0.75);
+              next = await this.answerEgress(egressId, req.id, { error: `the site's response (${bytes} bytes) is too large to relay from this machine; run it from Unbrowse instead (CLI: --from-unbrowse)` });
+            }
             if (isEgressStep(next) || isEgressWaiting(next)) latest = next;
             else finished = next;
           } catch (err) {
@@ -311,6 +320,21 @@ export class Unbrowse {
     connect: (a: { origin: string; username?: string; password?: string; label?: string }) => this.post("/accounts/connections", a),
     /** Generate and vault a password for a new account. */
     register: (a: { origin: string; username: string; label?: string }) => this.post("/accounts/register", a),
+  };
+
+  /**
+   * Apps and MCP servers connected to this workspace (their tools run as the person). `import` brings the MCP
+   * servers an agent already has: each `{name, url}` or `{name, command, args}`, never keys. `connect` with `key`
+   * is for a client that holds the key itself (the CLI reading a config with --with-keys).
+   */
+  connectors = {
+    list: (): Promise<{ connected: ConnectedApp[] }> => this.req("/connectors"),
+    apps: (q = "", limit = 20): Promise<{ apps: unknown[] }> => this.req(`/connectors/apps?q=${encodeURIComponent(q)}&limit=${limit}`),
+    connect: (c: { app: string; key?: string; header?: string } | { url: string; name?: string; transport?: "streamable-http" | "sse"; key?: string; header?: string }): Promise<ConnectOutcome> =>
+      this.post("/connectors/connect", c),
+    import: (servers: AgentServer[], opts: { dryRun?: boolean } = {}): Promise<{ results: ImportOutcome[] }> =>
+      this.post("/connectors/import", { servers, ...(opts.dryRun ? { dryRun: true } : {}) }),
+    disconnect: (app: string): Promise<{ removed: boolean; revoked?: boolean }> => this.post("/connectors/disconnect", { app }),
   };
 
   /** Vault refs and audit, never secrets. */
@@ -454,6 +478,14 @@ export function normalizeHost(site: string): string {
   if (/^[a-z]+:\/\//.test(host)) host = new URL(host).hostname;
   return host.replace(/\/.*$/, "").replace(/^www\./, "");
 }
+
+/** A connected app or MCP server. */
+export type ConnectedApp = { app: string; name: string; url?: string; auth: string; connectedAt: number; tools: number };
+/** connected: tools are listed now; sign_in / key: the person opens `url`. */
+export type ConnectOutcome = { status: "connected" | "sign_in" | "key"; app: string; name: string; tools?: number; url?: string; header?: string };
+/** One MCP server as an agent's config describes it. Never keys, headers or env values. */
+export type AgentServer = { name: string; url?: string; transport?: string; command?: string; args?: string[] };
+export type ImportOutcome = { name: string; status: "connected" | "sign_in" | "key" | "already" | "skipped" | "local_only" | "failed" | "planned"; app?: string; tools?: number; url?: string; via?: "url" | "catalog"; note: string };
 
 /** A saved login as anyone but the vault sees it: never a value. */
 export type LoginView = { ref: string; origin: string; label?: string; hints: { username?: string; email?: string }; fields: string[]; createdAt: number; rotatedAt?: number };

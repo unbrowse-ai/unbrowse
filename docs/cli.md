@@ -152,9 +152,33 @@ Nothing is synced unless you name a site; scripts and agents (no terminal, `--js
 
 Inputs as a JSON argument, `--input JSON` or `--set key=value` (repeatable). `--deadline MS`, `--select PATH,…` (narrow the result), `--idempotency-key K`, `--end-user ID` (org keys). Prints the run; needs an account.
 
+## Your agents' MCP servers
+
+| Command | Route |
+|---|---|
+| `mcps` | None: reads this machine's agent configs. No account needed |
+| `mcps import [name…]` | `POST /connectors/import`; with `--with-keys`, `POST /connectors/connect` for each server that has a key |
+
+`mcps` lists the MCP servers configured in Claude Code (`~/.claude.json`, the project's `.mcp.json`), Claude Desktop,
+Cursor (`~/.cursor/mcp.json`, `.cursor/mcp.json`), Codex (`~/.codex/config.toml`), VS Code (`mcp.json`), Windsurf,
+Gemini and Zed. Headers and env vars are shown by name; values are never printed, and arguments that look like keys
+show as `‹hidden›`. `--json` for agents.
+
+`mcps import` brings them into Unbrowse, so their tools run there with your own account and every agent signed in
+to Unbrowse gets them. Remote servers connect by address: open ones at once, OAuth ones return the sign-in link.
+A local bridge (`mcp-remote`, `supergateway`) imports the address it forwards to. A local (stdio) server cannot run in
+Unbrowse's cloud: when the catalog has the same app hosted (`@modelcontextprotocol/server-github` → GitHub), that is
+connected instead; otherwise it is reported `local_only` and stays in your agent. Unbrowse itself, duplicates across
+agents and servers already connected are skipped. `--dry-run` shows the plan and connects nothing.
+
+Only names, addresses and package names are sent. A key in a config stays on this machine unless you add
+`--with-keys`: then the key of each remote server that has one (an `Authorization` or api-key header with a value,
+not a `${VAR}` reference) is sent to Unbrowse and sealed in your vault. It asks first; scripts pass `--yes`.
+Exit 1 when any server failed.
+
 ## Local MCP proxy
 
-`unbrowse mcp` serves MCP over stdio and forwards every call to the hosted MCP (`<origin>/api/mcp`, or `--url` / `UNBROWSE_MCP_URL`) with the CLI's credentials: `UNBROWSE_API_KEY`, `login --key`, or the `login` OAuth token, refreshed per call. The hosted tools are already named `unbrowse_x`; any other name with a character outside `[A-Za-z0-9_-]` is rewritten for hosts such as Grok Build and mapped back on each call. `--end-user ID` (or `UNBROWSE_END_USER`) sends `X-Unbrowse-End-User` for org keys. Nothing but protocol goes to stdout.
+`unbrowse mcp` serves MCP over stdio and forwards every call to the hosted MCP (`<origin>/api/mcp`, or `--url` / `UNBROWSE_MCP_URL`) with the CLI's credentials: `UNBROWSE_API_KEY`, `login --key`, or the `login` OAuth token, refreshed per call. The hosted tools are already named `unbrowse_x`; any other name with a character outside `[A-Za-z0-9_-]` is rewritten for hosts such as Grok Build and mapped back on each call. `--end-user ID` (or `UNBROWSE_END_USER`) sends `X-Unbrowse-End-User` for org keys. Nothing but protocol goes to stdout. It also answers one tool itself, `unbrowse_local_mcps`: the servers in this machine's agent configs (no values), and with `import: true` the same import as `mcps import` (never with keys).
 
 ```json
 {"mcpServers":{"unbrowse":{"command":"npx","args":["-y","unbrowse","mcp"]}}}

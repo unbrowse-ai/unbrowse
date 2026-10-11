@@ -1,5 +1,5 @@
 name: unbrowse
-version: 12.2.1
+version: 12.3.0
 manifest_version: 2
 api_version: 1
 description: >-
@@ -34,6 +34,7 @@ provides_tools:
   - unbrowse_map
   - unbrowse_sites
   - unbrowse_connect
+  - unbrowse_import_mcps
   - unbrowse_credits
   - unbrowse_usage
   - unbrowse_index

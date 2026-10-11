@@ -550,6 +550,65 @@
       }
     },
     {
+      "name": "unbrowse_import_mcps",
+      "description": "Import the MCP servers this agent already has into Unbrowse, so their tools run here with the person's own account and every agent signed in to Unbrowse gets them. Read your host's MCP config yourself (Claude Code: ~/.claude.json and .mcp.json; Claude Desktop: claude_desktop_config.json; Cursor: ~/.cursor/mcp.json; Codex: ~/.codex/config.toml; VS Code: .vscode/mcp.json; Windsurf: ~/.codeium/windsurf/mcp_config.json; Gemini: ~/.gemini/settings.json) and pass each server: a remote one as {name, url}, a local one as {name, command, args}. Never pass keys, headers or env values. A remote server is connected by its address (open ones at once; one with OAuth or a key returns the link the person opens). A local server cannot run in Unbrowse's cloud: when the catalog has the same app hosted, that is connected instead, otherwise it is reported local_only and stays in the agent. Servers already connected, duplicates and Unbrowse itself are skipped. dryRun: true shows the plan without connecting. CLI: `unbrowse mcps import` reads the configs itself.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "servers": {
+            "type": "array",
+            "maxItems": 50,
+            "description": "The MCP servers in your agent's config",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The server's name in the config"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "A remote server's https address"
+                },
+                "transport": {
+                  "type": "string",
+                  "enum": [
+                    "streamable-http",
+                    "http",
+                    "sse"
+                  ],
+                  "description": "A remote server's transport, when the config says"
+                },
+                "command": {
+                  "type": "string",
+                  "description": "A local server's command, e.g. npx"
+                },
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "A local server's arguments (package names; leave out tokens and paths to secrets)"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "Show what would happen without connecting anything"
+          }
+        },
+        "required": [
+          "servers"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "unbrowse_credits",
       "description": "This workspace's credits: the free monthly allowance left (pays for Unbrowse's own verified calls only; resets monthly) and paid credits (bought by the user; never expire), plus recent credit history and the top-up link. 1 credit = one verified call = $0.001. Pass a pack (p10 = $10 → 10,000, p50 = $50 → 50,000, p200 = $200 → 200,000) to get a Stripe Checkout link for the user to open — you never pay or see card details.",
       "inputSchema": {
