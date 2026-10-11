@@ -184,6 +184,25 @@ Exit 1 when any server failed.
 {"mcpServers":{"unbrowse":{"command":"npx","args":["-y","unbrowse","mcp"]}}}
 ```
 
+### One sign-in for the CLI and MCP
+
+`unbrowse mcp add [claude] [codex]` registers that proxy with Claude Code (user scope) and Codex through their own
+`mcp add` commands, for whichever is on PATH when none is named. They then run on the CLI's sign-in: nothing to sign in
+to twice, and no token in their config (the proxy reads the CLI's sign-in on each call). A server already named
+`unbrowse` (checked with `<host> mcp get`) is left alone: `--replace` removes it first, `--name` picks another name,
+`--dry-run` prints the commands. Hosts start servers with a reduced environment, so `UNBROWSE_CONFIG_DIR`,
+`XDG_CONFIG_HOME`, `CLAUDE_CONFIG_DIR` and `UNBROWSE_SHARED_SIGNIN` are passed on when set. `UNBROWSE_API_KEY` never
+is (it would be a secret in the host's config): a CLI signed in only through it, or only through Claude Code's sign-in,
+is told to run `unbrowse login`. On Windows the host commands run through `cmd /c`.
+
+The other way: when the CLI has no sign-in of its own (no `UNBROWSE_API_KEY`, `login` or v1 key), it uses the Unbrowse
+sign-in Claude Code made for its MCP server, read from `~/.claude/.credentials.json` (or `$CLAUDE_CONFIG_DIR`).
+Only a token for this origin's REST audience counts: the Claude Code plugin's `https://unbrowse.ai/api/mcp` server has
+one; a server added as `https://unbrowse.ai/mcp` holds a `/mcp` token, which the REST API refuses. The token is borrowed,
+never refreshed (refreshing would sign Claude Code out); once it expires, Claude Code renews it on its next call or you
+run `unbrowse login`. `whoami` names the source. On macOS Claude Code keeps these tokens in the Keychain, so nothing is
+found there. `UNBROWSE_SHARED_SIGNIN=0` turns it off.
+
 The remote MCP (`/mcp`) is a separate client. This CLI does not speak it and does not install it.
 Connect an agent with the commands in [install.md](install.md) and [mcp.md](mcp.md).
 
