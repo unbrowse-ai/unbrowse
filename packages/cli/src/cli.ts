@@ -17,6 +17,7 @@ export const DEFAULT_ORIGIN = "https://unbrowse.ai";
 const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse API
 
   login [--key ub_live_…]         Sign in in your browser (OAuth), or store an API key
+       [--device]                 On a remote/headless machine, show a code to approve on your phone
                                   (first use of any command below signs you in the same way)
   logout                          Forget the stored sign-in
   whoami                          Workspace and usage
@@ -264,7 +265,10 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     switch (cmd) {
       case "login": {
         const key = flag("key");
+        // A browser + loopback redirect only works on the person's own machine. With --device, or anywhere there
+        // is no interactive terminal (a remote agent's VM, CI, SSH), sign in with a code approved on another device.
         if (key) auth.save({ baseUrl: origin, apiKey: key });
+        else if (args.flags.device || !io.interactive) await auth.deviceLogin(origin, { log: io.err });
         else await auth.oauthLogin(origin, { open: (u) => openLink(u, args, io), log: io.err });
         const me = await (await client()).me();
         io.err(`Signed in to ${origin} (workspace ${me.workspaceId}).`);
