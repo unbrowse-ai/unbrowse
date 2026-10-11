@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { apiResource, clear, currentToken, oauthLogin, save, v1Key } from "../src/auth.ts";
+import { apiResource, clear, currentToken, describe as describeAuth, oauthLogin, save, sharedSignIn, v1Key } from "../src/auth.ts";
 import { main, parseArgs } from "../src/cli.ts";
 
 // A stand-in for the hosted REST API (/api/v1), shaped like unbrowse6's http.ts.
@@ -390,4 +390,73 @@ test("a v1 key in ~/.unbrowse/config.json still signs the CLI in to the hosted s
     process.env.HOME = home;
     clear();
   }
+});
+
+test("no CLI sign-in: Claude Code's MCP sign-in for this origin's /api audience is shared, never a /mcp or expired one", async () => {
+  delete process.env.UNBROWSE_API_KEY;
+  clear();
+  const dir = mkdtempSync(join(tmpdir(), "unbrowse-claude-"));
+  const prev = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = dir;
+  const write = (mcpOAuth: Record<string, unknown>) => writeFileSync(join(dir, ".credentials.json"), JSON.stringify({ mcpOAuth }));
+  try {
+    expect(sharedSignIn(BASE)).toBeUndefined(); // no file
+    write({
+      "a|1": { serverName: "unbrowse-mcp", serverUrl: `${BASE}/mcp`, accessToken: "mcp-audience" }, // refused on /api by the server
+      "b|2": { serverName: "old", serverUrl: `${BASE}/api/mcp`, accessToken: "expired", expiresAt: Date.now() - 1 },
+      "c|3": { serverName: "other", serverUrl: "https://elsewhere.example/api/mcp", accessToken: "other-origin" },
+      "d|4": { serverName: "empty", serverUrl: `${BASE}/api/mcp`, accessToken: "" },
+    });
+    expect(await currentToken(BASE)).toBeUndefined();
+    write({ "e|5": { serverName: "plugin:unbrowse:unbrowse", serverUrl: `${BASE}/api/mcp`, accessToken: TOKEN, expiresAt: Date.now() + 3_600_000 } });
+    expect(await currentToken(BASE)).toBe(TOKEN);
+    expect(describeAuth(BASE)).toContain("plugin:unbrowse:unbrowse");
+    expect(describeAuth(BASE)).not.toContain(TOKEN);
+    // A command runs on it without a sign-in prompt.
+    const r = await cli(["whoami"]);
+    expect(r.code).toBe(0);
+    expect(seen.at(-1)!.auth).toBe(`Bearer ${TOKEN}`);
+    // The CLI's own sign-in wins; the switch turns sharing off.
+    save({ baseUrl: BASE, apiKey: "ub_own" });
+    expect(await currentToken(BASE)).toBe("ub_own");
+    clear();
+    process.env.UNBROWSE_SHARED_SIGNIN = "0";
+    expect(await currentToken(BASE)).toBeUndefined();
+  } finally {
+    delete process.env.UNBROWSE_SHARED_SIGNIN;
+    if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = prev;
+    clear();
+  }
+});
+
+test("mcp add registers the stdio proxy with Claude Code and Codex, on the CLI's sign-in; an existing name needs --replace", async () => {
+  const calls: string[][] = [];
+  let exists = true;
+  const exec = (cmd: string[]) => {
+    calls.push(cmd);
+    if (cmd[2] === "remove") return (exists = false), { status: 0, stdout: "", stderr: "" };
+    if (cmd[2] === "add" && exists) return { status: 1, stdout: "", stderr: 'MCP server unbrowse already exists in user config' };
+    return { status: 0, stdout: "", stderr: "" };
+  };
+  const run = (argv: string[]) => {
+    const out: string[] = [];
+    const err: string[] = [];
+    return main([...argv, "--base-url", BASE], { out: (s) => out.push(s), err: (s) => err.push(s), open: () => {}, exec, service: { node: "/usr/bin/node", cli: "/opt/unbrowse/cli.js" } }).then((code) => ({ code, out, err }));
+  };
+  const launch = ["/usr/bin/node", "/opt/unbrowse/cli.js", "mcp", "--base-url", BASE];
+  const env = `UNBROWSE_CONFIG_DIR=${process.env.UNBROWSE_CONFIG_DIR}`; // the proxy reads the same sign-in as this CLI
+  const dry = await run(["mcp", "add", "--dry-run"]);
+  expect(dry.code).toBe(0);
+  expect(dry.out).toEqual([["claude", "mcp", "add", "--scope", "user", "unbrowse", "-e", env, "--", ...launch].join(" "), ["codex", "mcp", "add", "unbrowse", "--env", env, "--", ...launch].join(" ")]);
+  expect(calls).toEqual([]);
+  const clash = await run(["mcp", "add", "claude"]);
+  expect(clash.code).toBe(1);
+  expect(clash.err.join("\n")).toContain("--replace");
+  calls.length = 0;
+  const ok = await run(["mcp", "add", "claude", "--replace"]);
+  expect(ok.code).toBe(0);
+  expect(calls).toEqual([["claude", "mcp", "remove", "unbrowse", "--scope", "user"], ["claude", "mcp", "add", "--scope", "user", "unbrowse", "-e", env, "--", ...launch]]);
+  expect(calls.flat().join(" ")).not.toContain(TOKEN); // nothing secret goes into a host's config
+  expect((await run(["mcp", "add", "cursor"])).code).toBe(1);
 });

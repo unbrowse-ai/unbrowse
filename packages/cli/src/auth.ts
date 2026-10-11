@@ -54,14 +54,46 @@ export function v1Key(baseUrl: string): string | undefined {
   }
 }
 
-/** The token for a call: env key, then stored key, then OAuth (refreshed when it is about to expire), then a v1 key. */
+/**
+ * An Unbrowse sign-in this machine's MCP host already holds, so a person who connected Unbrowse in their agent is
+ * not asked to sign in again here. Only Claude Code keeps its MCP tokens in a file (~/.claude/.credentials.json;
+ * on macOS they are in the Keychain and this finds nothing). Only a token for this origin's REST audience counts:
+ * the server binds each token to `/api` or `/mcp`, and a `/mcp` one is refused on `/api`. The token is borrowed,
+ * never refreshed: refreshing rotates the refresh token and would sign the host out. UNBROWSE_SHARED_SIGNIN=0 turns it off.
+ */
+export function sharedSignIn(baseUrl: string, now = Date.now()): { token: string; from: string } | undefined {
+  if (process.env.UNBROWSE_SHARED_SIGNIN === "0") return undefined;
+  const dir = process.env.CLAUDE_CONFIG_DIR ?? join(process.env.HOME || homedir(), ".claude");
+  let entries: unknown[];
+  try {
+    entries = Object.values((JSON.parse(readFileSync(join(dir, ".credentials.json"), "utf8")) as { mcpOAuth?: Record<string, unknown> }).mcpOAuth ?? {});
+  } catch {
+    return undefined;
+  }
+  const api = new URL(apiResource(baseUrl));
+  for (const e of entries as { serverName?: unknown; serverUrl?: unknown; accessToken?: unknown; expiresAt?: unknown }[]) {
+    if (typeof e?.serverUrl !== "string" || typeof e.accessToken !== "string" || !e.accessToken) continue;
+    if (typeof e.expiresAt === "number" && now > e.expiresAt - 60_000) continue;
+    let url: URL;
+    try {
+      url = new URL(e.serverUrl);
+    } catch {
+      continue;
+    }
+    if (url.origin !== api.origin || !(url.pathname === api.pathname || url.pathname.startsWith(`${api.pathname}/`))) continue;
+    return { token: e.accessToken, from: `Claude Code's MCP sign-in (${String(e.serverName ?? url.href)})` };
+  }
+  return undefined;
+}
+
+/** The token for a call: env key, then stored key, then OAuth (refreshed when it is about to expire), then a v1 key, then an MCP host's sign-in. */
 export async function currentToken(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<string | undefined> {
   if (process.env.UNBROWSE_API_KEY) return process.env.UNBROWSE_API_KEY;
   const stored = load();
   if (stored.baseUrl && stored.baseUrl !== baseUrl) return undefined;
   if (stored.apiKey) return stored.apiKey;
   const o = stored.oauth;
-  if (!o) return v1Key(baseUrl);
+  if (!o) return v1Key(baseUrl) ?? sharedSignIn(baseUrl)?.token;
   if (o.expiresAt && o.refreshToken && Date.now() > o.expiresAt - 60_000) {
     try {
       const fresh = await tokenRequest(baseUrl, { grant_type: "refresh_token", refresh_token: o.refreshToken, client_id: o.clientId, resource: apiResource(baseUrl) }, fetchImpl);
@@ -82,6 +114,8 @@ export function describe(baseUrl: string): string {
   if (stored.oauth) return `OAuth sign-in in ${configPath()}`;
   const v1 = !stored.baseUrl ? v1Key(baseUrl) : undefined;
   if (v1) return `v1 API key ${mask(v1)} from ~/.unbrowse/config.json (still works; \`unbrowse login\` replaces it)`;
+  const shared = !stored.baseUrl ? sharedSignIn(baseUrl) : undefined;
+  if (shared) return `${shared.from}, shared (\`unbrowse login\` gives the CLI its own)`;
   return "not signed in";
 }
 
