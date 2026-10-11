@@ -259,6 +259,15 @@ test("runOnClient tells the run a response was too large to relay (413) instead 
   expect((posted[1] as { error: string }).error).toContain("--from-unbrowse");
 });
 
+test("every request names the client and its version (x-unbrowse-client), sdk/<version> by default", async () => {
+  const { SDK_VERSION } = await import("../src/index.ts");
+  const seen: (string | null)[] = [];
+  const fetch = (async (_u: string, init: RequestInit = {}) => (seen.push(new Headers(init.headers).get("x-unbrowse-client")), Response.json({ ok: true }))) as typeof globalThis.fetch;
+  await new Unbrowse({ apiKey: "k", fetch }).usage();
+  await new Unbrowse({ apiKey: "k", fetch, client: "cli/12.3.0" }).usage();
+  expect(seen).toEqual([`sdk/${SDK_VERSION}`, "cli/12.3.0"]);
+});
+
 /** A fetch that also records request headers. */
 function stubWithHeaders(reply: () => Response = () => Response.json({ runId: "lrun_1", status: "succeeded", result: { title: "serde" } })) {
   const sent: { method: string; url: string; headers: Headers; body: unknown }[] = [];

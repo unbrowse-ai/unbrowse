@@ -27,6 +27,8 @@ test("skill copies and shared hook scripts match their sources", () => {
 
 test("every plugin version matches the CLI package", () => {
   const { version, mcpName } = json("packages/cli/package.json");
+  // The SDK names its version on every request (x-unbrowse-client: sdk/<version>).
+  expect(readFileSync(join(root, "packages/sdk/src/version.ts"), "utf8")).toContain(`SDK_VERSION = "${version}"`);
   const server = json("server.json");
   expect(json("gemini-extension.json")).toMatchObject({ name: "unbrowse", version, mcpServers: { unbrowse: { httpUrl: "https://unbrowse.ai/mcp" } } });
   expect(server).toMatchObject({ name: mcpName, version, packages: [{ identifier: "unbrowse", version }], remotes: [{ url: "https://unbrowse.ai/mcp" }] });

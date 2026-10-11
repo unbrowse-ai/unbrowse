@@ -136,7 +136,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
   const origin = String(args.flags["base-url"] ?? process.env.UNBROWSE_BASE_URL ?? auth.load().baseUrl ?? DEFAULT_ORIGIN).replace(/\/+$/, "");
   const flag = (k: string) => (typeof args.flags[k] === "string" ? (args.flags[k] as string) : undefined);
   const print = (v: unknown) => io.out(JSON.stringify(v, null, 2));
-  const client = async () => new Unbrowse({ apiKey: (await auth.currentToken(origin)) ?? "", baseUrl: origin });
+  const client = async () => new Unbrowse({ apiKey: (await auth.currentToken(origin)) ?? "", baseUrl: origin, client: `cli/${VERSION}` });
 
   if (cmd === "mcp") {
     // stdout carries the protocol: nothing else may be printed there.
