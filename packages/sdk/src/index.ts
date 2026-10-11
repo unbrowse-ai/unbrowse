@@ -4,3 +4,4 @@ export type * from "./types.ts";
 export { cursorInstallLink, mcpCommands, vscodeInstallLink } from "./mcp-install.ts";
 export { DEFAULT_MCP_URL, MCP_PROTOCOL_VERSION, UnbrowseMcp, parseRpcBody, resultText } from "./mcp.ts";
 export type { McpContent, McpOptions, McpTool, McpToolResult } from "./mcp.ts";
+export { SDK_VERSION } from "./version.ts";
