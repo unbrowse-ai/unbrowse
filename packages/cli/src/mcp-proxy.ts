@@ -16,6 +16,36 @@ export function safeToolName(name: string): string {
 
 const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
+/** A tool this proxy answers itself: it can read this machine's agent configs, which the hosted server cannot. */
+export const LOCAL_MCPS: McpTool = {
+  name: "unbrowse_local_mcps",
+  description:
+    "The MCP servers configured in this machine's agents (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Windsurf, Gemini, Zed), read by this local Unbrowse server: name, agent, remote address or local command, and the NAMES of any headers and env vars (never their values). import: true brings them into Unbrowse through unbrowse_import_mcps (remote ones by address, local ones as their hosted app; Unbrowse itself and duplicates skipped); dryRun: true shows that plan. Keys stay on this machine; for a server that needs one, the person opens the returned link, or runs `unbrowse mcps import --with-keys` in a terminal.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      import: { type: "boolean", description: "Import them into Unbrowse" },
+      dryRun: { type: "boolean", description: "With import: show the plan without connecting anything" },
+      names: { type: "array", items: { type: "string" }, description: "Only these servers (by their config name)" },
+    },
+    additionalProperties: false,
+  },
+};
+
+async function localMcps(args: Record<string, unknown>, upstream: () => Promise<Upstream>): Promise<unknown> {
+  const A = await import("./agent-mcps.ts");
+  const { servers, skipped } = A.scan();
+  const names = Array.isArray(args.names) ? new Set(args.names.map(String)) : undefined;
+  const pick = servers.filter((s) => !names || names.has(s.name));
+  const listing = pick.map(({ file: _f, ...s }) => s);
+  if (args.import !== true) {
+    return { content: [{ type: "text", text: JSON.stringify({ servers: listing, skipped: skipped.map((x) => x.why) }, null, 2) }], structuredContent: { servers: listing }, isError: false };
+  }
+  const send = A.unique(pick.filter((s) => !s.self)).map(A.toImport);
+  if (!send.length) return { content: [{ type: "text", text: "No MCP servers to import." }], isError: false };
+  return (await upstream()).rpc("tools/call", { name: "unbrowse_import_mcps", arguments: { servers: send, ...(args.dryRun === true ? { dryRun: true } : {}) } });
+}
+
 /** The proxy's message handler; `upstream` is built per call so OAuth tokens stay fresh. */
 export function createProxy(upstream: () => Promise<Upstream>, version: string) {
   const names = new Map<string, string>(); // safe → upstream name
@@ -23,7 +53,7 @@ export function createProxy(upstream: () => Promise<Upstream>, version: string) 
   async function list(): Promise<McpTool[]> {
     const tools = await (await upstream()).listTools();
     names.clear();
-    const out: McpTool[] = [];
+    const out: McpTool[] = [LOCAL_MCPS];
     for (const t of tools) {
       const safe = safeToolName(t.name);
       if (names.has(safe)) continue; // two upstream names collapse to one: keep the first
@@ -58,6 +88,7 @@ export function createProxy(upstream: () => Promise<Upstream>, version: string) 
           return reply({ tools: await list() });
         case "tools/call": {
           const name = String(msg.params?.name ?? "");
+          if (name === LOCAL_MCPS.name) return reply(await localMcps((msg.params?.arguments ?? {}) as Record<string, unknown>, upstream));
           return reply(await (await upstream()).rpc("tools/call", { ...msg.params, name: await original(name) }));
         }
         default:

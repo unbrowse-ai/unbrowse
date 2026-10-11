@@ -32,6 +32,8 @@ Install the [agent skill](install.md#agent-skill) for operating guidance. Export
 | `unbrowse_browse_open` / `_snapshot` / `_act` / `_finish` / `_close` | Recorded cloud browser |
 | `unbrowse_learn` | Compile HAR files or traces into a `learned.*` capability |
 | `unbrowse_credentials_list` / `_request` / `_status` | Password manager: masked hints, save-login links |
+| `unbrowse_connect` | Connect an app's own MCP server (Linear, Notion, GitHub…) or any remote MCP by `url`; sign-in and key servers return the link the person opens |
+| `unbrowse_import_mcps` | `{servers: [{name, url} \| {name, command, args}], dryRun?}`: bring the MCP servers the agent already has into Unbrowse (remote by address, local as the hosted app; never keys) |
 
 When three or fewer capabilities match, dedicated `unbrowse_skill_*` tools are listed with slot
 schemas from the harness. Your compiled tools appear as `my__<site>__<op>`; `tools/list` with a

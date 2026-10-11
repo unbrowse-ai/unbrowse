@@ -44,6 +44,10 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   cookies daemon start|status|stop
                                   The same as a background service (systemd / launchd) [--domain a,b | --all-sites] [--yes]
 
+  mcps                            MCP servers in this machine's agents (Claude Code, Cursor, Codex, VS Code, …)
+  mcps import [name…]             Bring them into Unbrowse: remote ones by address, local ones as their hosted app
+      [--dry-run] [--with-keys]     keys in those configs stay here unless --with-keys (asks first; --yes in scripts)
+
   learn <a.har> <b.har>…          Compile two HAR recordings into a capability [--title T] [--goal G]
   learned [id]                    Your learned capabilities, or one with its harness and skill
   logins                          Saved logins as masked hints
@@ -62,7 +66,7 @@ Options: --json (errors as JSON) · --base-url URL · --no-open
 Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_EGRESS=server, UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
-const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events"]);
+const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events", "dry-run", "with-keys"]);
 /** Commands that act for a workspace; the first one run with no sign-in starts the sign-in. */
 const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "scrape", "index", "inspect", "resume", "cancel", "learn", "learned", "logins", "call", "cookies"]);
 const SCRAPE_FORMATS = ["markdown", "html", "text", "links", "raw"] as const;
@@ -477,6 +481,8 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       case "learned":
         print(await ub.learned(rest[0]));
         return 0;
+      case "mcps":
+        return await mcps(rest, args, io, origin, print, client, onboard);
       case "logins":
         if (rest[0] === "remove") print(await ub.logins.remove({ origin: need(rest[1], "logins remove <origin>") }));
         else print(await ub.logins.list());
@@ -563,6 +569,65 @@ async function settle(ub: Unbrowse, view: RunView, args: Args, io: Io, print: (v
  * What to do when no tool fits, as CLI commands. The server's message names REST routes and MCP tools
  * (unbrowse.browse.open) a CLI user cannot call; the CLI has scrape and index for the same steps.
  */
+/** `unbrowse mcps` and `unbrowse mcps import`: see agent-mcps.ts. Values of keys are never printed. */
+async function mcps(rest: string[], args: Args, io: Io, origin: string, print: (v: unknown) => void, client: () => Promise<Unbrowse>, onboard: () => Promise<boolean>): Promise<number> {
+  const A = await import("./agent-mcps.ts");
+  const { servers, skipped } = A.scan();
+  const tilde = (f: string) => f.replace(process.env.HOME ?? "\u0000", "~");
+  if (rest[0] !== "import") {
+    if (rest[0]) throw new UsageError("usage: unbrowse mcps [import [name…] [--dry-run] [--with-keys]]");
+    if (args.flags.json) return print({ servers: servers.map(({ file, ...s }) => ({ ...s, file: tilde(file) })), skipped }), 0;
+    if (!servers.length) return io.err(`No MCP servers found in this machine's agent configs.${skipped.length ? ` Unreadable: ${skipped.map((x) => tilde(x.file)).join(", ")}` : ""}`), 0;
+    let last = "";
+    for (const s of servers) {
+      const where = `${s.host}  ${tilde(s.file)}`;
+      if (where !== last) io.out(where), (last = where);
+      const what = s.url ? `remote  ${s.url}` : `local   ${[s.command, ...(s.args ?? [])].join(" ").slice(0, 90)}`;
+      const env = s.envNames.length > 3 ? [...s.envNames.slice(0, 3).map((e) => `env ${e}`), `+${s.envNames.length - 3} env`] : s.envNames.map((e) => `env ${e}`);
+      const secrets = [...s.headerNames.map((h) => `header ${h}`), ...env];
+      io.out(`  ${s.name.padEnd(22)} ${what}${secrets.length ? `   (${secrets.join(", ")})` : ""}${s.self ? "   (Unbrowse itself)" : ""}`);
+    }
+    io.err(`\n${A.unique(servers.filter((s) => !s.self)).length} to import: unbrowse mcps import --dry-run`);
+    return 0;
+  }
+  if (!(await auth.currentToken(origin)) && !(await onboard())) return 3;
+  const names = new Set(rest.slice(1));
+  const pick = A.unique(servers.filter((s) => !s.self && (!names.size || names.has(s.name))));
+  const missing = [...names].filter((n) => !servers.some((s) => s.name === n));
+  if (missing.length) throw new UsageError(`no MCP server named ${missing.join(", ")} in this machine's agent configs (unbrowse mcps lists them)`);
+  if (!pick.length) return io.err("Nothing to import."), 0;
+  const dry = !!args.flags["dry-run"];
+  const keyed = args.flags["with-keys"] ? pick.flatMap((f) => { const k = A.keyOf(f, A.rawEntry(f) ?? {}); return k ? [{ f, k }] : []; }) : [];
+  if (keyed.length && !dry && !args.flags.yes) {
+    const list = keyed.map((x) => `${x.f.name} (${x.k.header})`).join(", ");
+    if (!io.interactive || !io.ask) throw new UsageError(`Re-run with --yes to confirm: the keys for ${list} will be sent to ${origin} and sealed in your vault.`);
+    const ok = (await io.ask(`Send the keys for ${list} from your agent configs to Unbrowse (sealed in your vault)? [y/N] `)).trim().toLowerCase();
+    if (ok !== "y" && ok !== "yes") return io.err("Nothing sent."), 1;
+  }
+  const ub = await client();
+  const rows: import("@unbrowse/sdk").ImportOutcome[] = [];
+  for (const { f, k } of keyed) {
+    if (dry) { rows.push({ name: f.name, status: "planned", via: "url", note: `Would connect ${f.url} with the ${k.header} from its config.` }); continue; }
+    try {
+      const r = await ub.connectors.connect({ url: f.url!, name: f.name, ...(f.transport ? { transport: f.transport } : {}), header: k.header, key: k.key });
+      rows.push({ name: f.name, status: r.status, app: r.app, tools: r.tools, url: r.url, via: "url", note: r.status === "connected" ? `Connected with its key: ${r.tools} tools.` : `Needs the person: ${r.url}` });
+    } catch (e) {
+      rows.push({ name: f.name, status: "failed", note: (e as Error).message.slice(0, 200) });
+    }
+  }
+  const rest2 = pick.filter((f) => !keyed.some((x) => x.f === f));
+  if (rest2.length) rows.push(...(await ub.connectors.import(rest2.map(A.toImport), { dryRun: dry })).results);
+  if (args.flags.json) print({ results: rows });
+  else {
+    const mark: Record<string, string> = { connected: "✓", planned: "·", sign_in: "→", key: "→", already: "=", skipped: "-", local_only: "-", failed: "✗" };
+    for (const r of rows) io.out(`${mark[r.status] ?? "?"} ${r.name.padEnd(22)} ${r.status.padEnd(10)} ${r.note}${r.url ? `\n    ${r.url}` : ""}`);
+    const hasKeyRows = rows.some((r) => r.status === "key") && !args.flags["with-keys"] && pick.some((f) => f.headerNames.length);
+    if (hasKeyRows) io.err("A key server can take the key from your agent config instead: unbrowse mcps import --with-keys");
+    if (dry) io.err("Nothing was connected. Run without --dry-run to import.");
+  }
+  return rows.some((r) => r.status === "failed") ? 1 : 0;
+}
+
 export function noCapabilityHint(view: RunView, args: Args): string {
   const result = (view.result ?? {}) as { next?: { url?: string }; suggestions?: { tools?: Array<{ capability?: string; title?: string }> } };
   const task = args._.slice(1).join(" ");

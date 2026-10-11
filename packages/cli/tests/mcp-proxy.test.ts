@@ -48,8 +48,9 @@ test("tools/list renames dotted tools; tools/call maps them back", async () => {
   const f = fakeUpstream();
   const handle = createProxy(f.upstream as never, "t");
   const list = (await handle({ jsonrpc: "2.0", id: 1, method: "tools/list" })) as { result: { tools: { name: string; description?: string }[] } };
-  expect(list.result.tools.map((t) => t.name)).toEqual(["unbrowse_scrape", "unbrowse_browse_open", "news_ycombinator_com__read_page"]);
-  expect(list.result.tools[0].description).toBe("Read a page");
+  // The proxy's own local tool first, then the hosted ones renamed.
+  expect(list.result.tools.map((t) => t.name)).toEqual(["unbrowse_local_mcps", "unbrowse_scrape", "unbrowse_browse_open", "news_ycombinator_com__read_page"]);
+  expect(list.result.tools[1].description).toBe("Read a page");
   for (const t of list.result.tools) expect(t.name).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
 
   const call = (await handle({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "unbrowse_browse_open", arguments: { url: "https://x.test" } } })) as { result: { content: { text: string }[] } };
@@ -117,5 +118,30 @@ test("`unbrowse mcp` speaks newline-delimited JSON-RPC over stdio against a real
     expect(seen.every((s) => s.auth === "Bearer ub_live_test")).toBe(true);
   } finally {
     server.stop(true);
+  }
+});
+
+test("unbrowse_local_mcps reads this machine's agent configs and imports through unbrowse_import_mcps, without secrets", async () => {
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  const home = mkdtempSync(join(tmpdir(), "proxy-home-"));
+  mkdirSync(join(home, ".cursor"), { recursive: true });
+  writeFileSync(join(home, ".cursor", "mcp.json"), JSON.stringify({ mcpServers: {
+    linear: { url: "https://mcp.linear.app/mcp", headers: { Authorization: "Bearer fake-api-key-2222222222222222222222222222222" } },
+    gh: { command: "npx", args: ["-y", "@modelcontextprotocol/server-github"], env: { GITHUB_TOKEN: "fake-token-value-3333333333333333333333333333" } },
+    me: { url: "https://unbrowse.ai/mcp" },
+  } }));
+  const was = process.env.HOME;
+  process.env.HOME = home;
+  try {
+    const f = fakeUpstream();
+    const handle = createProxy(f.upstream as never, "t");
+    const listed = (await handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "unbrowse_local_mcps", arguments: {} } })) as { result: { structuredContent: { servers: { name: string; envNames: string[] }[] } } };
+    expect(listed.result.structuredContent.servers.map((x) => x.name)).toEqual(["linear", "gh", "me"]);
+    expect(f.calls).toEqual([]);
+    await handle({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "unbrowse_local_mcps", arguments: { import: true, dryRun: true } } });
+    expect(f.calls).toEqual([{ method: "tools/call", params: { name: "unbrowse_import_mcps", arguments: { servers: [{ name: "linear", url: "https://mcp.linear.app/mcp", transport: "streamable-http" }, { name: "gh", command: "npx", args: ["@modelcontextprotocol/server-github"] }], dryRun: true } } }]);
+    expect(JSON.stringify([listed, f.calls])).not.toMatch(/fake-api-key-2222|fake-token-value-3333/);
+  } finally {
+    process.env.HOME = was;
   }
 });
