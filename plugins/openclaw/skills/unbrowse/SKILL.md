@@ -63,7 +63,7 @@ Hosts that need a stdio server or reject dotted tool names can run `npx unbrowse
 - CLI: `unbrowse discover`, `run`, `inspect`, `resume`, `scrape <url>` (one page as markdown), `index <url>` (teach a site; `index status`), `registry`, `site`, `whoami`. `scrape` and `index` need CLI 12.2.0 or later. `unbrowse run` never drives a website in a browser (the only browser it opens is the first-use sign-in). There is no `unbrowse browse` and no `unbrowse install`. `unbrowse help` describes the installed version.
 - SDK: REST integration and scripting. Consult the public SDK docs for its supported methods; MCP tools and REST methods are not interchangeable names.
 
-Core MCP tools: `unbrowse_discover`, `unbrowse_run`, `unbrowse_inspect`, `unbrowse_resume`, `unbrowse_cancel`, `unbrowse_scrape`, `unbrowse_map`, `unbrowse_sites`, `unbrowse_usage`, `unbrowse_credits`, `unbrowse_forget`, `unbrowse_learn`, `unbrowse_index`, `unbrowse_index_status`, `unbrowse_credentials_list`, `unbrowse_credentials_request`, `unbrowse_credentials_status`, `unbrowse_connect` (connect an app's own MCP server, such as Linear, Notion or GitHub, so its tools run as the person: an app with sign-in returns a link the person opens), and the cloud browser `unbrowse_browse_open`, `unbrowse_browse_snapshot`, `unbrowse_browse_act`, `unbrowse_browse_finish`, `unbrowse_browse_close`.
+Core MCP tools: `unbrowse_discover`, `unbrowse_run`, `unbrowse_inspect`, `unbrowse_resume`, `unbrowse_cancel`, `unbrowse_scrape`, `unbrowse_map`, `unbrowse_sites`, `unbrowse_usage`, `unbrowse_credits`, `unbrowse_forget`, `unbrowse_learn`, `unbrowse_index`, `unbrowse_index_status`, `unbrowse_credentials_list`, `unbrowse_credentials_request`, `unbrowse_credentials_status`, `unbrowse_connect` (connect an app's own MCP server, such as Linear, Notion or GitHub, so its tools run as the person: an app with sign-in returns a link the person opens), `unbrowse_import_mcps` (bring the MCP servers this agent already has into Unbrowse, below), and the cloud browser `unbrowse_browse_open`, `unbrowse_browse_snapshot`, `unbrowse_browse_act`, `unbrowse_browse_finish`, `unbrowse_browse_close`.
 
 [references/tools.json](references/tools.json) contains the exported core MCP input schemas. The connected server's `tools/list` is authoritative: it also includes dynamic tools available to this user's workspace. Never invent a capability ID or input schema.
 
@@ -111,6 +111,14 @@ Prefer `unbrowse_discover` and a matching tool or `unbrowse_run` for structured 
 To cover a whole site ahead of need, `unbrowse_index {url, focus?, maxCapabilities?}` starts a background job: Unbrowse's own agent performs the site's core read-only capabilities, proves each with a browserless replay and adds them to your tools. Follow it with `unbrowse_index_status {jobId}`. `maxCapabilities` caps every tool the job indexes (declared, sitemap page types and recorded flows together). A `focus` keeps only sitemap page types that match it, and none when it names flows such as paging, page size, filters or search. Query keys in the start URL (`?page=0&pageSize=100`) become the tool's inputs. `stoppedReason` says why a job ended. The time budget is extended once, by half, while tools are still being proven.
 
 An existing HAR pair can be sent through `unbrowse_learn`. Only submit recordings the user authorized; HARs can contain private data. Private and loopback destinations are refused by the hosted service.
+
+## Bring the agent's MCP servers
+
+When the person wants their existing MCP servers in Unbrowse (one sign-in, every agent gets them), import them instead of re-adding each by hand.
+
+- From a terminal: `npx unbrowse mcps` lists the servers in this machine's agent configs (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Windsurf, Gemini, Zed); `npx unbrowse mcps import` imports them (`--dry-run` shows the plan). Keys in those configs stay on the machine unless the person adds `--with-keys`.
+- As an MCP tool: read your host's MCP config yourself and call `unbrowse_import_mcps {servers:[{name, url} | {name, command, args}]}`. Never pass keys, headers or env values; `dryRun: true` shows the plan.
+- Remote servers connect by address. A local (stdio) server cannot run in Unbrowse's cloud: when the catalog has the same app hosted, that is connected instead; otherwise it is `local_only` and stays in the agent. `sign_in` and `key` rows carry the link the person opens. Show them the plan before importing.
 
 ## Website sign-in
 
