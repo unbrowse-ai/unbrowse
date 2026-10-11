@@ -71,6 +71,11 @@ test("every method maps to its /api/v1 route", async () => {
     [() => ub.logins.remove({ origin: "https://a.test" }), "POST", "/logins/remove", { origin: "https://a.test" }],
     [() => ub.accounts.connect({ origin: "https://a.test", username: "u", password: "p" }), "POST", "/accounts/connections", { origin: "https://a.test", username: "u", password: "p" }],
     [() => ub.accounts.register({ origin: "https://a.test", username: "u" }), "POST", "/accounts/register", { origin: "https://a.test", username: "u" }],
+    [() => ub.connectors.list(), "GET", "/connectors"],
+    [() => ub.connectors.apps("linear", 5), "GET", "/connectors/apps?q=linear&limit=5"],
+    [() => ub.connectors.connect({ url: "https://mcp.example/mcp", name: "ex" }), "POST", "/connectors/connect", { url: "https://mcp.example/mcp", name: "ex" }],
+    [() => ub.connectors.import([{ name: "gh", command: "npx", args: ["@modelcontextprotocol/server-github"] }], { dryRun: true }), "POST", "/connectors/import", { servers: [{ name: "gh", command: "npx", args: ["@modelcontextprotocol/server-github"] }], dryRun: true }],
+    [() => ub.connectors.disconnect("custom-ex"), "POST", "/connectors/disconnect", { app: "custom-ex" }],
     [() => ub.vault(), "GET", "/vault"],
     [() => ub.sites("rust docs"), "GET", "/sites?q=rust%20docs"],
     [() => ub.site("https://www.en.wikipedia.org/wiki/X"), "GET", "/sites/en.wikipedia.org"],
@@ -236,6 +241,22 @@ test("runOnClient waits while the run is between requests (waiting_for_client) i
   const run = await new Unbrowse({ apiKey: "k", fetch: api.fetch }).runOnClient({ task: "top stories on hacker news" }, { fetch: site });
   expect(run).toMatchObject({ runId: "run_4", status: "succeeded" });
   expect(calls).toEqual(["POST /runs", "POST /egress/eg_4", "GET /egress/eg_4", "GET /egress/eg_4", "GET /egress/eg_4"]);
+});
+
+test("runOnClient tells the run a response was too large to relay (413) instead of crashing mid-run", async () => {
+  const posted: unknown[] = [];
+  const api = stub((s) => {
+    if (s.url.endsWith("/runs")) return Response.json({ status: "egress_required", egressId: "eg_5", requests: [{ id: "rq_1", method: "GET", url: "https://big.example/", headers: {}, redirect: "follow", curl: "" }] }, { status: 202 });
+    posted.push(s.body);
+    if ((s.body as { response?: unknown }).response) return Response.json({ error: { code: "body_too_large", message: "Request too large" } }, { status: 413 });
+    return Response.json({ runId: "run_5", status: "failed", error: { code: "network_error", message: (s.body as { error: string }).error } });
+  });
+  const site = (async () => new Response("x".repeat(3000))) as typeof globalThis.fetch;
+  const run = await new Unbrowse({ apiKey: "k", fetch: api.fetch }).runOnClient({ task: "x" }, { fetch: site });
+  expect(run.status).toBe("failed");
+  expect(posted).toHaveLength(2);
+  expect((posted[1] as { requestId: string }).requestId).toBe("rq_1");
+  expect((posted[1] as { error: string }).error).toContain("--from-unbrowse");
 });
 
 /** A fetch that also records request headers. */
