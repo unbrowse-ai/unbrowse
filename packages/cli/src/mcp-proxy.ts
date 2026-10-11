@@ -4,7 +4,7 @@
 // (UNBROWSE_API_KEY, `unbrowse login --key`, or the `unbrowse login` OAuth token, refreshed per call).
 import { createInterface } from "node:readline";
 import { UnbrowseError, UnbrowseMcp } from "@unbrowse/sdk";
-import type { McpTool } from "@unbrowse/sdk";
+import type { McpTool, RunRequest, Unbrowse } from "@unbrowse/sdk";
 
 type Rpc = { jsonrpc: "2.0"; id?: string | number | null; method?: string; params?: Record<string, unknown> };
 type Upstream = Pick<UnbrowseMcp, "rpc" | "listTools">;
@@ -46,8 +46,27 @@ async function localMcps(args: Record<string, unknown>, upstream: () => Promise<
   return (await upstream()).rpc("tools/call", { name: "unbrowse_import_mcps", arguments: { servers: send, ...(args.dryRun === true ? { dryRun: true } : {}) } });
 }
 
+/** What `unbrowse_run` takes that a run request carries (the rest, such as select, stay with the hosted tool). */
+const RUN_KEYS = ["capability", "task", "targetUrl", "input", "accountRefs", "interactionMode", "idempotencyKey", "allowedDestinations"] as const;
+const RESULT_MAX = 40_000;
+
+/**
+ * `unbrowse_run` with the site requests sent from this machine (--from-here): the same client-egress loop as
+ * `unbrowse run`, so an agent on its own computer (a Grok Bot, a dev box) uses that computer's IP and teaches
+ * Unbrowse the route as it goes. Each request is noted on stderr; stdout stays protocol only.
+ */
+export function localRun(rest: () => Promise<Pick<Unbrowse, "runOnClient">>, log: (line: string) => void = (l) => void process.stderr.write(`${l}\n`)) {
+  return async (args: Record<string, unknown>) => {
+    const request = Object.fromEntries(RUN_KEYS.filter((k) => args[k] !== undefined).map((k) => [k, args[k]])) as RunRequest;
+    const deadline = Number(args.deadlineMs);
+    const view = await (await rest()).runOnClient(request, { onRequest: (r) => log(`→ ${r.method} ${r.url}`), timeoutMs: Math.max(120_000, Number.isFinite(deadline) ? deadline : 0) });
+    const text = JSON.stringify(view);
+    return { content: [{ type: "text", text: text.length > RESULT_MAX ? `${text.slice(0, RESULT_MAX)}…` : text }], structuredContent: view, isError: false };
+  };
+}
+
 /** The proxy's message handler; `upstream` is built per call so OAuth tokens stay fresh. */
-export function createProxy(upstream: () => Promise<Upstream>, version: string) {
+export function createProxy(upstream: () => Promise<Upstream>, version: string, opts: { runLocal?: (args: Record<string, unknown>) => Promise<unknown> } = {}) {
   const names = new Map<string, string>(); // safe → upstream name
 
   async function list(): Promise<McpTool[]> {
@@ -89,6 +108,7 @@ export function createProxy(upstream: () => Promise<Upstream>, version: string) 
         case "tools/call": {
           const name = String(msg.params?.name ?? "");
           if (name === LOCAL_MCPS.name) return reply(await localMcps((msg.params?.arguments ?? {}) as Record<string, unknown>, upstream));
+          if (opts.runLocal && (await original(name)) === "unbrowse_run") return reply(await opts.runLocal((msg.params?.arguments ?? {}) as Record<string, unknown>));
           return reply(await (await upstream()).rpc("tools/call", { ...msg.params, name: await original(name) }));
         }
         default:
@@ -104,8 +124,8 @@ export function createProxy(upstream: () => Promise<Upstream>, version: string) 
 }
 
 /** Serve newline-delimited JSON-RPC on stdin/stdout until stdin closes. Logs go to stderr only. */
-export async function serveStdio(opts: { url: string; token: () => Promise<string | undefined>; version: string; endUser?: string }): Promise<void> {
-  const handle = createProxy(async () => new UnbrowseMcp({ url: opts.url, apiKey: (await opts.token()) ?? "", endUser: opts.endUser, client: `cli-mcp/${opts.version}` }), opts.version);
+export async function serveStdio(opts: { url: string; token: () => Promise<string | undefined>; version: string; endUser?: string; fromHere?: () => Promise<Pick<Unbrowse, "runOnClient">> }): Promise<void> {
+  const handle = createProxy(async () => new UnbrowseMcp({ url: opts.url, apiKey: (await opts.token()) ?? "", endUser: opts.endUser, client: `cli-mcp/${opts.version}` }), opts.version, opts.fromHere ? { runLocal: localRun(opts.fromHere) } : {});
   // Resolve only once the line is flushed: the CLI exits after stdin closes, which would cut a large tools/list.
   const write = (m: unknown) => new Promise<void>((resolve) => process.stdout.write(`${JSON.stringify(m)}\n`, () => resolve()));
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });

@@ -61,6 +61,7 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
 
   mcp                             Local stdio MCP server proxying the hosted one (tool names use _ not .)
       [--url URL] [--end-user ID]   for agent hosts that need stdio or strict tool names (Grok Build)
+      [--from-here]                 unbrowse_run sends its site requests from this machine, like run (a Grok Bot's computer)
 
 Options: --json (errors as JSON) · --base-url URL · --no-open
 Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_EGRESS=server, UNBROWSE_MCP_URL, UNBROWSE_END_USER
@@ -146,6 +147,8 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       token: async () => (await auth.currentToken(origin)) ?? undefined,
       version: VERSION,
       endUser: flag("end-user") ?? process.env.UNBROWSE_END_USER,
+      // --from-here: unbrowse_run's site requests go from this machine (its IP), like `unbrowse run`.
+      ...(args.flags["from-here"] || process.env.UNBROWSE_EGRESS === "client" ? { fromHere: client } : {}),
     });
     return 0;
   }

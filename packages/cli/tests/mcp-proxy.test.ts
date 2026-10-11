@@ -145,3 +145,33 @@ test("unbrowse_local_mcps reads this machine's agent configs and imports through
     process.env.HOME = was;
   }
 });
+
+test("--from-here: unbrowse_run runs through the client-egress loop on this machine; other tools still go upstream", async () => {
+  const { localRun } = await import("../src/mcp-proxy.ts");
+  const f = fakeUpstream();
+  const ran: { request: unknown; timeoutMs?: number }[] = [];
+  const logged: string[] = [];
+  const rest = async () => ({
+    runOnClient: async (request: unknown, o: { onRequest?: (r: { method: string; url: string }) => unknown; timeoutMs?: number }) => {
+      ran.push({ request, timeoutMs: o.timeoutMs });
+      await o.onRequest?.({ method: "GET", url: "https://hn.algolia.com/api/v1/search" });
+      return { runId: "run_1", status: "succeeded", result: { stories: [1] } };
+    },
+  });
+  const handle = createProxy(f.upstream as never, "t", { runLocal: localRun(rest as never, (l) => void logged.push(l)) });
+  const r = (await handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "unbrowse_run", arguments: { task: "top stories on hacker news", select: ["stories"], deadlineMs: 300000 } } })) as { result: { structuredContent: { status: string }; isError: boolean } };
+  expect(r.result.structuredContent.status).toBe("succeeded");
+  expect(r.result.isError).toBe(false);
+  expect(ran).toEqual([{ request: { task: "top stories on hacker news" }, timeoutMs: 300000 }]);
+  expect(logged).toEqual(["→ GET https://hn.algolia.com/api/v1/search"]);
+  expect(f.calls.filter((c) => c.method === "tools/call")).toEqual([]);
+  await handle({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "unbrowse_scrape", arguments: { url: "https://x.test" } } });
+  expect(f.calls.at(-1)).toEqual({ method: "tools/call", params: { name: "unbrowse.scrape", arguments: { url: "https://x.test" } } });
+});
+
+test("without --from-here unbrowse_run is forwarded as before", async () => {
+  const f = fakeUpstream();
+  const handle = createProxy(f.upstream as never, "t");
+  await handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "unbrowse_run", arguments: { task: "x" } } });
+  expect(f.calls.at(-1)).toEqual({ method: "tools/call", params: { name: "unbrowse_run", arguments: { task: "x" } } });
+});
