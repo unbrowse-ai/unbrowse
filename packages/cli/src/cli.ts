@@ -580,7 +580,8 @@ async function settle(ub: Unbrowse, view: RunView, args: Args, io: Io, print: (v
 /**
  * `unbrowse mcp add [claude] [codex]`: registers `unbrowse mcp` (the stdio proxy) with the agent hosts on this
  * machine, so they run on the CLI's sign-in and nobody signs in twice. No token is written anywhere: the proxy
- * reads the CLI's own sign-in at each request. An existing server of that name is left alone unless --replace.
+ * reads the CLI's own sign-in at each request. An existing server of that name is left alone unless --replace
+ * (checked with `<host> mcp get` first: `codex mcp add` would silently overwrite it).
  */
 async function mcpAdd(rest: string[], args: Args, io: Io, origin: string): Promise<number> {
   const HOSTS = ["claude", "codex"] as const;
@@ -589,6 +590,10 @@ async function mcpAdd(rest: string[], args: Args, io: Io, origin: string): Promi
   const name = (typeof args.flags.name === "string" ? args.flags.name : "") || "unbrowse";
   const exec = io.exec ?? (() => ({ status: 1, stdout: "", stderr: "no exec" }));
   const dry = !!args.flags["dry-run"];
+  const replace = !!args.flags.replace;
+  // npm installs claude.cmd / codex.cmd on Windows, which Node only runs through a shell.
+  const win = (io.service?.os ?? process.platform) === "win32";
+  const shell = (cmd: string[]) => (win ? ["cmd", "/c", ...cmd] : cmd);
   const { ephemeralCli } = await import("./cookie-daemon.ts");
   let cli = io.service?.cli ?? process.argv[1] ?? "";
   try {
@@ -597,31 +602,46 @@ async function mcpAdd(rest: string[], args: Args, io: Io, origin: string): Promi
     /* keep it as given */
   }
   // A temporary npx copy disappears; the host then starts the published CLI the same way.
-  const launch = [...(io.service?.cli || !ephemeralCli(cli) ? [io.service?.node ?? process.execPath, cli] : ["npx", "-y", "unbrowse"]), "mcp", ...(origin !== DEFAULT_ORIGIN ? ["--base-url", origin] : [])];
-  const env = process.env.UNBROWSE_CONFIG_DIR ? [`UNBROWSE_CONFIG_DIR=${process.env.UNBROWSE_CONFIG_DIR}`] : [];
+  const launch = [...(io.service?.cli || !ephemeralCli(cli) ? [io.service?.node ?? process.execPath, cli] : shell(["npx", "-y", "unbrowse"])), "mcp", ...(origin !== DEFAULT_ORIGIN ? ["--base-url", origin] : [])];
+  // Hosts start servers with a reduced environment: pass on where the sign-in lives and the sharing switch.
+  // Never UNBROWSE_API_KEY: that would write a secret into the host's config.
+  const env = ["UNBROWSE_CONFIG_DIR", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR", "UNBROWSE_SHARED_SIGNIN"].flatMap((k) => (process.env[k] ? [`${k}=${process.env[k]}`] : []));
   const plans = {
-    claude: { remove: ["claude", "mcp", "remove", name, "--scope", "user"], add: ["claude", "mcp", "add", "--scope", "user", name, ...env.flatMap((e) => ["-e", e]), "--", ...launch] }, // -e is variadic: after the name
-    codex: { remove: ["codex", "mcp", "remove", name], add: ["codex", "mcp", "add", name, ...env.flatMap((e) => ["--env", e]), "--", ...launch] },
+    claude: { get: ["claude", "mcp", "get", name], remove: ["claude", "mcp", "remove", name, "--scope", "user"], add: ["claude", "mcp", "add", "--scope", "user", name, ...env.flatMap((e) => ["-e", e]), "--", ...launch] }, // -e is variadic: after the name
+    codex: { get: ["codex", "mcp", "get", name], remove: ["codex", "mcp", "remove", name], add: ["codex", "mcp", "add", name, ...env.flatMap((e) => ["--env", e]), "--", ...launch] },
   };
-  const wanted = rest.length ? (rest as (typeof HOSTS)[number][]) : HOSTS.filter((h) => dry || exec([h, "--version"]).status === 0);
+  const wanted = rest.length ? (rest as (typeof HOSTS)[number][]) : HOSTS.filter((h) => dry || exec(shell([h, "--version"])).status === 0);
   if (!wanted.length) return io.err("No Claude Code or Codex found on PATH. Any MCP host can run the proxy itself: " + launch.join(" ")), 1;
   let failed = 0;
   for (const h of wanted) {
     const plan = plans[h];
     if (dry) {
-      io.out([...(args.flags.replace ? [plan.remove.join(" ")] : []), plan.add.join(" ")].join("\n"));
+      io.out([...(replace ? [plan.remove] : []), plan.add].map((c) => shell(c).join(" ")).join("\n"));
       continue;
     }
-    if (args.flags.replace) exec(plan.remove); // absent is fine
-    const r = exec(plan.add);
-    if (r.status === 0) io.err(`✓ ${h}: added "${name}" (stdio, on this CLI's sign-in)`);
-    else {
-      failed++;
-      const exists = /already exists/i.test(`${r.stderr}${r.stdout}`);
-      io.err(`✗ ${h}: ${exists ? `a server named "${name}" already exists. Re-run with --replace, or pick --name.` : r.stderr.trim() || `exit ${r.status}`}`);
+    if (exec(shell(plan.get)).status === 0) {
+      if (!replace) {
+        failed++;
+        io.err(`✗ ${h}: a server named "${name}" already exists; left as it is. Re-run with --replace, or pick --name.`);
+        continue;
+      }
+      const r = exec(shell(plan.remove));
+      if (r.status !== 0) {
+        failed++;
+        io.err(`✗ ${h}: could not remove the existing "${name}": ${(r.stderr || r.stdout).trim() || `exit ${r.status}`}`);
+        continue;
+      }
     }
+    const r = exec(shell(plan.add));
+    if (r.status === 0) io.err(`✓ ${h}: added "${name}" (stdio, on this CLI's sign-in)`);
+    else (failed++, io.err(`✗ ${h}: ${(r.stderr || r.stdout).trim() || `exit ${r.status}`}`));
   }
-  if (!dry && !(await auth.currentToken(origin))) io.err("Not signed in yet: run `unbrowse login` once and the hosts use that sign-in.");
+  if (!dry) {
+    const source = auth.signInSource(origin);
+    if (source === "env") io.err("This CLI is signed in only through UNBROWSE_API_KEY, which the hosts do not get: run `unbrowse login` (or `unbrowse login --key`) so they have a sign-in.");
+    else if (source === "shared") io.err("This CLI is using Claude Code's sign-in, which only Claude Code renews: run `unbrowse login` so the hosts keep working.");
+    else if (!source) io.err("Not signed in yet: run `unbrowse login` once and the hosts use that sign-in.");
+  }
   return failed ? 1 : 0;
 }
 
