@@ -22,6 +22,12 @@ First use: a command that needs an account (`run`, `discover`, `whoami`, …), r
 no credential, starts the same browser sign-in as `login` and then carries on. Without a terminal
 (no TTY, `CI` set, or `--json`) it exits 3 and names `unbrowse login` and `UNBROWSE_API_KEY`.
 
+Headless / remote (a cloud agent's VM, CI, SSH) has no browser and no loopback to catch the redirect.
+There, `unbrowse login` — or `unbrowse login --device`, or any `login` where there is no interactive
+terminal — uses the device flow (RFC 8628): it prints a short code and a URL, you open the URL on your
+phone or laptop and approve the code, and the CLI gets its own named login once you approve. The login
+is that client's alone, so you can revoke a single agent without signing the others out.
+
 ## Runs
 
 | Command | Route |
