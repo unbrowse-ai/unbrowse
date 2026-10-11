@@ -71,6 +71,8 @@ export function sharedSignIn(baseUrl: string, now = Date.now()): { token: string
     return undefined;
   }
   const api = new URL(apiResource(baseUrl));
+  // Several matches (two accounts, a stale copy): the one valid longest, so the choice does not depend on file order.
+  let best: { token: string; from: string; expiresAt: number } | undefined;
   for (const e of entries as { serverName?: unknown; serverUrl?: unknown; accessToken?: unknown; expiresAt?: unknown }[]) {
     if (typeof e?.serverUrl !== "string" || typeof e.accessToken !== "string" || !e.accessToken) continue;
     if (typeof e.expiresAt === "number" && now > e.expiresAt - 60_000) continue;
@@ -81,9 +83,10 @@ export function sharedSignIn(baseUrl: string, now = Date.now()): { token: string
       continue;
     }
     if (url.origin !== api.origin || !(url.pathname === api.pathname || url.pathname.startsWith(`${api.pathname}/`))) continue;
-    return { token: e.accessToken, from: `Claude Code's MCP sign-in (${String(e.serverName ?? url.origin + url.pathname)})` };
+    const expiresAt = typeof e.expiresAt === "number" ? e.expiresAt : 0; // unknown expiry ranks last
+    if (!best || expiresAt > best.expiresAt) best = { token: e.accessToken, from: `Claude Code's MCP sign-in (${String(e.serverName ?? url.origin + url.pathname)})`, expiresAt };
   }
-  return undefined;
+  return best && { token: best.token, from: best.from };
 }
 
 /** The token for a call: env key, then stored key, then OAuth (refreshed when it is about to expire), then a v1 key, then an MCP host's sign-in. */
@@ -104,6 +107,19 @@ export async function currentToken(baseUrl: string, fetchImpl: typeof fetch = fe
     }
   }
   return o.accessToken;
+}
+
+/** The token to send to `target` (the proxy's MCP URL): a token borrowed from Claude Code only goes to its own origin. */
+export async function tokenFor(baseUrl: string, target: string, fetchImpl: typeof fetch = fetch): Promise<string | undefined> {
+  const token = await currentToken(baseUrl, fetchImpl);
+  if (!token) return undefined;
+  let same = false;
+  try {
+    same = new URL(target, baseUrl).origin === new URL(baseUrl).origin;
+  } catch {
+    /* not a URL: not this origin */
+  }
+  return same || signInSource(baseUrl) !== "shared" ? token : undefined;
 }
 
 /** Where `currentToken` gets this origin's sign-in: the environment, this CLI's own store, a v1 key, or Claude Code's. */

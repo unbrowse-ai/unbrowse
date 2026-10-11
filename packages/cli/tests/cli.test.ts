@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { apiResource, clear, currentToken, describe as describeAuth, oauthLogin, save, sharedSignIn, v1Key } from "../src/auth.ts";
+import { apiResource, clear, currentToken, describe as describeAuth, oauthLogin, save, sharedSignIn, tokenFor, v1Key } from "../src/auth.ts";
 import { main, parseArgs } from "../src/cli.ts";
 
 // A stand-in for the hosted REST API (/api/v1), shaped like unbrowse6's http.ts.
@@ -523,4 +523,41 @@ test("mcp add with neither host on PATH says how to run the proxy by hand", asyn
   const code = await main(["mcp", "add", "--base-url", BASE], { out: () => {}, err: (s) => err.push(s), open: () => {}, exec: () => ({ status: 1, stdout: "", stderr: "ENOENT" }), service: { node: "/usr/bin/node", cli: "/opt/unbrowse/cli.js" } });
   expect(code).toBe(1);
   expect(err.join("\n")).toContain("No Claude Code or Codex found on PATH");
+});
+
+test("several Claude Code sign-ins match: the one valid longest wins, whatever the file order; a borrowed one never goes to another --url", async () => {
+  delete process.env.UNBROWSE_API_KEY;
+  clear();
+  const dir = mkdtempSync(join(tmpdir(), "unbrowse-claude-"));
+  const prev = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = dir;
+  const now = Date.now();
+  try {
+    writeFileSync(join(dir, ".credentials.json"), JSON.stringify({ mcpOAuth: {
+      "a|1": { serverName: "no-expiry", serverUrl: `${BASE}/api/mcp`, accessToken: "unknown" },
+      "b|2": { serverName: "soon", serverUrl: `${BASE}/api/mcp`, accessToken: "soon", expiresAt: now + 600_000 },
+      "c|3": { serverName: "later", serverUrl: `${BASE}/api/mcp`, accessToken: "later", expiresAt: now + 3_600_000 },
+    } }));
+    expect(sharedSignIn(BASE)).toEqual({ token: "later", from: "Claude Code's MCP sign-in (later)" });
+    expect(await tokenFor(BASE, `${BASE}/api/mcp`)).toBe("later");
+    expect(await tokenFor(BASE, "https://elsewhere.example/mcp")).toBeUndefined();
+    // The CLI's own sign-in still goes to an explicit --url, as before.
+    save({ baseUrl: BASE, apiKey: "ub_own" });
+    expect(await tokenFor(BASE, "https://elsewhere.example/mcp")).toBe("ub_own");
+  } finally {
+    process.env.CLAUDE_CONFIG_DIR = prev;
+    clear();
+    process.env.UNBROWSE_API_KEY = TOKEN;
+  }
+});
+
+test("mcp add says so when Claude Code also has the Unbrowse plugin's server (tools would show twice)", async () => {
+  const exec = (cmd: string[]) => {
+    if (cmd[2] === "get") return cmd[3] === "plugin:unbrowse:unbrowse" ? { status: 0, stdout: "", stderr: "" } : { status: 1, stdout: "", stderr: "No MCP server" };
+    return { status: 0, stdout: "", stderr: "" };
+  };
+  const err: string[] = [];
+  const code = await main(["mcp", "add", "claude", "--base-url", BASE], { out: () => {}, err: (s) => err.push(s), open: () => {}, exec, service: { node: "/usr/bin/node", cli: "/opt/unbrowse/cli.js" } });
+  expect(code).toBe(0);
+  expect(err.join("\n")).toContain("plugin:unbrowse:unbrowse");
 });

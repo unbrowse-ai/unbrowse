@@ -146,9 +146,10 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
   if (cmd === "mcp" && rest[0] !== "add") {
     // stdout carries the protocol: nothing else may be printed there.
     const { serveStdio } = await import("./mcp-proxy.ts");
+    const url = flag("url") ?? process.env.UNBROWSE_MCP_URL ?? `${origin}/api/mcp`;
     await serveStdio({
-      url: flag("url") ?? process.env.UNBROWSE_MCP_URL ?? `${origin}/api/mcp`,
-      token: async () => (await auth.currentToken(origin)) ?? undefined,
+      url,
+      token: () => auth.tokenFor(origin, url),
       version: VERSION,
       endUser: flag("end-user") ?? process.env.UNBROWSE_END_USER,
       // --from-here: unbrowse_run's site requests go from this machine (its IP), like `unbrowse run`.
@@ -637,7 +638,11 @@ async function mcpAdd(rest: string[], args: Args, io: Io, origin: string): Promi
       }
     }
     const r = exec(shell(plan.add));
-    if (r.status === 0) io.err(`✓ ${h}: added "${name}" (stdio, on this CLI's sign-in)`);
+    if (r.status === 0) {
+      io.err(`✓ ${h}: added "${name}" (stdio, on this CLI's sign-in)`);
+      // The Claude Code plugin brings its own Unbrowse server: with both, every tool is listed twice.
+      if (h === "claude" && exec(shell(["claude", "mcp", "get", "plugin:unbrowse:unbrowse"])).status === 0) io.err(`  Claude Code also has the Unbrowse plugin's server (plugin:unbrowse:unbrowse), so its tools now show twice. Keep one: disable that server in /mcp, or \`claude mcp remove ${name} --scope user\`.`);
+    }
     else (failed++, io.err(`✗ ${h}: ${(r.stderr || r.stdout).trim() || `exit ${r.status}`}`));
   }
   if (!dry) {
