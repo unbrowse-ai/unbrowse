@@ -290,5 +290,5 @@ function quoteSystemd(s: string): string {
 
 /** An entry script that will not exist later (an npx cache, a temp dir): a service must not point at it. */
 export function ephemeralCli(cli: string): boolean {
-  return /[\\/](_npx|\.npm[\\/]_npx|npx-[^\\/]+|tmp|Temp)[\\/]/i.test(cli);
+  return /[\\/](_npx|\.npm[\\/]_npx|npx-[^\\/]+|bunx-[^\\/]+|tmp|Temp)[\\/]/i.test(cli);
 }
