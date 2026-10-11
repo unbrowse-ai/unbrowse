@@ -480,7 +480,10 @@ test("mcp add registers the stdio proxy with Claude Code and Codex, on the CLI's
   const launch = ["/usr/bin/node", "/opt/unbrowse/cli.js", "mcp", "--base-url", BASE];
   process.env.UNBROWSE_SHARED_SIGNIN = "0";
   try {
-    const env = [`UNBROWSE_CONFIG_DIR=${process.env.UNBROWSE_CONFIG_DIR}`, `CLAUDE_CONFIG_DIR=${process.env.CLAUDE_CONFIG_DIR}`, "UNBROWSE_SHARED_SIGNIN=0"];
+    // Whatever of these is set here is passed on (CI also sets XDG_CONFIG_HOME); never the API key.
+    const env = ["UNBROWSE_CONFIG_DIR", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR", "UNBROWSE_SHARED_SIGNIN"].flatMap((k) => (process.env[k] ? [`${k}=${process.env[k]}`] : []));
+    expect(env).toContain("UNBROWSE_SHARED_SIGNIN=0");
+    expect(env.some((e) => e.startsWith("CLAUDE_CONFIG_DIR="))).toBe(true);
     const dry = await run(["mcp", "add", "--dry-run"]);
     expect(dry.code).toBe(0);
     expect(dry.out).toEqual([["claude", "mcp", "add", "--scope", "user", "unbrowse", ...env.flatMap((e) => ["-e", e]), "--", ...launch].join(" "), ["codex", "mcp", "add", "unbrowse", ...env.flatMap((e) => ["--env", e]), "--", ...launch].join(" ")]);
