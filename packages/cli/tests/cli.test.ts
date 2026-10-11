@@ -68,6 +68,7 @@ function cli(argv: string[], over: { interactive?: boolean; open?: (u: string) =
 
 beforeAll(() => {
   process.env.UNBROWSE_CONFIG_DIR = mkdtempSync(join(tmpdir(), "unbrowse-cli-"));
+  process.env.CLAUDE_CONFIG_DIR = mkdtempSync(join(tmpdir(), "unbrowse-claude-none-")); // never the developer's real one
 });
 beforeEach(() => {
   seen.length = 0;
@@ -430,33 +431,93 @@ test("no CLI sign-in: Claude Code's MCP sign-in for this origin's /api audience 
   }
 });
 
-test("mcp add registers the stdio proxy with Claude Code and Codex, on the CLI's sign-in; an existing name needs --replace", async () => {
+test("borrowing matches the server's audience rule exactly: same scheme, host and port, /api or below; not for another stored origin", async () => {
+  delete process.env.UNBROWSE_API_KEY;
+  clear();
+  const dir = mkdtempSync(join(tmpdir(), "unbrowse-claude-"));
+  const prev = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = dir;
+  const only = (serverUrl: string) => writeFileSync(join(dir, ".credentials.json"), JSON.stringify({ mcpOAuth: { "x|1": { serverName: "s", serverUrl, accessToken: "t" } } }));
+  const port = new URL(BASE).port;
+  try {
+    for (const bad of [`${BASE}/apix/mcp`, `${BASE}/apimcp`, `https://127.0.0.1:${port}/api/mcp`, `http://127.0.0.1:${Number(port) + 1}/api/mcp`, `http://localhost:${port}/api/mcp`, "not a url"]) {
+      only(bad);
+      expect(sharedSignIn(BASE)).toBeUndefined();
+    }
+    for (const good of [`${BASE}/api/mcp`, `${BASE}/api`, `${BASE}/api/v1/sites/github.com/mcp`]) {
+      only(good);
+      expect(sharedSignIn(BASE)?.token).toBe("t");
+    }
+    // A CLI signed in to another origin borrows nothing for this one.
+    save({ baseUrl: "https://elsewhere.example", apiKey: "ub_other" });
+    expect(sharedSignIn(BASE)?.token).toBe("t");
+    expect(await currentToken(BASE)).toBeUndefined();
+  } finally {
+    process.env.CLAUDE_CONFIG_DIR = prev;
+    clear();
+  }
+});
+
+test("mcp add registers the stdio proxy with Claude Code and Codex, on the CLI's sign-in; an existing name is left alone without --replace", async () => {
+  delete process.env.UNBROWSE_API_KEY;
   const calls: string[][] = [];
-  let exists = true;
-  const exec = (cmd: string[]) => {
-    calls.push(cmd);
-    if (cmd[2] === "remove") return (exists = false), { status: 0, stdout: "", stderr: "" };
-    if (cmd[2] === "add" && exists) return { status: 1, stdout: "", stderr: 'MCP server unbrowse already exists in user config' };
-    return { status: 0, stdout: "", stderr: "" };
+  const existing = new Set<string>(["claude", "codex"]);
+  const exec = (raw: string[]) => {
+    const cmd = raw[0] === "cmd" ? raw.slice(2) : raw;
+    calls.push(raw);
+    const [host, , verb] = cmd;
+    if (cmd[1] === "--version") return { status: 0, stdout: "1", stderr: "" };
+    if (verb === "get") return existing.has(host!) ? { status: 0, stdout: "unbrowse", stderr: "" } : { status: 1, stdout: "", stderr: "No MCP server" };
+    if (verb === "remove") return existing.delete(host!), { status: 0, stdout: "", stderr: "" };
+    if (verb === "add") return existing.add(host!), { status: 0, stdout: "", stderr: "" }; // codex really does overwrite: the get guards it
+    return { status: 1, stdout: "", stderr: "?" };
   };
-  const run = (argv: string[]) => {
+  const run = (argv: string[], os?: NodeJS.Platform) => {
     const out: string[] = [];
     const err: string[] = [];
-    return main([...argv, "--base-url", BASE], { out: (s) => out.push(s), err: (s) => err.push(s), open: () => {}, exec, service: { node: "/usr/bin/node", cli: "/opt/unbrowse/cli.js" } }).then((code) => ({ code, out, err }));
+    return main([...argv, "--base-url", BASE], { out: (s) => out.push(s), err: (s) => err.push(s), open: () => {}, exec, service: { node: "/usr/bin/node", cli: "/opt/unbrowse/cli.js", os } }).then((code) => ({ code, out, err }));
   };
   const launch = ["/usr/bin/node", "/opt/unbrowse/cli.js", "mcp", "--base-url", BASE];
-  const env = `UNBROWSE_CONFIG_DIR=${process.env.UNBROWSE_CONFIG_DIR}`; // the proxy reads the same sign-in as this CLI
-  const dry = await run(["mcp", "add", "--dry-run"]);
-  expect(dry.code).toBe(0);
-  expect(dry.out).toEqual([["claude", "mcp", "add", "--scope", "user", "unbrowse", "-e", env, "--", ...launch].join(" "), ["codex", "mcp", "add", "unbrowse", "--env", env, "--", ...launch].join(" ")]);
-  expect(calls).toEqual([]);
-  const clash = await run(["mcp", "add", "claude"]);
-  expect(clash.code).toBe(1);
-  expect(clash.err.join("\n")).toContain("--replace");
-  calls.length = 0;
-  const ok = await run(["mcp", "add", "claude", "--replace"]);
-  expect(ok.code).toBe(0);
-  expect(calls).toEqual([["claude", "mcp", "remove", "unbrowse", "--scope", "user"], ["claude", "mcp", "add", "--scope", "user", "unbrowse", "-e", env, "--", ...launch]]);
-  expect(calls.flat().join(" ")).not.toContain(TOKEN); // nothing secret goes into a host's config
-  expect((await run(["mcp", "add", "cursor"])).code).toBe(1);
+  process.env.UNBROWSE_SHARED_SIGNIN = "0";
+  try {
+    const env = [`UNBROWSE_CONFIG_DIR=${process.env.UNBROWSE_CONFIG_DIR}`, `CLAUDE_CONFIG_DIR=${process.env.CLAUDE_CONFIG_DIR}`, "UNBROWSE_SHARED_SIGNIN=0"];
+    const dry = await run(["mcp", "add", "--dry-run"]);
+    expect(dry.code).toBe(0);
+    expect(dry.out).toEqual([["claude", "mcp", "add", "--scope", "user", "unbrowse", ...env.flatMap((e) => ["-e", e]), "--", ...launch].join(" "), ["codex", "mcp", "add", "unbrowse", ...env.flatMap((e) => ["--env", e]), "--", ...launch].join(" ")]);
+    expect(calls).toEqual([]);
+    // Both hosts already have one: nothing is added or removed.
+    const clash = await run(["mcp", "add"]);
+    expect(clash.code).toBe(1);
+    expect(clash.err.filter((l) => l.includes("--replace")).length).toBe(2);
+    expect(calls.some((c) => c[2] === "add" || c[2] === "remove")).toBe(false);
+    calls.length = 0;
+    const ok = await run(["mcp", "add", "codex", "--replace"]);
+    expect(ok.code).toBe(0);
+    expect(calls.map((c) => c.slice(0, 3).join(" "))).toEqual(["codex mcp get", "codex mcp remove", "codex mcp add"]);
+    expect(ok.err.join("\n")).toContain("Not signed in yet");
+    expect(calls.flat().join(" ")).not.toContain(TOKEN); // nothing secret goes into a host's config
+    // An env-only key is not passed on: say so instead.
+    process.env.UNBROWSE_API_KEY = TOKEN;
+    existing.clear();
+    const envOnly = await run(["mcp", "add", "claude"]);
+    expect(envOnly.err.join("\n")).toContain("UNBROWSE_API_KEY, which the hosts do not get");
+    expect(calls.flat().join(" ")).not.toContain(TOKEN);
+    delete process.env.UNBROWSE_API_KEY;
+    // Windows: host commands go through cmd /c (npm's claude.cmd / codex.cmd).
+    calls.length = 0;
+    existing.clear();
+    expect((await run(["mcp", "add", "claude"], "win32")).code).toBe(0);
+    expect(calls.every((c) => c[0] === "cmd" && c[1] === "/c")).toBe(true);
+    expect((await run(["mcp", "add", "cursor"])).code).toBe(1);
+  } finally {
+    delete process.env.UNBROWSE_SHARED_SIGNIN;
+    process.env.UNBROWSE_API_KEY = TOKEN;
+  }
+});
+
+test("mcp add with neither host on PATH says how to run the proxy by hand", async () => {
+  const err: string[] = [];
+  const code = await main(["mcp", "add", "--base-url", BASE], { out: () => {}, err: (s) => err.push(s), open: () => {}, exec: () => ({ status: 1, stdout: "", stderr: "ENOENT" }), service: { node: "/usr/bin/node", cli: "/opt/unbrowse/cli.js" } });
+  expect(code).toBe(1);
+  expect(err.join("\n")).toContain("No Claude Code or Codex found on PATH");
 });

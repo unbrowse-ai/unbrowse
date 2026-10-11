@@ -189,7 +189,11 @@ Exit 1 when any server failed.
 `unbrowse mcp add [claude] [codex]` registers that proxy with Claude Code (user scope) and Codex through their own
 `mcp add` commands, for whichever is on PATH when none is named. They then run on the CLI's sign-in: nothing to sign in
 to twice, and no token in their config (the proxy reads the CLI's sign-in on each call). A server already named
-`unbrowse` is left alone: `--replace` removes it first, `--name` picks another name, `--dry-run` prints the commands.
+`unbrowse` (checked with `<host> mcp get`) is left alone: `--replace` removes it first, `--name` picks another name,
+`--dry-run` prints the commands. Hosts start servers with a reduced environment, so `UNBROWSE_CONFIG_DIR`,
+`XDG_CONFIG_HOME`, `CLAUDE_CONFIG_DIR` and `UNBROWSE_SHARED_SIGNIN` are passed on when set. `UNBROWSE_API_KEY` never
+is (it would be a secret in the host's config): a CLI signed in only through it, or only through Claude Code's sign-in,
+is told to run `unbrowse login`. On Windows the host commands run through `cmd /c`.
 
 The other way: when the CLI has no sign-in of its own (no `UNBROWSE_API_KEY`, `login` or v1 key), it uses the Unbrowse
 sign-in Claude Code made for its MCP server, read from `~/.claude/.credentials.json` (or `$CLAUDE_CONFIG_DIR`).

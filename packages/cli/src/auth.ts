@@ -81,7 +81,7 @@ export function sharedSignIn(baseUrl: string, now = Date.now()): { token: string
       continue;
     }
     if (url.origin !== api.origin || !(url.pathname === api.pathname || url.pathname.startsWith(`${api.pathname}/`))) continue;
-    return { token: e.accessToken, from: `Claude Code's MCP sign-in (${String(e.serverName ?? url.href)})` };
+    return { token: e.accessToken, from: `Claude Code's MCP sign-in (${String(e.serverName ?? url.origin + url.pathname)})` };
   }
   return undefined;
 }
@@ -104,6 +104,16 @@ export async function currentToken(baseUrl: string, fetchImpl: typeof fetch = fe
     }
   }
   return o.accessToken;
+}
+
+/** Where `currentToken` gets this origin's sign-in: the environment, this CLI's own store, a v1 key, or Claude Code's. */
+export function signInSource(baseUrl: string): "env" | "stored" | "v1" | "shared" | undefined {
+  if (process.env.UNBROWSE_API_KEY) return "env";
+  const stored = load();
+  if (stored.baseUrl && stored.baseUrl !== baseUrl) return undefined;
+  if (stored.apiKey || stored.oauth) return "stored";
+  if (v1Key(baseUrl)) return "v1";
+  return sharedSignIn(baseUrl) ? "shared" : undefined;
 }
 
 export function describe(baseUrl: string): string {
