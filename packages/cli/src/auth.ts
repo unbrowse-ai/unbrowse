@@ -4,7 +4,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import { dirname, join } from "node:path";
 
 export type Stored = {
@@ -227,4 +227,64 @@ export async function oauthLogin(
   } finally {
     server.close();
   }
+}
+
+/**
+ * Device sign-in (RFC 8628) for a machine with no browser and no loopback — a remote agent's VM, a CI box, an
+ * SSH session. Registers a client named for this host, asks the server for a short code, prints where to approve
+ * it, and polls until the person approves on another device. The resulting login is this client's own, so it can
+ * be revoked on its own without touching other agents.
+ */
+export async function deviceLogin(
+  baseUrl: string,
+  opts: { log: (line: string) => void; fetch?: typeof fetch; clientName?: string; sleep?: (ms: number) => Promise<void>; now?: () => number },
+): Promise<void> {
+  const fetchImpl = opts.fetch ?? fetch;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const now = opts.now ?? Date.now;
+  const name = opts.clientName ?? `Unbrowse CLI (${hostname()})`;
+  const redirectUri = `${baseUrl.replace(/\/+$/, "")}/device/done`;
+
+  const reg = await fetchImpl(`${baseUrl}/oauth/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ client_name: name, redirect_uris: [redirectUri], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none" }),
+  });
+  const client = (await reg.json().catch(() => ({}))) as { client_id?: string; error_description?: string };
+  if (!reg.ok || !client.client_id) throw new Error(`client registration failed: ${client.error_description ?? `HTTP ${reg.status}`}`);
+
+  const da = await fetchImpl(`${baseUrl}/oauth/device_authorization`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+    body: new URLSearchParams({ client_id: client.client_id, resource: apiResource(baseUrl) }).toString(),
+  });
+  const dev = (await da.json().catch(() => ({}))) as { device_code?: string; user_code?: string; verification_uri?: string; verification_uri_complete?: string; expires_in?: number; interval?: number; error_description?: string; error?: string };
+  if (!da.ok || !dev.device_code || !dev.user_code) throw new Error(`could not start device sign-in: ${dev.error_description ?? dev.error ?? `HTTP ${da.status}`}`);
+
+  opts.log(`To sign in, open ${dev.verification_uri} on any device and enter the code:\n\n    ${dev.user_code}\n\n(or open ${dev.verification_uri_complete} to skip typing it). Waiting for approval…`);
+
+  const deadline = now() + (dev.expires_in ?? 600) * 1000;
+  let interval = Math.max(1, dev.interval ?? 5);
+  while (now() < deadline) {
+    await sleep(interval * 1000);
+    const res = await fetchImpl(`${baseUrl}/oauth/token`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+      body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:device_code", device_code: dev.device_code, client_id: client.client_id }).toString(),
+    });
+    const body = (await res.json().catch(() => ({}))) as { access_token?: string; refresh_token?: string; expires_in?: number; error?: string; error_description?: string };
+    if (res.ok && body.access_token) {
+      save({ baseUrl, oauth: { clientId: client.client_id, accessToken: body.access_token, refreshToken: body.refresh_token, expiresAt: body.expires_in ? now() + body.expires_in * 1000 : undefined } });
+      return;
+    }
+    if (body.error === "authorization_pending") continue;
+    if (body.error === "slow_down") {
+      interval += 5;
+      continue;
+    }
+    if (body.error === "access_denied") throw new Error("the sign-in was denied");
+    if (body.error === "expired_token") throw new Error("the code expired before it was approved; run `unbrowse login` again");
+    throw new Error(body.error_description ?? body.error ?? `device sign-in failed (HTTP ${res.status})`);
+  }
+  throw new Error("timed out waiting for approval");
 }
