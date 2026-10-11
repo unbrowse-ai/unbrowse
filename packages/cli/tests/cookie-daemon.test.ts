@@ -95,6 +95,8 @@ test("pure parts: sites are hosts, the fingerprint follows values, backoff doubl
   expect(D.nextDelayMs(cfg, { sites: {}, failures: 9 })).toBe(60 * 60_000);
   expect(D.ephemeralCli("/home/u/.npm/_npx/123/node_modules/unbrowse/dist/cli.js")).toBe(true);
   expect(D.ephemeralCli("/usr/lib/node_modules/unbrowse/dist/cli.js")).toBe(false);
+  // bunx on macOS runs from $TMPDIR (/var/folders/…/T/bunx-…), which "tmp" does not match.
+  expect(D.ephemeralCli("/var/folders/ab/cd/T/bunx-501-unbrowse@12.3.0/node_modules/unbrowse/dist/cli.js")).toBe(true);
   const mac = D.servicePlan({ os: "darwin", home: "/Users/u", node: "/opt/node", cli: "/opt/cli.js", uid: 501 })!;
   expect(mac.path).toBe("/Users/u/Library/LaunchAgents/ai.unbrowse.cookies.plist");
   expect(mac.content).toContain("<string>cookies</string><string>watch</string>");
