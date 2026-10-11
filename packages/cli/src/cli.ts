@@ -62,12 +62,15 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   mcp                             Local stdio MCP server proxying the hosted one (tool names use _ not .)
       [--url URL] [--end-user ID]   for agent hosts that need stdio or strict tool names (Grok Build)
       [--from-here]                 unbrowse_run sends its site requests from this machine, like run (a Grok Bot's computer)
+  mcp add [claude] [codex]        Register that proxy with Claude Code / Codex: they use this CLI's sign-in (no second sign-in)
+      [--name NAME] [--replace] [--dry-run]
+                                  And back: no CLI sign-in, but Claude Code signed in to Unbrowse (plugin) → the CLI uses that
 
 Options: --json (errors as JSON) · --base-url URL · --no-open
 Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_EGRESS=server, UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
-const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events", "dry-run", "with-keys"]);
+const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events", "dry-run", "with-keys", "replace"]);
 /** Commands that act for a workspace; the first one run with no sign-in starts the sign-in. */
 const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "scrape", "index", "inspect", "resume", "cancel", "learn", "learned", "logins", "call", "cookies"]);
 const SCRAPE_FORMATS = ["markdown", "html", "text", "links", "raw"] as const;
@@ -139,7 +142,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
   const print = (v: unknown) => io.out(JSON.stringify(v, null, 2));
   const client = async () => new Unbrowse({ apiKey: (await auth.currentToken(origin)) ?? "", baseUrl: origin, client: `cli/${VERSION}` });
 
-  if (cmd === "mcp") {
+  if (cmd === "mcp" && rest[0] !== "add") {
     // stdout carries the protocol: nothing else may be printed there.
     const { serveStdio } = await import("./mcp-proxy.ts");
     await serveStdio({
@@ -268,6 +271,8 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         await offerCookieSync().catch((e: Error) => io.err(`Cookie sync not set up: ${e.message}`));
         return 0;
       }
+      case "mcp": // `mcp add`; plain `mcp` (the proxy) returned above
+        return await mcpAdd(rest.slice(1), args, io, origin);
       case "logout":
         auth.clear();
         io.err("Signed out.");
@@ -572,6 +577,74 @@ async function settle(ub: Unbrowse, view: RunView, args: Args, io: Io, print: (v
  * What to do when no tool fits, as CLI commands. The server's message names REST routes and MCP tools
  * (unbrowse.browse.open) a CLI user cannot call; the CLI has scrape and index for the same steps.
  */
+/**
+ * `unbrowse mcp add [claude] [codex]`: registers `unbrowse mcp` (the stdio proxy) with the agent hosts on this
+ * machine, so they run on the CLI's sign-in and nobody signs in twice. No token is written anywhere: the proxy
+ * reads the CLI's own sign-in at each request. An existing server of that name is left alone unless --replace
+ * (checked with `<host> mcp get` first: `codex mcp add` would silently overwrite it).
+ */
+async function mcpAdd(rest: string[], args: Args, io: Io, origin: string): Promise<number> {
+  const HOSTS = ["claude", "codex"] as const;
+  const unknown = rest.filter((h) => !(HOSTS as readonly string[]).includes(h));
+  if (unknown.length) throw new UsageError(`usage: unbrowse mcp add [claude] [codex] [--name NAME] [--replace] [--dry-run] (unknown: ${unknown.join(", ")})`);
+  const name = (typeof args.flags.name === "string" ? args.flags.name : "") || "unbrowse";
+  const exec = io.exec ?? (() => ({ status: 1, stdout: "", stderr: "no exec" }));
+  const dry = !!args.flags["dry-run"];
+  const replace = !!args.flags.replace;
+  // npm installs claude.cmd / codex.cmd on Windows, which Node only runs through a shell.
+  const win = (io.service?.os ?? process.platform) === "win32";
+  const shell = (cmd: string[]) => (win ? ["cmd", "/c", ...cmd] : cmd);
+  const { ephemeralCli } = await import("./cookie-daemon.ts");
+  let cli = io.service?.cli ?? process.argv[1] ?? "";
+  try {
+    cli = realpathSync(cli);
+  } catch {
+    /* keep it as given */
+  }
+  // A temporary npx copy disappears; the host then starts the published CLI the same way.
+  const launch = [...(io.service?.cli || !ephemeralCli(cli) ? [io.service?.node ?? process.execPath, cli] : shell(["npx", "-y", "unbrowse"])), "mcp", ...(origin !== DEFAULT_ORIGIN ? ["--base-url", origin] : [])];
+  // Hosts start servers with a reduced environment: pass on where the sign-in lives and the sharing switch.
+  // Never UNBROWSE_API_KEY: that would write a secret into the host's config.
+  const env = ["UNBROWSE_CONFIG_DIR", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR", "UNBROWSE_SHARED_SIGNIN"].flatMap((k) => (process.env[k] ? [`${k}=${process.env[k]}`] : []));
+  const plans = {
+    claude: { get: ["claude", "mcp", "get", name], remove: ["claude", "mcp", "remove", name, "--scope", "user"], add: ["claude", "mcp", "add", "--scope", "user", name, ...env.flatMap((e) => ["-e", e]), "--", ...launch] }, // -e is variadic: after the name
+    codex: { get: ["codex", "mcp", "get", name], remove: ["codex", "mcp", "remove", name], add: ["codex", "mcp", "add", name, ...env.flatMap((e) => ["--env", e]), "--", ...launch] },
+  };
+  const wanted = rest.length ? (rest as (typeof HOSTS)[number][]) : HOSTS.filter((h) => dry || exec(shell([h, "--version"])).status === 0);
+  if (!wanted.length) return io.err("No Claude Code or Codex found on PATH. Any MCP host can run the proxy itself: " + launch.join(" ")), 1;
+  let failed = 0;
+  for (const h of wanted) {
+    const plan = plans[h];
+    if (dry) {
+      io.out([...(replace ? [plan.remove] : []), plan.add].map((c) => shell(c).join(" ")).join("\n"));
+      continue;
+    }
+    if (exec(shell(plan.get)).status === 0) {
+      if (!replace) {
+        failed++;
+        io.err(`✗ ${h}: a server named "${name}" already exists; left as it is. Re-run with --replace, or pick --name.`);
+        continue;
+      }
+      const r = exec(shell(plan.remove));
+      if (r.status !== 0) {
+        failed++;
+        io.err(`✗ ${h}: could not remove the existing "${name}": ${(r.stderr || r.stdout).trim() || `exit ${r.status}`}`);
+        continue;
+      }
+    }
+    const r = exec(shell(plan.add));
+    if (r.status === 0) io.err(`✓ ${h}: added "${name}" (stdio, on this CLI's sign-in)`);
+    else (failed++, io.err(`✗ ${h}: ${(r.stderr || r.stdout).trim() || `exit ${r.status}`}`));
+  }
+  if (!dry) {
+    const source = auth.signInSource(origin);
+    if (source === "env") io.err("This CLI is signed in only through UNBROWSE_API_KEY, which the hosts do not get: run `unbrowse login` (or `unbrowse login --key`) so they have a sign-in.");
+    else if (source === "shared") io.err("This CLI is using Claude Code's sign-in, which only Claude Code renews: run `unbrowse login` so the hosts keep working.");
+    else if (!source) io.err("Not signed in yet: run `unbrowse login` once and the hosts use that sign-in.");
+  }
+  return failed ? 1 : 0;
+}
+
 /** `unbrowse mcps` and `unbrowse mcps import`: see agent-mcps.ts. Values of keys are never printed. */
 async function mcps(rest: string[], args: Args, io: Io, origin: string, print: (v: unknown) => void, client: () => Promise<Unbrowse>, onboard: () => Promise<boolean>): Promise<number> {
   const A = await import("./agent-mcps.ts");
