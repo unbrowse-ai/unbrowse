@@ -251,7 +251,8 @@
             "type": "string"
           },
           "value": {
-            "type": "string"
+            "type": "string",
+            "description": "fill: the text to type. select: the option, by its value or label as the snapshot's `options` list it (any case; a unique part of a label also works)"
           },
           "name": {
             "type": "string"
