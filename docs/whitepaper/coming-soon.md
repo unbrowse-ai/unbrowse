@@ -2,7 +2,7 @@
 
 This page lists parts of the paper that are not in the hosted service today, or not in the form the paper describes.
 
-It does not cover what already ships: the flat meter (500 verified calls a month free, then $10 per 10,000) and x402 pay-per-call on Base. See [System Today](./system-today.md).
+It does not cover what already ships: the flat meter (500 verified calls a month free, then $10 per 10,000). See [System Today](./system-today.md).
 
 Nothing here has a date. Read it as direction.
 
@@ -12,7 +12,6 @@ Nothing here has a date. Read it as direction.
 - fee ceilings tied to rediscovery cost
 - dynamic pricing by confidence, freshness and demand
 - multi-party fee splits per call
-- settlement on Solana (x402 runs on Base today)
 
 ## Contributor economics
 

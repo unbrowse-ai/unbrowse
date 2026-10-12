@@ -35,7 +35,7 @@ The client runs no browser and keeps no index.
 - Routing: discover ranking with health hints; Jev picks among eligible candidates, deterministic fallback.
 - Public registry: crawl and auto-share, publish gate, revalidation.
 - Vault: server-sealed Agent vault and zero-knowledge Private vault.
-- Metering: verified successes only; x402 pay-per-call.
+- Metering: verified successes only.
 
 ## What a capability is
 
@@ -68,7 +68,7 @@ It is stored as `unbrowse/v1alpha1` YAML and executed as a typed form. Compiled 
 
 Shipped and closed in the service's acceptance ledger: the learn loop, cloud browser, HTTP replay, challenge handling, render fallback, per-user durable storage, Jev routing, metering, discover hints.
 
-Running with acceptance checks open: public registry, per-site tools, password manager, auto sign-in, session reuse, x402, OAuth for MCP, the zero-knowledge Private vault.
+Running with acceptance checks open: public registry, per-site tools, password manager, auto sign-in, session reuse, OAuth for MCP, the zero-knowledge Private vault.
 
 Not built: per-route pricing, payouts, validator markets, attestation.
 
