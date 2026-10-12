@@ -311,6 +311,8 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         const view = fromHere
           ? await ub.runOnClient(request, { onRequest: (r) => void io.err(`→ ${r.method} ${r.url}`) })
           : await ub.run(request);
+        // A run that needs a kept sign-in, saved login or site key goes from Unbrowse: those never leave the vault.
+        if (fromHere && view.egress?.mode === "server") io.err("Ran from Unbrowse, not this machine: this site uses your saved sign-in, which never leaves your vault.");
         return settle(ub, view, args, io, print);
       }
       case "scrape": {
