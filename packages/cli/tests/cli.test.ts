@@ -36,6 +36,7 @@ const server = Bun.serve({
     if (auth !== `Bearer ${TOKEN}`) return Response.json({ error: { code: "unauthorized", message: "Unauthorized" } }, { status: 401 });
     if (req.method === "POST" && path === "runs") {
       if (body.task === "slow") return Response.json(run({ runId: "r2", status: "working" }));
+      if (body.task === "my inbox" && body.egress === "client") return Response.json(run({ egress: { mode: "server", reason: "vault" } }));
       if (body.task === "login") return Response.json(run({ status: "failed", signIn: { url: "https://x.test/app/vault-request/q1" } }));
       if (body.task === "ask") return Response.json(run({ runId: "r3", status: "input_required", stateRevision: 4, requirements: [{ id: "q_origin", revision: 2, affectedAction: "origin", state: "open" }] }));
       if (body.task === "nothing fits") return Response.json(run({ status: "failed", verified: false, error: { code: "no_capability", message: "unbrowse.browse.open is an MCP tool" }, result: { next: { tool: "unbrowse.index", ...(body.targetUrl ? { url: body.targetUrl } : {}) }, suggestions: { tools: [{ capability: "public.api_weather_gov.get_cwsu", title: "Cwsu" }] } } }));
@@ -176,6 +177,14 @@ test("commands map to their REST routes", async () => {
     expect(seen[0]).toMatchObject({ method, path });
   }
   expect(seen.length).toBe(1);
+});
+
+test("a run the server sends from Unbrowse because it needs a saved sign-in says so", async () => {
+  const r = await cli(["run", "my", "inbox"]);
+  expect(r.code).toBe(0);
+  expect(r.err.join("\n")).toContain("Ran from Unbrowse, not this machine");
+  const plain = await cli(["run", "top", "stories"]);
+  expect(plain.err.join("\n")).not.toContain("Ran from Unbrowse");
 });
 
 test("run leaves out the event log unless --events, like MCP", async () => {
