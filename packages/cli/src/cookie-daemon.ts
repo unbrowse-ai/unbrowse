@@ -220,12 +220,15 @@ export type ServicePlan = { kind: "systemd" | "launchd"; path: string; content: 
  * `cli` are absolute paths (the running Node and this CLI's entry script), so the service does not depend on PATH.
  * Windows has no service here: run `unbrowse cookies watch` from Task Scheduler instead.
  */
-export function servicePlan(opts: { os?: NodeJS.Platform; home?: string; node: string; cli: string; env?: Record<string, string>; uid?: number }): ServicePlan | undefined {
+export function servicePlan(opts: { os?: NodeJS.Platform; home?: string; node: string; cli: string; env?: Record<string, string>; uid?: number; account?: string }): ServicePlan | undefined {
   const os = opts.os ?? platform();
+  // A named account (`--account work`) gets its own service, so each account's sync runs side by side.
+  const service = opts.account ? `${SERVICE}-${opts.account}` : SERVICE;
+  const label = opts.account ? `${LAUNCHD_LABEL}.${opts.account}` : LAUNCHD_LABEL;
   const home = opts.home ?? homedir();
   const env = Object.entries(opts.env ?? {});
   if (os === "linux") {
-    const path = join(home, ".config", "systemd", "user", `${SERVICE}.service`);
+    const path = join(home, ".config", "systemd", "user", `${service}.service`);
     const content = [
       "[Unit]",
       "Description=Unbrowse cookie sync: keeps your browser sign-ins for chosen sites in sync with Unbrowse",
@@ -245,21 +248,21 @@ export function servicePlan(opts: { os?: NodeJS.Platform; home?: string; node: s
       kind: "systemd",
       path,
       content,
-      enable: [["systemctl", "--user", "daemon-reload"], ["systemctl", "--user", "enable", "--now", `${SERVICE}.service`]],
-      disable: [["systemctl", "--user", "disable", "--now", `${SERVICE}.service`], ["systemctl", "--user", "daemon-reload"]],
-      status: ["systemctl", "--user", "is-active", `${SERVICE}.service`],
-      log: `journalctl --user -u ${SERVICE} -f`,
+      enable: [["systemctl", "--user", "daemon-reload"], ["systemctl", "--user", "enable", "--now", `${service}.service`]],
+      disable: [["systemctl", "--user", "disable", "--now", `${service}.service`], ["systemctl", "--user", "daemon-reload"]],
+      status: ["systemctl", "--user", "is-active", `${service}.service`],
+      log: `journalctl --user -u ${service} -f`,
     };
   }
   if (os === "darwin") {
-    const path = join(home, "Library", "LaunchAgents", `${LAUNCHD_LABEL}.plist`);
-    const logPath = join(home, "Library", "Logs", `${SERVICE}.log`);
+    const path = join(home, "Library", "LaunchAgents", `${label}.plist`);
+    const logPath = join(home, "Library", "Logs", `${service}.log`);
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const content = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Label</key><string>${LAUNCHD_LABEL}</string>
+  <key>Label</key><string>${label}</string>
   <key>ProgramArguments</key>
   <array><string>${esc(opts.node)}</string><string>${esc(opts.cli)}</string><string>cookies</string><string>watch</string></array>
 ${env.length ? `  <key>EnvironmentVariables</key>\n  <dict>${env.map(([k, v]) => `<key>${esc(k)}</key><string>${esc(v)}</string>`).join("")}</dict>\n` : ""}  <key>RunAtLoad</key><true/>
@@ -277,7 +280,7 @@ ${env.length ? `  <key>EnvironmentVariables</key>\n  <dict>${env.map(([k, v]) =>
       content,
       enable: [["launchctl", "bootout", domain, path], ["launchctl", "bootstrap", domain, path]],
       disable: [["launchctl", "bootout", domain, path]],
-      status: ["launchctl", "print", `${domain}/${LAUNCHD_LABEL}`],
+      status: ["launchctl", "print", `${domain}/${label}`],
       log: `tail -f ${logPath}`,
     };
   }

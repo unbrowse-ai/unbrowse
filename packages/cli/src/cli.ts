@@ -20,6 +20,8 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
        [--device]                 On a remote/headless machine, show a code to approve on your phone
                                   (first use of any command below signs you in the same way)
   logout                          Forget the stored sign-in
+  accounts                        Sign-ins saved on this machine, one per Unbrowse account (each has its own vault)
+  accounts use <name>             Make one the default; any command takes --account NAME for just that run
   whoami                          Workspace and usage
   usage                           Verified calls this month and quota left
 
@@ -67,8 +69,8 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
       [--name NAME] [--replace] [--dry-run]
                                   And back: no CLI sign-in, but Claude Code signed in to Unbrowse (plugin) → the CLI uses that
 
-Options: --json (errors as JSON) · --base-url URL · --no-open
-Env: UNBROWSE_API_KEY, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_EGRESS=server, UNBROWSE_MCP_URL, UNBROWSE_END_USER
+Options: --json (errors as JSON) · --base-url URL · --no-open · --account NAME
+Env: UNBROWSE_API_KEY, UNBROWSE_ACCOUNT, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_EGRESS=server, UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
 const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events", "dry-run", "with-keys", "replace"]);
@@ -138,6 +140,16 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
   if (args.flags.version) return io.out(VERSION), 0;
   if (!cmd || cmd === "help" || args.flags.help) return io.out(HELP), 0;
 
+  // Which saved sign-in this command uses: --account, UNBROWSE_ACCOUNT, `accounts use`, else the default one.
+  if (args.flags.account === true) return io.err("usage: --account NAME"), 1;
+  try {
+    auth.selectAccount(typeof args.flags.account === "string" ? args.flags.account : undefined);
+  } catch (e) {
+    return io.err((e as Error).message), 1;
+  }
+  const named = auth.account() !== "default" ? auth.account() : undefined;
+  const loginCmd = `unbrowse login${named ? ` --account ${named}` : ""}`;
+
   const origin = String(args.flags["base-url"] ?? process.env.UNBROWSE_BASE_URL ?? auth.load().baseUrl ?? DEFAULT_ORIGIN).replace(/\/+$/, "");
   const flag = (k: string) => (typeof args.flags[k] === "string" ? (args.flags[k] as string) : undefined);
   const print = (v: unknown) => io.out(JSON.stringify(v, null, 2));
@@ -194,7 +206,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       io.err("This CLI runs from a temporary npx copy, which a background service cannot point at. Install it first: npm i -g unbrowse — then run this again.");
       return 1;
     }
-    const plan = D.servicePlan({ os: io.service?.os, home: io.service?.home, node, cli, env: { ...(origin !== DEFAULT_ORIGIN ? { UNBROWSE_BASE_URL: origin } : {}), ...(process.env.UNBROWSE_CONFIG_DIR ? { UNBROWSE_CONFIG_DIR: process.env.UNBROWSE_CONFIG_DIR } : {}), ...(process.env.UNBROWSE_COOKIES_HOME ? { UNBROWSE_COOKIES_HOME: process.env.UNBROWSE_COOKIES_HOME } : {}) } });
+    const plan = D.servicePlan({ os: io.service?.os, home: io.service?.home, node, cli, account: named, env: { ...(origin !== DEFAULT_ORIGIN ? { UNBROWSE_BASE_URL: origin } : {}), ...(named ? { UNBROWSE_ACCOUNT: named } : {}), ...(process.env.UNBROWSE_CONFIG_DIR ? { UNBROWSE_CONFIG_DIR: process.env.UNBROWSE_CONFIG_DIR } : {}), ...(process.env.UNBROWSE_COOKIES_HOME ? { UNBROWSE_COOKIES_HOME: process.env.UNBROWSE_COOKIES_HOME } : {}) } });
     if (!plan) {
       io.err("No background service on this OS yet. Keep it running with: unbrowse cookies watch (e.g. from Task Scheduler at logon).");
       return 1;
@@ -247,7 +259,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
   // a script (no TTY, --json) is told the two ways in instead of waiting on a browser.
   const onboard = async (): Promise<boolean> => {
     if (!io.interactive || args.flags.json) {
-      const message = `Not signed in to ${origin}. Run \`npx unbrowse login\` (opens your browser, nothing to paste), or set UNBROWSE_API_KEY (keys: ${origin}/app).`;
+      const message = `Not signed in to ${origin}${named ? ` as account "${named}"` : ""}. Run \`npx ${loginCmd}\` (opens your browser, nothing to paste), or set UNBROWSE_API_KEY (keys: ${origin}/app).`;
       if (args.flags.json) print({ error: { status: 401, code: "not_signed_in", message, details: null } });
       else io.err(message);
       return false;
@@ -272,18 +284,30 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         else if (args.flags.device || !io.interactive) await auth.deviceLogin(origin, { log: io.err });
         else await auth.oauthLogin(origin, { open: (u) => openLink(u, args, io), log: io.err });
         const me = await (await client()).me();
-        io.err(`Signed in to ${origin} (workspace ${me.workspaceId}).`);
+        io.err(`Signed in to ${origin}${named ? ` as account "${named}"` : ""} (workspace ${me.workspaceId}).`);
         await offerCookieSync().catch((e: Error) => io.err(`Cookie sync not set up: ${e.message}`));
         return 0;
       }
+      case "accounts": {
+        if (rest[0] === "use") {
+          const name = auth.checkAccount(need(rest[1], "accounts use <name>"));
+          auth.useAccount(name);
+          const saved = auth.listAccounts().some((a) => a.name === name);
+          io.err(`Commands now use account "${name}"${saved ? "" : ` (not signed in yet: unbrowse login${name === "default" ? "" : ` --account ${name}`})`}.${process.env.UNBROWSE_ACCOUNT ? ` UNBROWSE_ACCOUNT=${process.env.UNBROWSE_ACCOUNT} still wins while it is set.` : ""}`);
+          return 0;
+        }
+        if (rest[0]) throw new UsageError("usage: unbrowse accounts [use <name>]");
+        print({ current: auth.account(), accounts: auth.listAccounts() });
+        return 0;
+      }
       case "mcp": // `mcp add`; plain `mcp` (the proxy) returned above
-        return await mcpAdd(rest.slice(1), args, io, origin);
+        return await mcpAdd(rest.slice(1), args, io, origin, named);
       case "logout":
         auth.clear();
-        io.err("Signed out.");
+        io.err(named ? `Signed out of account "${named}".` : "Signed out.");
         return 0;
       case "whoami":
-        print({ origin, auth: auth.describe(origin), ...(await ub.me()) });
+        print({ origin, account: auth.account(), auth: auth.describe(origin), ...(await ub.me()) });
         return 0;
       case "usage":
         print(await ub.usage());
@@ -411,7 +435,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         if (sub === "daemon") {
           const action = rest[1] ?? "status";
           const { D, dir, saved, config } = await cookieSync();
-          const plan = D.servicePlan({ os: io.service?.os, home: io.service?.home, node: io.service?.node ?? process.execPath, cli: io.service?.cli ?? process.argv[1] ?? "" });
+          const plan = D.servicePlan({ os: io.service?.os, home: io.service?.home, node: io.service?.node ?? process.execPath, cli: io.service?.cli ?? process.argv[1] ?? "", account: named });
           const exec = io.exec ?? (() => ({ status: 1, stdout: "", stderr: "no exec" }));
           if (action === "start" || action === "install") return await installCookieDaemon(config(), !!args.flags.yes);
           if (action === "stop" || action === "uninstall") {
@@ -547,7 +571,7 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       e.message = `could not reach ${origin}${cause?.code ? ` (${cause.code})` : cause?.message ? ` (${cause.message})` : ""}. Check the connection, or --base-url / UNBROWSE_BASE_URL.`;
     }
     if (args.flags.json) print({ error: { status: e.status ?? null, message: e.message, details: e.body ?? null } });
-    else io.err(e.status === 401 ? `Not signed in to ${origin}. Run \`unbrowse login\`, or set UNBROWSE_API_KEY.` : `error${e.status ? ` (HTTP ${e.status})` : ""}: ${e.message}`);
+    else io.err(e.status === 401 ? `Not signed in to ${origin}${named ? ` as account "${named}"` : ""}. Run \`${loginCmd}\`, or set UNBROWSE_API_KEY.` : `error${e.status ? ` (HTTP ${e.status})` : ""}: ${e.message}`);
     return e.status === 401 ? 3 : 1;
   }
 }
@@ -590,11 +614,12 @@ async function settle(ub: Unbrowse, view: RunView, args: Args, io: Io, print: (v
  * reads the CLI's own sign-in at each request. An existing server of that name is left alone unless --replace
  * (checked with `<host> mcp get` first: `codex mcp add` would silently overwrite it).
  */
-async function mcpAdd(rest: string[], args: Args, io: Io, origin: string): Promise<number> {
+async function mcpAdd(rest: string[], args: Args, io: Io, origin: string, account?: string): Promise<number> {
   const HOSTS = ["claude", "codex"] as const;
   const unknown = rest.filter((h) => !(HOSTS as readonly string[]).includes(h));
   if (unknown.length) throw new UsageError(`usage: unbrowse mcp add [claude] [codex] [--name NAME] [--replace] [--dry-run] (unknown: ${unknown.join(", ")})`);
-  const name = (typeof args.flags.name === "string" ? args.flags.name : "") || "unbrowse";
+  // One server per account (`unbrowse-work`), so a host can hold several side by side.
+  const name = (typeof args.flags.name === "string" ? args.flags.name : "") || (account ? `unbrowse-${account}` : "unbrowse");
   const exec = io.exec ?? (() => ({ status: 1, stdout: "", stderr: "no exec" }));
   const dry = !!args.flags["dry-run"];
   const replace = !!args.flags.replace;
@@ -609,7 +634,7 @@ async function mcpAdd(rest: string[], args: Args, io: Io, origin: string): Promi
     /* keep it as given */
   }
   // A temporary npx copy disappears; the host then starts the published CLI the same way.
-  const launch = [...(io.service?.cli || !ephemeralCli(cli) ? [io.service?.node ?? process.execPath, cli] : shell(["npx", "-y", "unbrowse"])), "mcp", ...(origin !== DEFAULT_ORIGIN ? ["--base-url", origin] : [])];
+  const launch = [...(io.service?.cli || !ephemeralCli(cli) ? [io.service?.node ?? process.execPath, cli] : shell(["npx", "-y", "unbrowse"])), "mcp", ...(origin !== DEFAULT_ORIGIN ? ["--base-url", origin] : []), ...(account ? ["--account", account] : [])];
   // Hosts start servers with a reduced environment: pass on where the sign-in lives and the sharing switch.
   // Never UNBROWSE_API_KEY: that would write a secret into the host's config.
   const env = ["UNBROWSE_CONFIG_DIR", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR", "UNBROWSE_SHARED_SIGNIN"].flatMap((k) => (process.env[k] ? [`${k}=${process.env[k]}`] : []));

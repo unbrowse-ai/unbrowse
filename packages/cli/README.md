@@ -13,6 +13,7 @@ unbrowse resume <runId> origin=SIN           # answer on the same run
 | Command | Does |
 |---|---|
 | `login [--key K]`, `logout`, `whoami`, `usage` | Account |
+| `accounts`, `accounts use <name>`, `--account NAME` | Several Unbrowse accounts on one machine, each with its own vault ([docs](https://github.com/unbrowse-ai/unbrowse/blob/main/docs/cli.md#several-accounts)) |
 | `discover <query>` | Your capabilities, then the public registry |
 | `run <task…>`, `inspect`, `resume`, `cancel` | Runs |
 | `scrape <url>` | One page as markdown on stdout |

@@ -1,6 +1,6 @@
 # CLI reference
 
-`unbrowse <command> [args] [--json] [--base-url URL] [--no-open]`
+`unbrowse <command> [args] [--json] [--base-url URL] [--no-open] [--account NAME]`
 
 A thin shell over the REST API (`/api/v1`, see [api.md](api.md)). Output is JSON on stdout;
 messages go to stderr. Agents that need the cloud browser use the hosted MCP ([mcp.md](mcp.md)).
@@ -12,11 +12,35 @@ messages go to stderr. Agents that need the cloud browser use the hosted MCP ([m
 | `login` | Browser sign-in: OAuth 2.1 with PKCE and a loopback redirect. The token's resource is `{origin}/api` (this REST API), not `/mcp` |
 | `login --key ub_live_…` | Stores an API key (create one in the console, MCP & keys) |
 | `logout` | Deletes the stored sign-in |
-| `whoami` | `GET /me` |
+| `whoami` | `GET /me`, plus the `account` in use |
 | `usage` | `GET /usage` |
+| `accounts` | The sign-ins saved on this machine (name, origin, API key or OAuth; never the secret) and the current one |
+| `accounts use <name>` | Makes `<name>` the account commands use; `accounts use default` goes back |
 
 Credentials are read in this order: `UNBROWSE_API_KEY`, the stored key, the stored OAuth token
 (refreshed when it is about to expire). Stored at `~/.config/unbrowse/cli.json`, mode 0600.
+
+### Several accounts
+
+Each Unbrowse account has its own vault: saved logins, synced browser cookies and learned tools. To
+keep, say, a personal, a business and a work identity apart on one machine, sign each in under a name
+and pick one per command with `--account NAME` (or `UNBROWSE_ACCOUNT`):
+
+```sh
+unbrowse login --account work                                  # sign in once per account
+unbrowse cookies sync --account work --browser Chrome --profile "Profile 2"   # that account's browser sign-ins
+unbrowse run --account work 'my open invoices on stripe.com'
+unbrowse accounts use work                                     # make it the default; --account still overrides
+unbrowse accounts                                              # list them
+```
+
+A named account is stored at `~/.config/unbrowse/accounts/<name>/cli.json`. Names are letters,
+digits, `-` and `_` (up to 40); `default` is the unnamed one at `cli.json`. Order: `--account`, then
+`UNBROWSE_ACCOUNT`, then `accounts use`, then the default. A named account only uses its own sign-in
+(never a v1 key or Claude Code's); `UNBROWSE_API_KEY`, when set, still wins over every account.
+`logout --account NAME` signs out of that one. Its cookie sync runs as its own service
+(`unbrowse-cookies-<name>`), and `mcp add --account NAME` registers a server named `unbrowse-<name>`
+that runs on that account.
 
 First use: a command that needs an account (`run`, `discover`, `whoami`, …), run at a terminal with
 no credential, starts the same browser sign-in as `login` and then carries on. Without a terminal
@@ -229,6 +253,7 @@ Connect an agent with the commands in [install.md](install.md) and [mcp.md](mcp.
 | Variable | Default |
 |---|---|
 | `UNBROWSE_API_KEY` | — |
+| `UNBROWSE_ACCOUNT` | unset: the account `accounts use` chose, else the default one |
 | `UNBROWSE_BASE_URL` | `https://unbrowse.ai` |
 | `UNBROWSE_CONFIG_DIR` | `~/.config/unbrowse` |
 | `UNBROWSE_NO_OPEN` | unset; set it to never open a browser |
