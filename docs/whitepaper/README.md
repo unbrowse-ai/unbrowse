@@ -29,7 +29,7 @@ The service:
 - verifies outcomes: HTTP 200 is not success
 - keeps a public registry of scrubbed, re-verified read-only site tools, each site also an MCP server and an OpenAPI document
 - keeps logins in a password manager the model never reads, signs in on replay and reuses sessions
-- bills only verified calls: 500 a month free, then $10 per 10,000; x402 pay-per-call without an account
+- bills only verified calls: 500 a month free, then $10 per 10,000
 - routes plain-language tasks with Jev, with a deterministic fallback
 
 The client is `@unbrowse/sdk` and a thin CLI over the service's REST API (`/api/v1`); agents use the remote MCP (`/mcp`).

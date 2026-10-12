@@ -37,7 +37,7 @@ Then the run ledger decides what stays trusted.
 
 - capability layer (learn, replay, verify): real
 - shared registry: real for read-only lookups, still maturing
-- flat metering and x402 pay-per-call: real
+- flat metering: real (x402 pay-per-call was removed in September 2026)
 - route economy, payouts, validators: not built
 
 ## Read next

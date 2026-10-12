@@ -4,4 +4,4 @@ Your account's current plan, credits and returned payment requirements are autho
 
 Verified successful runs are metered; failed, refused or input-required runs are not completed billable outcomes. Inspect the returned usage fields for your plan. A quota or credit refusal includes recovery information; do not blindly retry payments.
 
-Anonymous pay-per-call requests can use x402 when offered by the endpoint. Read its current `402` payment requirements rather than assuming a fixed price. The CLI and SDK do not sign payments: use an x402-capable client. See [api.md](api.md).
+There is no anonymous pay-per-call: x402 was removed from the hosted API in September 2026, and every call needs an account (API key or OAuth). See [api.md](api.md).

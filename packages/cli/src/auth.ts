@@ -1,8 +1,9 @@
 // Credentials for the hosted service: an API key, or an OAuth 2.1 token from `unbrowse login`
 // (dynamic client registration + PKCE + a loopback redirect). Stored at ~/.config/unbrowse/cli.json, mode 0600.
+// Named accounts (`--account work`) each keep their own sign-in at ~/.config/unbrowse/accounts/<name>/cli.json.
 
 import { createHash, randomBytes } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { homedir, hostname } from "node:os";
 import { dirname, join } from "node:path";
@@ -13,9 +14,78 @@ export type Stored = {
   oauth?: { clientId: string; accessToken: string; refreshToken?: string; expiresAt?: number };
 };
 
+export function configRoot(): string {
+  return process.env.UNBROWSE_CONFIG_DIR ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "unbrowse");
+}
+
+/** The account this process uses; undefined is the default one (cli.json). Set once per command by `selectAccount`. */
+let selected: string | undefined;
+const ACCOUNT_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
+const defaultFile = () => join(configRoot(), "account");
+
+/** A usable account name (letters, digits, `-`, `_`; it names a directory and a background service). */
+export function checkAccount(name: string): string {
+  if (name !== "default" && !ACCOUNT_NAME.test(name)) throw new Error(`invalid account name "${name}": use letters, digits, - and _ (up to 40)`);
+  return name;
+}
+
+/** The account `accounts use` made the default, if any. */
+export function savedAccount(): string | undefined {
+  try {
+    const name = readFileSync(defaultFile(), "utf8").trim();
+    return name && ACCOUNT_NAME.test(name) ? name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Pick the account for this command: `--account`, then UNBROWSE_ACCOUNT, then the saved default, else the default one. */
+export function selectAccount(name?: string): string {
+  const pick = name ?? (process.env.UNBROWSE_ACCOUNT || undefined) ?? savedAccount();
+  selected = !pick || checkAccount(pick) === "default" ? undefined : pick;
+  return account();
+}
+
+/** The selected account's name ("default" for the unnamed one). */
+export function account(): string {
+  return selected ?? "default";
+}
+
+/** Make `name` the account commands use when none is named ("default" goes back to the unnamed one). */
+export function useAccount(name: string): void {
+  if (checkAccount(name) === "default") return void rmSync(defaultFile(), { force: true });
+  mkdirSync(configRoot(), { recursive: true, mode: 0o700 });
+  writeFileSync(defaultFile(), `${name}\n`, { mode: 0o600 });
+}
+
+/** The sign-ins saved on this machine, without their secrets. */
+export function listAccounts(): { name: string; baseUrl?: string; signIn: "api key" | "oauth" | "none" }[] {
+  const read = (path: string) => {
+    try {
+      return JSON.parse(readFileSync(path, "utf8")) as Stored;
+    } catch {
+      return undefined;
+    }
+  };
+  const row = (name: string, s: Stored) => ({ name, ...(s.baseUrl ? { baseUrl: s.baseUrl } : {}), signIn: s.apiKey ? ("api key" as const) : s.oauth ? ("oauth" as const) : ("none" as const) });
+  const out = [];
+  const main = read(join(configRoot(), "cli.json"));
+  if (main) out.push(row("default", main));
+  let names: string[] = [];
+  try {
+    names = readdirSync(join(configRoot(), "accounts")).filter((n) => ACCOUNT_NAME.test(n)).sort();
+  } catch {
+    /* no named accounts yet */
+  }
+  for (const n of names) {
+    const s = read(join(configRoot(), "accounts", n, "cli.json"));
+    if (s) out.push(row(n, s));
+  }
+  return out;
+}
+
 export function configPath(): string {
-  const root = process.env.UNBROWSE_CONFIG_DIR ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "unbrowse");
-  return join(root, "cli.json");
+  return selected ? join(configRoot(), "accounts", selected, "cli.json") : join(configRoot(), "cli.json");
 }
 
 export function load(): Stored {
@@ -96,7 +166,8 @@ export async function currentToken(baseUrl: string, fetchImpl: typeof fetch = fe
   if (stored.baseUrl && stored.baseUrl !== baseUrl) return undefined;
   if (stored.apiKey) return stored.apiKey;
   const o = stored.oauth;
-  if (!o) return v1Key(baseUrl) ?? sharedSignIn(baseUrl)?.token;
+  // A named account only ever uses its own sign-in: borrowing the v1 key or Claude Code's would act as someone else.
+  if (!o) return selected ? undefined : (v1Key(baseUrl) ?? sharedSignIn(baseUrl)?.token);
   if (o.expiresAt && o.refreshToken && Date.now() > o.expiresAt - 60_000) {
     try {
       const fresh = await tokenRequest(baseUrl, { grant_type: "refresh_token", refresh_token: o.refreshToken, client_id: o.clientId, resource: apiResource(baseUrl) }, fetchImpl);
@@ -128,6 +199,7 @@ export function signInSource(baseUrl: string): "env" | "stored" | "v1" | "shared
   const stored = load();
   if (stored.baseUrl && stored.baseUrl !== baseUrl) return undefined;
   if (stored.apiKey || stored.oauth) return "stored";
+  if (selected) return undefined;
   if (v1Key(baseUrl)) return "v1";
   return sharedSignIn(baseUrl) ? "shared" : undefined;
 }
@@ -138,6 +210,7 @@ export function describe(baseUrl: string): string {
   if (stored.baseUrl && stored.baseUrl !== baseUrl) return `not signed in to ${baseUrl} (stored login is for ${stored.baseUrl})`;
   if (stored.apiKey) return `API key ${mask(stored.apiKey)} in ${configPath()}`;
   if (stored.oauth) return `OAuth sign-in in ${configPath()}`;
+  if (selected) return `not signed in (account "${selected}": \`unbrowse login --account ${selected}\`)`;
   const v1 = !stored.baseUrl ? v1Key(baseUrl) : undefined;
   if (v1) return `v1 API key ${mask(v1)} from ~/.unbrowse/config.json (still works; \`unbrowse login\` replaces it)`;
   const shared = !stored.baseUrl ? sharedSignIn(baseUrl) : undefined;
