@@ -123,6 +123,9 @@ export type EgressResponse = {
 
 export type RunView = {
   runId: string;
+  /** Set when a run asked for client egress but ran from Unbrowse because it needed a vault secret (a kept sign-in,
+   * a saved login or a site key), which never goes into a request this machine sends. */
+  egress?: { mode: "server"; reason: "vault" };
   workspaceId: string;
   principalId: string;
   status: RunStatus;
