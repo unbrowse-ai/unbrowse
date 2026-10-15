@@ -42,6 +42,11 @@ const server = Bun.serve({
       if (body.task === "nothing fits") return Response.json(run({ status: "failed", verified: false, error: { code: "no_capability", message: "unbrowse.browse.open is an MCP tool" }, result: { next: { tool: "unbrowse.index", ...(body.targetUrl ? { url: body.targetUrl } : {}) }, suggestions: { tools: [{ capability: "public.api_weather_gov.get_cwsu", title: "Cwsu" }] } } }));
       return Response.json(run({ events: [{ type: "RunAccepted" }] }));
     }
+    // A page behind its own sign-in wall: 401 login_required, though this CLI is signed in to Unbrowse.
+    if (req.method === "POST" && path === "scrape" && /claude\.ai\/artifact/.test(body.url)) {
+      const next = body.url.includes("bare") ? undefined : ["Sync your browser's sign-in: unbrowse cookies sync --domain claude.ai"];
+      return Response.json({ error: { code: "login_required", message: "claude.ai shows a sign-in page for this URL.", details: { stage: "render", finalUrl: body.url, sessionSent: false, ...(next ? { site: "claude.ai", next } : {}) } } }, { status: 401 });
+    }
     if (req.method === "POST" && path === "scrape") return Response.json({ markdown: "# Serde\n\nA framework.", links: ["https://serde.rs"], metadata: { url: body.url, finalUrl: body.url, status: 200, title: "serde - Rust" } });
     if (req.method === "POST" && path === "index") return Response.json({ id: "ix_1", url: body.url, host: new URL(body.url).host, status: "queued", events: [{ step: 1 }] }, { status: 202 });
     if (path === "index/ix_1") return Response.json({ id: "ix_1", url: "https://a.test", host: "a.test", status: ++polls < 2 ? "running" : "done", indexed: polls < 2 ? 0 : 2, events: [{ step: 2 }] });
@@ -115,6 +120,31 @@ test("not signed in with --json: the error is JSON on stdout", async () => {
   const r = await cli(["whoami", "--json"]);
   expect(r.code).toBe(3);
   expect(r.json().error).toMatchObject({ status: 401, code: "not_signed_in" });
+});
+
+test("a site's sign-in wall names the site's fix (cookies sync), never 'not signed in to Unbrowse'", async () => {
+  const r = await cli(["scrape", "https://claude.ai/artifact/abc"]);
+  expect(r.code).toBe(3);
+  const text = r.err.join("\n");
+  expect(text).toContain("claude.ai shows a sign-in page");
+  expect(text).toContain("unbrowse cookies sync --domain claude.ai");
+  expect(text).toContain("--from-here / --from-unbrowse change only where requests come from");
+  expect(text).not.toContain("Not signed in to");
+  expect(text).not.toContain("unbrowse login");
+});
+
+test("a sign-in wall without server next steps still names the site from its URL", async () => {
+  const r = await cli(["scrape", "https://claude.ai/artifact/bare"]);
+  expect(r.code).toBe(3);
+  const text = r.err.join("\n");
+  expect(text).toContain("unbrowse cookies sync --domain claude.ai");
+  expect(text).toContain("unbrowse cookies daemon start --domain claude.ai");
+});
+
+test("--json keeps the server's login_required error as is", async () => {
+  const r = await cli(["scrape", "https://claude.ai/artifact/abc", "--json"]);
+  expect(r.code).toBe(3);
+  expect(r.json().error.details.error).toMatchObject({ code: "login_required" });
 });
 
 test("an unreachable server is named, not just 'fetch failed'", async () => {
