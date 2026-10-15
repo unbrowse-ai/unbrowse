@@ -138,6 +138,11 @@ unbrowse cookies sync --browser Chrome --profile Default
 unbrowse cookies sync --all                      # every profile found
 ```
 
+A page that shows "Sign in to view this page" (a private claude.ai artifact, a Notion or Google Docs page) comes back
+as `login_required` (exit 3) with the site's fix: sign in to that site once in your browser, then
+`unbrowse cookies sync --domain <site>` (or `cookies daemon start --domain <site>` to keep it fresh), and ask again.
+`--from-here` and `--from-unbrowse` change only which IP the requests leave from; neither signs you in to a site.
+
 Options: `--browser NAME`, `--profile NAME` (from `cookies list`), `--domain d` (one site and its
 subdomains), `--all` (every profile; otherwise the default profile is used). Supported: Chrome,
 Chromium, Arc, Brave, Edge, Opera, Vivaldi, Firefox, LibreWolf, Waterfox, on macOS, Linux and
@@ -208,7 +213,7 @@ Exit 1 when any server failed.
 
 ## Local MCP proxy
 
-`unbrowse mcp` serves MCP over stdio and forwards every call to the hosted MCP (`<origin>/api/mcp`, or `--url` / `UNBROWSE_MCP_URL`) with the CLI's credentials: `UNBROWSE_API_KEY`, `login --key`, or the `login` OAuth token, refreshed per call. The hosted tools are already named `unbrowse_x`; any other name with a character outside `[A-Za-z0-9_-]` is rewritten for hosts such as Grok Build and mapped back on each call. `--end-user ID` (or `UNBROWSE_END_USER`) sends `X-Unbrowse-End-User` for org keys. Nothing but protocol goes to stdout. `--from-here` (or `UNBROWSE_EGRESS=client`) runs `unbrowse_run` the way `unbrowse run` does: its site requests go from this machine, with its IP, each noted on stderr. Use it where the agent has its own computer, such as a Grok Bot (`npx -y unbrowse mcp --from-here` as a custom stdio server). Every other tool, and `unbrowse_resume` on that run, still goes through the hosted server; `select` is not applied locally. It also answers one tool itself, `unbrowse_local_mcps`: the servers in this machine's agent configs (no values), and with `import: true` the same import as `mcps import` (never with keys).
+`unbrowse mcp` serves MCP over stdio and forwards every call to the hosted MCP (`<origin>/api/mcp`, or `--url` / `UNBROWSE_MCP_URL`) with the CLI's credentials: `UNBROWSE_API_KEY`, `login --key`, or the `login` OAuth token, refreshed per call. The hosted tools are already named `unbrowse_x`; any other name with a character outside `[A-Za-z0-9_-]` is rewritten for hosts such as Grok Build and mapped back on each call. `--end-user ID` (or `UNBROWSE_END_USER`) sends `X-Unbrowse-End-User` for org keys. Nothing but protocol goes to stdout. `--from-here` (or `UNBROWSE_EGRESS=client`) runs `unbrowse_run` the way `unbrowse run` does: its site requests go from this machine, with its IP, each noted on stderr. Use it where the agent has its own computer, such as a Grok Bot (`npx -y unbrowse mcp --from-here` as a custom stdio server). It changes the IP only: it does not carry a sign-in, and a run from here goes signed out (one that needs a kept sign-in is sent through Unbrowse). For a page behind a site's sign-in, use `cookies sync`. Every other tool, and `unbrowse_resume` on that run, still goes through the hosted server; `select` is not applied locally. It also answers one tool itself, `unbrowse_local_mcps`: the servers in this machine's agent configs (no values), and with `import: true` the same import as `mcps import` (never with keys).
 
 ```json
 {"mcpServers":{"unbrowse":{"command":"npx","args":["-y","unbrowse","mcp"]}}}
