@@ -43,6 +43,8 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   cookies list                    Browsers and profiles found on this machine (--json for agents)
   cookies sync                    Send your browser cookies so runs act as your signed-in self
       [--browser NAME] [--profile NAME] [--domain d] [--all]
+                                  A page that says "sign in to view" (claude.ai, Notion, Google Docs…): sign in to it
+                                  in your browser once, then: unbrowse cookies sync --domain <site>
   cookies watch --domain a,b      Keep those sites' cookies in sync (re-upload on change) [--interval MIN] [--all-sites]
   cookies daemon start|status|stop
                                   The same as a background service (systemd / launchd) [--domain a,b | --all-sites] [--yes]
@@ -64,7 +66,8 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
 
   mcp                             Local stdio MCP server proxying the hosted one (tool names use _ not .)
       [--url URL] [--end-user ID]   for agent hosts that need stdio or strict tool names (Grok Build)
-      [--from-here]                 unbrowse_run sends its site requests from this machine, like run (a Grok Bot's computer)
+      [--from-here]                 unbrowse_run sends its site requests from this machine, like run (a Grok Bot's computer).
+                                    It changes the IP only: it does not sign you in to a site (that is cookies sync)
   mcp add [claude] [codex]        Register that proxy with Claude Code / Codex: they use this CLI's sign-in (no second sign-in)
       [--name NAME] [--replace] [--dry-run]
                                   And back: no CLI sign-in, but Claude Code signed in to Unbrowse (plugin) → the CLI uses that
@@ -570,7 +573,11 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       const cause = (e as { cause?: { code?: string; message?: string } }).cause;
       e.message = `could not reach ${origin}${cause?.code ? ` (${cause.code})` : cause?.message ? ` (${cause.message})` : ""}. Check the connection, or --base-url / UNBROWSE_BASE_URL.`;
     }
+    // A site behind a sign-in also answers 401 (login_required), but the person is signed in to Unbrowse: say what
+    // the site needs (the server's message names the fix, e.g. `unbrowse cookies sync --domain <site>`), not "log in".
+    const siteSignIn = e.status === 401 && siteLoginRequired(e.body);
     if (args.flags.json) print({ error: { status: e.status ?? null, message: e.message, details: e.body ?? null } });
+    else if (siteSignIn) io.err(siteSignInHint(siteSignIn, e.message));
     else io.err(e.status === 401 ? `Not signed in to ${origin}${named ? ` as account "${named}"` : ""}. Run \`${loginCmd}\`, or set UNBROWSE_API_KEY.` : `error${e.status ? ` (HTTP ${e.status})` : ""}: ${e.message}`);
     return e.status === 401 ? 3 : 1;
   }
@@ -738,6 +745,35 @@ async function mcps(rest: string[], args: Args, io: Io, origin: string, print: (
     if (dry) io.err("Nothing was connected. Run without --dry-run to import.");
   }
   return rows.some((r) => r.status === "failed") ? 1 : 0;
+}
+
+/** A site's own sign-in wall (`login_required`), as opposed to this CLI not being signed in to Unbrowse. */
+export function siteLoginRequired(body: unknown): { site?: string; next?: string[] } | undefined {
+  const err = (body as { error?: { code?: string; details?: { site?: unknown; finalUrl?: unknown; next?: unknown } } } | undefined)?.error;
+  if (err?.code !== "login_required") return undefined;
+  const d = err.details ?? {};
+  let site = typeof d.site === "string" ? d.site : undefined;
+  if (!site && typeof d.finalUrl === "string") {
+    try {
+      site = new URL(d.finalUrl).hostname.replace(/^www\./, "");
+    } catch {
+      // no usable URL: the hint names no site
+    }
+  }
+  const next = Array.isArray(d.next) ? d.next.filter((s): s is string => typeof s === "string") : undefined;
+  return { site, next };
+}
+
+export function siteSignInHint(found: { site?: string; next?: string[] }, message: string): string {
+  const site = found.site ?? "<site>";
+  const lines = [message || `${site} shows a sign-in page.`];
+  if (found.next?.length) lines.push(...found.next.map((s) => `  - ${s}`));
+  else {
+    lines.push(`  Use your own browser's sign-in:  unbrowse cookies sync --domain ${site}`);
+    lines.push(`  Keep it fresh:                   unbrowse cookies daemon start --domain ${site}`);
+  }
+  lines.push("  (--from-here / --from-unbrowse change only where requests come from; neither signs you in.)");
+  return lines.join("\n");
 }
 
 export function noCapabilityHint(view: RunView, args: Args): string {
