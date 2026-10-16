@@ -5,6 +5,13 @@ import { join } from "node:path";
 import { apiResource, clear, currentToken, describe as describeAuth, oauthLogin, save, sharedSignIn, tokenFor, v1Key } from "../src/auth.ts";
 import { main, parseArgs } from "../src/cli.ts";
 
+const MCP_TOOLS = [
+  { name: "unbrowse_browse_open", description: "Open a cloud browser on a URL. Recording is on.", inputSchema: { type: "object", properties: { url: { type: "string" }, task: { type: "string" } }, required: ["url"] } },
+  { name: "unbrowse_browse_close", description: "Close a cloud browser session.", inputSchema: { type: "object", properties: { sessionId: { type: "string" } }, required: ["sessionId"] } },
+  { name: "unbrowse_map", description: "List a site's URLs.", inputSchema: { type: "object", properties: { url: { type: "string" }, limit: { type: "number" } }, required: ["url"] } },
+  { name: "unbrowse_run", description: "Run a task.", inputSchema: { type: "object", properties: { task: { type: "string" } } } },
+];
+
 // A stand-in for the hosted REST API (/api/v1), shaped like unbrowse6's http.ts.
 const TOKEN = "ub_live_test_0123456789";
 const seen: Array<{ method: string; path: string; body: any; auth: string | null }> = [];
@@ -24,6 +31,17 @@ const server = Bun.serve({
     seen.push({ method: req.method, path: path + url.search, body, auth });
     if (url.pathname === "/oauth/register") return Response.json({ client_id: "cid_cli" });
     if (url.pathname === "/oauth/token") return Response.json({ access_token: TOKEN, refresh_token: "rtk", expires_in: 3600 });
+    // The hosted MCP (/api/mcp): a few core tools, called back with their arguments.
+    if (url.pathname === "/api/mcp") {
+      if (auth !== `Bearer ${TOKEN}`) return Response.json({ error: { code: "unauthorized", message: "Unauthorized" } }, { status: 401 });
+      const reply = (result: unknown) => Response.json({ jsonrpc: "2.0", id: body.id, result });
+      if (body.method === "tools/list") return reply({ tools: MCP_TOOLS });
+      const { name, arguments: a } = body.params;
+      if (name === "unbrowse_browse_open") return reply({ content: [{ type: "text", text: "snapshot" }], structuredContent: { sessionId: "bs_1", args: a, ua: req.headers.get("user-agent") } });
+      if (name === "unbrowse_map") return reply({ content: [{ type: "text", text: "https://a.test/\nhttps://a.test/b" }] });
+      if (name === "unbrowse_run") return reply({ content: [{ type: "text", text: JSON.stringify({ runId: "m1", status: "input_required" }) }] });
+      return reply({ content: [{ type: "text", text: `No session ${a.sessionId}` }], isError: true });
+    }
     const call = /^sites\/([^/]+)\/call\/([^/]+)$/.exec(path);
     if (call && req.method === "POST") {
       if (auth !== `Bearer ${TOKEN}`) return Response.json({ error: { code: "unauthorized", message: "Unauthorized" } }, { status: 401 });
@@ -599,4 +617,57 @@ test("mcp add says so when Claude Code also has the Unbrowse plugin's server (to
   const code = await main(["mcp", "add", "claude", "--base-url", BASE], { out: () => {}, err: (s) => err.push(s), open: () => {}, exec, service: { node: "/usr/bin/node", cli: "/opt/unbrowse/cli.js" } });
   expect(code).toBe(0);
   expect(err.join("\n")).toContain("plugin:unbrowse:unbrowse");
+});
+
+test("tools lists every hosted MCP tool, including the proxy's own, with its inputs", async () => {
+  const r = await cli(["tools"]);
+  expect(r.code).toBe(0);
+  const text = r.out.join("\n");
+  expect(text).toContain("local_mcps(");
+  expect(text).toMatch(/browse_open\(url, task\?\)\s+Open a cloud browser on a URL\./);
+  expect(text).not.toContain("Recording is on");
+  expect((await cli(["tools", "browser"])).out.length).toBe(2);
+  // Names first, by word: `browse` is not the `browse` in `unbrowse_…`.
+  expect((await cli(["tools", "browse"])).out.map((l) => l.split("(")[0])).toEqual(["browse_open", "browse_close"]);
+  const one = await cli(["tools", "map", "--json"]);
+  expect(one.json()).toMatchObject({ name: "unbrowse_map", inputSchema: { required: ["url"] } });
+});
+
+test("tool calls an MCP tool by its short name; --key value flags are its typed inputs", async () => {
+  const r = await cli(["tool", "browse-open", "--url", "https://a.test", "--task", "find pricing"]);
+  expect(r.code).toBe(0);
+  expect(r.json()).toMatchObject({ sessionId: "bs_1", args: { url: "https://a.test", task: "find pricing" } });
+  expect(r.json().ua).toContain("unbrowse-cli/");
+  const call = seen.filter((s) => s.path === "/api/mcp").at(-1)!;
+  expect(call.body.params).toEqual({ name: "unbrowse_browse_open", arguments: { url: "https://a.test", task: "find pricing" } });
+  // A JSON argument, --set, and a kebab flag that the schema names in camelCase.
+  await cli(["tool", "unbrowse.map", '{"url":"https://a.test"}', "--set", "limit=5"]);
+  expect(seen.filter((s) => s.path === "/api/mcp").at(-1)!.body.params.arguments).toEqual({ url: "https://a.test", limit: 5 });
+  await cli(["tool", "browse_close", "--session-id", "bs_9"]);
+  expect(seen.filter((s) => s.path === "/api/mcp").at(-1)!.body.params.arguments).toEqual({ sessionId: "bs_9" });
+});
+
+test("tool output and exit codes: text as text, isError exits 1, input_required exits 2", async () => {
+  const map = await cli(["tool", "map", "--url", "https://a.test"]);
+  expect([map.code, map.out]).toEqual([0, ["https://a.test/\nhttps://a.test/b"]]);
+  const bad = await cli(["tool", "browse_close", "--session-id", "nope"]);
+  expect(bad.code).toBe(1);
+  expect(bad.err.join("\n")).toContain("No session nope");
+  const ask = await cli(["tool", "run", "--task", "book"]);
+  expect(ask.code).toBe(2);
+  expect(ask.err.join("\n")).toContain("unbrowse resume m1");
+});
+
+test("tool with an unknown name suggests near ones; signed out it exits 3", async () => {
+  const r = await cli(["tool", "browse"]);
+  expect(r.code).toBe(1);
+  expect(r.err.join("\n")).toContain("Did you mean: browse_open, browse_close");
+  delete process.env.UNBROWSE_API_KEY;
+  clear();
+  expect((await cli(["tools", "--json"])).code).toBe(3);
+});
+
+test("no_capability names the cloud browser as a CLI step", async () => {
+  const r = await cli(["run", "nothing fits", "--url", "https://a.test"]);
+  expect(r.err.join("\n")).toContain("unbrowse tool browse_open --url https://a.test");
 });

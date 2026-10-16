@@ -3,7 +3,8 @@
 `unbrowse <command> [args] [--json] [--base-url URL] [--no-open] [--account NAME]`
 
 A thin shell over the REST API (`/api/v1`, see [api.md](api.md)). Output is JSON on stdout;
-messages go to stderr. Agents that need the cloud browser use the hosted MCP ([mcp.md](mcp.md)).
+messages go to stderr. Every hosted MCP tool ([mcp.md](mcp.md)), the cloud browser included, is also
+callable here with `tool <name>` ([Every MCP tool](#every-mcp-tool)).
 
 ## Account
 
@@ -186,6 +187,36 @@ Nothing is synced unless you name a site; scripts and agents (no terminal, `--js
 | `call <host> <tool> [JSON]` | `POST /sites/:host/call/:tool` with the tool's inputs as the body |
 
 Inputs as a JSON argument, `--input JSON` or `--set key=value` (repeatable). `--deadline MS`, `--select PATH,…` (narrow the result), `--idempotency-key K`, `--end-user ID` (org keys). Prints the run; needs an account.
+
+## Every MCP tool
+
+| Command | Route |
+|---|---|
+| `tools [query \| name]` | MCP `tools/list` on the hosted server (`<origin>/api/mcp`, or `UNBROWSE_MCP_URL`) |
+| `tool <name> [JSON]` | MCP `tools/call` with the tool's inputs |
+
+The CLI's own commands cover the REST API; these two cover the hosted MCP, so whatever an agent can do over MCP
+(the cloud browser, `map`, replay, memory, credentials requests, your workspace's learned and indexed site tools)
+works from a shell too. They go through the same proxy as `unbrowse mcp`, so the names are the same, `unbrowse_local_mcps`
+is there, and a tool added to the server is a CLI call the day it ships. Needs an account.
+
+`tools` prints one line per tool, `name(input, optional?)` and the first sentence of its description; a query keeps
+the tools whose name or description holds every word; one exact name prints that tool's description and input
+schema. `--json` prints the full schemas.
+
+`tool` takes the name with or without `unbrowse_`, with `_`, `-` or `.` (`browse_open`, `browse-open`,
+`unbrowse.browse.open`). Inputs: a JSON object argument or `--input JSON`, then `--key value` for each input
+(any flag the CLI does not use itself; `--session-id` becomes `sessionId`) and `--set key=value`, typed like `run`.
+It prints the tool's structured result as JSON (or its text), exits 1 when the tool reports an error and 2 when a run
+is `input_required`. `--from-here` sends `run`'s site requests from this machine, as `unbrowse mcp --from-here` does.
+
+```sh
+unbrowse tools browse                                   # the cloud browser tools
+unbrowse tool browse_open --url https://example.com --task "find the pricing"
+unbrowse tool browse_act --session-id <id> --action click --ref @e3
+unbrowse tool browse_finish --session-id <id>
+unbrowse tool map --url https://docs.rs --search serde
+```
 
 ## Your agents' MCP servers
 

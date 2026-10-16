@@ -64,7 +64,14 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   call <host> <tool> [JSON]       Run one site tool with its inputs (or --set key=value…); prints the run
       [--deadline MS] [--select PATH,…] [--idempotency-key K] [--end-user ID]
 
-  mcp                             Local stdio MCP server proxying the hosted one (tool names use _ not .)
+  tools [query | name]            Every tool of the hosted MCP (cloud browser, map, replay, memory, your sites' tools…);
+                                  one name prints its description and inputs (--json: every schema)
+  tool <name> [JSON]              Call one, the same as an agent over MCP: unbrowse tool browse_open --url https://…
+      [--key value]… [--set key=value]… [--input JSON]
+                                    the unbrowse_ prefix is optional; every --flag the CLI does not use is an input
+      [--from-here]                 run sends its site requests from this machine, like \`unbrowse run\`
+
+  mcp                          Local stdio MCP server proxying the hosted one (tool names use _ not .)
       [--url URL] [--end-user ID]   for agent hosts that need stdio or strict tool names (Grok Build)
       [--from-here]                 unbrowse_run sends its site requests from this machine, like run (a Grok Bot's computer).
                                     It changes the IP only: it does not sign you in to a site (that is cookies sync)
@@ -78,7 +85,7 @@ Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not 
 
 const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events", "dry-run", "with-keys", "replace"]);
 /** Commands that act for a workspace; the first one run with no sign-in starts the sign-in. */
-const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "scrape", "index", "inspect", "resume", "cancel", "learn", "learned", "logins", "call", "cookies"]);
+const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "scrape", "index", "inspect", "resume", "cancel", "learn", "learned", "logins", "call", "cookies", "tools", "tool"]);
 const SCRAPE_FORMATS = ["markdown", "html", "text", "links", "raw"] as const;
 
 export type Args = { _: string[]; flags: Record<string, string | boolean>; sets: Record<string, string> };
@@ -560,6 +567,9 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         if (run.status === "outcome_unknown") return io.err("Outcome unknown: a change may have happened. Inspect before retrying."), 4;
         return io.err(`${run.status}${run.error ? `: ${run.error.code} — ${run.error.message}` : ""}`), 1;
       }
+      case "tools":
+      case "tool":
+        return await mcpTools(cmd, rest, args, io, origin, print, client);
       default:
         throw new UsageError(`unknown command "${cmd}". Run \`unbrowse help\`.`);
     }
@@ -747,6 +757,62 @@ async function mcps(rest: string[], args: Args, io: Io, origin: string, print: (
   return rows.some((r) => r.status === "failed") ? 1 : 0;
 }
 
+/**
+ * `unbrowse tools` and `unbrowse tool <name>` (mcp-tools.ts): the hosted MCP's tools through the same proxy
+ * `unbrowse mcp` serves, so the CLI can do whatever an agent over MCP can and never drifts from it.
+ */
+async function mcpTools(cmd: string, rest: string[], args: Args, io: Io, origin: string, print: (v: unknown) => void, client: () => Promise<Unbrowse>): Promise<number> {
+  const T = await import("./mcp-tools.ts");
+  const { createProxy, localRun } = await import("./mcp-proxy.ts");
+  const { UnbrowseMcp } = await import("@unbrowse/sdk");
+  const url = process.env.UNBROWSE_MCP_URL ?? `${origin}/api/mcp`;
+  const endUser = process.env.UNBROWSE_END_USER;
+  const handle = createProxy(async () => new UnbrowseMcp({ url, apiKey: (await auth.tokenFor(origin, url)) ?? "", endUser, client: `cli/${VERSION}` }), VERSION, args.flags["from-here"] ? { runLocal: localRun(client) } : {});
+  let id = 0;
+  const rpc = async <R,>(method: string, params?: Record<string, unknown>): Promise<R> => {
+    const res = (await handle({ jsonrpc: "2.0", id: ++id, method, ...(params ? { params } : {}) })) as { result?: R; error?: { message: string; data?: { code?: string } } };
+    if (res.error) throw Object.assign(new Error(res.error.message), { status: res.error.data?.code === "unauthorized" || /unbrowse login/.test(res.error.message) ? 401 : undefined, code: res.error.data?.code });
+    return res.result as R;
+  };
+  const { tools } = await rpc<{ tools: import("@unbrowse/sdk").McpTool[] }>("tools/list");
+
+  if (cmd === "tools") {
+    const query = rest.join(" ");
+    const one = rest.length === 1 ? T.resolveTool(tools, rest[0]!) : undefined;
+    if (one) {
+      if (args.flags.json) return print(one), 0;
+      io.out(`${one.name}\n\n${one.description ?? ""}\n\nInputs: ${JSON.stringify(one.inputSchema ?? {}, null, 2)}`);
+      return io.err(`Call it: unbrowse tool ${T.shortName(one.name)} --key value…`), 0;
+    }
+    const shown = query ? T.filterTools(tools, query) : tools;
+    if (args.flags.json) return print({ tools: shown }), 0;
+    if (!shown.length) return io.err(`No tool matches "${query}". All of them: unbrowse tools`), 1;
+    for (const t of shown) io.out(`${T.signature(t).padEnd(44)} ${T.summary(t.description)}`);
+    io.err(`\n${shown.length} tool(s). One in full: unbrowse tools <name> · call one: unbrowse tool <name> --key value…`);
+    return 0;
+  }
+
+  const typed = need(rest[0], "tool <name> [JSON] [--key value]… (list them: unbrowse tools)");
+  const tool = T.resolveTool(tools, typed);
+  if (!tool) {
+    const words = typed.toLowerCase().split(/[._\s-]+/).filter((w) => w && w !== "unbrowse");
+    const near = tools.filter((t) => words.some((w) => T.shortName(t.name).toLowerCase().includes(w))).slice(0, 5).map((t) => T.shortName(t.name));
+    throw new UsageError(`no MCP tool named "${typed}".${near.length ? ` Did you mean: ${near.join(", ")}?` : ""} List them: unbrowse tools`);
+  }
+  const input = T.toolInput(tool, rest[1] ? rest.slice(1).join(" ") : (typeof args.flags.input === "string" ? args.flags.input : undefined), args.flags, mapValues(args.sets), coerce);
+  const result = await rpc<import("./mcp-tools.ts").ToolResult>("tools/call", { name: tool.name, arguments: input });
+  const value = T.resultValue(result);
+  const code = T.resultCode(result, value);
+  if (code === 1) io.err(typeof value === "string" ? value : JSON.stringify(value, null, 2));
+  else if (typeof value === "string") io.out(value);
+  else print(value);
+  if (code === 2) {
+    const runId = (value as { runId?: string }).runId;
+    io.err(`Input required: ${runId ? `unbrowse resume ${runId} key=value…` : "answer it with unbrowse tool resume"}`);
+  }
+  return code;
+}
+
 /** A site's own sign-in wall (`login_required`), as opposed to this CLI not being signed in to Unbrowse. */
 export function siteLoginRequired(body: unknown): { site?: string; next?: string[] } | undefined {
   const err = (body as { error?: { code?: string; details?: { site?: unknown; finalUrl?: unknown; next?: unknown } } } | undefined)?.error;
@@ -784,6 +850,7 @@ export function noCapabilityHint(view: RunView, args: Args): string {
   if (url) {
     lines.push(`  Read the page now:        unbrowse scrape ${url}`);
     lines.push(`  Teach Unbrowse the site:  unbrowse index ${url}   (minutes; then run the task again)`);
+    lines.push(`  Do it in a cloud browser: unbrowse tool browse_open --url ${url}   (recorded, so it teaches the site too)`);
   } else {
     lines.push(`  Name the site:            unbrowse run ${JSON.stringify(task || "<task>")} --url https://…`);
     lines.push("  Read any page now:        unbrowse scrape https://…");
