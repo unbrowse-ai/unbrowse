@@ -22,9 +22,13 @@ unbrowse resume <runId> origin=SIN           # answer on the same run
 | `logins`, `logins remove <origin>` | Saved logins, masked. The CLI never takes a password |
 | `registry [query]`, `site <host>`, `openapi <host>` | Public compiled sites, a site's tools, its OpenAPI 3.1 document — no account |
 | `call <host> <tool> [JSON]` | Run one site tool (`--set k=v`, `--deadline MS`, `--select a,b`, `--idempotency-key K`, `--end-user ID`) |
-| `tools [query]`, `tool <name> [--key value…]` | Every tool of the hosted MCP from the shell: the cloud browser (`tool browse_open --url …`), `map`, replay, memory, your sites' tools |
+| `browse open <url>`, `browse act <id> click e1`, `browse snapshot`, `browse finish`, `browse close` | The recorded cloud browser |
+| `map <url>`, `sites [site]`, `forget <capability>`, `connect [app]`, `credits` | Site map, what your workspace knows per site, learned tools, app connections, credits |
+| `credentials list`, `credentials request <origin>`, `credentials status <id>` | Saved logins, and a link for the person to save one you need |
+| `replay list`, `replay search`, `replay get`, `replay timeline`, `replay ask` | Recorded sessions |
+| `tools [query]`, `tool <name> [--key value…]` | Any tool by name, such as your learned site tools |
 
-The CLI is the REST client, and through `tool` it can call everything the remote MCP has. To give an agent host the MCP itself, see the [install guide](https://github.com/unbrowse-ai/unbrowse/blob/main/docs/install.md).
+The CLI matches the remote MCP: every MCP tool has a command ([table](https://github.com/unbrowse-ai/unbrowse/blob/main/docs/cli.md#same-as-the-mcp)). To give an agent host the MCP itself, see the [install guide](https://github.com/unbrowse-ai/unbrowse/blob/main/docs/install.md).
 
 Exit codes: 0 accepted/ok (check status and verified), 1 error, 2 input required, 3 sign-in or saved login needed, 4 not verified.
 Env: `UNBROWSE_API_KEY`, `UNBROWSE_BASE_URL`. Node 18.17+, no dependencies.
