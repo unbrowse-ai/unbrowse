@@ -64,9 +64,33 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   call <host> <tool> [JSON]       Run one site tool with its inputs (or --set key=value…); prints the run
       [--deadline MS] [--select PATH,…] [--idempotency-key K] [--end-user ID]
 
-  tools [query | name]            Every tool of the hosted MCP (cloud browser, map, replay, memory, your sites' tools…);
+  map <url>                       A site's URLs from its sitemaps and links [--search TEXT] [--limit N]
+  sites [site]                    What your workspace knows about each site: access, saved login, session
+  forget <capability>             Delete one of your learned capabilities
+  connect [app]                   Connect an app's own MCP server (Linear, Notion, GitHub…) so its tools run as you
+      [--url URL --name N] [--search TEXT] [--disconnect]
+  credits [--pack p10|p50|p200]   Credits left; --pack gets a checkout link
+
+  browse open <url>               A recorded cloud browser on a page: its text and @refs [--task TEXT] [--country XX]
+  browse snapshot <sessionId>     The page now [--text-offset N]
+  browse act <sessionId> <action> [ref] [value…]
+                                  click | fill | select | check | press | wait | autofill [--name N] [--vault FIELD] [--key K]
+  browse finish <sessionId>       End it and learn the site's routes from what you did [--title T] [--goal G]
+  browse close <sessionId>        End it (still indexes unless --discard)
+
+  credentials list [origin]       Saved logins, masked, for one site [--query TEXT]
+  credentials request <origin>    A one-time link for the person to save a login [--fields username,password,totp] [--reason TEXT]
+  credentials status <requestId>  Whether they did [--wait-seconds N]
+
+  replay list                     Recorded sessions [--site S] [--outcome O] [--has-error] [--from D] [--to D] [--limit N]
+  replay search <query…>          Search what happened in them (same filters)
+  replay get <sid>                One session: details, signals, summary
+  replay timeline <sid>           One session as text, a line per event [--kinds a,b]
+  replay ask <question…>          Ask across sessions (same filters)
+
+  tools [query | name]            Every tool the hosted MCP lists you, your own learned and indexed site tools included;
                                   one name prints its description and inputs (--json: every schema)
-  tool <name> [JSON]              Call one, the same as an agent over MCP: unbrowse tool browse_open --url https://…
+  tool <name> [JSON]              Call any of them by name, e.g. a learned one: unbrowse tool my__arxiv_org__get_cs_ai_recent --name cs.AI
       [--key value]… [--set key=value]… [--input JSON]
                                     the unbrowse_ prefix is optional; every --flag the CLI does not use is an input
       [--from-here]                 run sends its site requests from this machine, like \`unbrowse run\`
@@ -83,9 +107,9 @@ Options: --json (errors as JSON) · --base-url URL · --no-open · --account NAM
 Env: UNBROWSE_API_KEY, UNBROWSE_ACCOUNT, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_EGRESS=server, UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
-const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events", "dry-run", "with-keys", "replace"]);
+const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events", "dry-run", "with-keys", "replace", "discard", "disconnect", "has-error"]);
 /** Commands that act for a workspace; the first one run with no sign-in starts the sign-in. */
-const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "scrape", "index", "inspect", "resume", "cancel", "learn", "learned", "logins", "call", "cookies", "tools", "tool"]);
+const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "scrape", "index", "inspect", "resume", "cancel", "learn", "learned", "logins", "call", "cookies", "tools", "tool", "map", "sites", "forget", "connect", "credits", "browse", "credentials", "replay"]);
 const SCRAPE_FORMATS = ["markdown", "html", "text", "links", "raw"] as const;
 
 export type Args = { _: string[]; flags: Record<string, string | boolean>; sets: Record<string, string> };
@@ -567,6 +591,15 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
         if (run.status === "outcome_unknown") return io.err("Outcome unknown: a change may have happened. Inspect before retrying."), 4;
         return io.err(`${run.status}${run.error ? `: ${run.error.code} — ${run.error.message}` : ""}`), 1;
       }
+      case "map":
+      case "sites":
+      case "forget":
+      case "connect":
+      case "credits":
+      case "browse":
+      case "credentials":
+      case "replay":
+        return await mcpCommand(cmd, rest, args, io, origin, print, client);
       case "tools":
       case "tool":
         return await mcpTools(cmd, rest, args, io, origin, print, client);
@@ -757,23 +790,59 @@ async function mcps(rest: string[], args: Args, io: Io, origin: string, print: (
   return rows.some((r) => r.status === "failed") ? 1 : 0;
 }
 
-/**
- * `unbrowse tools` and `unbrowse tool <name>` (mcp-tools.ts): the hosted MCP's tools through the same proxy
- * `unbrowse mcp` serves, so the CLI can do whatever an agent over MCP can and never drifts from it.
- */
-async function mcpTools(cmd: string, rest: string[], args: Args, io: Io, origin: string, print: (v: unknown) => void, client: () => Promise<Unbrowse>): Promise<number> {
-  const T = await import("./mcp-tools.ts");
+/** JSON-RPC to the hosted MCP through the same proxy `unbrowse mcp` serves (tool names, local_mcps, --from-here). */
+async function mcpRpc(args: Args, origin: string, client: () => Promise<Unbrowse>) {
   const { createProxy, localRun } = await import("./mcp-proxy.ts");
   const { UnbrowseMcp } = await import("@unbrowse/sdk");
   const url = process.env.UNBROWSE_MCP_URL ?? `${origin}/api/mcp`;
   const endUser = process.env.UNBROWSE_END_USER;
   const handle = createProxy(async () => new UnbrowseMcp({ url, apiKey: (await auth.tokenFor(origin, url)) ?? "", endUser, client: `cli/${VERSION}` }), VERSION, args.flags["from-here"] ? { runLocal: localRun(client) } : {});
   let id = 0;
-  const rpc = async <R,>(method: string, params?: Record<string, unknown>): Promise<R> => {
+  return async <R,>(method: string, params?: Record<string, unknown>): Promise<R> => {
     const res = (await handle({ jsonrpc: "2.0", id: ++id, method, ...(params ? { params } : {}) })) as { result?: R; error?: { message: string; data?: { code?: string } } };
     if (res.error) throw Object.assign(new Error(res.error.message), { status: res.error.data?.code === "unauthorized" || /unbrowse login/.test(res.error.message) ? 401 : undefined, code: res.error.data?.code });
     return res.result as R;
   };
+}
+
+/** Print a tool's result (JSON, or its text) and turn it into the CLI's exit code. */
+async function printToolResult(result: import("./mcp-tools.ts").ToolResult, io: Io, print: (v: unknown) => void): Promise<number> {
+  const T = await import("./mcp-tools.ts");
+  const value = T.resultValue(result);
+  const code = T.resultCode(result, value);
+  if (code === 1) io.err(typeof value === "string" ? value : JSON.stringify(value, null, 2));
+  else if (typeof value === "string") io.out(value);
+  else print(value);
+  if (code === 2) {
+    const runId = (value as { runId?: string }).runId;
+    io.err(`Input required: ${runId ? `unbrowse resume ${runId} key=value…` : "answer the open requirements and call again"}`);
+  }
+  return code;
+}
+
+/**
+ * The MCP tools with no REST route, as commands of their own (`map`, `browse open`, `replay search`…; the table is
+ * MCP_COMMANDS in mcp-tools.ts). Each is one tools/call with the same name and arguments an agent sends over MCP.
+ */
+async function mcpCommand(cmd: string, rest: string[], args: Args, io: Io, origin: string, print: (v: unknown) => void, client: () => Promise<Unbrowse>): Promise<number> {
+  const T = await import("./mcp-tools.ts");
+  const { command, usage } = T.findCommand(cmd, rest[0]);
+  if (!command) throw new UsageError(`usage:\n${usage}`);
+  const words = command.sub ? rest.slice(1) : rest;
+  const required = command.args.filter((a) => !a.endsWith("?")).length;
+  if (words.length < required || (words.length > command.args.length && !command.rest)) throw new UsageError(`usage: unbrowse ${command.usage}`);
+  const input = T.commandInput(command, words, args.flags, mapValues(args.sets), coerce);
+  const rpc = await mcpRpc(args, origin, client);
+  return printToolResult(await rpc<import("./mcp-tools.ts").ToolResult>("tools/call", { name: command.tool, arguments: input }), io, print);
+}
+
+/**
+ * `unbrowse tools` and `unbrowse tool <name>`: any tool the hosted MCP lists, including the workspace's own learned
+ * and indexed site tools, which have no command of their own.
+ */
+async function mcpTools(cmd: string, rest: string[], args: Args, io: Io, origin: string, print: (v: unknown) => void, client: () => Promise<Unbrowse>): Promise<number> {
+  const T = await import("./mcp-tools.ts");
+  const rpc = await mcpRpc(args, origin, client);
   const { tools } = await rpc<{ tools: import("@unbrowse/sdk").McpTool[] }>("tools/list");
 
   if (cmd === "tools") {
@@ -800,17 +869,7 @@ async function mcpTools(cmd: string, rest: string[], args: Args, io: Io, origin:
     throw new UsageError(`no MCP tool named "${typed}".${near.length ? ` Did you mean: ${near.join(", ")}?` : ""} List them: unbrowse tools`);
   }
   const input = T.toolInput(tool, rest[1] ? rest.slice(1).join(" ") : (typeof args.flags.input === "string" ? args.flags.input : undefined), args.flags, mapValues(args.sets), coerce);
-  const result = await rpc<import("./mcp-tools.ts").ToolResult>("tools/call", { name: tool.name, arguments: input });
-  const value = T.resultValue(result);
-  const code = T.resultCode(result, value);
-  if (code === 1) io.err(typeof value === "string" ? value : JSON.stringify(value, null, 2));
-  else if (typeof value === "string") io.out(value);
-  else print(value);
-  if (code === 2) {
-    const runId = (value as { runId?: string }).runId;
-    io.err(`Input required: ${runId ? `unbrowse resume ${runId} key=value…` : "answer it with unbrowse tool resume"}`);
-  }
-  return code;
+  return printToolResult(await rpc<import("./mcp-tools.ts").ToolResult>("tools/call", { name: tool.name, arguments: input }), io, print);
 }
 
 /** A site's own sign-in wall (`login_required`), as opposed to this CLI not being signed in to Unbrowse. */
@@ -850,7 +909,7 @@ export function noCapabilityHint(view: RunView, args: Args): string {
   if (url) {
     lines.push(`  Read the page now:        unbrowse scrape ${url}`);
     lines.push(`  Teach Unbrowse the site:  unbrowse index ${url}   (minutes; then run the task again)`);
-    lines.push(`  Do it in a cloud browser: unbrowse tool browse_open --url ${url}   (recorded, so it teaches the site too)`);
+    lines.push(`  Do it in a cloud browser: unbrowse browse open ${url}   (recorded, so it teaches the site too)`);
   } else {
     lines.push(`  Name the site:            unbrowse run ${JSON.stringify(task || "<task>")} --url https://…`);
     lines.push("  Read any page now:        unbrowse scrape https://…");

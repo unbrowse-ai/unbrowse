@@ -3,8 +3,8 @@
 `unbrowse <command> [args] [--json] [--base-url URL] [--no-open] [--account NAME]`
 
 A thin shell over the REST API (`/api/v1`, see [api.md](api.md)). Output is JSON on stdout;
-messages go to stderr. Every hosted MCP tool ([mcp.md](mcp.md)), the cloud browser included, is also
-callable here with `tool <name>` ([Every MCP tool](#every-mcp-tool)).
+messages go to stderr. The CLI matches the hosted MCP ([mcp.md](mcp.md)): every MCP tool has a command
+([Same as the MCP](#same-as-the-mcp)).
 
 ## Account
 
@@ -188,35 +188,97 @@ Nothing is synced unless you name a site; scripts and agents (no terminal, `--js
 
 Inputs as a JSON argument, `--input JSON` or `--set key=value` (repeatable). `--deadline MS`, `--select PATH,…` (narrow the result), `--idempotency-key K`, `--end-user ID` (org keys). Prints the run; needs an account.
 
-## Every MCP tool
+## Same as the MCP
+
+Every tool of the hosted MCP is a command. Where the REST API has a route the command uses it; the rest
+(the cloud browser, `map`, `sites`, `forget`, `connect`, `credits`, credentials requests and replay) are one MCP
+`tools/call` each, through the same proxy as `unbrowse mcp`, with the same arguments an agent sends. Required inputs
+are positional, in the order shown; every other input is a `--flag` (`--text-offset` is `textOffset`), typed like
+`run`'s `--set`. Output is the tool's result as JSON (or its text); exit 1 when the tool reports an error, 2 when a run
+is `input_required`. Needs an account. `tests/mcp-parity.test.ts` fails when an exported MCP tool has no command.
+
+| MCP tool | Command |
+|---|---|
+| `unbrowse_discover`, `search` | `discover <query>` |
+| `unbrowse_run`, `_inspect`, `_resume`, `_cancel` | `run`, `inspect`, `resume`, `cancel` |
+| `unbrowse_scrape`, `fetch` | `scrape <url>` |
+| `unbrowse_index`, `_index_status` | `index <url>`, `index status` |
+| `unbrowse_learn` | `learn <a.har> <b.har>` |
+| `unbrowse_usage` | `usage` |
+| `unbrowse_import_mcps`, `unbrowse_local_mcps` | `mcps import`, `mcps` |
+| `unbrowse_map` | `map <url>` |
+| `unbrowse_sites` | `sites [site]` |
+| `unbrowse_forget` | `forget <capability>` |
+| `unbrowse_connect` | `connect [app]` |
+| `unbrowse_credits` | `credits` |
+| `unbrowse_browse_open`, `_snapshot`, `_act`, `_finish`, `_close` | `browse open`, `browse snapshot`, `browse act`, `browse finish`, `browse close` |
+| `unbrowse_credentials_list`, `_request`, `_status` | `credentials list`, `credentials request`, `credentials status` |
+| `unbrowse_replay_list`, `_search`, `_get`, `_timeline`, `_ask` | `replay list`, `replay search`, `replay get`, `replay timeline`, `replay ask` |
+| your learned and indexed site tools (`my__…`, `skill_…`) | `tool <name>` (below) |
+
+### Site and account
+
+| Command | Does |
+|---|---|
+| `map <url>` | A site's URLs: its sitemaps, then the page's links. `--search TEXT`, `--limit N` |
+| `sites [site]` | What this workspace knows about each site it touched: access, saved login, session |
+| `forget <capability>` | Delete one of your learned capabilities |
+| `connect [app]` | Connect an app's own MCP server (`linear.app`, `notion.so`…) so its tools run as you; an app with sign-in returns a link. `--url URL --name N` adds a server not in the catalog, `--search TEXT`, `--disconnect` |
+| `credits` | Credits left; `--pack p10\|p50\|p200` returns a checkout link |
+
+### Cloud browser
+
+| Command | Does |
+|---|---|
+| `browse open <url>` | Opens a recorded cloud browser; prints the page text and its elements with `@refs`. `--task TEXT`, `--country XX` |
+| `browse snapshot <sessionId>` | The page now. `--text-offset N` for the next part of a long page |
+| `browse act <sessionId> <action> [ref] [value…]` | `click`, `fill`, `select`, `check`, `press`, `wait` or `autofill`. `--name` names a filled input (`query`, `date`) so the learned tool gets that parameter; `--vault username\|email\|password\|totp` fills from your saved login; `--key Enter` for `press` |
+| `browse finish <sessionId>` | Ends the session and learns the site's routes from it. `--title T`, `--goal G` |
+| `browse close <sessionId>` | Ends it; it still indexes unless `--discard` |
+
+A session left open holds a browser until it idles out (2 minutes). The browser runs in Unbrowse's cloud, not on
+this machine.
+
+```sh
+unbrowse browse open https://example.com --task "find the pricing"
+unbrowse browse act bs_1bdwuq click e1
+unbrowse browse act bs_1bdwuq fill e3 serde --name query
+unbrowse browse finish bs_1bdwuq --title "Search the docs"
+```
+
+### Logins
+
+| Command | Does |
+|---|---|
+| `credentials list [origin]` | Saved logins usable on a site, masked. `--query TEXT`, `--limit N` |
+| `credentials request <origin>` | A one-time link for the person to save a login you need, without you seeing it. `--fields username,password,totp`, `--reason TEXT` |
+| `credentials status <requestId>` | Whether they did. `--wait-seconds N` waits for it |
+
+### Replay
+
+| Command | Does |
+|---|---|
+| `replay list` | Recorded sessions, newest first |
+| `replay search <query…>` | Search what happened in them, in plain words |
+| `replay get <sid>` | One session: details, signals and summary |
+| `replay timeline <sid>` | One session as text, a line per event. `--from MS`, `--to MS`, `--kinds a,b` |
+| `replay ask <question…>` | Ask a question across sessions |
+
+Filters for `list`, `search` and `ask`: `--site`, `--source`, `--outcome`, `--has-error`, `--audience`, `--tag`, `--from`,
+`--to`, `--limit`.
+
+### Any tool by name
 
 | Command | Route |
 |---|---|
-| `tools [query \| name]` | MCP `tools/list` on the hosted server (`<origin>/api/mcp`, or `UNBROWSE_MCP_URL`) |
+| `tools [query \| name]` | MCP `tools/list`: every tool the hosted MCP lists you, your learned and indexed site tools included |
 | `tool <name> [JSON]` | MCP `tools/call` with the tool's inputs |
 
-The CLI's own commands cover the REST API; these two cover the hosted MCP, so whatever an agent can do over MCP
-(the cloud browser, `map`, replay, memory, credentials requests, your workspace's learned and indexed site tools)
-works from a shell too. They go through the same proxy as `unbrowse mcp`, so the names are the same, `unbrowse_local_mcps`
-is there, and a tool added to the server is a CLI call the day it ships. Needs an account.
-
-`tools` prints one line per tool, `name(input, optional?)` and the first sentence of its description; a query keeps
-the tools whose name or description holds every word; one exact name prints that tool's description and input
-schema. `--json` prints the full schemas.
-
-`tool` takes the name with or without `unbrowse_`, with `_`, `-` or `.` (`browse_open`, `browse-open`,
-`unbrowse.browse.open`). Inputs: a JSON object argument or `--input JSON`, then `--key value` for each input
-(any flag the CLI does not use itself; `--session-id` becomes `sessionId`) and `--set key=value`, typed like `run`.
-It prints the tool's structured result as JSON (or its text), exits 1 when the tool reports an error and 2 when a run
-is `input_required`. `--from-here` sends `run`'s site requests from this machine, as `unbrowse mcp --from-here` does.
-
-```sh
-unbrowse tools browse                                   # the cloud browser tools
-unbrowse tool browse_open --url https://example.com --task "find the pricing"
-unbrowse tool browse_act --session-id <id> --action click --ref @e3
-unbrowse tool browse_finish --session-id <id>
-unbrowse tool map --url https://docs.rs --search serde
-```
+For tools that have no command of their own, chiefly your workspace's learned and indexed site tools. `tools` prints one
+line per tool (`name(input, optional?)` and its first sentence); a query keeps tools whose name has a word starting
+with each word of it; one exact name prints its description and schema; `--json` prints every schema. `tool` takes the
+name with or without `unbrowse_`, with `_`, `-` or `.`; inputs are a JSON object argument or `--input JSON`, then
+`--key value` and `--set key=value`. `--from-here` sends `run`'s site requests from this machine.
 
 ## Your agents' MCP servers
 

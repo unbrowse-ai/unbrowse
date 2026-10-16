@@ -40,7 +40,9 @@ const server = Bun.serve({
       if (name === "unbrowse_browse_open") return reply({ content: [{ type: "text", text: "snapshot" }], structuredContent: { sessionId: "bs_1", args: a, ua: req.headers.get("user-agent") } });
       if (name === "unbrowse_map") return reply({ content: [{ type: "text", text: "https://a.test/\nhttps://a.test/b" }] });
       if (name === "unbrowse_run") return reply({ content: [{ type: "text", text: JSON.stringify({ runId: "m1", status: "input_required" }) }] });
-      return reply({ content: [{ type: "text", text: `No session ${a.sessionId}` }], isError: true });
+      if (name === "unbrowse_browse_close" && a.sessionId === "nope") return reply({ content: [{ type: "text", text: `No session ${a.sessionId}` }], isError: true });
+      // Every other tool answers with what it was called with.
+      return reply({ content: [{ type: "text", text: "ok" }], structuredContent: { tool: name, args: a } });
     }
     const call = /^sites\/([^/]+)\/call\/([^/]+)$/.exec(path);
     if (call && req.method === "POST") {
@@ -669,5 +671,48 @@ test("tool with an unknown name suggests near ones; signed out it exits 3", asyn
 
 test("no_capability names the cloud browser as a CLI step", async () => {
   const r = await cli(["run", "nothing fits", "--url", "https://a.test"]);
-  expect(r.err.join("\n")).toContain("unbrowse tool browse_open --url https://a.test");
+  expect(r.err.join("\n")).toContain("unbrowse browse open https://a.test");
+});
+
+test("each MCP tool without a REST route is a command: positionals in order, --flags typed, lists split", async () => {
+  const last = () => seen.filter((s) => s.path === "/api/mcp").at(-1)!.body.params;
+  const cases: Array<[string[], string, Record<string, unknown>]> = [
+    [["map", "https://docs.rs", "--search", "serde", "--limit", "3"], "unbrowse_map", { url: "https://docs.rs", search: "serde", limit: 3 }],
+    [["browse", "open", "https://a.test", "--task", "find pricing"], "unbrowse_browse_open", { url: "https://a.test", task: "find pricing" }],
+    [["browse", "snapshot", "bs_1", "--text-offset", "4000"], "unbrowse_browse_snapshot", { sessionId: "bs_1", textOffset: 4000 }],
+    [["browse", "act", "bs_1", "fill", "e3", "hello", "world", "--name", "query"], "unbrowse_browse_act", { sessionId: "bs_1", action: "fill", ref: "e3", value: "hello world", name: "query" }],
+    [["browse", "act", "bs_1", "press", "--key", "Enter"], "unbrowse_browse_act", { sessionId: "bs_1", action: "press", key: "Enter" }],
+    [["browse", "finish", "bs_1", "--title", "Search docs"], "unbrowse_browse_finish", { sessionId: "bs_1", title: "Search docs" }],
+    [["browse", "close", "bs_1", "--discard"], "unbrowse_browse_close", { sessionId: "bs_1", discard: true }],
+    [["sites"], "unbrowse_sites", {}],
+    [["sites", "github.com"], "unbrowse_sites", { site: "github.com" }],
+    [["forget", "learned.x"], "unbrowse_forget", { capability: "learned.x" }],
+    [["credentials", "list", "https://github.com"], "unbrowse_credentials_list", { origin: "https://github.com" }],
+    [["credentials", "request", "https://github.com", "--fields", "username,password", "--reason", "your stars"], "unbrowse_credentials_request", { origin: "https://github.com", fields: ["username", "password"], reason: "your stars" }],
+    [["credentials", "status", "cr_1", "--wait-seconds", "30"], "unbrowse_credentials_status", { requestId: "cr_1", waitSeconds: 30 }],
+    [["connect", "linear.app"], "unbrowse_connect", { app: "linear.app" }],
+    [["connect", "--url", "https://mcp.example.com", "--name", "ex"], "unbrowse_connect", { url: "https://mcp.example.com", name: "ex" }],
+    [["credits", "--pack", "p10"], "unbrowse_credits", { pack: "p10" }],
+    [["replay", "list", "--has-error", "--limit", "5"], "unbrowse_replay_list", { hasError: true, limit: 5 }],
+    [["replay", "search", "pricing", "page", "then", "left"], "unbrowse_replay_search", { query: "pricing page then left" }],
+    [["replay", "get", "s_1"], "unbrowse_replay_get", { sid: "s_1" }],
+    [["replay", "timeline", "s_1", "--kinds", "page,click"], "unbrowse_replay_timeline", { sid: "s_1", kinds: ["page", "click"] }],
+    [["replay", "ask", "why", "do", "people", "leave?"], "unbrowse_replay_ask", { question: "why do people leave?" }],
+  ];
+  for (const [argv, tool, args] of cases) {
+    const r = await cli(argv);
+    expect([argv.join(" "), r.code]).toEqual([argv.join(" "), 0]);
+    expect(last()).toEqual({ name: tool, arguments: args });
+  }
+});
+
+test("a command missing its argument, or a group without its subcommand, prints usage and exits 1", async () => {
+  const b = await cli(["browse"]);
+  expect(b.code).toBe(1);
+  expect(b.err.join("\n")).toContain("unbrowse browse open <url>");
+  expect(b.err.join("\n")).toContain("unbrowse browse act <sessionId>");
+  expect((await cli(["map"])).code).toBe(1);
+  expect((await cli(["browse", "act", "bs_1"])).code).toBe(1);
+  expect((await cli(["forget", "a", "b"])).code).toBe(1);
+  expect(seen.some((s) => s.path === "/api/mcp")).toBe(false);
 });
