@@ -1,2 +1,2 @@
 /** This SDK's version: sent as `x-unbrowse-client: sdk/<version>` so the service can tell clients and releases apart. */
-export const SDK_VERSION = "12.3.1";
+export const SDK_VERSION = "12.4.0";
