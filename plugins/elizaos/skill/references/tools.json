@@ -185,7 +185,7 @@
     },
     {
       "name": "unbrowse_browse_open",
-      "description": "Open a cloud browser (patchright) on a URL when no capability fits yet. Recording is on from the first navigation, so doing the task here fulfils it now and teaches Unbrowse the site. Returns a snapshot of interactive elements with @refs. When you have the answer, or give up, call unbrowse_browse_finish (or unbrowse_browse_close): a session left open holds a browser until it idles out after 2 minutes.",
+      "description": "Open a cloud browser (patchright) on a URL when no capability fits yet. Recording is on from the first navigation, so doing the task here fulfils it now and teaches Unbrowse the site. Returns a snapshot of interactive elements with @refs. When you have the answer, or give up, call unbrowse_browse_finish (or unbrowse_browse_close): a session left open holds a browser until it idles out after 2 minutes. When the page is a sign-in wall and the workspace cannot sign in to the site (no saved login, no active kept session), the answer carries signInWall {site, next}: relay next to the user (sync their browser sign-in with `unbrowse cookies sync --domain <site>` or the extension, or save a login and fill it here with autofill); a synced sign-in loads when a session opens, so open the page again in a new session. It never changes a kept session. --from-here only changes the IP and never carries a sign-in.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -208,7 +208,7 @@
     },
     {
       "name": "unbrowse_browse_snapshot",
-      "description": "Current page text and interactive elements with @refs. When nextTextOffset is present, call again on the same session with textOffset to read the rest. Restart at offset 0 after navigation or page changes. Refs change after every action; always act on the latest snapshot.",
+      "description": "Current page text and interactive elements with @refs, including what is inside visible iframes (embedded forms, checkouts, sign-ins): the page's own refs are e1, e2…; an iframe's are prefixed with its frame (f1e3 is e3 in frame f1), and its text follows the page's under a \"[frame f1: <origin>]\" line. Act on an iframe ref like any other. When nextTextOffset is present, call again on the same session with textOffset to read the rest. Restart at offset 0 after navigation or page changes. Refs change after every action; always act on the latest snapshot. If the browser's network dropped, the session reconnects first and the result carries `recovered` once (re-check the page before repeating a submission); `egress_lost` means it could not reconnect.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -228,7 +228,7 @@
     },
     {
       "name": "unbrowse_browse_act",
-      "description": "click | fill | select | check | press | wait on a @ref, or autofill. For fill, pass `name` as the business field (origin, date, email…) so the learned API gets readable inputs. For logins never ask the user for a password: `autofill` fills the page's login form (username or email, password, 2FA code) from the user's Unbrowse password manager, or fill one @ref with `vault: \"username\" | \"email\" | \"password\" | \"totp\"`. The values go straight into the page and never pass through you. If no login is saved for the site, or the user has not approved agent sign-ins there (approval_required), the error carries a link: give it to the user, wait with unbrowse_credentials_status, then repeat the action.",
+      "description": "click | fill | select | check | press | wait on a @ref from the latest snapshot (iframe refs like f1e3 work the same), autofill, or upload. To attach a file (a photo, a document): action \"upload\" with `files: [{url}]` (a public URL Unbrowse fetches) or `[{name, base64}]`, on the file input's ref or the button that opens the file picker (no ref: the page's only file input). A prompt dialog the action opens (e.g. \"paste an image URL\") is answered with `dialog: {accept: true, text}`; otherwise dialogs are dismissed. For fill, pass `name` as the business field (origin, date, email…) so the learned API gets readable inputs. For logins never ask the user for a password: `autofill` fills the page's login form, or one in an iframe (username or email, password, 2FA code) from the user's Unbrowse password manager, or fill one @ref with `vault: \"username\" | \"email\" | \"password\" | \"totp\"`. The values go straight into the page and never pass through you. If no login is saved for the site, or the user has not approved agent sign-ins there (approval_required), the error carries a link: give it to the user, wait with unbrowse_credentials_status, then repeat the action. A result with `recovered` means the network dropped and the session reconnected (an action taken before that reconnect was not performed); `page_reopened` means it reconnected while the action ran (it may or may not have taken effect); `egress_lost` means it could not reconnect; `host_unreachable` means only the other host a link led to could not be reached.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -244,7 +244,8 @@
               "check",
               "press",
               "wait",
-              "autofill"
+              "autofill",
+              "upload"
             ]
           },
           "ref": {
@@ -276,6 +277,45 @@
           },
           "ms": {
             "type": "number"
+          },
+          "files": {
+            "type": "array",
+            "maxItems": 10,
+            "description": "upload: the files to attach, each a public http(s) URL Unbrowse fetches ({url}) or the bytes ({name, base64}); up to 10 files, 10 MB each",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "base64": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "dialog": {
+            "type": "object",
+            "description": "How to answer a dialog this action opens: {accept: true, text} fills a prompt (e.g. one asking for an image URL); without it dialogs are dismissed",
+            "properties": {
+              "accept": {
+                "type": "boolean"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "accept"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -422,7 +462,7 @@
     },
     {
       "name": "unbrowse_scrape",
-      "description": "Read one page or document, or one URL of a site's own JSON API. For a task on a site (search, listings, prices, filters) call unbrowse_run { task } first: it runs a learned tool, or browses and learns one. A JSON API URL read with formats [\"raw\"] is learned as your tool and returned as newTool: call that tool next time instead of scraping or searching for the endpoint. A page that needs a browser is rendered; when its content came from the site's own data request, that request is learned as your tool too (newTool), otherwise the answer's next says how unbrowse_run or unbrowse_browse_* learn it. Returns clean markdown (main content only by default), links and metadata. Rendering is a compatibility fallback for page reads, not a reason to choose scrape for dynamic sites. Kept sign-ins follow the person's reuse settings. A PDF, Word (.docx) or Excel (.xls/.xlsx) URL comes back as extracted text in markdown, with metadata.pages for PDFs and metadata.truncated when extraction limits apply (up to 20 MB, over HTTP). Every answer carries metadata.status (the page's real HTTP status; statusCode is the same value), timing {ms, httpMs, renderMs, queuedMs} and attempts (HTTP tries). It never runs past deadlineMs (default 45 s): then it fails scrape_timeout (HTTP 504) with details.stage (http or render). A bot wall fails fast as blocked with details {stage, reason, timing, attempts, httpStatus, renderStatus}; a page that met a bot wall over HTTP and in the browser answers blocked at once for 10 minutes, with details.retryAfter (seconds) and cachedAt. A known URL alone is not a reason to choose scrape. One verified call.",
+      "description": "Read one page or document, or one URL of a site's own JSON API. For a task on a site (search, listings, prices, filters) call unbrowse_run { task } first: it runs a learned tool, or browses and learns one. A JSON API URL read with formats [\"raw\"] is learned as your tool and returned as newTool: call that tool next time instead of scraping or searching for the endpoint. A page that needs a browser is rendered; when its content came from the site's own data request, that request is learned as your tool too (newTool), otherwise the answer's next says how unbrowse_run or unbrowse_browse_* learn it. Returns clean markdown (main content only by default), links and metadata. Rendering is a compatibility fallback for page reads, not a reason to choose scrape for dynamic sites. Kept sign-ins follow the person's reuse settings. A PDF, Word (.docx) or Excel (.xls/.xlsx) URL comes back as extracted text in markdown, with metadata.pages for PDFs and metadata.truncated when extraction limits apply (up to 20 MB, over HTTP). Every answer carries metadata.status (the page's real HTTP status; statusCode is the same value), timing {ms, httpMs, renderMs, queuedMs} and attempts (HTTP tries). It never runs past deadlineMs (default 45 s): then it fails scrape_timeout (HTTP 504) with details.stage (http or render). A bot wall fails fast as blocked with details {stage, reason, timing, attempts, httpStatus, renderStatus}; a page that met a bot wall over HTTP and in the browser answers blocked at once for 10 minutes, with details.retryAfter (seconds) and cachedAt. A page behind a sign-in (sent to a sign-in page, or shown one at its own address: claude.ai artifacts, Notion, Google Docs) fails login_required (HTTP 401, not billed), never blocked, with details {site, finalUrl, sessionSent, reason, next}: tell the user next — sync their own browser sign-in (`unbrowse cookies sync --domain <site>`, `unbrowse cookies daemon start --domain <site>`, or the extension's Sync), or save a login / sign in once in unbrowse_browse_open — then ask again. The synced or kept sign-in is sent with the read. --from-here only changes the IP; it never carries a sign-in. A known URL alone is not a reason to choose scrape. One verified call.",
       "inputSchema": {
         "type": "object",
         "properties": {
