@@ -1,6 +1,6 @@
 # Unbrowse
 Every website, even those without an official API or MCP, still rely on a first party API to talk to their backend.
-Unbrowse calls these website's first party APIs to make agentic browsing 50-100x faster and 95% cheaper than using a browser.
+Unbrowse calls these websites' first-party APIs so agents skip the browser: 3.6× faster than browser automation on the mean (950 vs 3,404 ms over 94 domains, warm routes; [arXiv 2604.00694](https://arxiv.org/abs/2604.00694)).
 
 This is the open-source client for the hosted Unbrowse service
 (`https://unbrowse.ai`): the `@unbrowse/sdk` TypeScript client for its REST API, and the
