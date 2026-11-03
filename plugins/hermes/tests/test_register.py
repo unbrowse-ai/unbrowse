@@ -96,6 +96,7 @@ def test_register_against_fake_ctx(clean_env, fake_mcp):
     assert {t["toolset"] for t in ctx.tools.values()} == {"unbrowse"}
     assert [h[0] for h in ctx.hooks] == ["pre_tool_call"]
     assert ctx.skills["unbrowse"].name == "SKILL.md" and ctx.skills["unbrowse"].exists()
+    assert ctx.skills["unbrowse-contribute"].exists()
     scrape = ctx.tools["unbrowse_scrape"]
     assert scrape["check_fn"]() is False  # hidden without a key
 

@@ -25,6 +25,12 @@ const HELP = `unbrowse ${VERSION} — call websites as APIs through the Unbrowse
   whoami                          Workspace and usage
   usage                           Verified calls this month and quota left
 
+  setup [agent…]                  Every agent on this machine reaches for Unbrowse: the skills (unbrowse, unbrowse-contribute)
+                                  into Claude Code, Codex, Cursor, Gemini CLI, Copilot, opencode, Windsurf and ~/.agents,
+                                  an always-use rule in their global instructions, and the MCP proxy in Claude Code / Codex
+      [--no-rules] [--no-mcp] [--remove] [--dry-run]
+  bug [what happened…]            A ready bug report: version, OS and the last unexpected failure, secrets masked [--json]
+
   discover <query>                Your capabilities first, then the public registry
   run <task…>                     Run a task and wait for a verified result
       [--capability ID] [--url URL] [--set key=value]… [--input JSON] [--unattended] [--no-wait]
@@ -107,7 +113,7 @@ Options: --json (errors as JSON) · --base-url URL · --no-open · --account NAM
 Env: UNBROWSE_API_KEY, UNBROWSE_ACCOUNT, UNBROWSE_BASE_URL (default ${DEFAULT_ORIGIN}), UNBROWSE_EGRESS=server, UNBROWSE_MCP_URL, UNBROWSE_END_USER
 Exit: 0 ok · 1 error · 2 input required · 3 sign-in or login needed · 4 not verified`;
 
-const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events", "dry-run", "with-keys", "replace", "discard", "disconnect", "has-error"]);
+const BOOLEAN = new Set(["json", "help", "version", "no-open", "no-wait", "unattended", "from-here", "from-unbrowse", "all", "all-sites", "yes", "full", "events", "dry-run", "with-keys", "replace", "discard", "disconnect", "has-error", "remove", "no-rules", "no-mcp"]);
 /** Commands that act for a workspace; the first one run with no sign-in starts the sign-in. */
 const NEEDS_ACCOUNT = new Set(["whoami", "usage", "discover", "run", "scrape", "index", "inspect", "resume", "cancel", "learn", "learned", "logins", "call", "cookies", "tools", "tool", "map", "sites", "forget", "connect", "credits", "browse", "credentials", "replay"]);
 const SCRAPE_FORMATS = ["markdown", "html", "text", "links", "raw"] as const;
@@ -336,6 +342,15 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
       }
       case "mcp": // `mcp add`; plain `mcp` (the proxy) returned above
         return await mcpAdd(rest.slice(1), args, io, origin, named);
+      case "setup":
+        return await setup(rest, args, io, origin, named);
+      case "bug": {
+        const B = await import("./bug.ts");
+        const r = B.report({ note: rest.join(" "), version: VERSION, node: process.versions.node, os: `${process.platform} ${process.arch}`, failure: B.last(auth.configRoot()) });
+        if (args.flags.json) print(r);
+        else io.out(`# ${r.title}\n\n${r.body}\n\n<!-- next:\n${r.next.map((n) => `  ${n}`).join("\n")}\n-->`);
+        return 0;
+      }
       case "logout":
         auth.clear();
         io.err(named ? `Signed out of account "${named}".` : "Signed out.");
@@ -612,16 +627,22 @@ export async function main(argv: string[], io: Io = stdio): Promise<number> {
     const e = err as Error & { status?: number; body?: unknown };
     if (e.status === 422 && (e as { code?: string }).code === "invalid_answer") return io.err(e.message), 1;
     // A network failure (no HTTP status) names the server it could not reach and why.
-    if (e.status === undefined && /fetch failed|Unable to connect|ConnectionRefused|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT/i.test(`${e.message} ${String((e as { cause?: unknown }).cause ?? "")}`)) {
+    const network = e.status === undefined && /fetch failed|Unable to connect|ConnectionRefused|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|socket hang up|aborted|timed? ?out/i.test(`${e.message} ${String((e as { cause?: unknown }).cause ?? "")}`);
+    if (network) {
       const cause = (e as { cause?: { code?: string; message?: string } }).cause;
       e.message = `could not reach ${origin}${cause?.code ? ` (${cause.code})` : cause?.message ? ` (${cause.message})` : ""}. Check the connection, or --base-url / UNBROWSE_BASE_URL.`;
     }
     // A site behind a sign-in also answers 401 (login_required), but the person is signed in to Unbrowse: say what
     // the site needs (the server's message names the fix, e.g. `unbrowse cookies sync --domain <site>`), not "log in".
     const siteSignIn = e.status === 401 && siteLoginRequired(e.body);
-    if (args.flags.json) print({ error: { status: e.status ?? null, message: e.message, details: e.body ?? null } });
+    // A crash or a 5xx is Unbrowse's to fix: keep it (redacted) for `unbrowse bug` and say so on stderr.
+    const B = await import("./bug.ts");
+    const bug = B.isBug(e, network);
+    if (bug) B.record(auth.configRoot(), { at: new Date().toISOString(), version: VERSION, command: B.redactArgv(argv), status: e.status ?? null, message: e.message, ...(e.status === undefined && e.stack ? { stack: e.stack.split("\n").slice(0, 6).join("\n") } : {}), ...(e.body !== undefined ? { details: JSON.stringify(e.body) } : {}) });
+    if (args.flags.json) print({ error: { status: e.status ?? null, message: e.message, details: e.body ?? null, ...(bug ? { bug: { report: "unbrowse bug", skill: "unbrowse-contribute" } } : {}) } });
     else if (siteSignIn) io.err(siteSignInHint(siteSignIn, e.message));
     else io.err(e.status === 401 ? `Not signed in to ${origin}${named ? ` as account "${named}"` : ""}. Run \`${loginCmd}\`, or set UNBROWSE_API_KEY.` : `error${e.status ? ` (HTTP ${e.status})` : ""}: ${e.message}`);
+    if (bug && !args.flags.json) io.err(B.hint(VERSION));
     return e.status === 401 ? 3 : 1;
   }
 }
@@ -664,7 +685,7 @@ async function settle(ub: Unbrowse, view: RunView, args: Args, io: Io, print: (v
  * reads the CLI's own sign-in at each request. An existing server of that name is left alone unless --replace
  * (checked with `<host> mcp get` first: `codex mcp add` would silently overwrite it).
  */
-async function mcpAdd(rest: string[], args: Args, io: Io, origin: string, account?: string): Promise<number> {
+async function mcpAdd(rest: string[], args: Args, io: Io, origin: string, account?: string, keepExisting = false): Promise<number> {
   const HOSTS = ["claude", "codex"] as const;
   const unknown = rest.filter((h) => !(HOSTS as readonly string[]).includes(h));
   if (unknown.length) throw new UsageError(`usage: unbrowse mcp add [claude] [codex] [--name NAME] [--replace] [--dry-run] (unknown: ${unknown.join(", ")})`);
@@ -702,6 +723,10 @@ async function mcpAdd(rest: string[], args: Args, io: Io, origin: string, accoun
       continue;
     }
     if (exec(shell(plan.get)).status === 0) {
+      if (!replace && keepExisting) {
+        io.err(`✓ ${h}: "${name}" is already registered; left as it is`);
+        continue;
+      }
       if (!replace) {
         failed++;
         io.err(`✗ ${h}: a server named "${name}" already exists; left as it is. Re-run with --replace, or pick --name.`);
@@ -729,6 +754,39 @@ async function mcpAdd(rest: string[], args: Args, io: Io, origin: string, accoun
     else if (!source) io.err("Not signed in yet: run `unbrowse login` once and the hosts use that sign-in.");
   }
   return failed ? 1 : 0;
+}
+
+/**
+ * `unbrowse setup [agent…]`: every agent on this machine reaches for Unbrowse (setup.ts): the skills in each
+ * host's skills folder, the always-use rule in the global instructions of hosts that read a file, then `mcp add`
+ * for Claude Code and Codex (an existing server is kept). `--remove` undoes the files; MCP servers stay.
+ */
+async function setup(rest: string[], args: Args, io: Io, origin: string, account?: string): Promise<number> {
+  const S = await import("./setup.ts");
+  const { homedir } = await import("node:os");
+  const ids = S.agents("").map((a) => a.id);
+  const unknown = rest.filter((r) => !ids.includes(r));
+  if (unknown.length) throw new UsageError(`usage: unbrowse setup [${ids.join("|")}…] [--no-rules] [--no-mcp] [--remove] [--dry-run] (unknown: ${unknown.join(", ")})`);
+  const dry = !!args.flags["dry-run"];
+  const remove = !!args.flags.remove;
+  const home = io.service?.home ?? homedir();
+  const { found, steps } = S.apply({ home, only: rest, rules: !args.flags["no-rules"], remove, dry });
+  const tilde = (p: string) => (p.startsWith(home) ? `~${p.slice(home.length)}` : p);
+  const verb: Record<string, string> = { write: dry ? "would add" : "added", update: dry ? "would update" : "updated", unchanged: "up to date", remove: dry ? "would remove" : "removed", absent: "not there", "kept-link": "a symlink; left as it is" };
+  for (const s of steps) io.err(`${s.action === "absent" || s.action === "unchanged" ? "·" : "✓"} ${s.agent}: ${s.kind === "rule" ? "always-use rule in" : "skill"} ${tilde(s.path)} (${verb[s.action]})`);
+  if (args.flags.json) io.out(JSON.stringify({ agents: found.map((a) => a.id), steps: steps.map((s) => ({ ...s, path: tilde(s.path) })), dryRun: dry }, null, 2));
+  if (remove) return io.err("Removed the Unbrowse skills and rules. MCP servers stay: `claude mcp remove unbrowse --scope user`, `codex mcp remove unbrowse`."), 0;
+  let code = 0;
+  if (!args.flags["no-mcp"]) {
+    const hosts = (rest.length ? rest : ["claude", "codex"]).filter((h) => h === "claude" || h === "codex");
+    if (hosts.length) code = await mcpAdd(rest.length ? hosts : [], { ...args, flags: { ...args.flags, replace: false } }, io, origin, account, true);
+    if (code && !rest.length) code = 0; // neither host on PATH: the skills and rules are still in place
+  }
+  const names = found.map((a) => a.name).join(", ");
+  io.err(`\n${dry ? "Would set up" : "Unbrowse is set up for"}: ${names}.`);
+  if (!dry && !auth.signInSource(origin)) io.err("Next: `unbrowse login` (once), then try `unbrowse scrape https://news.ycombinator.com`.");
+  io.err("Agents now load the unbrowse skill for web work, and the unbrowse-contribute skill when Unbrowse breaks. Undo: `unbrowse setup --remove`.");
+  return code;
 }
 
 /** `unbrowse mcps` and `unbrowse mcps import`: see agent-mcps.ts. Values of keys are never printed. */
