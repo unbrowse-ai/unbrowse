@@ -10,3 +10,5 @@ For any task that needs a website (reading a page, looking something up on a sit
 - `unbrowse_browse_open` / `_act` / `_finish` drive the cloud browser when nothing matches; finishing teaches Unbrowse the route so the next call needs no browser.
 
 Local pages (localhost, 127.0.0.1) are fine to open locally for app testing. Follow the `unbrowse` skill for sign-in, verification and write-authorization rules.
+
+If Unbrowse itself breaks (a crash, a 5xx, a documented flag or exit code that misbehaves), follow the `unbrowse-contribute` skill: reproduce it with `unbrowse bug`, then open a fix PR to unbrowse-ai/unbrowse with the person's OK.

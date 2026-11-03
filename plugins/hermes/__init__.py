@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 PLUGIN_DIR = Path(__file__).resolve().parent
 SKILL_MD = PLUGIN_DIR / "skills" / "unbrowse" / "SKILL.md"
+CONTRIBUTE_MD = PLUGIN_DIR / "skills" / "unbrowse-contribute" / "SKILL.md"
 SETTING_DEFAULTS: Dict[str, Any] = {
     "apiKey": "", "mcpUrl": "", "endUser": "", "timeout": 180,
     "blockBrowser": True, "blockWebExtract": "auto", "blockWebSearch": False,
@@ -112,3 +113,6 @@ def register(ctx) -> None:
     if SKILL_MD.exists() and hasattr(ctx, "register_skill"):
         ctx.register_skill("unbrowse", SKILL_MD, description=(
             "Operating guide for the Unbrowse tools: discover → run, scrape, cloud browser, credentials."))
+    if CONTRIBUTE_MD.exists() and hasattr(ctx, "register_skill"):
+        ctx.register_skill("unbrowse-contribute", CONTRIBUTE_MD, description=(
+            "When Unbrowse itself breaks: reproduce, check for an existing issue, open a fix PR to unbrowse-ai/unbrowse."))

@@ -29,4 +29,4 @@ packages = ["unbrowse_hermes"]
 include-package-data = false
 
 [tool.setuptools.package-data]
-unbrowse_hermes = ["plugin.yaml", "skills/unbrowse/*.md", "skills/unbrowse/references/*.json"]
+unbrowse_hermes = ["plugin.yaml", "skills/unbrowse/*.md", "skills/unbrowse/references/*.json", "skills/unbrowse-contribute/*.md"]

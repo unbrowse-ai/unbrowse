@@ -9,6 +9,7 @@ Open-source client for the hosted Unbrowse REST API (`/api/v1`) and remote MCP. 
 | `packages/sdk` | `@unbrowse/sdk`: every `/api/v1` route. client and types maintained here; only `mcp-install.ts` is source-synced |
 | `packages/cli` | `unbrowse` CLI on the SDK (bundled in). `auth.ts`: API key and OAuth storage |
 | `skill/SKILL.md` | Agent contract, from unbrowse6 `skill/`; shipped in the CLI package and every plugin |
+| `skills/unbrowse-contribute` | Client-owned skill: an Unbrowse bug becomes a fix PR here. Shipped with the CLI (`contribute/`) and plugins |
 | `plugins/<host>` | Claude Code, Codex, Grok Build, OpenClaw, Hermes, elizaOS plugins. Skill and shared hook scripts are copies: edit sources, run `node scripts/sync-plugins.mjs` |
 | `docs/` | User docs and the whitepaper |
 
@@ -19,6 +20,8 @@ Rules:
 - Never accept, log or print a password or token.
 - Built output runs on plain Node 18.17+.
 - Root CLAUDE.md is a byte copy of this file.
+- `unbrowse setup` (`packages/cli/src/setup.ts`) installs both skills into every agent and a marked rule block into hosts' global instructions; `--remove` must undo exactly what it wrote.
+- Bug capture (`packages/cli/src/bug.ts`): only 5xx and crashes are recorded, always redacted. Never record 4xx or network failures.
 
 Money gap: a new user can install the right client and complete a first hosted request.
 
