@@ -130,8 +130,16 @@ test("unbrowse_local_mcps reads this machine's agent configs and imports through
     gh: { command: "npx", args: ["-y", "@modelcontextprotocol/server-github"], env: { GITHUB_TOKEN: "fake-token-value-3333333333333333333333333333" } },
     me: { url: "https://unbrowse.ai/mcp" },
   } }));
-  const was = process.env.HOME;
+  // HOME alone is not this machine's agent configs: CI runners set XDG_CONFIG_HOME (VS Code, Zed, Claude Desktop live
+  // under it), CODEX_HOME moves Codex. Point them all at the temp home so only the fixture is read.
+  const MOVED = ["HOME", "XDG_CONFIG_HOME", "CODEX_HOME", "APPDATA"] as const;
+  const was = Object.fromEntries(MOVED.map((k) => [k, process.env[k]]));
   process.env.HOME = home;
+  process.env.XDG_CONFIG_HOME = join(home, ".config");
+  delete process.env.CODEX_HOME;
+  delete process.env.APPDATA;
+  const cwd = process.cwd();
+  process.chdir(home); // the project-level .mcp.json / .cursor / .vscode configs of whatever folder the suite runs in
   try {
     const f = fakeUpstream();
     const handle = createProxy(f.upstream as never, "t");
@@ -142,7 +150,8 @@ test("unbrowse_local_mcps reads this machine's agent configs and imports through
     expect(f.calls).toEqual([{ method: "tools/call", params: { name: "unbrowse_import_mcps", arguments: { servers: [{ name: "linear", url: "https://mcp.linear.app/mcp", transport: "streamable-http" }, { name: "gh", command: "npx", args: ["@modelcontextprotocol/server-github"] }], dryRun: true } } }]);
     expect(JSON.stringify([listed, f.calls])).not.toMatch(/fake-api-key-2222|fake-token-value-3333/);
   } finally {
-    process.env.HOME = was;
+    process.chdir(cwd);
+    for (const k of MOVED) was[k] === undefined ? delete process.env[k] : (process.env[k] = was[k]);
   }
 });
 
