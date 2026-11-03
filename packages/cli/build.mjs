@@ -12,3 +12,6 @@ copyFileSync("../../skill/SKILL.md", "SKILL.md");
 
 rmSync("references", { recursive: true, force: true });
 cpSync("../../skill/references", "references", { recursive: true });
+// The client-owned contribute skill (an Unbrowse bug becomes a fix PR); `unbrowse setup` installs both.
+rmSync("contribute", { recursive: true, force: true });
+cpSync("../../skills/unbrowse-contribute", "contribute", { recursive: true });

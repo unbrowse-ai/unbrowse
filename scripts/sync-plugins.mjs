@@ -1,5 +1,6 @@
-// Copies the agent skill (skill/SKILL.md + references/) into every host plugin that ships it.
-// `--check` fails when a copy is stale instead of writing. The skill itself is upstream-owned (docs/public-sync.md).
+// Copies the agent skills into every host plugin that ships them: `skill/` (SKILL.md + references/, upstream-owned,
+// docs/public-sync.md) and `skills/unbrowse-contribute/` (client-owned: turn an Unbrowse bug into a fix PR).
+// `--check` fails when a copy is stale instead of writing.
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 
@@ -11,6 +12,16 @@ export const SKILL_TARGETS = [
   "plugins/hermes/skills/unbrowse",
   "plugins/elizaos/skill",
   "plugins/cursor/skills/unbrowse",
+];
+
+// Hosts that load every folder under skills/ also get the contribute skill. elizaOS ships one skill folder.
+export const CONTRIBUTE_TARGETS = [
+  "plugins/claude-code/skills/unbrowse-contribute",
+  "plugins/codex/skills/unbrowse-contribute",
+  "plugins/grok-build/skills/unbrowse-contribute",
+  "plugins/openclaw/skills/unbrowse-contribute",
+  "plugins/hermes/skills/unbrowse-contribute",
+  "plugins/cursor/skills/unbrowse-contribute",
 ];
 
 function files(dir, base = dir) {
@@ -25,17 +36,19 @@ export const SCRIPT_COPIES = [
 ];
 
 const check = process.argv.includes("--check");
-const want = files("skill").sort();
 const stale = [];
-for (const target of SKILL_TARGETS) {
-  if (!existsSync(target.split("/").slice(0, 2).join("/"))) continue; // plugin not present in this checkout
-  const same = existsSync(target) && JSON.stringify(files(target).sort()) === JSON.stringify(want) && want.every((f) => readFileSync(join("skill", f)).equals(readFileSync(join(target, f))));
-  if (same) continue;
-  if (check) { stale.push(target); continue; }
-  rmSync(target, { recursive: true, force: true });
-  mkdirSync(target, { recursive: true });
-  cpSync("skill", target, { recursive: true });
-  console.log(`synced ${target}`);
+for (const [source, targets] of [["skill", SKILL_TARGETS], ["skills/unbrowse-contribute", CONTRIBUTE_TARGETS]]) {
+  const want = files(source).sort();
+  for (const target of targets) {
+    if (!existsSync(target.split("/").slice(0, 2).join("/"))) continue; // plugin not present in this checkout
+    const same = existsSync(target) && JSON.stringify(files(target).sort()) === JSON.stringify(want) && want.every((f) => readFileSync(join(source, f)).equals(readFileSync(join(target, f))));
+    if (same) continue;
+    if (check) { stale.push(target); continue; }
+    rmSync(target, { recursive: true, force: true });
+    mkdirSync(target, { recursive: true });
+    cpSync(source, target, { recursive: true });
+    console.log(`synced ${target}`);
+  }
 }
 for (const [from, to] of SCRIPT_COPIES) {
   if (!existsSync(to.split("/").slice(0, 2).join("/"))) continue;

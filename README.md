@@ -6,11 +6,14 @@ This is the open-source client for the hosted Unbrowse service
 (`https://unbrowse.ai`): the `@unbrowse/sdk` TypeScript client for its REST API, and the
 `unbrowse` CLI built on it.
 
-Install the agent skill:
+Set up every agent on this machine (skills, an always-use rule, MCP):
 
 ```bash
-npx skills add unbrowse-ai/unbrowse --skill unbrowse
+npx -y unbrowse setup && npx -y unbrowse login
 ```
+
+Or tell your agent: `set up unbrowse - https://raw.githubusercontent.com/unbrowse-ai/unbrowse/main/llms.txt`.
+Skill only: `npx skills add unbrowse-ai/unbrowse --skill unbrowse`.
 
 Connect your agent:
 
@@ -68,6 +71,9 @@ Supported REST methods: [docs/sdk.md](docs/sdk.md).
 Agents connect to the hosted MCP (`https://unbrowse.ai/mcp`, see [docs/install.md](docs/install.md))
 and follow [skill/SKILL.md](skill/SKILL.md). The CLI is the REST alternative. `unbrowse mcp` runs a local
 stdio proxy to the hosted MCP for hosts that need stdio or plain tool names (`unbrowse_scrape`).
+
+When Unbrowse itself breaks, agents follow [skills/unbrowse-contribute](skills/unbrowse-contribute/SKILL.md):
+`unbrowse bug` writes the report, and the agent opens a fix PR here (after asking the person).
 
 Plugins for Claude Code, Codex, Grok Build, OpenClaw, Hermes and elizaOS bundle the skill and make
 Unbrowse the host's browser: [plugins/](plugins/README.md). Grok, ChatGPT, Claude, Perplexity, Le Chat and
