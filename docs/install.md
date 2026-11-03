@@ -9,7 +9,22 @@ Pick what you need. Installing the skill adds instructions; connecting MCP or si
 | A TypeScript integration | SDK |
 | Notes, plans and results appearing live | Remote MCP plus the signed-in [canvas](https://unbrowse.ai/app/canvas) |
 
-## Agent skill
+## Every agent on this machine
+
+```sh
+npx -y unbrowse setup
+npx -y unbrowse login
+```
+
+`setup` finds the agents installed here (Claude Code, Codex, Cursor, Gemini CLI, Copilot CLI, opencode, Windsurf),
+writes the `unbrowse` and `unbrowse-contribute` skills into each one's skills folder and `~/.agents/skills`, adds a
+short always-use rule to the global instructions of the hosts that read one, and registers the MCP proxy with Claude
+Code and Codex. Agents then reach for Unbrowse on web work without being told, and open a fix PR when Unbrowse itself
+breaks (after asking). `--dry-run` shows the plan, `--remove` undoes it. Details: [CLI reference](cli.md#set-up-your-agents).
+
+Or hand it to your agent: *set up unbrowse - https://raw.githubusercontent.com/unbrowse-ai/unbrowse/main/llms.txt*
+
+## Agent skill only
 
 From a terminal with Node and npm:
 

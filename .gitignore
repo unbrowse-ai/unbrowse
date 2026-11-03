@@ -3,6 +3,7 @@ dist/
 *.tgz
 packages/cli/SKILL.md
 packages/cli/references/
+packages/cli/contribute/
 .agents/*
 !.agents/plugins/
 skills-lock.json

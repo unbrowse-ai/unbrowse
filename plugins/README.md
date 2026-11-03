@@ -1,6 +1,6 @@
 # Host plugins
 
-Each plugin ships the Unbrowse skill (`skill/`, synced by `node scripts/sync-plugins.mjs`), connects the hosted MCP, and makes Unbrowse the host's browser as far as the host allows.
+Each plugin ships the Unbrowse skill (`skill/`) and, where the host loads a skills folder, `unbrowse-contribute` (`skills/unbrowse-contribute/`), both synced by `node scripts/sync-plugins.mjs`, connects the hosted MCP, and makes Unbrowse the host's browser as far as the host allows.
 
 | Host | Install | Tools | How the built-in browser is replaced |
 |---|---|---|---|

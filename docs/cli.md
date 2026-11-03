@@ -280,6 +280,38 @@ with each word of it; one exact name prints its description and schema; `--json`
 name with or without `unbrowse_`, with `_`, `-` or `.`; inputs are a JSON object argument or `--input JSON`, then
 `--key value` and `--set key=value`. `--from-here` sends `run`'s site requests from this machine.
 
+## Set up your agents
+
+| Command | Route |
+|---|---|
+| `setup [agent…]` | None: writes files on this machine, then `mcp add`. No account needed |
+| `bug [what happened…]` | None: reads the CLI's last unexpected failure. No network |
+
+`setup` makes every agent on this machine reach for Unbrowse without being told. For each installed host (its folder
+exists) it writes the `unbrowse` skill (with `references/`) and the `unbrowse-contribute` skill into the host's skills
+folder: Claude Code `~/.claude/skills`, Codex `~/.codex/skills`, Cursor `~/.cursor/skills`, Gemini CLI
+`~/.gemini/skills`, Copilot CLI `~/.copilot/skills`, opencode `~/.config/opencode/skills`, Windsurf
+`~/.codeium/windsurf/skills`, and always the shared `~/.agents/skills`. Hosts that read a global instructions file
+get a short always-use rule between `<!-- unbrowse:begin … -->` and `<!-- unbrowse:end -->`: `~/.claude/CLAUDE.md`,
+`~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, `~/.config/opencode/AGENTS.md`, Windsurf's `memories/global_rules.md`.
+The rule says to use Unbrowse for web work and to follow `unbrowse-contribute` when Unbrowse itself breaks. The rest
+of each file is left as it is; running `setup` again updates the block in place. Then it runs `mcp add` for Claude
+Code and Codex, keeping a server that is already registered.
+
+Name agents to limit it (`unbrowse setup claude codex`). `--no-rules` skips the instruction files, `--no-mcp` the
+MCP step, `--dry-run` prints the plan and writes nothing, `--json` prints the steps. A skill folder that is a symlink
+(pointing at your own checkout) is left alone. `--remove` deletes the two skill folders and the rule blocks; MCP
+servers stay (`claude mcp remove unbrowse --scope user`). `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_CONFIG_HOME`
+move the folders the same way they move the hosts.
+
+`bug` prints a bug report as Markdown (`--json` for agents): your note, the CLI version, Node and OS, and the last
+unexpected failure: a 5xx from the server or a crash in the CLI (a `TypeError` and the like). 4xx answers, sign-in
+and network failures are not recorded. The failure is kept redacted (keys, bearer tokens, JWTs, `name=value`
+secrets and secret-looking flags masked) in `~/.config/unbrowse/last-error.json`, mode 0600. After such a failure the
+CLI says so on stderr (`--json`: `error.bug`), so an agent can follow the `unbrowse-contribute` skill: check for an
+existing issue, then open a fix PR to [unbrowse-ai/unbrowse](https://github.com/unbrowse-ai/unbrowse) once the person
+agrees.
+
 ## Your agents' MCP servers
 
 | Command | Route |

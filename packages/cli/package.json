@@ -33,7 +33,8 @@
     "dist",
     "SKILL.md",
     "README.md",
-    "references"
+    "references",
+    "contribute"
   ],
   "engines": {
     "node": ">=18.17"
