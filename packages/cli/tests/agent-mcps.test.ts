@@ -91,7 +91,13 @@ const out: string[] = [];
 const err: string[] = [];
 const io = { out: (s: string) => void out.push(s), err: (s: string) => void err.push(s), open: () => {}, interactive: false };
 beforeAll(() => {
+  // HOME alone is not this machine's agent configs: XDG_CONFIG_HOME moves VS Code, Zed and Claude
+  // Desktop, CODEX_HOME moves Codex, APPDATA moves the Windows hosts (src/agent-mcps.ts places()).
+  // Point them at the temp home so only the fixtures below are read, as mcp-proxy.test.ts does.
   process.env.HOME = home;
+  process.env.XDG_CONFIG_HOME = join(home, ".config");
+  delete process.env.CODEX_HOME;
+  delete process.env.APPDATA;
   process.env.UNBROWSE_CONFIG_DIR = mkdtempSync(join(tmpdir(), "mcps-cfg-"));
   process.env.UNBROWSE_API_KEY = "ub_live_test";
   process.chdir(cwd);
