@@ -19,8 +19,13 @@ case "$tool" in
     use="${p}discover {query} then ${p}run for a task on a site, or ${p}scrape for a known URL" ;;
   Bash|run_terminal_command)
     printf '%s' "$input" | grep -q 'agent-browser' || exit 0
-    url=$(printf '%s' "$input" | sed -nE 's/.*agent-browser.*[[:space:]](open|goto|navigate)[[:space:]]+([^[:space:]"\\;&|]+).*/\2/p' | head -n 1)
+    # The URL may be quoted in the shell command (a URL with `&` has to be); in the JSON event that quote
+    # arrives as `\"`, and a single-quoted URL keeps its quotes in the capture. Accept an optional
+    # backslash and double quote before the URL and drop surrounding single quotes, so a quoted remote
+    # URL is still denied and a quoted local one still allowed.
+    url=$(printf '%s' "$input" | sed -nE 's/.*agent-browser.*[[:space:]](open|goto|navigate)[[:space:]]+\\?"?([^[:space:]"\\;&|]+).*/\2/p' | head -n 1)
     [ -z "$url" ] && exit 0
+    url=${url#"'"}; url=${url%"'"}
     is_local "$url" && exit 0
     tool="agent-browser"
     use="${p}scrape {url} to read it, ${p}discover + ${p}run for a task, or ${p}browse_open {url, task} / browse_act / browse_finish to drive the cloud browser (it learns the route)" ;;
