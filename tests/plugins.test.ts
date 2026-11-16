@@ -73,8 +73,10 @@ test("hook manifests reference scripts that exist", () => {
   }
 });
 
-test("redirect denies built-in web tools, browser MCPs and remote agent-browser; allows local and unrelated calls", () => {
-  for (const script of REDIRECTS) {
+for (const script of REDIRECTS) {
+  // One test per script: 11 hook runs each, so each stays well under bun's 5s default timeout (the single
+  // loop over all three took 5.2s and timed out under load).
+  test(`redirect (${script}) denies built-in web tools, browser MCPs and remote agent-browser; allows local and unrelated calls`, () => {
     expect(decision(hook(script, { tool_name: "WebFetch", tool_input: { url: "https://example.com", prompt: "x" } }))).toBe("deny");
     expect(decision(hook(script, { tool_name: "WebSearch", tool_input: { query: "x" } }))).toBe("deny");
     expect(decision(hook(script, { tool_name: "mcp__playwright__browser_navigate", tool_input: { url: "https://x.com" } }))).toBe("deny");
@@ -89,8 +91,13 @@ test("redirect denies built-in web tools, browser MCPs and remote agent-browser;
     expect(decision(hook(script, { tool_name: "Bash", tool_input: { command: "agent-browser click @e3" } }))).toBe("allow");
     expect(decision(hook(script, { tool_name: "Bash", tool_input: { command: "ls -la" } }))).toBe("allow");
     expect(decision(hook(script, { toolName: "run_terminal_command", toolInput: { command: "npm test" } }))).toBe("allow");
-  }
-});
+    // A quoted URL is still a remote navigation: the shell quotes the URL when it carries `&` or spaces.
+    expect(decision(hook(script, { tool_name: "Bash", tool_input: { command: 'agent-browser open "https://news.ycombinator.com"' } }))).toBe("deny");
+    expect(decision(hook(script, { tool_name: "Bash", tool_input: { command: "agent-browser open 'https://news.ycombinator.com'" } }))).toBe("deny");
+    expect(decision(hook(script, { tool_name: "Bash", tool_input: { command: 'agent-browser open "http://localhost:8080/"' } }))).toBe("allow");
+    expect(decision(hook(script, { tool_name: "Bash", tool_input: { command: "agent-browser open 'http://127.0.0.1:8080'" } }))).toBe("allow");
+  });
+}
 
 test("redirect reason names the host's Unbrowse tool and the opt-out; opt-out allows everything", () => {
   const claude = hook(REDIRECTS[0], { tool_name: "WebFetch", tool_input: { url: "https://a.test" } });
