@@ -40,6 +40,6 @@ the design and the code still differ, the concept pages say so, each in its clos
 | [Identity and the vault](identity-and-vault.md) | the node's key is the wallet; no proof of personhood |
 | [Decentralised from launch](decentralised.md) | nothing deployed on Arc mainnet yet |
 
-What is built, contract by contract, is in the [contracts reference](../../unbrowse-settlement/README.md) and
-[`src/coins/README.md`](../../unbrowse-settlement/src/coins/README.md); [SPEC-STATUS.md](../SPEC-STATUS.md) says where
+What is built, contract by contract, is in the contracts reference (private repository) and
+`src/coins/README.md` (private repository); [SPEC-STATUS.md](../SPEC-STATUS.md) says where
 the rule-by-rule tables stand.

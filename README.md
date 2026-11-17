@@ -1,12 +1,61 @@
 # Unbrowse
 
-**Agents use websites without a browser.** The node on your machine learns a site's own API call once, from a page its
-browser walks, and calls it directly after that: plain HTTP, the way the site's own app talks to it.
+**Your agent uses websites without a browser.**
 
-[Releases](https://github.com/unbrowse-ai/unbrowse-core/releases) ·
+Unbrowse runs on your own computer. The first time your agent needs something from a site, Unbrowse opens the page
+once, finds the request the site's own app makes, and keeps it. After that, your agent makes that request directly:
+plain HTTP, no browser, no page to read.
+
+On a site it has learned, Unbrowse is up to 100× faster than driving a browser. Across 94 sites, an uncached answer took
+950 ms on average, against 3,404 ms for a browser agent ([research paper](https://arxiv.org/abs/2604.00694)). A cached
+answer comes back in about 67 ms.
+
+[Releases](https://github.com/unbrowse-ai/unbrowse/releases) ·
+[Install the MCP](docs/install-mcp.md) ·
+[Moving from the hosted version](docs/upgrade.md) ·
 [Architecture (AGENTS.md)](AGENTS.md) ·
 [Contributing](CONTRIBUTING.md) ·
 [Security](SECURITY.md)
+
+## Install
+
+You need Node 20.3 or newer, on macOS, Linux or Windows.
+
+```bash
+npm i -g unbrowse@next
+unbrowse connect
+```
+
+`unbrowse connect` starts Unbrowse on your machine and adds it to Claude Code. Restart Claude Code and ask it to get
+something from a website. `unbrowse app` opens the window; `unbrowse start` runs the node without it.
+
+Version 13 is on npm under the tag `next` for now: a plain `npm i -g unbrowse` still installs 12.5.0, the hosted client
+that has closed. For Codex, Cursor, VS Code, Gemini, Zed and other agents, see [Install the Unbrowse MCP](docs/install-mcp.md).
+
+Prefer not to use npm?
+
+- **macOS:** download the disk image from [Releases](https://github.com/unbrowse-ai/unbrowse/releases), open it and drag
+  Unbrowse onto Applications. It is signed ad hoc, not notarized, so open it the first time by hand: right-click it and
+  choose Open, or on macOS 15 and later, after the warning, System Settings > Privacy & Security > Open Anyway.
+- **Linux or Windows:** download `unbrowse-<version>-linux-<arch>.tar.gz` or `unbrowse-<version>-windows-x64.zip`. It holds
+  the node, `unb`, the browser and the window in one folder, with a README that says how to start them. Check the
+  download against the release's `SHA256SUMS`.
+
+A release keeps itself up to date and runs on Arc testnet. npm fetches the programs for the machine it installs on:
+macOS (Apple silicon and Intel), Linux (x64 and arm64, glibc 2.35 or later) and Windows (x64). That brings the app, the
+node, `unb`, the agent skill and the client, and no browser: the node fetches its browser the first time a goal needs
+one (or `unbrowse browser install` fetches it now; [docs/guides/the-browser.md](docs/guides/the-browser.md)).
+Foundry's Anvil (`foundryup`) is needed only for test mode, the local devnet: the default of a build from source, or a
+node whose `chain` setting is `devnet`.
+
+## Used the hosted version?
+
+Unbrowse used to run on our servers. That service closed in November 2026. An old agent setup that still points at it hears the two
+commands above in reply. If you set Unbrowse up with version 12 or earlier, run them. `unbrowse connect` finds your old
+setup, asks before changing it, keeps a copy, and can undo the move. Logins you saved on the hosted service did not move
+to your machine; [Moving to the new Unbrowse](docs/upgrade.md) says how to add the ones you need.
+
+## How it works
 
 A **route** is one learned call: the request, every value it needs traced to where it comes from, and the caller's
 values as inputs. An agent says what it wants; the node calls the route that does it, or learns one and calls that.
@@ -17,13 +66,16 @@ agent ── HTTP / MCP ──▶ unbrowse-node ──▶ the site's own API    
                             └── links unbrowse-browser/core ──▶ Chrome   (once, to learn the route)
 ```
 
+Your sign-ins stay on your computer, in your system's own keystore.
+
 ## Choose a starting point
 
 | Goal | Start here |
 |---|---|
-| Use it | Install a [release](#install): `npm install -g unbrowse`, or download the programs for your machine |
+| Use it | [Install](#install) |
+| Connect an agent (Claude Code, Cursor, …) | [Install the Unbrowse MCP](docs/install-mcp.md), or [Connect an agent](#connect-an-agent) |
+| Move from the hosted version | [docs/upgrade.md](docs/upgrade.md) |
 | Build from this repo | [Run from source](#run-from-source) |
-| Connect an agent (Claude Code, Cursor, …) | [Connect an agent](#connect-an-agent) |
 | Change the code | The [repository map](#whats-here), then the `README.md` in the directory you are touching |
 | Understand the idea | [docs/concepts/](docs/concepts/why-unbrowse.md): the concepts in plain words, from the papers, each ending with what the code does today and where it differs |
 | Read the design | [papers/](papers/README.md): the whitepaper, the economy, selection and the protocol specification, which is normative for the design |
@@ -32,28 +84,6 @@ agent ── HTTP / MCP ──▶ unbrowse-node ──▶ the site's own API    
 | Start as a new owner, from install to first earnings | [docs/ONBOARDING.md](docs/ONBOARDING.md); every command in [docs/CLI.md](docs/CLI.md); all the docs, and the order to read them, in [docs/README.md](docs/README.md) |
 | Fix something that broke | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): symptom, cause, fix |
 | Contribute | [CONTRIBUTING.md](CONTRIBUTING.md); report vulnerabilities privately per [SECURITY.md](SECURITY.md) |
-
-## Install
-
-Install the latest [release](https://github.com/unbrowse-ai/unbrowse-core/releases). A release build keeps itself up to
-date and runs on Arc testnet. Foundry's Anvil (`foundryup`) is needed only for test mode, the local devnet: the
-default of a build from source, or a node whose `chain` setting is `devnet`.
-
-- **Any machine with Node 20.3+:** `npm install -g unbrowse`, then `unbrowse app` opens the window (or `unbrowse start`
-  runs the node without it). npm fetches the programs for the machine it installs on: macOS (Apple silicon and Intel),
-  Linux (x64 and arm64, glibc 2.35 or later) and Windows (x64). That brings the app, the node, `unb`, the agent skill
-  and the client, and no browser: the node fetches its browser the first time a goal needs one (or `unbrowse browser
-  install` fetches it now; [docs/guides/the-browser.md](docs/guides/the-browser.md)). `pip install` with the release's
-  wheel for your machine does the same.
-- **macOS, without npm:** download the disk image,
-  [Apple silicon](https://github.com/unbrowse-ai/unbrowse-core/releases/latest/download/Unbrowse-macos-arm64.dmg) or
-  [Intel](https://github.com/unbrowse-ai/unbrowse-core/releases/latest/download/Unbrowse-macos-x64.dmg), open it and
-  drag Unbrowse onto Applications. It is signed ad hoc, not notarized, so open it the first time by hand: right-click
-  it and choose Open, or on macOS 15 and later, after the warning, System Settings > Privacy & Security > Open Anyway.
-  `Unbrowse-<version>-macos-<arch>.zip` is the same app in a zip.
-- **Linux or Windows, without npm:** `unbrowse-<version>-linux-<arch>.tar.gz` or `unbrowse-<version>-windows-x64.zip`
-  holds the node, `unb`, the browser and the window in one folder, with a README that says how to start them. Check the
-  download against the release's `SHA256SUMS`.
 
 ## Run from source
 
@@ -104,7 +134,7 @@ left at `target/release/` — `unbrowse-node <command>` and `unb <command>`. Eac
 
 ## Connect an agent
 
-On a fresh machine, `npm i -g unbrowse && unbrowse connect` is enough for Claude Code: `connect` starts the node if
+On a fresh machine, `npm i -g unbrowse@next && unbrowse connect` is enough for Claude Code: `connect` starts the node if
 it isn't running and registers the agent the node made on its first run. For another agent, make a key (in the
 window: Money, Add agent; or `unbrowse agent new <name>`), then point an MCP client at the node with the key's
 token:
@@ -126,11 +156,7 @@ The node serves MCP at `POST /mcp` and the same actions over HTTP on `127.0.0.1:
 ([unbrowse-node/README.md](unbrowse-node/README.md#the-agent-api)). A global `npm install` also puts the agent skill in
 `~/.claude/skills/unbrowse`.
 
-Another contributor's route costs its fee, $0.05 at most by default, paid from the node's balance in dollars. Add
-funds in the window (Money, Add funds: by card, Apple Pay or bank, or by sending USDC, which is what works
-underneath). The first top-up also covers the node's one-time registration and its network fees; there is no free
-credit. `unbrowse money` prints the balance, what starts the node, each agent's daily limit, earnings and the
-add-funds link.
+Some routes belong to other people's nodes and carry a fee, paid from the node's balance in dollars; what each action costs, and where the money goes, is in [docs/MONEY.md](docs/MONEY.md). `unbrowse money` prints the balance, each agent's daily limit and earnings.
 
 ## What's here
 
@@ -142,7 +168,7 @@ A polyglot repository, not a single-language monorepo. Each directory is its own
 | [`unbrowse-node/`](unbrowse-node) | The node: the agent API (HTTP and MCP on 127.0.0.1), the route learner, the vault, payments, and the window | Rust, Zig, TypeScript | [README](unbrowse-node/README.md) |
 | [`unbrowse-browser/`](unbrowse-browser) | The browser the node learns from: a fork of agent-browser that records every request and typed value | Rust | [AGENTS](unbrowse-browser/AGENTS.md) |
 | [`unbrowse-sdk/`](unbrowse-sdk) | `unbrowse` for npm and PyPI: the node, its browser, the agent skill and the client in one package | TypeScript, Python | [README](unbrowse-sdk/README.md) |
-| [`unbrowse-settlement/`](unbrowse-settlement) | The settlement contracts that pay contributors, sites and the network for each call | Solidity | [README](unbrowse-settlement/README.md) |
+| `unbrowse-settlement/` (private repository) | The settlement contracts that pay contributors, sites and the network for each call | Solidity | private |
 | [`unbrowse-telemetry/`](unbrowse-telemetry) | The worker that takes nodes' anonymous usage events ([what is sent](#usage-telemetry)) | JavaScript | [README](unbrowse-telemetry/README.md) |
 | [`skills/`](skills) | Agent skills that teach an agent to use the node | Markdown | [README](skills/README.md) |
 | [`integrations/`](integrations) | The node as a plugin for Claude Code, Codex, OpenClaw, Hermes Agent and ElizaOS | TypeScript, Python | [README](integrations/README.md) |
