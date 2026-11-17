@@ -319,7 +319,7 @@ owner's own account.
   a public issue (`decide.failures-reported-off-chain`). So stake behind a route that broke keeps counting until its
   holder sells or reports the failure itself ([docs/MONEY.md](docs/MONEY.md) §7). A failed line costs its payer nothing, so a payer
   that marks good answers failed keeps them unpaid, and nothing on chain stops it
-  ([unbrowse-settlement/README.md](unbrowse-settlement/README.md)).
+  (unbrowse-settlement/README.md (private repository)).
 - **The chain.** Settlement is only as sound as the chain it runs on. Calls to routes a node already holds go
   straight to the site and need no chain.
 - **Domains.** The contract's admin binds a domain to the owner its escrow pays, by hand, until DNSSEC proofs replace
@@ -427,7 +427,7 @@ owner's own account.
   issued for.
 - **The browser.** Capture recording a secret field's value, or a browse command that escapes the site's profile.
 - **Settlement contracts.** Funds moved, frozen or minted outside the rules in
-  [`unbrowse-settlement/README.md`](unbrowse-settlement/README.md).
+  `unbrowse-settlement/README.md` (private repository).
 
 ## Out of scope
 

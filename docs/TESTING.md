@@ -164,7 +164,7 @@ Two of them print what they measure:
 ## 4. The contracts (forge)
 
 The suites, the invariants and the 6-decimal runs are described in the
-[contracts reference](../unbrowse-settlement/README.md) §8 and §9.
+contracts reference (private repository) §8 and §9.
 
 ```sh
 cd unbrowse-settlement

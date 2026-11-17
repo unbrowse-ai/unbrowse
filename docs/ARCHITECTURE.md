@@ -73,7 +73,7 @@ flowchart TB
 | [`unbrowse-node/`](../unbrowse-node) | The node: agent API (HTTP + MCP), route learner, vault, wallet, window | Rust, Zig, TS |
 | [`unbrowse-browser/`](../unbrowse-browser) | `agent-browser-core`, a fork that records every request and typed value | Rust |
 | [`unbrowse-sdk/`](../unbrowse-sdk) | `unbrowse` for npm + PyPI: the node, its browser, the skill, the client | TS, Python |
-| [`unbrowse-settlement/`](../unbrowse-settlement) | The contracts that pay contributors, sites, holders and the network | Solidity |
+| `unbrowse-settlement/` (private repository) | The contracts that pay contributors, sites, holders and the network | Solidity |
 | [`unbrowse-node/crates/net`](../unbrowse-node/crates/net) | The peer network: Kademlia keyed by site, route bodies by content id | Rust |
 | [`unbrowse-node/crates/files`](../unbrowse-node/crates/files) | The format and version of every file the node writes | Rust |
 | [`unbrowse-telemetry/`](../unbrowse-telemetry) | The worker that takes nodes' anonymous usage events, and files their scrubbed bug reports as public GitHub issues | JavaScript |
@@ -440,7 +440,7 @@ per epoch and the payer's deposit; a voucher for epoch `e` is claimable in `e` a
 epochs, so a payer can't leave ahead of vouchers it signed; each line is spent once. The split and every route-coin
 number are fixed at deployment, with the tokens and the pool; nobody can change them. Every action
 that costs gas or tokens, what it costs measured, and how a node pays its own way are in [MONEY.md](MONEY.md). Contract detail in
-[`unbrowse-settlement/`](../unbrowse-settlement).
+`unbrowse-settlement/` (private repository).
 
 ---
 

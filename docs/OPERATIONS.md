@@ -354,7 +354,7 @@ root never expires.
 A live network's contracts are deployed once, by hand, by one node's key: `unbrowse-node chain deploy`
 (`chain_deploy` in [`main.rs`](../unbrowse-node/app/src/main.rs), `chain::deploy_shared` and `chain::deploy_as` in
 [`chain/`](../unbrowse-node/app/src/chain/)). The contracts themselves are in the
-[contracts reference](../unbrowse-settlement/README.md).
+contracts reference (private repository).
 
 ### Network files
 
@@ -773,7 +773,9 @@ On Arc testnet, USDC is free from https://faucet.circle.com. What every write co
 
 Read from the live services on 30 October 2026.
 
-- **npm doesn't take the releases yet.** Every publish of 13.x (v13.3.1 to v13.4.5) failed with `404 Not Found - PUT
+- **npm took its first release on November 2026** (`13.0.0-rc.151`, on the tag `next`, by trusted publishing). The
+  record below says why earlier publishes failed and how it was fixed. It was read on 30 October and 6 November 2026.
+  Every publish of 13.x (v13.3.1 to v13.4.5) failed with `404 Not Found - PUT
   …/@unbrowse%2fdarwin-arm64`, so npm still serves `unbrowse@12.5.0`. Why, from the runs' logs and the registry:
   - npm has no `@unbrowse/darwin-arm64`, or any platform package. A trusted publisher is set in a package's settings on
     npmjs.com, so a package npm doesn't have can't have one, and its OIDC exchange fails. npm then publishes with the
