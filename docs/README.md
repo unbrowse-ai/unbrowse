@@ -14,10 +14,11 @@ code is what runs, and these docs describe the code.
 |---|---|
 | Understand the idea | [Why Unbrowse](concepts/why-unbrowse.md), [How it works](concepts/how-it-works.md), then the rest of the concepts, and [the papers](concepts/papers.md) |
 | Run a node and start earning | [Install and run](start/install.md), [Your first call](start/your-first-call.md), [ONBOARDING.md](ONBOARDING.md), then [CLI.md](CLI.md) when you need a command, and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) when something breaks |
-| Connect an agent | [Connect your agent](guides/connect-your-agent.md), [CLI.md §5](CLI.md#5-the-agent-api-and-mcp-tools), and [the agent skill](reference/the-skill.md) |
+| Move from the hosted version | [Moving to the new Unbrowse](upgrade.md) |
+| Connect an agent | [Install the Unbrowse MCP](install-mcp.md), [Connect your agent](guides/connect-your-agent.md), [CLI.md §5](CLI.md#5-the-agent-api-and-mcp-tools), and [the agent skill](reference/the-skill.md) |
 | Understand how it is built | [ARCHITECTURE.md](ARCHITECTURE.md), then [AGENTS.md](../AGENTS.md), then [NETWORK.md](NETWORK.md), [SHARING.md](SHARING.md) and [MONEY.md](MONEY.md) |
 | Change the code | [CLAUDE.md](../CLAUDE.md) and [AGENTS.md](../AGENTS.md) (the rules), [ARCHITECTURE.md](ARCHITECTURE.md), [TESTING.md](TESTING.md), then the `README.md` of the directory you are changing |
-| Run a network or cut a release | [OPERATIONS.md](OPERATIONS.md), then [MONEY.md](MONEY.md) and the contracts' [README](../unbrowse-settlement/README.md) |
+| Run a network or cut a release | [OPERATIONS.md](OPERATIONS.md), then [MONEY.md](MONEY.md) and the contracts' README (private repository) |
 
 ## The docs, in reading order
 
@@ -70,7 +71,7 @@ code is what runs, and these docs describe the code.
 | [unbrowse-node/crates/net/README.md](../unbrowse-node/crates/net/README.md) | The network crate, in short |
 | [unbrowse-node/crates/learn/README.md](../unbrowse-node/crates/learn/README.md), [crates/core/README.md](../unbrowse-node/crates/core/README.md) | The learner; keys |
 | [unbrowse-node/window/README.md](../unbrowse-node/window/README.md) | The window |
-| [unbrowse-settlement/README.md](../unbrowse-settlement/README.md), [MIGRATION.md](../unbrowse-settlement/MIGRATION.md) | The contracts, and how they came to be as they are |
+| unbrowse-settlement/README.md (private repository), MIGRATION.md (private repository) | The contracts, and how they came to be as they are |
 | [unbrowse-browser/README.md](../unbrowse-browser/README.md), [FORK.md](../unbrowse-browser/FORK.md) | The browser engine the node links, and what the fork changes |
 | [unbrowse-sdk/README.md](../unbrowse-sdk/README.md) | The TypeScript and Python clients and the `unbrowse` command |
 | [unbrowse-telemetry/README.md](../unbrowse-telemetry/README.md) | The worker that takes nodes' anonymous usage events, and files their scrubbed bug reports as public GitHub issues |

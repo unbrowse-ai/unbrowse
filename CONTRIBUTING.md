@@ -26,7 +26,7 @@ Each part builds and tests on its own. CI runs the same commands ([.github/workf
 | Window | `cd unbrowse-node/window && zig build test` (Zig 0.17; native on macOS, Linux, Windows) |
 | TypeScript SDK | `cd unbrowse-sdk/typescript && npm ci && npm test` |
 | Python SDK | `cd unbrowse-sdk/python && python -m unittest discover -s tests` |
-| Settlement | `cd unbrowse-settlement && forge test` |
+| Settlement | `cd unbrowse-settlement && forge test` (the contracts live in a private repository; maintainers only) |
 | Telemetry worker | `cd unbrowse-telemetry && node --test test/*.test.mjs` |
 
 ## Writing code
