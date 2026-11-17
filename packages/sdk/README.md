@@ -97,6 +97,13 @@ The contract (statuses, headers, errors): https://unbrowse.ai/docs/site-apis
 Every failure throws `UnbrowseError` with `status`, `code` (the server's, e.g. `quota_exceeded`,
 `unknown_argument`) and `body`.
 
+## Remote MCP
+
+`UnbrowseMcp` calls the hosted MCP server through `listTools()` and `callTool(name, args)`.
+It accepts JSON responses and SSE responses with LF, CRLF or CR line endings, including
+mixed line endings. Multi-line `data:` fields are joined within each event; the last
+data event supplies the JSON-RPC reply.
+
 ## Install helpers
 
 `mcpCommands(url)`, `cursorInstallLink(url)`, `vscodeInstallLink(url)` build install commands and

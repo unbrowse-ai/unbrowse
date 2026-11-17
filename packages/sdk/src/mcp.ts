@@ -27,7 +27,8 @@ const env = (name: string): string | undefined => (typeof process !== "undefined
 
 /** The JSON-RPC message in a response body: plain JSON, or the last `data:` event of an SSE stream. */
 export function parseRpcBody(text: string): { result?: unknown; error?: { code: number; message: string; data?: { code?: string } & Record<string, unknown> } } {
-  const trimmed = text.trim();
+  // SSE line endings may be CRLF, bare CR or LF; normalize before finding event boundaries.
+  const trimmed = text.replace(/\r\n?/g, "\n").trim();
   if (trimmed.startsWith("{")) return JSON.parse(trimmed);
   const events = trimmed.split(/\n\n+/).flatMap((block) => {
     const data = block.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trimStart()).join("\n");
