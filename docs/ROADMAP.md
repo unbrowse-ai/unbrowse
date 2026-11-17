@@ -75,8 +75,8 @@ Already done in the same spirit:
 - **Problem:**
   - `update.rs` checks one signed manifest against one embedded key, plus `min_version`.
   - There is no key rotation and no expiry, so a stale mirror can hold nodes on an old release forever.
-  - Self-update via npm is broken: every 13.x publish has 404'd, so npm still serves 12.5.0 (see `docs/OPERATIONS.md`
-    §10).
+  - Self-update via npm failed until November 2026, when `13.0.0-rc.151` went to the npm tag `next` by trusted
+    publishing (see `docs/OPERATIONS.md` §10). npm `latest` stays 12.5.0 until 13.0.0 is released.
 - **Design:**
   - Use a TUF-shaped metadata set: root (keys and thresholds, rotatable by a quorum of the old root), targets
     (versions and hashes), and timestamp (a short-lived signature on the latest snapshot, which defeats freeze attacks).
