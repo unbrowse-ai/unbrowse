@@ -1,0 +1,65 @@
+# The update metadata between releases (.github/scripts/updates.mjs): a fresh timestamp every day, so nodes can tell
+# metadata a mirror keeps serving from what is current (a timestamp lasts a week), and canary's release promoted to
+# stable once it has run two days unhalted. Run it by hand to promote a release now, set the canary share, or halt and
+# resume every rollout. Each run reads what npm has, signs the change, checks it against the root nodes trust, and
+# publishes `@unbrowse/updates` by trusted publishing, as the release does.
+name: Updates
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to change
+        type: choice
+        options: [refresh, promote, share, halt, resume]
+        default: refresh
+      value:
+        description: "promote: the version canary runs; share: a whole percent; halt: why"
+        type: string
+        default: ""
+
+# One change to the metadata at a time, the release's among them.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  updates:
+    name: Update metadata
+    # Main only: the environment's branch rule says so too.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm install -g npm@11.6.2
+      # The keys are in this step alone.
+      - name: Sign
+        env:
+          ACTION: ${{ inputs.action || 'refresh' }}
+          VALUE: ${{ inputs.value }}
+          UNBROWSE_RELEASE_KEY: ${{ secrets.UNBROWSE_RELEASE_KEY }}
+          UNBROWSE_TARGETS_KEY: ${{ secrets.UNBROWSE_TARGETS_KEY }}
+          UNBROWSE_TIMESTAMP_KEY: ${{ secrets.UNBROWSE_TIMESTAMP_KEY }}
+        run: |
+          case $ACTION in
+            refresh | resume) node .github/scripts/updates.mjs "$ACTION" --out "$RUNNER_TEMP/updates" ;;
+            promote | share | halt) node .github/scripts/updates.mjs "$ACTION" "$VALUE" --out "$RUNNER_TEMP/updates" ;;
+            *) echo "::error::no action $ACTION"; exit 1 ;;
+          esac
+          mkdir -p updates && (cd "$RUNNER_TEMP/updates" && npm pack --pack-destination "$GITHUB_WORKSPACE/updates" >/dev/null)
+      - name: Publish
+        run: sh .github/scripts/npm-publish.sh metadata updates.yml ./updates/*.tgz

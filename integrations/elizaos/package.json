@@ -1,0 +1,60 @@
+{
+  "name": "@unbrowse/plugin-unbrowse",
+  "version": "0.1.0",
+  "description": "Unbrowse for ElizaOS agents: say what you want from a website and get the site's own JSON back, through the Unbrowse node on your machine.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "plugin",
+    "elizaos",
+    "unbrowse"
+  ],
+  "engines": {
+    "node": ">=20.3"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p .",
+    "test": "npm run build && node --test --test-timeout=10000 test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "@elizaos/core": "^1.7.0",
+    "unbrowse": "*"
+  },
+  "devDependencies": {
+    "@elizaos/core": "1.7.2",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.6.3",
+    "unbrowse": "file:../../unbrowse-sdk/typescript"
+  },
+  "agentConfig": {
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "UNBROWSE_NODE": {
+        "type": "string",
+        "description": "The Unbrowse node's address.",
+        "required": false,
+        "sensitive": false,
+        "default": "http://127.0.0.1:7788"
+      },
+      "UNBROWSE_AGENT_TOKEN": {
+        "type": "string",
+        "description": "The agent key's token: `unbrowse agent token` prints it, or `unbrowse agent new <name>` makes a key of its own.",
+        "required": true,
+        "sensitive": true
+      }
+    }
+  }
+}

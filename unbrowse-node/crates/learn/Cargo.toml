@@ -1,0 +1,62 @@
+[package]
+name = "unbrowse-learn"
+description = "Route learning: trace a flow, find where every request value comes from, and build the dependency graph"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+agent-browser-core = { path = "../../../unbrowse-browser/core" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "io-util", "time"] }
+futures-util = "0.3"
+base64 = "0.22"
+percent-encoding = "2"
+psl = "2"
+regex = "1"
+aho-corasick = "1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "json", "socks"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-platform-verifier = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+unbrowse-files = { path = "../files" }
+# The route body the rebuild learns to and calls from, and its filler (docs/REBUILD.md).
+unbrowse-route = { path = "../route" }
+sha2 = "0.10"
+# The names of a sandbox run's folder and of the files a program's output goes to (sandbox.rs, mint.rs).
+getrandom = "0.3"
+# The hashes a producer's recipe may name: a signature is one of them over a joined tuple.
+md-5 = "0.10"
+sha1 = "0.10"
+thiserror = "2"
+url = "2"
+dirs = "5"
+# The addresses this machine's own interfaces hold: the node's browser never connects to one (proxy.rs).
+if-addrs = "0.15"
+# A browser always asks for a compressed body, and so does the replay: the profile's accept-encoding with the
+# decoders behind it. A body asked for uncompressed is a different client, and some sites send it at a crawl.
+wreq = { version = "6.0.0-rc.31", features = ["gzip", "deflate", "brotli", "zstd", "stream", "socks"] }
+wreq-util = { version = "3.0.0-rc.14", features = ["emulation-compression"] }
+scraper = "0.20"
+# The node ids `scraper` hands out (`ElementRef::id`), named where a set of them is kept (`page::chrome`).
+ego-tree = "0.6"
+# The bundled roots the test CA is added to (feature `test-roots` only).
+webpki-root-certs = { version = "1.0.11", optional = true }
+
+# The page sandbox holds its child to CPU, core and file-size limits, reads its memory, and on Linux takes its network.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+webpki-roots = "1.0.11"
+webpki-root-certs = "1.0.11"
+axum = "0.8"
+rand = "0.9"
+
+[lints]
+workspace = true
+
+[features]
+# Test harness only (antithesis/): the Chrome-shaped transport also trusts the PEM certificates named by
+# UNBROWSE_TEST_EXTRA_ROOTS, so a fixture site can serve HTTPS under a test CA (http.rs `test_roots`). Off by default.
+test-roots = ["dep:webpki-root-certs"]

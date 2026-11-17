@@ -1,0 +1,13 @@
+[package]
+name = "unbrowse-files"
+description = "The formats of the files the node writes: each one's version, and the steps that read an older one forward"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true

@@ -1,0 +1,184 @@
+{
+  "v": 2,
+  "site": "shop.example",
+  "slots": [
+    {
+      "name": "q"
+    },
+    {
+      "name": "when"
+    },
+    {
+      "name": "city"
+    }
+  ],
+  "steps": [
+    {
+      "id": "x0",
+      "method": "POST",
+      "url": "https://shop.example/api/search?d=x&code=x&n=0",
+      "holes": [
+        {
+          "at": {
+            "in": "json",
+            "key": "/0/text"
+          },
+          "ways": [
+            {
+              "rung": 0,
+              "expr": {
+                "op": "slot",
+                "name": "q"
+              }
+            }
+          ]
+        },
+        {
+          "at": {
+            "in": "query",
+            "key": "d"
+          },
+          "ways": [
+            {
+              "rung": 0,
+              "expr": {
+                "op": "format",
+                "of": {
+                  "op": "slot",
+                  "name": "when"
+                },
+                "read": {
+                  "as": "time",
+                  "form": "{yyyy}-{mm}-{dd}"
+                },
+                "write": {
+                  "as": "time",
+                  "form": "{dd}/{mm}/{yyyy}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "at": {
+            "in": "query",
+            "key": "code"
+          },
+          "ways": [
+            {
+              "rung": 1,
+              "expr": {
+                "op": "lookup",
+                "rows": [
+                  {
+                    "name": "Lisbon",
+                    "code": "LIS"
+                  },
+                  {
+                    "name": "Porto",
+                    "code": "OPO"
+                  }
+                ],
+                "fits": {
+                  "when": "equals",
+                  "at": "/name",
+                  "is": {
+                    "op": "slot",
+                    "name": "city"
+                  }
+                },
+                "take": "/code"
+              }
+            }
+          ]
+        },
+        {
+          "at": {
+            "in": "query",
+            "key": "n"
+          },
+          "ways": [
+            {
+              "rung": 1,
+              "expr": {
+                "op": "solve",
+                "algo": "sha256",
+                "before": {
+                  "op": "text",
+                  "is": "ch_1:"
+                },
+                "zeros": 2
+              }
+            }
+          ]
+        },
+        {
+          "at": {
+            "in": "header",
+            "key": "x-sig"
+          },
+          "ways": [
+            {
+              "rung": 2,
+              "expr": {
+                "op": "program_reading",
+                "source": "function sign(ctx) { return 'sig:' + (localStorage.getItem('seed') || ''); }",
+                "reads": [
+                  {
+                    "read": {
+                      "of": "local",
+                      "key": "seed"
+                    },
+                    "from": {
+                      "op": "stored",
+                      "area": "local",
+                      "key": "seed"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "body": {
+        "kind": "wire",
+        "codec": "protobuf",
+        "template": [
+          {
+            "n": 1,
+            "text": null
+          },
+          {
+            "n": 2,
+            "int": 20
+          }
+        ]
+      },
+      "expect": 200,
+      "script": {}
+    }
+  ],
+  "answer": {
+    "step": "x0",
+    "decode": {
+      "source": "function sign(ctx) { return ctx.body.split('').reverse().join(''); }"
+    }
+  },
+  "meaning": {
+    "kinds": {
+      "city": "listed",
+      "when": "date"
+    },
+    "records": {
+      "list": "/results",
+      "fields": [
+        {
+          "name": "title",
+          "at": "/title",
+          "says": "q"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,405 @@
+# A release for every commit on main that CI passes: the next semantic version (.github/scripts/next-version.sh reads
+# it from the commits' `Release:` trailers), the programs for every machine (the Mac app on Apple silicon and Intel,
+# Linux on x64 and arm64, Windows on x64), and `unbrowse` for npm and PyPI, under a vX.Y.Z tag; `unbrowse` and each
+# machine's `@unbrowse/<platform>` go to npm, then `@unbrowse/updates`, the signed metadata nodes update from
+# (.github/scripts/updates.mjs): each release goes to canary first, and updates.yml promotes, halts and refreshes it. Run
+# it by hand to force a major, minor or patch release of main's head. No pull request runs it: this workflow holds the
+# signing keys, so it runs only for main, in the `release` environment (release-check.yml tests a pull request's
+# changes to the release scripts, with no secret in reach).
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the version to raise (auto reads the commits' Release trailers)
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+# One release at a time, each reading the tags the last one made.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Version
+    # A CI run on main that passed (not one for a pull request from a branch named main, nor a push from a fork), or
+    # a run by hand on main.
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' ||
+      github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      sha: ${{ steps.next.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: next
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
+        run: |
+          # A commit a later release already holds (CI on main finishing out of order) has nothing left to release.
+          if git tag --contains HEAD --list 'v*' | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "HEAD is already in a release"
+          else
+            version=$(sh .github/scripts/next-version.sh "$BUMP")
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "${version:+Releasing v$version}${version:-Nothing to release: every commit since the last release says Release: none}"
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  # The programs for each machine, built on it: the node, `unb`, the browser and the window. A Mac's are Unbrowse.app
+  # (with the web window's build inside); Linux's and Windows' the four programs in one folder.
+  programs:
+    name: Programs (${{ matrix.platform }})
+    needs: version
+    if: needs.version.outputs.version != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-latest }
+          # Blacksmith has no Intel Macs, so the x64 Mac build stays on GitHub's (billed); moving it means cross-building
+          # on Apple silicon (cargo --target x86_64-apple-darwin, the window's Zig target, package-macos.sh's arch).
+          - { platform: darwin-x64, runner: macos-15-intel }
+          # Ubuntu 22.04's glibc (2.35) is the oldest a Linux machine needs; the wheels are tagged for it.
+          - { platform: linux-x64, runner: blacksmith-4vcpu-ubuntu-2204 }
+          - { platform: linux-arm64, runner: blacksmith-4vcpu-ubuntu-2204-arm }
+          - { platform: win32-x64, runner: blacksmith-4vcpu-windows-2025 }
+    runs-on: ${{ matrix.runner }}
+    # A Mac build of main runs in the `release` environment, where the Developer ID and notary secrets live (when they
+    # are set), as the release key does: a pull request's dry run and every other machine's build run outside it.
+    environment: ${{ startsWith(matrix.platform, 'darwin') && 'release' || '' }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      EXE: ${{ startsWith(matrix.platform, 'win32') && '.exe' || '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      # A release builds from nothing but the commit and what its own steps fetch and check: no cache, since a cache's
+      # key names its inputs, not what was saved under it, and other runs (a pull request's among them) write caches.
+      # The script fetches btls-sys and checks it against crates.io's checksum.
+      - working-directory: unbrowse-node
+        run: sh scripts/apply-tls-patch.sh
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+        with:
+          version: 0.17.0
+          use-cache: false
+
+      # The node reports its version from the workspace's; the tag is the only place it changes. The lockfile's
+      # entries for the workspace's own crates follow it, so the build stays --locked to every other dependency.
+      # What a fresh install starts with (app/src/build_config.rs), from the repository's variables. A release runs on
+      # Arc testnet unless UNBROWSE_DEFAULT_CHAIN names another (a local devnet needs Anvil, which an install doesn't
+      # have); its local use needs no chain at all until the owner signs in. The other variables, left unset, reach
+      # the build empty, which is the build's own default.
+      - name: Build the node and unb
+        working-directory: unbrowse-node
+        env:
+          UNBROWSE_DEFAULT_CHAIN: ${{ vars.UNBROWSE_DEFAULT_CHAIN || 'arc-testnet' }}
+          UNBROWSE_SITE: ${{ vars.UNBROWSE_SITE }}
+          UNBROWSE_SHARE_DEFAULT: ${{ vars.UNBROWSE_SHARE_DEFAULT }}
+        run: |
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml && rm Cargo.toml.bak
+          grep -qx "version = \"$VERSION\"" Cargo.toml
+          py=$(command -v python3 || command -v python)
+          cargo metadata --no-deps --offline --format-version 1 | "$py" -c '
+          import json, re, sys
+          version = sys.argv[1]
+          ours = {p["name"] for p in json.load(sys.stdin)["packages"] if p["version"] == version}
+          lock = open("Cargo.lock").read()
+          # A crate of this workspace: its lockfile entry has no source line.
+          entry = re.compile(r"(\[\[package\]\]\nname = \"([^\"]+)\"\nversion = \")[^\"]+(\"\n)(?!source = )")
+          new = entry.sub(lambda m: m.group(1) + version + m.group(3) if m.group(2) in ours else m.group(0), lock)
+          open("Cargo.lock", "w", newline="\n").write(new)
+          ' "$VERSION"
+          # A build the release makes keeps itself up to date (app/src/update.rs); one built from source doesn't.
+          UNBROWSE_RELEASE=1 cargo build --release --locked --bin unbrowse-node --bin unb
+      - name: Build the browser
+        working-directory: unbrowse-browser/cli
+        run: cargo build --release --locked
+
+      - if: startsWith(matrix.platform, 'darwin')
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.3
+      - if: startsWith(matrix.platform, 'darwin')
+        name: Build the web window
+        working-directory: unbrowse-node/app/ui
+        run: bun install --frozen-lockfile && bun run build
+      - if: startsWith(matrix.platform, 'darwin')
+        name: Build Unbrowse.app
+        working-directory: unbrowse-node/window
+        run: zig build app -Doptimize=ReleaseSafe -Dversion="$VERSION"
+      # The Developer ID Application certificate (MACOS_CERTIFICATE, a base64 .p12, and MACOS_CERTIFICATE_PASSWORD) in a
+      # keychain of this run's own, for a release of main. Without them the app is signed ad hoc, as before.
+      - if: startsWith(matrix.platform, 'darwin')
+        name: Load the Developer ID
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$MACOS_CERTIFICATE" ]; then echo "No Developer ID: the app is signed ad hoc"; exit 0; fi
+          keychain=$RUNNER_TEMP/signing.keychain-db
+          pass=$(openssl rand -hex 16)
+          security create-keychain -p "$pass" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$pass" "$keychain"
+          printf %s "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/developer-id.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$pass" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity=$(security find-identity -v -p codesigning "$keychain" | grep -o '"Developer ID Application: [^"]*"' | head -n 1 | tr -d '"')
+          if [ -z "$identity" ]; then echo "::error::MACOS_CERTIFICATE holds no Developer ID Application identity"; exit 1; fi
+          echo "MACOS_SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+      # Notarized when the Developer ID is loaded and the notary's three secrets are set (package-macos.sh).
+      - if: startsWith(matrix.platform, 'darwin')
+        name: Pack the Mac app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: sh .github/scripts/package-macos.sh "$VERSION" dist
+      # The disk image opens to the app, sealed, beside the link to drag it onto.
+      - if: startsWith(matrix.platform, 'darwin')
+        name: Check the disk image
+        run: |
+          dmg=$(ls dist/Unbrowse-"$VERSION"-macos-*.dmg)
+          mount=$(mktemp -d)
+          hdiutil attach "$dmg" -readonly -nobrowse -mountpoint "$mount"
+          trap 'hdiutil detach "$mount"' EXIT
+          test "$(readlink "$mount/Applications")" = /Applications
+          codesign --verify --strict "$mount/Unbrowse.app"
+          for p in unbrowse-window unbrowse-node unb; do test -x "$mount/Unbrowse.app/Contents/MacOS/$p"; done
+          # The browser is an add-on the node fetches when a goal first needs it: the app doesn't carry it.
+          test ! -e "$mount/Unbrowse.app/Contents/MacOS/agent-browser"
+          ls -l dist
+
+      - if: ${{ !startsWith(matrix.platform, 'darwin') }}
+        name: Build the window
+        working-directory: unbrowse-node/window
+        run: zig build -Doptimize=ReleaseSafe
+      - if: ${{ !startsWith(matrix.platform, 'darwin') }}
+        name: Pack the programs
+        run: sh .github/scripts/package-programs.sh "$VERSION" "${{ matrix.platform }}" dist
+
+      - name: Check the programs run
+        run: |
+          # unb says its usage and exits 2.
+          { UNBROWSE_AGENT_TOKEN=check unbrowse-node/target/release/unb$EXE 2>&1 || true; } | grep -q '^usage: unb'
+          unbrowse-browser/cli/target/release/agent-browser$EXE --version
+      - uses: actions/upload-artifact@v7
+        with:
+          name: programs-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  # `unbrowse` for npm and PyPI, each with the skill and the client, and each machine's programs beside it.
+  sdks:
+    name: unbrowse packages
+    needs: [version, programs]
+    if: needs.version.outputs.version != ''
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    # The release key is a secret of the `release` environment, which GitHub hands only to a run of main (its
+    # deployment branch rule): a workflow edited on another branch can't sign with it, whatever its conditions say.
+    environment: release
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          # No cache in a release, as with the programs.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: programs-*
+          path: programs
+          merge-multiple: true
+      # Each machine's package and the manifest of their hashes, before anything from a package registry runs here.
+      - name: Pack each machine's programs
+        run: |
+          sh .github/scripts/pack-platforms.sh "$VERSION" programs dist
+          # Every machine made it into the packages, and each has its browser add-on apart from them.
+          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+            test -f "dist/unbrowse-$p-$VERSION.tgz"
+            test -f "dist/unbrowse-browser-$p-$VERSION.tgz"
+            if tar -tzf "dist/unbrowse-$p-$VERSION.tgz" | grep -q 'agent-browser'; then echo "::error::@unbrowse/$p carries the browser"; exit 1; fi
+          done
+      # The release key is in this step alone, and only for a release of main: the environment keeps it from any other
+      # branch's run.
+      - name: Refuse anything but main
+        run: |
+          test "${{ github.event.workflow_run.head_branch || github.ref_name }}" = main || { echo "::error::a release signs only main"; exit 1; }
+      - name: Sign the manifest
+        env:
+          UNBROWSE_RELEASE_KEY: ${{ secrets.UNBROWSE_RELEASE_KEY }}
+        run: node .github/scripts/sign-manifest.mjs dist/manifest.json unbrowse-node/app/src/update.rs
+      - name: Pack unbrowse
+        run: sh .github/scripts/pack-sdks.sh "$VERSION" dist
+      # The update metadata: this release on canary, stable as it was, a fresh timestamp. Read from what npm has now,
+      # signed with the targets and timestamp keys (the release key until root 2 names others), and checked against
+      # the root nodes trust before anything is published. In this step alone, as with the manifest.
+      - name: Sign the update metadata
+        env:
+          UNBROWSE_RELEASE_KEY: ${{ secrets.UNBROWSE_RELEASE_KEY }}
+          UNBROWSE_TARGETS_KEY: ${{ secrets.UNBROWSE_TARGETS_KEY }}
+          UNBROWSE_TIMESTAMP_KEY: ${{ secrets.UNBROWSE_TIMESTAMP_KEY }}
+        run: |
+          node .github/scripts/updates.mjs release "$VERSION" dist --out "$RUNNER_TEMP/updates"
+          mkdir -p updates && (cd "$RUNNER_TEMP/updates" && npm pack --pack-destination "$GITHUB_WORKSPACE/updates" >/dev/null)
+          ls updates
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdks
+          path: dist/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: updates
+          path: updates/*.tgz
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: [version, programs, sdks]
+    if: github.event_name != 'pull_request'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      SHA: ${{ needs.version.outputs.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: "{programs-*,sdks}"
+          path: dist
+          merge-multiple: true
+      - name: Tag and publish
+        env:
+          NOTARIZED: ${{ vars.MACOS_NOTARIZED }}
+        run: |
+          # The Mac app is notarized when the repository's MACOS_NOTARIZED variable says so (set it with the Developer ID
+          # and notary secrets); until then macOS asks its owner to open it once by hand.
+          if [ "$NOTARIZED" = true ]; then
+            MAC_TRUST="It is signed with Unbrowse's Developer ID and notarized by Apple, so it opens like any app."
+          else
+            MAC_TRUST="It is signed ad hoc, not notarized by Apple, so macOS stops the first launch and says it can't check
+          the app for malware. Open it once by hand: in Applications, right-click (or Control-click) Unbrowse and choose
+          Open, then Open again. On macOS 15 (Sequoia) or later that no longer offers Open: after the warning, go to
+          System Settings > Privacy & Security, scroll to Security, click Open Anyway beside \"Unbrowse was blocked\",
+          and confirm. From a terminal, \`xattr -dr com.apple.quarantine /Applications/Unbrowse.app\` does the same."
+          fi
+          cd dist
+          # The newest Mac app at a name that stays: releases/latest/download/Unbrowse-macos-<arch>.dmg.
+          for arch in arm64 x64; do cp "Unbrowse-$VERSION-macos-$arch.dmg" "Unbrowse-macos-$arch.dmg"; done
+          sha256sum -- * > SHA256SUMS
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          **On a Mac, download the disk image:** [\`Unbrowse-macos-arm64.dmg\`](https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/Unbrowse-macos-arm64.dmg)
+          for Apple silicon, [\`Unbrowse-macos-x64.dmg\`](https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/Unbrowse-macos-x64.dmg)
+          for Intel. Open it and drag Unbrowse onto Applications: the app holds the window, the node, \`unb\` and the
+          browser program the node fetches when a goal first needs it. $MAC_TRUST
+
+          **\`unbrowse\`**, the app, the node, the agent skill and the client in one package:
+          \`npm install -g unbrowse\` (or \`pip install unbrowse-$VERSION-py3-none-<your machine>.whl\` from below), then
+          \`unbrowse app\` opens the window and \`unbrowse start\` runs the node without it. npm fetches the programs for
+          the machine it installs on: macOS (Apple silicon and Intel), Linux (x64 and arm64, glibc 2.35 or later) and
+          Windows (x64). \`unbrowse-$VERSION-py3-none-any.whl\` is the client alone, for any other machine. No install
+          brings a browser or downloads Chrome: the node runs without one, and fetches its browser program
+          (\`@unbrowse/browser-<machine>\`, checked against this release's signature) and, when there's no Chromium,
+          Chrome for Testing the first time a goal needs them. \`unbrowse browser install\` fetches them now, and
+          \`unbrowse browser fetch off\` stops the node fetching them itself.
+
+          **The programs alone**, for each machine:
+          - macOS: \`Unbrowse-$VERSION-macos-<arch>.dmg\` is the disk image above, \`Unbrowse-$VERSION-macos-<arch>.zip\` the
+            same app in a zip, and \`unbrowse-$VERSION-macos-<arch>.tar.gz\` the node, \`unb\` and the browser without the
+            window.
+          - Linux: \`unbrowse-$VERSION-linux-<arch>.tar.gz\`, the window, the node, \`unb\` and the browser in one folder.
+            The window needs GTK 4 (or 3); on a machine without a desktop the node keeps its key in
+            \`~/.unbrowse/root.key\`, readable by its user alone.
+          - Windows: \`unbrowse-$VERSION-windows-x64.zip\`, the same four programs (\`.exe\`).
+
+          The node browses in Chrome or another Chromium browser on the machine, and downloads Chrome for Testing when a
+          goal first needs a browser and there's none. It needs Foundry's Anvil (\`foundryup\`).
+
+          EOF
+          gh release create "v$VERSION" * \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$SHA" \
+            --title "v$VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes \
+            --latest
+
+  # npm: each machine's programs first, then `unbrowse`, which names them, then `@unbrowse/updates`, which sends nodes
+  # to them. Published by trusted publishing: npm takes this workflow's GitHub identity (OIDC) for each package, set on
+  # npmjs.com, so no npm token is kept anywhere. That works from GitHub's own runners only, and only for a package npm
+  # already has: a trusted publisher is set in a package's settings, so each package is published once by hand first
+  # (docs/OPERATIONS.md §10). A version npm already has is left as it is, so a rerun finishes what an earlier run
+  # started. The job runs in the `release` environment, and npm's trusted publisher names it, so only a run of main
+  # GitHub lets into that environment can publish.
+  npm:
+    name: Publish to npm
+    needs: [version, sdks, release]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      # The publishing script only.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - uses: actions/download-artifact@v8
+        with:
+          name: sdks
+          path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: updates
+          path: updates
+      # No registry-url: with one, setup-node writes an .npmrc whose token is a placeholder, and when npm's OIDC exchange
+      # fails npm publishes with that placeholder and npm answers 404, which hides why. Without it npm says it couldn't
+      # authenticate.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # Trusted publishing needs npm 11.5.1 or later: this exact one, so the publisher is the npm this file names.
+      - run: npm install -g npm@11.6.2
+      - name: Publish
+        run: sh .github/scripts/npm-publish.sh "$VERSION" release.yml ./dist/unbrowse-*-"$VERSION".tgz "./dist/unbrowse-$VERSION.tgz" ./updates/*.tgz

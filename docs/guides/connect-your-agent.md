@@ -1,0 +1,144 @@
+# Connect your agent
+
+Any agent that speaks MCP or HTTP can use the node. It needs a running node and an agent key: make one in the window
+(**Money**, **Add agent**) or with `unbrowse agent new <name>`, and keep the setup it prints
+([your-first-call.md](../start/your-first-call.md#1-make-an-agent-key)).
+
+**Run the agent as its own OS user, not as you.** An agent running as you can read the owner's token in
+`~/.unbrowse`. `unbrowse-node agent-user install` makes the user `unbrowse-agent` with a key of its own, and
+`unbrowse-node agent-user run -- <agent>` runs the agent as it ([agents-os-user.md](agents-os-user.md)).
+
+| Endpoint | What it is |
+|---|---|
+| `POST http://127.0.0.1:7788/mcp` | MCP over Streamable HTTP, JSON-RPC: `initialize`, `ping`, `tools/list`, `tools/call` |
+| `http://127.0.0.1:7788/v1/*` | the same primitives as HTTP |
+
+Each request is signed with the agent's token, and the token itself never goes over the wire: the request names the
+token by its key (`x-unbrowse-key`) and carries an HMAC-SHA256 keyed by the token over the method, the host and port it
+is sent to, the path with its query, the body's SHA-256, the time and a fresh nonce. No client follows a redirect on a
+request to the node, and a request signed for one address verifies at no other. The node takes each nonce once, across
+restarts too, and never forgets one by a clock that went back: if the machine's clock is set back by more than a minute,
+signed requests are refused until it passes where it was (an owner who sets it back on purpose waits that long). The
+nonces the node holds are shared out by key: one agent key holds at most 20,000 at once (about 166 requests a second,
+kept up), and 20,000 are only the owner's, so one agent sending as fast as it can is refused on its own and leaves the
+other agents and the owner their room. A request past its key's share is refused, never let through by forgetting a
+nonce still in its window. The node signs its answer
+(`x-unbrowse-reply`, over the status, the body's SHA-256 and the nonce), and a client uses only an answer the node
+signed. A process that took the node's address, or relays it, gets one request it can't send again and no token, and
+can't hand the client an answer of its own (`unbrowse_core::signed`, `app/src/api/signed.rs`). The SDKs, `unb`,
+`unb mcp`, `unbrowse mcp` and the window sign. A plain `Authorization: Bearer <token>` is refused unless the owner
+allows it (below). Both surfaces are made from one list, `PRIMITIVES` in
+`unbrowse-node/app/src/api.rs`, and written out as [`agent-api.json`](../../unbrowse-node/agent-api.json):
+
+| MCP tool | HTTP | What it does |
+|---|---|---|
+| `unbrowse_do` | `POST /v1/do` | Say what you want with the URL of a page that does it. The node calls the route that does it, tries other nodes' routes for the site, or learns one from the page and calls that |
+| `unbrowse_browse` | `POST /v1/browse` | Drive the node's browser when a page needs clicks or typing; the node learns a route from the steps. `ask_owner` hands the page to the owner |
+| `unbrowse_challenge` | `POST /v1/challenge` | A page that asks for a person, as a picture: `look`, then `click`/`drag`/`type`/`press`/`wait`/`done`, each answering the page again. Your own model reads the picture |
+| `unbrowse_search` | `GET /v1/routes?q=` | The routes this node knows and those other nodes list, ranked together |
+| `unbrowse_call` | `POST /v1/routes/{id}/call` | Call a route by its id with new inputs |
+| `unbrowse_open` | `GET /v1/open?q=` | What an `unbrowse://` link names, from the network and the chain. Calls nothing, pays nothing |
+| `unbrowse_logins` | `GET /v1/logins` | The vault's logins and cards, by reference only |
+| `unbrowse_whoami` | `GET /v1/whoami` | Which agent key this is, and the node it's live on |
+| `unbrowse_verify_candidates` | `GET /v1/verify` | When the owner turned on Earn from routes I use: routes ranked by what verifying them pays per UNB point, less checks |
+| `unbrowse_verify` | `POST /v1/verify` | Stake on a route and check it through an entry the agent picks; the agent answers for that entry |
+| `unbrowse_judge` | `POST /v1/routes/{id}/judge` | Say what you saw in a route's answer: wrong for a page (the next `unbrowse_do` for it learns the page afresh), what it really is, or which fields are the answer |
+| `unbrowse_report` | `POST /v1/report` | Report a problem with Unbrowse itself (wrong data, a block page answered as a success, a failed call). The node scrubs it and files it as a public GitHub issue |
+
+What each takes and returns: [CLI.md §5](../CLI.md#5-the-agent-api-and-mcp-tools).
+
+## Claude Code
+
+The Claude Code plugin ([integrations/claude-code](../../integrations/claude-code)) starts `unbrowse mcp`, which
+relays Claude's MCP messages to the node, each signed with the token, so Claude never sends the token. The key's setup
+prints the same with `unb mcp` (the `unb` beside the node):
+
+```sh
+claude mcp add --scope user unbrowse --env UNBROWSE_NODE=http://127.0.0.1:7788 -- unb mcp --agent first
+```
+
+Or let `unb` do it without the token passing through a terminal: `unbrowse connect [agent index]` starts the node
+if it isn't running and waits for it, takes the agent's token from `unbrowse-node agent token` (which reads the root
+key wherever the node keeps it: the Keychain, or `~/.unbrowse/root.key` on a Linux machine with no keystore), checks
+the agent is live on the node, and registers `unb mcp --agent first` with Claude Code, which reads the token from the grant the owner's yes
+left each time Claude starts it and signs every message with it, so no command line or config holds it (`app/src/bin/unb.rs` `connect`). With no index it
+connects the agent the node makes itself on its first run, so `npm i -g unbrowse && unbrowse connect` works on a fresh
+machine.
+
+On a machine the hosted Unbrowse set up, connect first shows the old entries it found and what it will do with each,
+backs them up to `~/.unbrowse/migration/<time>/`, and replaces them only once the new entry has answered. An agent's
+shell gets the plan and no change: run it in a terminal, or add `--yes`. `unbrowse connect --dry-run` shows the plan
+alone; `unbrowse connect --undo` puts the old entries back, and `--undo --purge` also deletes the backup.
+
+Then give Claude Code the skill: a global npm install puts it in `~/.claude/skills/unbrowse`; otherwise
+`unbrowse skill` ([the-skill.md](../reference/the-skill.md)).
+
+## Any other MCP client
+
+Give it `unb mcp` (or `unbrowse mcp`) to start, with `UNBROWSE_AGENT_TOKEN` (and `UNBROWSE_NODE` for a node elsewhere)
+in its environment: it signs each message. Codex's plugin and `integrations/codex/install.sh` set it up that way. A
+framework that takes an MCP server as an object can have it from the SDK: `await node.mcpServer()` in TypeScript,
+`node.mcp_server()` in Python, which give that same stdio server with the token in its environment (keep it out of
+logs). An HTTP MCP client that can only send a header would send the token itself: the node refuses it unless the owner
+allows bearer tokens. Where the agent takes skills, copy [`skills/unbrowse`](../../skills/unbrowse) into its skills
+folder.
+
+## A script, or a shell
+
+- **The SDK.** `Unbrowse` (also `UnbrowseNode`) in the `unbrowse` package, TypeScript and Python
+  ([your-first-call.md](../start/your-first-call.md#4-from-your-own-code)).
+- **`unb`.** `unbrowse do …`, `unbrowse browse …`, `unbrowse search …` and the rest, with the two `export` lines from
+  the setup ([CLI.md §4](../CLI.md#4-unb-the-agents-shell-client)).
+- **HTTP.** Sign each request as above (the SDKs' `signed.ts` and `_signed.py` are short to copy). A plain bearer
+  header is refused unless the owner allows it.
+
+Before each request the SDKs, `unb` and the window ask what answers at the node's address to prove it is the node the
+token is for (`GET /v1/node/proof`). That keeps what a request says from a listener that took the port and can't reach
+the node; it doesn't keep the token safe by itself (a process that relays the challenge to the node passes it), which
+is why the token is never sent at all. Every request must also name the node's own host and port (`api.rs`
+`own_host_only`), so a web page in a browser can't reach it by another name.
+
+### Which agent a client acts as
+
+An MCP entry names an agent (`unb mcp --agent <n>`, or `--agent first`), never its token. The bridge reads that agent's
+grant: a file the node writes the first time the owner lets that agent's client in (`unbrowse grant <n>`, `unbrowse
+connect`, or the setup line's `agent token`). While the node's root key is in the OS keystore, that first time asks the
+owner in the node's dialog, naming the agent, and each agent is asked about apart, the node's first key too: a process
+that has one agent's grant gets no other agent's token without the owner's yes. Revoking a key removes its grant.
+
+An entry an older Unbrowse (12.x) wrote, such as `npx -y unbrowse mcp` or `node …/dist/cli.js mcp --account x`, names no
+agent and carries no token. Run against this version it acts as the node's first agent, at `127.0.0.1:7788` unless
+`UNBROWSE_NODE` says otherwise, and its old flags are ignored. It never reads the hosted sign-in in `~/.config/unbrowse`
+and leaves it as it was, so going back to 12.5.0 still finds it. Until the owner lets the first agent in, the entry
+still starts: it lists one tool, `unbrowse_connect`, which says to run `unbrowse connect` once
+(`scripts/legacy-mcp-e2e.sh` checks both).
+
+What remains, by design: a grant is a file of this OS user's, 0600 in `~/.unbrowse/bridges`, so any program running as
+this user (an agent with a shell included) can read the grants the owner has given; it can't make a new one. A node whose
+root key is kept in a plain file (`~/.unbrowse/root.key`, a Linux machine with no keystore, or a dev build) asks nothing
+at all, since this user's programs read that key already. To keep an agent from other agents' keys entirely, run it as
+an OS user of its own ([agents-os-user.md](agents-os-user.md)).
+
+### Bearer tokens, for an older client
+
+`unbrowse agent bearer on` lets the node take a token sent as a plain `Authorization: Bearer` header, from a client of a
+release before signed requests (an MCP client set up with that header), and `unbrowse agent bearer off` stops it; turning
+it on asks the owner first. Every node has it off, new or upgraded: an agent still set up to send a bearer token is
+refused with a 401 that says what to do (run `unbrowse connect` again, which sets Claude Code up with `unb mcp`; give
+another MCP client `unb mcp`; use the SDK or `unb` in a script). Turn it on only for a client that can't be changed.
+What can still send a bearer token: an MCP config an earlier `unbrowse connect`, `agent new` setup or the
+docs set up with an `Authorization` header, a script of the owner's that sends one, and this repository's own test
+harnesses (`test-banks/popular-sites/scratch-node.sh` and the Antithesis setup write the setting on for their scratch
+nodes).
+
+Not built: plugins that connect an agent for you (no `integrations/` directory in this repository).
+
+## Limits on an agent
+
+Each key has a daily limit in dollars and an expiry, which the network enforces as well as the node; the owner can
+revoke it (Money, Revoke), and the revocation holds from the next day on. Agents pay from the node's own balance; paying
+from your account instead is an Advanced option. The node pays another contributor's fee itself, never more for one
+fetch than `max_fetch_usdc` ($0.05 by default), with nothing for the owner to approve. A card checkout and a page only a person can pass are the two things that wait for the owner
+([the-app.md](../start/the-app.md#what-the-node-asks-you)). How the node keeps secrets from agents: [SECURITY.md](../../SECURITY.md#how-the-node-keeps-secrets).
+
+Related: [Unbrowse a site](unbrowse-a-site.md) · [The agent skill](../reference/the-skill.md).

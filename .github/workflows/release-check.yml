@@ -1,0 +1,46 @@
+# A pull request that changes the release scripts or the update metadata is checked here: the metadata the release
+# script writes is the metadata the node checks, with test keys (its fixture). release.yml holds the signing keys and
+# runs only for main, so no pull request's code ever runs in it.
+name: Release check
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/**
+      - .github/scripts/**
+      - unbrowse-node/updates/**
+
+permissions: {}
+
+jobs:
+  scripts:
+    permissions:
+      contents: read
+    name: Release scripts
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trusted-main
+          persist-credentials: false
+          sparse-checkout: .github/scripts/updates.mjs
+          sparse-checkout-cone-mode: false
+      - name: Check update root transition metadata
+        run: node .github/scripts/updates.mjs root-check --main-updates "$GITHUB_WORKSPACE/trusted-main/.github/scripts/updates.mjs"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.4
+      - name: Test the update metadata script
+        run: node --test .github/scripts/test/*.test.mjs
+      # The release workflow has no trigger a pull request can fire. Every job that reads a signing key runs in the
+      # `release` environment and installs nothing: it uses no action but checkout and the artifact actions, and runs
+      # no package manager's install. No other workflow names a signing key (external security review round 3,
+      # 2026-11-04).
+      - name: The signing keys sit in jobs of their own
+        run: |
+          python3 .github/scripts/test/check_signing_jobs.py
+          python3 -m unittest discover -s .github/scripts/test -p 'test_*.py' -v

@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "runner": "local_chrome_cdp",
+  "domain": "www.gov.uk",
+  "auth_requested": false,
+  "results": [
+    {
+      "scenario": "public.home",
+      "requested_url": "https://www.gov.uk/",
+      "requested_url_fingerprint": "a604eb8a03efa82d",
+      "final_url": "https://www.gov.uk/",
+      "final_url_fingerprint": "a604eb8a03efa82d",
+      "status": 200,
+      "classification": "public_content",
+      "redirect_count": 0,
+      "blocked_requests": {},
+      "assertion_passed": true
+    },
+    {
+      "scenario": "public.navigation",
+      "requested_url": "https://www.gov.uk/help/cookies",
+      "requested_url_fingerprint": "37424816a9b758a2",
+      "final_url": "https://www.gov.uk/help/cookies",
+      "final_url_fingerprint": "37424816a9b758a2",
+      "status": 200,
+      "classification": "public_content",
+      "redirect_count": 0,
+      "blocked_requests": {},
+      "assertion_passed": true
+    },
+    {
+      "scenario": "public.search",
+      "requested_url": "https://www.gov.uk/search/all",
+      "requested_url_fingerprint": "be51ba9b5ba9696a",
+      "final_url": "https://www.gov.uk/search/all",
+      "final_url_fingerprint": "be51ba9b5ba9696a",
+      "status": 200,
+      "classification": "public_content",
+      "redirect_count": 0,
+      "blocked_requests": {},
+      "assertion_passed": true
+    },
+    {
+      "scenario": "public.search",
+      "requested_url": "https://www.gov.uk/search/all",
+      "requested_url_fingerprint": "02de52d6a8fc9b1c",
+      "final_url": "https://www.gov.uk/search/all",
+      "final_url_fingerprint": "02de52d6a8fc9b1c",
+      "status": 200,
+      "classification": "public_content",
+      "redirect_count": 0,
+      "blocked_requests": {},
+      "assertion_passed": true
+    },
+    {
+      "scenario": "public.listing",
+      "requested_url": "https://www.gov.uk/search/all",
+      "requested_url_fingerprint": "be51ba9b5ba9696a",
+      "final_url": "https://www.gov.uk/search/all",
+      "final_url_fingerprint": "be51ba9b5ba9696a",
+      "status": 200,
+      "classification": "public_content",
+      "redirect_count": 0,
+      "blocked_requests": {},
+      "assertion_passed": true
+    },
+    {
+      "scenario": "public.pagination",
+      "requested_url": "https://www.gov.uk/search/all",
+      "requested_url_fingerprint": "257222b8f95e6d80",
+      "final_url": "https://www.gov.uk/search/all",
+      "final_url_fingerprint": "257222b8f95e6d80",
+      "status": 200,
+      "classification": "public_content",
+      "redirect_count": 0,
+      "blocked_requests": {},
+      "assertion_passed": true
+    }
+  ]
+}

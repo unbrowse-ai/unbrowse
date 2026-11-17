@@ -1,0 +1,13 @@
+{
+  "about": "The contracts every node on arc-testnet shares. `deployment` is null until the owner runs `unbrowse-node chain deploy` on arc-testnet and copies what it prints here: Settlement, its USDC, UNB and pool, `dnssec` (the DNSSEC verifier the domain proofs' constructor makes on the IANA root anchors; a node refuses one with other anchors), `domains`, `escrow_wait`, and `coins`, the route-coin contracts as `unbrowse-settlement/script/DeployCoins.s.sol` prints them (`route_coins`, `route_coin_implementation`, `coin_stakes`, `coin_fetch`, `coin_bounties`), all fixed at deployment with no admin. A node holds every one of them to this build's code and to the protocol's route-coin numbers before it uses them (`chain/conform.rs`). Until then a node on arc-testnet runs its identity and the peer network, and Settlement calls say it isn't deployed. `existing` names the network's own USDC, UNB and UNB/USDC pool for that deploy to build on instead of deploying test ones; a token left null is read from a named pool, else deployed as the test one. The curves' fee recipient is named on the operator's machine (`UNBROWSE_<NETWORK>_FEE_RECIPIENT`), never here. `usdc` is the network's own: the ERC-20 interface to its native gas, 6 decimals, so Settlement's fees, deposits and claims are in the same USDC that pays the gas. `registry_from` is the block nodes start reading ERC-8004 registrations from: no Unbrowse identity was registered before it. `epoch_blocks` is one epoch in this chain's blocks (R1.28), which `chain deploy` gives the contracts and a node holds a deployment to: 24 hours at the pace the deployments on record show, about 0.507 s a block from 1 to 6 November 2026; `arc::tests::a_networks_epoch_blocks_are_a_day_of_its_blocks` measures it again. The deployment of the contracts before route coins (Settlement 0xdb9315219fe272747f6c8ab46b80b4265c5d272f, from block 71006209) is no longer read: this build runs only on a route-coin deployment. A node reads ~/.unbrowse/networks/arc-testnet.json instead of this file when that one exists.",
+  "network": "arc-testnet",
+  "chain_id": 5042002,
+  "registry_from": 69700000,
+  "epoch_blocks": 170000,
+  "deployment": null,
+  "existing": {
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "unb": null,
+    "pool": null
+  }
+}

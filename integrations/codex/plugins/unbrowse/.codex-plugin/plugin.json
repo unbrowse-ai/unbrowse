@@ -1,0 +1,26 @@
+{
+  "name": "unbrowse",
+  "version": "0.1.0",
+  "description": "Use websites through the Unbrowse node on this machine: say what you want and get the site's own JSON back, with no browser once a route is learned.",
+  "author": {
+    "name": "Unbrowse",
+    "url": "https://unbrowse.ai"
+  },
+  "homepage": "https://unbrowse.ai",
+  "repository": "https://github.com/unbrowse-ai/unbrowse-core",
+  "license": "Apache-2.0",
+  "keywords": ["web", "browser", "api", "scraping", "automation", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Unbrowse",
+    "shortDescription": "Websites as API calls, through the Unbrowse node on this machine",
+    "longDescription": "Connects Codex to the Unbrowse node on this machine. Say what you want from a website and get the site's own JSON back: the node calls the route that does it, or learns one from the page and calls that. When a page needs clicks or typing, Codex drives the node's browser and the node learns a route from those steps.",
+    "developerName": "Unbrowse",
+    "category": "Developer Tools",
+    "websiteURL": "https://unbrowse.ai",
+    "defaultPrompt": [
+      "Search Hacker News stories about rust with Unbrowse"
+    ]
+  }
+}

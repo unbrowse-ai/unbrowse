@@ -1,0 +1,21 @@
+[package]
+name = "unbrowse-route"
+description = "The body of a route, and the evaluator that fills its holes: data only, with no browser, no transport and no model"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+# Key order is the order a body's keys are sent in: a request built from a template keeps the template's order.
+serde_json = { version = "1", features = ["preserve_order"] }
+url = "2"
+percent-encoding = "2"
+base64 = "0.22"
+md-5 = "0.10"
+sha1 = "0.10"
+sha2 = "0.10"
+hmac = "0.12"
+
+[lints]
+workspace = true

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "domain": "example.test",
+  "site_scope": ["https://example.test/"],
+  "public": {"entrypoint": "https://example.test/"},
+  "auth": {
+    "disposable_test_account": true,
+    "account_label": "dedicated route-test account",
+    "protected_url": "https://example.test/private",
+    "login_url": "https://example.test/login",
+    "auth_write_scope": ["https://example.test/login", "https://example.test/logout"],
+    "username_selector": "input[name='username']",
+    "password_selector": "input[name='password']",
+    "submit_selector": "button[type='submit']",
+    "post_login_selector": "[data-testid='private-dashboard']",
+    "authenticated_marker": "[data-testid='private-dashboard']",
+    "logout_selector": "[data-testid='logout']",
+    "guest_expectation": {"type": "url_prefix", "value": "https://example.test/login"},
+    "username_ref": {"provider": "env", "name": "UNBROWSE_TEST_USERNAME"},
+    "password_ref": {"provider": "env", "name": "UNBROWSE_TEST_PASSWORD"},
+    "mfa": {
+      "code_ref": {"provider": "env", "name": "UNBROWSE_TEST_MFA_CODE"},
+      "code_selector": "input[name='otp']",
+      "submit_selector": "button[type='submit']"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "domain": "booking.com",
+  "site_scope": ["https://booking.com/", "https://www.booking.com/"],
+  "public": {"entrypoint": "https://booking.com/"}
+}

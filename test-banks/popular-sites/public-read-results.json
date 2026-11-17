@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "probe_type": "unauthenticated_homepage_get",
+  "results": [
+    {
+      "domain": "wikipedia.org",
+      "checked_at": "2026-10-28T06:21:15.913199+00:00",
+      "status": 200,
+      "final_url": "https://www.wikipedia.org/",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.wikipedia.org/"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "github.com",
+      "checked_at": "2026-10-28T06:21:16.733087+00:00",
+      "status": 200,
+      "final_url": "https://github.com/",
+      "redirect_chain": [],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "bbc.co.uk",
+      "checked_at": "2026-10-28T06:21:17.408585+00:00",
+      "status": 200,
+      "final_url": "https://www.bbc.co.uk/",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.bbc.co.uk/"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "amazon.com",
+      "checked_at": "2026-10-28T06:21:18.185623+00:00",
+      "status": 200,
+      "final_url": "https://www.amazon.com/",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.amazon.com/"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "naver.com",
+      "checked_at": "2026-10-28T06:21:20.614051+00:00",
+      "status": 200,
+      "final_url": "https://www.naver.com/",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.naver.com/"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "baidu.com",
+      "checked_at": "2026-10-28T06:21:22.041312+00:00",
+      "status": 200,
+      "final_url": "https://www.baidu.com/",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.baidu.com/"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "uol.com.br",
+      "checked_at": "2026-10-28T06:21:23.615413+00:00",
+      "status": 200,
+      "final_url": "https://www.uol.com.br/",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.uol.com.br/"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "www.gov.uk",
+      "checked_at": "2026-10-28T06:21:27.479226+00:00",
+      "status": 200,
+      "final_url": "https://www.gov.uk/",
+      "redirect_chain": [],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "openstreetmap.org",
+      "checked_at": "2026-10-28T06:21:28.181996+00:00",
+      "status": 200,
+      "final_url": "https://www.openstreetmap.org/",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.openstreetmap.org/"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "mercadolibre.com",
+      "checked_at": "2026-10-28T06:21:29.269108+00:00",
+      "status": 200,
+      "final_url": "https://mercadolibre.com/",
+      "redirect_chain": [],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "shopify.com",
+      "checked_at": "2026-10-28T06:21:30.786933+00:00",
+      "status": 200,
+      "final_url": "https://www.shopify.com/sg",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.shopify.com/"
+        },
+        {
+          "status": 302,
+          "url": "https://www.shopify.com/sg"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "canva.com",
+      "checked_at": "2026-10-28T06:21:31.988167+00:00",
+      "status": 200,
+      "final_url": "https://www.canva.com/",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.canva.com/"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "nytimes.com",
+      "checked_at": "2026-10-28T06:21:33.109999+00:00",
+      "status": 403,
+      "final_url": "https://www.nytimes.com/",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.nytimes.com/"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "challenge_or_denial"
+    },
+    {
+      "domain": "booking.com",
+      "checked_at": "2026-10-28T06:21:33.966671+00:00",
+      "status": 202,
+      "final_url": "https://www.booking.com/",
+      "redirect_chain": [
+        {
+          "status": 301,
+          "url": "https://www.booking.com/"
+        }
+      ],
+      "content_type": "text/html",
+      "classification": "nonstandard_2xx"
+    },
+    {
+      "domain": "arxiv.org",
+      "checked_at": "2026-10-28T06:21:35.580974+00:00",
+      "status": 200,
+      "final_url": "https://arxiv.org/",
+      "redirect_chain": [],
+      "content_type": "text/html",
+      "classification": "public_content"
+    },
+    {
+      "domain": "shopee.co.id",
+      "checked_at": "2026-10-28T06:21:36.374128+00:00",
+      "status": 200,
+      "final_url": "https://shopee.co.id/",
+      "redirect_chain": [],
+      "content_type": "text/html",
+      "classification": "public_content"
+    }
+  ]
+}

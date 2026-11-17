@@ -1,0 +1,15 @@
+# The Antithesis harness's images (antithesis/Dockerfile) are built from the repository root; they need only these.
+*
+!antithesis
+!unbrowse-node
+!unbrowse-browser/core
+!unbrowse-sdk/python
+!TERMS.md
+!PRIVACY.md
+unbrowse-node/target
+unbrowse-node/target-*
+unbrowse-node/vendor
+unbrowse-node/window
+**/node_modules
+**/__pycache__
+antithesis/scratchbook

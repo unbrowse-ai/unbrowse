@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "domain": "example.test",
+  "site_scope": ["https://example.test/"],
+  "observed_at": null,
+  "observed_search_route": null,
+  "observed_listing_route": null,
+  "protected_route": null,
+  "login_route": null,
+  "logout_route": null,
+  "nonexistent_path_opt_in": null,
+  "test_account": null,
+  "credential_provider": null,
+  "mfa_factor_provider": null,
+  "expiry_strategy": null,
+  "approved_action": null,
+  "disposable_target": null,
+  "test_recipient": null,
+  "sandbox_checkout": null,
+  "spend_limit": null,
+  "restore_plan": null
+}

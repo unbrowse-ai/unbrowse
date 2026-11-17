@@ -1,0 +1,12 @@
+{
+  "map_while_browsing": true,
+  "hold_routes": true,
+  "signed_in_calls": true,
+  "paused": true,
+  "api_port": 7790,
+  "storage_gb": 2.5,
+  "excluded": ["bank.example"],
+  "share_routes": false,
+  "auto_buy": true,
+  "auto_buy_level": 2
+}

@@ -1,0 +1,21 @@
+// The telemetry worker in production. Deployed by the release train (.deploy/manifest.json), never by hand.
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "unbrowse-telemetry",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": false,
+  "routes": [{ "pattern": "telemetry.unbrowse.ai", "custom_domain": true }],
+  // The events and report counts live in one SQLite Durable Object (src/store.js), made from schema.sql. Not D1:
+  // the account can't make another D1 database (Cloudflare's limit of 10, already passed by older ones).
+  "durable_objects": { "bindings": [{ "name": "STORE", "class_name": "TelemetryStore" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TelemetryStore"] }],
+  // schema.sql and queries.sql are bundled as text: one copy of the SQL for the store, the stats door and the tests.
+  "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
+  // Where bug reports are filed as issues. The token that files them is a secret, never here: GITHUB_TOKEN (README).
+  // The token that reads the counts is a secret too: ADMIN_TOKEN.
+  "vars": { "REPORTS_REPO": "unbrowse-ai/unbrowse" },
+  // Invocation logs would record each request's URL and headers, the caller's address among them: kept off, and the
+  // worker logs nothing itself.
+  "observability": { "enabled": false }
+}

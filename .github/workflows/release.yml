@@ -1,117 +1,832 @@
-name: release
+# The programs for every machine (the Mac app on Apple silicon and Intel, Linux on x64 and arm64, Windows on x64) and
+# `unbrowse` for npm and PyPI, for each of the three places a commit goes (CONTRIBUTING.md, "Branches and releases"); the
+# version is the ref's (.github/scripts/release-version.sh):
+#
+#   staging       every commit on staging CI passes: X.Y.0-staging.N on npm's `staging` tag, and nothing else
+#   pre-production every commit on a release/X.Y branch CI passes: X.Y.P-rc.N on npm's `next` tag and on canary, which
+#                 it holds until something newer comes and never hands to stable
+#   production    a vX.Y.Z tag pushed on main: X.Y.Z on npm's `latest`, a GitHub release, and canary, which updates.yml
+#                 gives to stable once it has soaked
+#
+# `unbrowse` and each machine's `@unbrowse/<platform>` go to npm, then (but for staging) `@unbrowse/updates`, the signed
+# metadata nodes update from (.github/scripts/updates.mjs); updates.yml promotes, halts and refreshes it. Run it by hand
+# on staging, a release branch or a tag to release that ref again under a new run. No pull request runs it: this
+# workflow holds the signing keys, so it runs only for those refs, in the `release` environment (release-check.yml tests a
+# pull request's changes to the release scripts, with no secret in reach).
+name: Release
 
-# Push a tag vX.Y.Z (or vX.Y.Z-pre.N) whose version matches packages/sdk and packages/cli.
-# Publishes @unbrowse/sdk, then unbrowse. Prereleases go to the `next` dist-tag, releases to `latest`.
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [staging, "release/**"]
   push:
-    tags: ["v*"]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Existing tag to (re)release, e.g. v12.0.0-alpha.0"
-        required: true
+      # A rehearsal: every job up to the publish runs, with the keys, and nothing leaves (no npm, no GitHub release, no
+      # tag). Npm lacking a package is a warning, not a stop. Used when the workflow moves to a new repository or
+      # environment, to prove the keys sign there before anything ships.
+      dry_run:
+        description: Build and sign, publish nothing
+        type: boolean
+        default: false
 
+# One release at a time, each reading the tags the last one made.
 concurrency:
   group: release
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  id-token: write
+permissions: {}
 
 jobs:
+  version:
+    permissions:
+      contents: read
+    name: Version
+    # A CI run that passed for a push to staging or a release branch (not one for a pull request from a branch of that
+    # name, nor a push from a fork), a release tag pushed, or a run by hand; release-version.sh refuses any other ref.
+    if: >-
+      github.event_name == 'workflow_dispatch' || github.event_name == 'push' ||
+      github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      version: ${{ steps.free.outputs.version }}
+      sha: ${{ steps.next.outputs.sha }}
+      channel: ${{ steps.next.outputs.channel }}
+      npm_tag: ${{ steps.next.outputs.npm_tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # Every branch and tag: the version counts from them, and a tag is checked against main and its release branch.
+          fetch-depth: 0
+          persist-credentials: false
+      - id: next
+        env:
+          REF: ${{ github.event_name == 'workflow_run' && format('refs/heads/{0}', github.event.workflow_run.head_branch) || github.ref }}
+          RUN: ${{ github.run_number }}
+        run: |
+          version=$(sh .github/scripts/release-version.sh "$REF" "$RUN")
+          case $REF in
+            refs/tags/*) channel=production npm_tag=latest ;;
+            refs/heads/release/*) channel=preproduction npm_tag=next ;;
+            *) channel=staging npm_tag=staging ;;
+          esac
+          { echo "version=$version"; echo "channel=$channel"; echo "npm_tag=$npm_tag"; echo "sha=$(git rev-parse HEAD)"; } >> "$GITHUB_OUTPUT"
+          echo "Releasing $version from $REF to $channel"
+      # Before anything is built: one message naming every package npm doesn't have, where the publish would stop at the
+      # first, and a refusal when npm holds the version already. No key and no token, it only reads.
+      - name: Npm has every package
+        id: free
+        if: steps.next.outputs.version != ''
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+          DRY_RUN: ${{ inputs.dry_run == true }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then
+            node .github/scripts/npm-preflight.mjs "$VERSION" || echo "::warning::a dry run: npm can't take $VERSION yet (above), so it is built and signed and not published"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          else
+            node .github/scripts/npm-preflight.mjs "$VERSION"
+          fi
+
+  # The programs for each machine, built on it: the node, `unb`, the browser and the window. A Mac's are Unbrowse.app;
+  # Linux's and Windows' the four programs in one folder.
+  programs:
+    permissions:
+      contents: read
+    name: Programs (${{ matrix.platform }})
+    needs: version
+    if: needs.version.outputs.version != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-latest }
+          # Blacksmith has no Intel Macs, so the x64 Mac build stays on GitHub's (billed); moving it means cross-building
+          # on Apple silicon (cargo --target x86_64-apple-darwin, the window's Zig target, package-macos.sh's arch).
+          - { platform: darwin-x64, runner: macos-15-intel }
+          # Ubuntu 22.04's glibc (2.35) is the oldest a Linux machine needs; the wheels are tagged for it.
+          - { platform: linux-x64, runner: blacksmith-4vcpu-ubuntu-2204 }
+          - { platform: linux-arm64, runner: blacksmith-4vcpu-ubuntu-2204-arm }
+          - { platform: win32-x64, runner: blacksmith-4vcpu-windows-2025 }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      EXE: ${{ startsWith(matrix.platform, 'win32') && '.exe' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+      # A release builds from nothing but the commit and what its own steps fetch and check: no cache, since a cache's
+      # key names its inputs, not what was saved under it, and other runs (a pull request's among them) write caches.
+      # The script fetches btls-sys and checks it against crates.io's checksum.
+      - working-directory: unbrowse-node
+        run: sh scripts/apply-tls-patch.sh
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.17.0
+          use-cache: false
+
+      # The node reports its version from the workspace's; the tag is the only place it changes. The lockfile's
+      # entries for the workspace's own crates follow it, so the build stays --locked to every other dependency.
+      # What a fresh install starts with (app/src/build_config.rs), from the repository's variables. A release runs on
+      # Arc testnet unless UNBROWSE_DEFAULT_CHAIN names another (a local devnet needs Anvil, which an install doesn't
+      # have); its local use needs no chain at all until the owner signs in. The other variables, left unset, reach
+      # the build empty, which is the build's own default.
+      - name: Build the node and unb
+        working-directory: unbrowse-node
+        env:
+          UNBROWSE_DEFAULT_CHAIN: ${{ vars.UNBROWSE_DEFAULT_CHAIN || 'arc-testnet' }}
+          UNBROWSE_SITE: ${{ vars.UNBROWSE_SITE }}
+          UNBROWSE_SHARE_DEFAULT: ${{ vars.UNBROWSE_SHARE_DEFAULT }}
+        run: |
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml && rm Cargo.toml.bak
+          grep -qx "version = \"$VERSION\"" Cargo.toml
+          py=$(command -v python3 || command -v python)
+          cargo metadata --no-deps --offline --format-version 1 | "$py" -c '
+          import json, re, sys
+          version = sys.argv[1]
+          ours = {p["name"] for p in json.load(sys.stdin)["packages"] if p["version"] == version}
+          lock = open("Cargo.lock").read()
+          # A crate of this workspace: its lockfile entry has no source line.
+          entry = re.compile(r"(\[\[package\]\]\nname = \"([^\"]+)\"\nversion = \")[^\"]+(\"\n)(?!source = )")
+          new = entry.sub(lambda m: m.group(1) + version + m.group(3) if m.group(2) in ours else m.group(0), lock)
+          open("Cargo.lock", "w", newline="\n").write(new)
+          ' "$VERSION"
+          # A build the release makes keeps itself up to date (app/src/update.rs); one built from source doesn't.
+          UNBROWSE_RELEASE=1 cargo build --release --locked --bin unbrowse-node --bin unb
+      - name: Build the browser
+        working-directory: unbrowse-browser/cli
+        run: cargo build --release --locked
+
+      - if: startsWith(matrix.platform, 'darwin')
+        name: Build Unbrowse.app
+        working-directory: unbrowse-node/window
+        # A bundle's version is numbers alone (CFBundleShortVersionString): a prerelease's is its X.Y.Z.
+        run: zig build app -Doptimize=ReleaseSafe -Dversion="${VERSION%%-*}"
+      - if: startsWith(matrix.platform, 'darwin')
+        name: Archive unsigned Mac build inputs
+        run: tar -czf mac-inputs.tar.gz unbrowse-node/target/release/unbrowse-node unbrowse-node/target/release/unb unbrowse-browser/cli/target/release/agent-browser unbrowse-node/window/zig-out/Unbrowse.app && shasum -a 256 mac-inputs.tar.gz > mac-inputs.tar.gz.sha256
+      - if: startsWith(matrix.platform, 'darwin')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mac-inputs-${{ matrix.platform }}
+          path: mac-inputs.tar.gz*
+          if-no-files-found: error
+      - if: ${{ !startsWith(matrix.platform, 'darwin') }}
+        name: Build the window
+        working-directory: unbrowse-node/window
+        run: zig build -Doptimize=ReleaseSafe
+      - if: ${{ !startsWith(matrix.platform, 'darwin') }}
+        name: Pack the programs
+        run: sh .github/scripts/package-programs.sh "$VERSION" "${{ matrix.platform }}" dist
+
+      - name: Check the programs run
+        run: |
+          # unb says its usage and exits 2.
+          { UNBROWSE_AGENT_TOKEN=check unbrowse-node/target/release/unb$EXE 2>&1 || true; } | grep -q '^usage: unb'
+          unbrowse-browser/cli/target/release/agent-browser$EXE --version
+      - if: ${{ !startsWith(matrix.platform, 'darwin') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: programs-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+      # The separately signed browser package is installed by the node from its authenticated targets inventory.
+      - name: The browser on its own
+        run: mkdir -p browser && cp "unbrowse-browser/cli/target/release/agent-browser$EXE" "browser/agent-browser-${{ matrix.platform }}$EXE"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-${{ matrix.platform }}
+          path: browser/*
+          if-no-files-found: error
+
+  # This runner receives only hashed build artifacts, installs no dependencies, and performs no compilation.
+  mac-sign:
+    permissions:
+      contents: read
+    name: Sign Mac app (${{ matrix.platform }})
+    needs: [version, programs]
+    if: needs.version.outputs.version != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-latest }
+          - { platform: darwin-x64, runner: macos-15-intel }
+    runs-on: ${{ matrix.runner }}
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mac-inputs-${{ matrix.platform }}
+          path: inputs
+      - name: Verify and unpack the hashed build data
+        run: |
+          (cd inputs && shasum -a 256 -c mac-inputs.tar.gz.sha256)
+          python3 - <<'PY'
+          import os, tarfile
+          allowed = (
+              "unbrowse-node/target/release/unbrowse-node",
+              "unbrowse-node/target/release/unb",
+              "unbrowse-browser/cli/target/release/agent-browser",
+              "unbrowse-node/window/zig-out/Unbrowse.app",
+          )
+          with tarfile.open("inputs/mac-inputs.tar.gz") as archive:
+              members = archive.getmembers()
+              for member in members:
+                  name = member.name.rstrip("/")
+                  if name.startswith("/") or ".." in name.split("/") or not any(name == root or name.startswith(root + "/") or root.startswith(name + "/") for root in allowed):
+                      raise SystemExit(f"unsafe Mac build artifact path: {name}")
+                  if member.issym() or member.islnk() or not (member.isfile() or member.isdir()):
+                      raise SystemExit(f"unexpected Mac build artifact type: {name}")
+              destination = os.path.join(os.environ["RUNNER_TEMP"], "mac-inputs")
+              os.makedirs(destination, exist_ok=True)
+              archive.extractall(destination)
+          PY
+          root="$RUNNER_TEMP/mac-inputs"
+          for file in unbrowse-node/target/release/unbrowse-node unbrowse-node/target/release/unb unbrowse-browser/cli/target/release/agent-browser; do
+            mkdir -p "$(dirname "$file")"
+            cp "$root/$file" "$file"
+          done
+          mkdir -p unbrowse-node/window/zig-out
+          ditto "$root/unbrowse-node/window/zig-out/Unbrowse.app" unbrowse-node/window/zig-out/Unbrowse.app
+      - name: Load Developer ID and package
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [ -n "$MACOS_CERTIFICATE" ]; then
+            keychain=$RUNNER_TEMP/signing.keychain-db
+            pass=$(openssl rand -hex 16)
+            security create-keychain -p "$pass" "$keychain"
+            security set-keychain-settings -lut 3600 "$keychain"
+            security unlock-keychain -p "$pass" "$keychain"
+            printf %s "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+            security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+            rm "$RUNNER_TEMP/developer-id.p12"
+            security set-key-partition-list -S apple-tool:,apple: -s -k "$pass" "$keychain" >/dev/null
+            security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+            identity=$(security find-identity -v -p codesigning "$keychain" | grep -o '"Developer ID Application: [^"]*"' | head -n 1 | tr -d '"')
+            test -n "$identity"
+            export MACOS_SIGN_IDENTITY="$identity"
+          fi
+          mkdir -p dist
+          sh .github/scripts/package-macos.sh "$VERSION" dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: programs-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  # Each machine's package and the manifest of their hashes. No secret: what runs here (setup-node, the packing
+  # scripts) never shares a runner with a signing key. It also records the hash of every program archive and browser
+  # program the GitHub release will publish, as a job output: this job runs nothing from a package registry, and it runs
+  # before `sdks` installs and runs third-party build code, which could otherwise replace those artifacts unseen.
+  platforms:
+    permissions:
+      contents: read
+    name: Machine packages
+    outputs:
+      hashes: ${{ steps.hashes.outputs.hashes }}
+      programs: ${{ steps.programs.outputs.programs }}
+    needs: [version, programs, mac-sign]
+    if: needs.version.outputs.version != ''
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: programs-*
+          path: programs
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: browser-*
+          path: browser
+          merge-multiple: true
+      - name: Record the program archives and browser programs the release publishes
+        id: programs
+        run: python3 -I .github/scripts/artifact-hashes.py record-files programs browser --key programs --github-output "$GITHUB_OUTPUT"
+      - name: Pack each machine's programs
+        run: |
+          sh .github/scripts/pack-platforms.sh "$VERSION" programs dist
+          # Every machine made it into the packages, and each has its browser add-on apart from them.
+          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+            test -f "dist/unbrowse-$p-$VERSION.tgz"
+            test -f "dist/unbrowse-browser-$p-$VERSION.tgz"
+            if tar -tzf "dist/unbrowse-$p-$VERSION.tgz" | grep -q 'agent-browser'; then echo "::error::@unbrowse/$p carries the browser"; exit 1; fi
+          done
+      - name: Record built package hashes
+        id: hashes
+        run: python3 -I .github/scripts/artifact-hashes.py record dist --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: platforms
+          path: dist/*
+          if-no-files-found: error
+
+  # The release key signs the manifest here and nowhere else. The job installs nothing and runs nothing a package
+  # registry gave it: the checkout of the signing script and the node's trusted key, the manifest, and the runner's own
+  # Node with its built-in crypto. Its runner is GitHub's, fresh for this job, so no earlier step of another job can
+  # be waiting on it to read the key. The key is a secret of the `release` environment, and the job refuses any ref but
+  # the three that release.
+  sign-manifest:
+    permissions:
+      contents: read
+    name: Sign the manifest
+    needs: [version, platforms]
+    if: needs.version.outputs.version != ''
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/sign-manifest.mjs
+            unbrowse-node/app/src/update.rs
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: platforms
+          path: dist
+      - name: Refuse any other ref
+        env:
+          NAME: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+        run: |
+          case $NAME in staging | release/[0-9]*.[0-9]* | v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "::error::a release signs only staging, a release branch or a vX.Y.Z tag, not $NAME"; exit 1 ;; esac
+      - name: Sign the manifest
+        env:
+          UNBROWSE_RELEASE_KEY: ${{ secrets.UNBROWSE_RELEASE_KEY }}
+        run: node .github/scripts/sign-manifest.mjs dist/manifest.json unbrowse-node/app/src/update.rs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: manifest-sig
+          path: dist/manifest.sig
+          if-no-files-found: error
+
+  # `unbrowse` for npm and PyPI, each with the skill and the client, the signed manifest and each machine's programs
+  # beside it. No secret here: building them installs packages from npm and PyPI.
+  sdks:
+    permissions:
+      contents: read
+    name: unbrowse packages
+    outputs:
+      hashes: ${{ steps.hashes.outputs.hashes }}
+      files: ${{ steps.hashes.outputs.files }}
+    needs: [version, platforms, sign-manifest]
+    if: needs.version.outputs.version != ''
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.4
+          # No cache in a release, as with the programs.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13.18"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: platforms
+          path: dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: manifest-sig
+          path: dist
+      - name: Install lockfile-pinned npm
+        run: |
+          npm ci --ignore-scripts --prefix .github/tools/npm
+          echo "$GITHUB_WORKSPACE/.github/tools/npm/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Pack unbrowse
+        env:
+          NOTARIZED: ${{ vars.MACOS_NOTARIZED }}
+        run: |
+          sh .github/scripts/pack-sdks.sh "$VERSION" dist
+          # A release signed with the Developer ID pins its Team ID in `unbrowse`: the CLI runs an Unbrowse.app found
+          # outside the package only when it is signed by that team, and with none pinned runs none.
+          if [ "$NOTARIZED" = true ]; then
+            tar -xzOf "dist/unbrowse-$VERSION.tgz" package/package.json | grep -Eq '"unbrowseAppTeam": "[A-Z0-9]{10}"' || { echo "::error::unbrowse pins no Mac signing team"; exit 1; }
+          fi
+      - name: Record built package hashes
+        id: hashes
+        run: |
+          python3 -I .github/scripts/artifact-hashes.py record dist --github-output "$GITHUB_OUTPUT"
+          python3 -I .github/scripts/artifact-hashes.py record-files dist --key files --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sdks
+          path: dist/*
+          if-no-files-found: error
+
+  # A detached signature ties every distributable npm and Python package to the untrusted build output. The
+  # hash map is an immutable job output; publishing jobs verify it and this signed inventory before publishing.
+  sign-artifacts:
+    permissions:
+      contents: read
+    name: Sign package hashes
+    needs: [version, sdks]
+    if: needs.version.outputs.version != ''
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/sign-artifact-manifest.mjs
+            unbrowse-node/app/src/update.rs
+          sparse-checkout-cone-mode: false
+      - name: Sign build output hashes
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          HASHES: ${{ needs.sdks.outputs.hashes }}
+          UNBROWSE_RELEASE_KEY: ${{ secrets.UNBROWSE_RELEASE_KEY }}
+        run: node .github/scripts/sign-artifact-manifest.mjs "$VERSION" "$HASHES" unbrowse-node/app/src/update.rs release-artifacts.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-artifacts
+          path: release-artifacts.json
+          if-no-files-found: error
+
+  # The update metadata: this release on canary, stable as it was, a fresh timestamp. Read from what npm has now,
+  # signed with the targets and timestamp keys (the release key until root 2 names others), and checked against the
+  # root nodes trust before anything is published. Like `sign-manifest`, the keys are in this job alone; package
+  # creation runs later with npm installed from this trusted checkout's lockfile, with lifecycle scripts disabled.
+  sign-updates:
+    permissions:
+      contents: read
+    name: Sign the update metadata
+    needs: [version, sdks, sign-artifacts, platforms]
+    # A staging build goes to npm's `staging` tag alone: no node updates to it.
+    if: needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging'
+    runs-on: ubuntu-24.04
+    environment: release
+    outputs:
+      targets_changed: ${{ steps.sign.outputs.targets_changed }}
+      cosign_required: ${{ steps.sign.outputs.cosign_required }}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/updates.mjs
+            .github/scripts/artifact-hashes.py
+            .github/scripts/verify-artifact-manifest.mjs
+            unbrowse-node/app/src/update.rs
+            unbrowse-node/updates
+          sparse-checkout-cone-mode: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trusted-main
+          persist-credentials: false
+          sparse-checkout: .github/scripts/updates.mjs
+          sparse-checkout-cone-mode: false
+      - name: Check update root transition metadata before signing
+        run: node .github/scripts/updates.mjs root-check --main-updates "$GITHUB_WORKSPACE/trusted-main/.github/scripts/updates.mjs"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sdks
+          path: dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-artifacts
+          path: release-artifacts
+      - name: Verify every published package against the build output
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          HASHES: ${{ needs.sdks.outputs.hashes }}
+          PLATFORM_HASHES: ${{ needs.platforms.outputs.hashes }}
+        run: |
+          python3 -I .github/scripts/artifact-hashes.py verify-subset dist --expected "$PLATFORM_HASHES"
+          python3 -I .github/scripts/artifact-hashes.py verify dist --expected "$HASHES"
+          node .github/scripts/verify-artifact-manifest.mjs dist "$VERSION" "$HASHES" unbrowse-node/app/src/update.rs release-artifacts/release-artifacts.json
+      - name: Refuse any other ref
+        env:
+          NAME: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+        run: |
+          case $NAME in staging | release/[0-9]*.[0-9]* | v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "::error::a release signs only staging, a release branch or a vX.Y.Z tag, not $NAME"; exit 1 ;; esac
+      - id: sign
+        name: Sign the update metadata
+        env:
+          UNBROWSE_RELEASE_KEY: ${{ secrets.UNBROWSE_RELEASE_KEY }}
+          UNBROWSE_TARGETS_KEY: ${{ secrets.UNBROWSE_TARGETS_KEY }}
+          UNBROWSE_TIMESTAMP_KEY: ${{ secrets.UNBROWSE_TIMESTAMP_KEY }}
+        run: |
+          node .github/scripts/updates.mjs release "$VERSION" dist --out "$RUNNER_TEMP/updates" --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: updates-dir
+          path: ${{ runner.temp }}/updates/**
+          if-no-files-found: error
+
+  # A changed targets file needs an independent signature from a separately protected environment.
+  cosign-updates:
+    permissions:
+      contents: read
+    name: Co-sign changed targets
+    needs: [version, sign-updates, sdks, sign-artifacts]
+    if: needs.sign-updates.outputs.cosign_required == 'true'
+    runs-on: ubuntu-24.04
+    environment: targets-cosign
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/updates.mjs
+            unbrowse-node/app/src/update.rs
+            unbrowse-node/updates
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: updates-dir
+          path: ${{ runner.temp }}/partial
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sdks
+          path: ${{ runner.temp }}/dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-artifacts
+          path: ${{ runner.temp }}/inventory
+      - name: Add the independent targets signature
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          UNBROWSE_TARGETS_KEY_2: ${{ secrets.UNBROWSE_TARGETS_KEY_2 }}
+          UNBROWSE_TIMESTAMP_KEY: ${{ secrets.UNBROWSE_TIMESTAMP_KEY }}
+        run: node .github/scripts/updates.mjs co-sign "$RUNNER_TEMP/partial" --action release --release-version "$VERSION" --manifest-dir "$RUNNER_TEMP/dist" --inventory-dir "$RUNNER_TEMP/inventory" --out "$RUNNER_TEMP/updates"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: updates-cosigned
+          path: ${{ runner.temp }}/updates/**
+          if-no-files-found: error
+
+  pack-updates:
+    permissions:
+      contents: read
+    name: Package signed update metadata
+    needs: [version, sign-updates, cosign-updates, sdks]
+    outputs:
+      updates: ${{ steps.updates.outputs.updates }}
+    if: always() && needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging' && needs.sdks.result == 'success' && needs.sign-updates.result == 'success' && (needs.cosign-updates.result == 'success' || needs.cosign-updates.result == 'skipped')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts
+            .github/tools/npm
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.2
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13.18"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.sign-updates.outputs.cosign_required == 'true' && 'updates-cosigned' || 'updates-dir' }}
+          path: ${{ runner.temp }}/updates
+      - name: Install lockfile-pinned npm without lifecycle scripts
+        run: npm ci --ignore-scripts --prefix .github/tools/npm
+      - name: Pack signed metadata with the lockfile-pinned npm CLI
+        run: |
+          mkdir -p updates
+          cd "$RUNNER_TEMP/updates"
+          "$GITHUB_WORKSPACE/.github/tools/npm/node_modules/.bin/npm" pack --ignore-scripts --pack-destination "$GITHUB_WORKSPACE/updates" >/dev/null
+      - name: Record the metadata package's hash
+        id: updates
+        run: python3 -I .github/scripts/artifact-hashes.py record-files updates --key updates --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: updates
+          path: updates/*.tgz
+          if-no-files-found: error
+
+  # The GitHub release comes last, once npm has everything: its notes tell people to `npm install -g unbrowse`, so
+  # nothing says a release exists that npm doesn't have. Production's alone: a prerelease's programs are this run's
+  # artifacts.
   release:
-    runs-on: ubuntu-latest
-    environment: prod
+    name: Release
+    needs: [version, programs, platforms, sdks, pack-updates, sign-artifacts, npm]
+    if: ${{ !cancelled() && !failure() && needs.version.outputs.channel == 'production' && inputs.dry_run != true }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/verify-artifact-manifest.mjs
+            .github/scripts/artifact-hashes.py
+            unbrowse-node/app/src/update.rs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.2
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13.18"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: "{programs-*,sdks,browser-*}"
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-artifacts
+          path: release-artifacts
+      - name: Verify every published package against the build output
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          HASHES: ${{ needs.sdks.outputs.hashes }}
+          PLATFORM_HASHES: ${{ needs.platforms.outputs.hashes }}
+          FILES: ${{ needs.sdks.outputs.files }}
+          PROGRAMS: ${{ needs.platforms.outputs.programs }}
+        run: |
+          python3 -I .github/scripts/artifact-hashes.py verify-subset dist --expected "$PLATFORM_HASHES"
+          python3 -I .github/scripts/artifact-hashes.py verify dist --expected "$HASHES"
+          node .github/scripts/verify-artifact-manifest.mjs dist "$VERSION" "$HASHES" unbrowse-node/app/src/update.rs release-artifacts/release-artifacts.json
+          # Every file the release publishes (disk images, archives, browser programs, the sdist, the manifest) is
+          # exactly one the job that made it recorded, byte for byte.
+          python3 -I .github/scripts/artifact-hashes.py verify-files dist --expected "$FILES" --expected "$PROGRAMS"
+      - name: Include the signed package inventory in the release
+        run: cp release-artifacts/release-artifacts.json dist/release-artifacts.json
+      - name: Tag and publish
+        env:
+          NOTARIZED: ${{ vars.MACOS_NOTARIZED }}
+        run: |
+          # The Mac app is notarized when the repository's MACOS_NOTARIZED variable says so (set it with the Developer ID
+          # and notary secrets); until then macOS asks its owner to open it once by hand.
+          if [ "$NOTARIZED" = true ]; then
+            MAC_TRUST="It is signed with Unbrowse's Developer ID and notarized by Apple, so it opens like any app."
+          else
+            MAC_TRUST="It is signed ad hoc, not notarized by Apple, so macOS stops the first launch and says it can't check
+          the app for malware. Open it once by hand: in Applications, right-click (or Control-click) Unbrowse and choose
+          Open, then Open again. On macOS 15 (Sequoia) or later that no longer offers Open: after the warning, go to
+          System Settings > Privacy & Security, scroll to Security, click Open Anyway beside \"Unbrowse was blocked\",
+          and confirm. From a terminal, \`xattr -dr com.apple.quarantine /Applications/Unbrowse.app\` does the same."
+          fi
+          cd dist
+          # The newest Mac app at a name that stays: releases/latest/download/Unbrowse-macos-<arch>.dmg.
+          for arch in arm64 x64; do cp "Unbrowse-$VERSION-macos-$arch.dmg" "Unbrowse-macos-$arch.dmg"; done
+          sha256sum -- * > SHA256SUMS
+          # The browser's npm postinstall installs a machine's browser only when its hash is listed here.
+          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64.exe; do
+            grep -q "  agent-browser-$p\$" SHA256SUMS || { echo "::error::SHA256SUMS lists no agent-browser-$p"; exit 1; }
+          done
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          **On a Mac, download the disk image:** [\`Unbrowse-macos-arm64.dmg\`](https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/Unbrowse-macos-arm64.dmg)
+          for Apple silicon, [\`Unbrowse-macos-x64.dmg\`](https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/Unbrowse-macos-x64.dmg)
+          for Intel. Open it and drag Unbrowse onto Applications: the app holds the window, the node, \`unb\` and the
+          browser program the node fetches when a goal first needs it. $MAC_TRUST
+
+          **\`unbrowse\`**, the app, the node, the agent skill and the client in one package:
+          \`npm install -g unbrowse\` (or \`pip install unbrowse-$VERSION-py3-none-<your machine>.whl\` from below), then
+          \`unbrowse app\` opens the window and \`unbrowse start\` runs the node without it. npm fetches the programs for
+          the machine it installs on: macOS (Apple silicon and Intel), Linux (x64 and arm64, glibc 2.35 or later) and
+          Windows (x64). \`unbrowse-$VERSION-py3-none-any.whl\` is the client alone, for any other machine. No install
+          brings a browser or downloads Chrome: the node runs without one, and fetches its browser program
+          (\`@unbrowse/browser-<machine>\`, checked against this release's signature) and, when there's no Chromium,
+          Chrome for Testing the first time a goal needs them. \`unbrowse browser install\` fetches them now, and
+          \`unbrowse browser fetch off\` stops the node fetching them itself.
+
+          **The programs alone**, for each machine:
+          - macOS: \`Unbrowse-$VERSION-macos-<arch>.dmg\` is the disk image above, \`Unbrowse-$VERSION-macos-<arch>.zip\` the
+            same app in a zip, and \`unbrowse-$VERSION-macos-<arch>.tar.gz\` the node, \`unb\` and the browser without the
+            window.
+          - Linux: \`unbrowse-$VERSION-linux-<arch>.tar.gz\`, the window, the node, \`unb\` and the browser in one folder.
+            The window needs GTK 4 (or 3); on a machine without a desktop the node keeps its key in
+            \`~/.unbrowse/root.key\`, readable by its user alone.
+          - Windows: \`unbrowse-$VERSION-windows-x64.zip\`, the same four programs (\`.exe\`).
+
+          The node browses in Chrome or another Chromium browser on the machine, and downloads Chrome for Testing when a
+          goal first needs a browser and there's none. It needs Foundry's Anvil (\`foundryup\`).
+
+          EOF
+          gh release create "v$VERSION" * \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "v$VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes \
+            --latest
+
+  # npm: each machine's programs first, then `unbrowse`, which names them, then `@unbrowse/updates`, which sends nodes
+  # to them. Published by trusted publishing: npm takes this workflow's GitHub identity (OIDC) for each package, set on
+  # npmjs.com, so no npm token is kept anywhere. That works from GitHub's own runners only, and only for a package npm
+  # already has: a trusted publisher is set in a package's settings, so each package is published once by hand first
+  # (docs/OPERATIONS.md §10). A version npm already has with the same bytes is left as it is, so a rerun finishes what
+  # an earlier run started; one it has with other bytes fails the job. The job runs in the `release` environment, and
+  # npm's trusted publisher names it, so only a run GitHub lets into that environment can publish. A staging build has
+  # no update metadata to publish.
+  npm:
+    name: Publish to npm
+    needs: [version, sdks, platforms, pack-updates, sign-artifacts]
+    if: ${{ !cancelled() && !failure() && needs.version.outputs.version != '' && inputs.dry_run != true }}
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
       id-token: write
     env:
-      TAG: ${{ inputs.tag || github.ref_name }}
+      VERSION: ${{ needs.version.outputs.version }}
+      CHANNEL: ${{ needs.version.outputs.channel }}
+      NPM_TAG: ${{ needs.version.outputs.npm_tag }}
     steps:
-      - uses: actions/checkout@v4
-        with: { ref: "${{ inputs.tag || github.ref }}" }
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-
-      - name: Versions match the tag
-        id: gate
-        run: echo "dist_tag=$(node scripts/release-check.mjs "$TAG")" >> "$GITHUB_OUTPUT"
-
-      - run: bun install --frozen-lockfile
-      - run: bun run check:public
-      - run: bun run typecheck
-      - run: bun test packages
-      - run: bun run build
-
-      - name: Pack
-        id: pack
-        run: |
-          mkdir -p out
-          (cd packages/sdk && npm pack --pack-destination ../../out >/dev/null)
-          (cd packages/cli && npm pack --pack-destination ../../out >/dev/null)
-          echo "sdk=$(ls out/unbrowse-sdk-*.tgz)" >> "$GITHUB_OUTPUT"
-          echo "cli=$(ls out/unbrowse-[0-9]*.tgz)" >> "$GITHUB_OUTPUT"
-          (cd plugins/openclaw && npm run build && npm pack --pack-destination ../../out >/dev/null)
-          (cd plugins/elizaos && bun install --frozen-lockfile && bun run build && npm pack --pack-destination ../../out >/dev/null)
-          echo "openclaw=$(ls out/unbrowse-openclaw-*.tgz)" >> "$GITHUB_OUTPUT"
-          echo "elizaos=$(ls out/unbrowse-plugin-unbrowse-*.tgz)" >> "$GITHUB_OUTPUT"
-
-      - name: Smoke the tarballs on a clean install
-        run: bash scripts/smoke-packed.sh "${{ steps.pack.outputs.sdk }}" "${{ steps.pack.outputs.cli }}"
-        env: { SMOKE_LIVE: "1" }
-
-      - name: GitHub release with the tarballs
-        env: { GH_TOKEN: "${{ github.token }}" }
-        run: |
-          PRE=""; [ "${{ steps.gate.outputs.dist_tag }}" = next ] && PRE="--prerelease"
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" $PRE --generate-notes
-          gh release upload "$TAG" out/*.tgz --clobber
-
-      - name: Install npm 11
-        run: npm install -g npm@11 && npm --version
-      - name: Publish to npm via Trusted Publishing
+      # The publishing script only.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts
+            unbrowse-node/app/src/update.rs
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.2
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13.18"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sdks
+          path: dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-artifacts
+          path: release-artifacts
+      - if: needs.version.outputs.channel != 'staging'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: updates
+          path: updates
+      - name: Verify every published package against the build output
         env:
-          DIST_TAG: ${{ steps.gate.outputs.dist_tag }}
+          VERSION: ${{ needs.version.outputs.version }}
+          CHANNEL: ${{ needs.version.outputs.channel }}
+          HASHES: ${{ needs.sdks.outputs.hashes }}
+          PLATFORM_HASHES: ${{ needs.platforms.outputs.hashes }}
+          FILES: ${{ needs.sdks.outputs.files }}
+          UPDATES: ${{ needs.pack-updates.outputs.updates }}
         run: |
-          VERSION="${TAG#v}"
-          publish() {
-            local name="$1" tgz="$2"
-            if [ "$(npm view "$name@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
-              echo "::notice::$name@$VERSION is already on npm; skipping"
-            else
-              npm publish "./$tgz" --access public --provenance --tag "$DIST_TAG"
-            fi
-            for _ in $(seq 1 24); do  # npm can take several minutes to show a new version
-              if [ "$(npm view "$name" "dist-tags.$DIST_TAG" 2>/dev/null || true)" = "$VERSION" ]; then
-                return 0
-              fi
-              sleep 15
-            done
-            echo "::error::$name@$VERSION did not appear as $DIST_TAG"
-            return 1
-          }
-          publish @unbrowse/sdk "${{ steps.pack.outputs.sdk }}"
-          publish unbrowse "${{ steps.pack.outputs.cli }}"
-
-      - name: Publish to the MCP Registry (GitHub OIDC, io.github.unbrowse-ai/*)
-        if: steps.gate.outputs.dist_tag == 'latest'
+          python3 -I .github/scripts/artifact-hashes.py verify-subset dist --expected "$PLATFORM_HASHES"
+          python3 -I .github/scripts/artifact-hashes.py verify dist --expected "$HASHES"
+          node .github/scripts/verify-artifact-manifest.mjs dist "$VERSION" "$HASHES" unbrowse-node/app/src/update.rs release-artifacts/release-artifacts.json
+          python3 -I .github/scripts/artifact-hashes.py verify-files dist --expected "$FILES"
+          [ "$CHANNEL" = staging ] || python3 -I .github/scripts/artifact-hashes.py verify-files updates --expected "$UPDATES"
+      # No registry-url: with one, setup-node writes an .npmrc whose token is a placeholder, and when npm's OIDC exchange
+      # fails npm publishes with that placeholder and npm answers 404, which hides why. Without it npm says it couldn't
+      # authenticate.
+      # Trusted publishing uses npm installed from this trusted checkout's lockfile with lifecycle scripts disabled.
+      - name: Install lockfile-pinned npm without lifecycle scripts
+        run: npm ci --ignore-scripts --prefix .github/tools/npm
+      - name: Publish
         run: |
-          VERSION="${TAG#v}"
-          node -e 'const s=require("./server.json"); if (s.version!==process.argv[1] || s.packages[0].version!==process.argv[1]) { console.error("server.json version is not "+process.argv[1]); process.exit(1) }' "$VERSION"
-          curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
-          ./mcp-publisher login github-oidc
-          ./mcp-publisher publish
-
-      - name: Publish host plugin packages to npm (Trusted Publishing)
-        env:
-          DIST_TAG: ${{ steps.gate.outputs.dist_tag }}
-        run: |
-          VERSION="${TAG#v}"
-          for pair in "@unbrowse/openclaw:${{ steps.pack.outputs.openclaw }}" "@unbrowse/plugin-unbrowse:${{ steps.pack.outputs.elizaos }}"; do
-            name="${pair%%:*}"; tgz="${pair#*:}"
-            if [ "$(npm view "$name@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then echo "::notice::$name@$VERSION already on npm"; continue; fi
-            npm publish "./$tgz" --access public --provenance --tag "$DIST_TAG" --loglevel verbose 2>&1 | grep -viE "^npm (http|timing)"
-            [ "${PIPESTATUS[0]}" = 0 ] || { echo "::error::$name@$VERSION publish failed"; exit 1; }
-          done
+          export PATH="$GITHUB_WORKSPACE/.github/tools/npm/node_modules/.bin:$PATH"
+          set -- ./dist/unbrowse-*-"$VERSION".tgz "./dist/unbrowse-$VERSION.tgz"
+          [ "$CHANNEL" = staging ] || set -- "$@" ./updates/*.tgz
+          sh .github/scripts/npm-publish.sh "$VERSION" release.yml "$@"

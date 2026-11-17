@@ -1,0 +1,61 @@
+{
+ "id": "route-cart",
+ "site": "shop.example.com",
+ "what": "Add an item to the cart",
+ "method": "POST",
+ "path": "/api/cart",
+ "root": "https://shop.example.com/?q=lamps",
+ "inputs": [
+  {
+   "name": "q",
+   "secret": false,
+   "default": "lamps"
+  }
+ ],
+ "steps": 1,
+ "browser_assisted": false,
+ "write": true,
+ "provisional": false,
+ "learned_at": 1,
+ "graph": {
+  "provisional": false,
+  "steps": [
+   {
+    "exchange": 0,
+    "method": "POST",
+    "status": 200,
+    "url": "https://shop.example.com/api/cart?q={q}",
+    "needs_browser": false,
+    "response_shape": {
+     "cart": [
+      {
+       "id": "number",
+       "name": "string"
+      }
+     ]
+    },
+    "fields": [
+     {
+      "loc": {
+       "in": "query",
+       "key": "q"
+      },
+      "class": "input",
+      "name": "q",
+      "secret": false,
+      "default": "lamps"
+     },
+     {
+      "loc": {
+       "in": "cookie",
+       "key": "sid"
+      },
+      "class": "minted",
+      "name": "sid"
+     }
+    ]
+   }
+  ]
+ },
+ "local": false
+}

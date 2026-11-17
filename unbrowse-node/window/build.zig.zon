@@ -1,0 +1,13 @@
+.{
+    .name = .unbrowse_window,
+    .version = "0.1.0",
+    .fingerprint = 0x6ab7a1e757a21f36,
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{
+        .nanoui = .{
+            .url = "git+https://github.com/justrach/nanoui?ref=v0.6.4#f34d980944843a7c3054698d304ba22a5041fc42",
+            .hash = "nanoui-0.6.4-we0KMR_xEAAZx0rueM5FILCpIetrME29nqyxkVPljuOm",
+        },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

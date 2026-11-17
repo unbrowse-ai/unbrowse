@@ -1,0 +1,17 @@
+{
+  "signed": {
+    "_type": "timestamp",
+    "version": 2,
+    "expires": 1790504800,
+    "targets": {
+      "version": 2,
+      "sha256": "430786465ee9510063df631974117734627c5b29d0b66f7a8a4907ebe150a970"
+    }
+  },
+  "signatures": [
+    {
+      "keyid": "6e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf1",
+      "sig": "d20b555abf621b713fd5260dd411d8814cdea7605454d202aa0116aa7083e08b9d902e99430129efad1b06ce59035fd5a6750f63e2550d65e5dc4eaa70960f0e"
+    }
+  ]
+}

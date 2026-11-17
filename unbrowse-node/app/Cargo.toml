@@ -1,0 +1,81 @@
+[package]
+name = "unbrowse-node-app"
+description = "The Unbrowse node: routes, keys, the chain and the agent API, run headless; the native window watches it"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "unbrowse-node"
+path = "src/main.rs"
+
+[[bin]]
+name = "unb"
+path = "src/bin/unb.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures-util = { version = "0.3", default-features = false }
+unbrowse-core = { path = "../crates/core" }
+unbrowse-files = { path = "../crates/files" }
+unbrowse-learn = { path = "../crates/learn" }
+unbrowse-net = { path = "../crates/net" }
+# The pinned credential detector (R6.36): run before listing and on every fetched body.
+unbrowse-detector = { path = "../crates/detector" }
+# The engine's DevTools client, for the vault's passkey authenticator (passkey.rs).
+agent-browser-core = { path = "../../unbrowse-browser/core" }
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "sync", "signal"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+hex = "0.4"
+getrandom = "0.3"
+zeroize = "1"
+sha3 = "0.10"
+url = "2"
+# The public suffix list: which part of a host in a bug report names the site, and which a tenant (report.rs).
+psl = "2"
+percent-encoding = "2"
+aho-corasick = "1"
+alloy = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking", "json"] }
+# Updates: the release key's signature, the packages' sha512, and their tarballs.
+ed25519-dalek = "3"
+sha2 = "0.10"
+# Card fields compared as their digits whatever script wrote them (`checkout::norm`).
+unicode-normalization = "0.1"
+# Codex keeps its MCP servers in TOML: `unb connect` reads them (bin/unb/legacy.rs), never writes them.
+toml_edit = { version = "0.25", default-features = false, features = ["parse"] }
+base64 = "0.22"
+semver = "1"
+flate2 = "1"
+tar = { version = "0.4", default-features = false }
+# The Antithesis harness only (antithesis/): its SDK's assertions, and the runtime its coverage links against. Neither
+# is built unless a feature below asks for it.
+antithesis_sdk = { version = "0.3", optional = true }
+antithesis-instrumentation = { version = "0.1", optional = true }
+
+[features]
+# The SDK's assertions at the places the harness can't see from outside (`antithesis.rs`). Off by default: a build
+# without it has no SDK and no assertion in it.
+antithesis = ["dep:antithesis_sdk", "unbrowse-net/antithesis", "unbrowse-learn/test-roots"]
+# Coverage for Antithesis as well: the instrumentation runtime, which only works beside the sanitizer-coverage
+# rustflags antithesis/Dockerfile builds with.
+antithesis-coverage = ["antithesis", "dep:antithesis-instrumentation"]
+
+# The OS's own store for keys: the Keychain, Windows' Credential Manager, the Secret Service on Linux.
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+# The console, read with echo off for the owner passphrase (`tty`).
+windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_System_Console", "Win32_System_StationsAndDesktops", "Win32_System_SystemInformation"] }
+[target.'cfg(unix)'.dependencies]
+# The terminal, read with echo off for the owner passphrase (`tty`).
+libc = "0.2"
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust", "vendored"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,1344 @@
+{
+ "schema_version": 1,
+ "runner": "unbrowse_mcp (JSON-RPC to the node's /mcp)",
+ "date": "2026-11-02",
+ "node_before": {
+  "service": "release 13.4.1",
+  "bank_run_on": "main 9c3ccda (podman source build)"
+ },
+ "node_after": {
+  "build": "fix/lundy-bank-2026-11-02 596311b (local, unpushed)",
+  "install": "~/.local/opt/unbrowse-core/fix-596311b (current)",
+  "proof_node": "fix build on 127.0.0.1:7797, fresh home, network/telemetry/reports off; fresh routes for the final pass"
+ },
+ "scope": "public reads only: site search pages, two harmless values each; no logins, writes, posts or purchases",
+ "baseline": [
+  {
+   "batch": 1,
+   "site": "pypi.org",
+   "category": "developer_technical",
+   "phase": "fresh",
+   "goal": "search PyPI packages",
+   "values": [
+    "requests"
+   ],
+   "outcome": "blocked",
+   "error_category": "plain_http_empty_answer_browser_ok",
+   "checks": [
+    {
+     "value": "requests",
+     "how": "browse",
+     "route_id": null,
+     "result_ok": null,
+     "error": "node: that call is no answer, site answered 200 with nothing (browser page showed results)"
+    }
+   ]
+  },
+  {
+   "batch": 1,
+   "site": "python.org",
+   "category": "developer_technical",
+   "phase": "fresh",
+   "goal": "search Python.org site",
+   "values": [
+    "asyncio",
+    "decorator"
+   ],
+   "outcome": "transport_pass_semantic_unverified",
+   "error_category": "data_is_constant_title_and_jsonld",
+   "checks": [
+    {
+     "value": "asyncio",
+     "how": "learned",
+     "route_id": "80690dba73df9c27",
+     "result_ok": true
+    },
+    {
+     "value": "decorator",
+     "how": "called",
+     "route_id": "80690dba73df9c27",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 1,
+   "site": "github.com",
+   "category": "developer_technical",
+   "phase": "fresh",
+   "goal": "search GitHub repositories",
+   "values": [
+    "ripgrep",
+    "fzf"
+   ],
+   "outcome": "pass",
+   "error_category": null,
+   "checks": [
+    {
+     "value": "ripgrep",
+     "how": "learned",
+     "route_id": "d11207aca72c82c2",
+     "result_ok": true
+    },
+    {
+     "value": "fzf",
+     "how": "called",
+     "route_id": "d11207aca72c82c2",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 1,
+   "site": "php.net",
+   "category": "developer_technical",
+   "phase": "fresh",
+   "goal": "search PHP manual functions",
+   "values": [
+    "strlen",
+    "explode"
+   ],
+   "outcome": "fail",
+   "error_category": "input_lost_in_redirect_fixed_route_per_value",
+   "checks": [
+    {
+     "value": "strlen",
+     "how": "learned",
+     "route_id": "35f9c2d4f50857ed",
+     "result_ok": true
+    },
+    {
+     "value": "explode",
+     "how": "learned",
+     "route_id": "df5c2165e45bdaab",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 1,
+   "site": "sourceforge.net",
+   "category": "developer_technical",
+   "phase": "fresh",
+   "goal": "search SourceForge projects",
+   "values": [
+    "ffmpeg",
+    "7zip"
+   ],
+   "outcome": "pass",
+   "error_category": null,
+   "checks": [
+    {
+     "value": "ffmpeg",
+     "how": "learned",
+     "route_id": "fa224c6786a3eecf",
+     "result_ok": true
+    },
+    {
+     "value": "7zip",
+     "how": "called",
+     "route_id": "fa224c6786a3eecf",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 2,
+   "site": "archive.org",
+   "category": "education_research",
+   "phase": "fresh",
+   "goal": "search Internet Archive items",
+   "values": [
+    "apollo 11",
+    "apollo 13"
+   ],
+   "outcome": "fail",
+   "error_category": "wrong_call_kept_value_not_seen_in_encoded_url",
+   "checks": [
+    {
+     "value": "apollo 11",
+     "how": "learned",
+     "route_id": "c936572f3cc95c04",
+     "result_ok": true
+    },
+    {
+     "value": "apollo 13",
+     "how": "called",
+     "route_id": "538f2a215f8cd7aa",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 2,
+   "site": "britannica.com",
+   "category": "education_research",
+   "phase": "fresh",
+   "goal": "search Britannica articles",
+   "values": [
+    "photosynthesis"
+   ],
+   "outcome": "blocked",
+   "error_category": "cloudflare_challenge",
+   "checks": [
+    {
+     "value": "photosynthesis",
+     "how": "pending x3 then browse",
+     "route_id": null,
+     "result_ok": null,
+     "error": "challenge: 403 Just a moment..."
+    }
+   ]
+  },
+  {
+   "batch": 2,
+   "site": "nih.gov (pubmed.ncbi.nlm.nih.gov)",
+   "category": "education_research",
+   "phase": "fresh",
+   "goal": "search PubMed articles",
+   "values": [
+    "crispr",
+    "insulin"
+   ],
+   "outcome": "pass",
+   "error_category": null,
+   "checks": [
+    {
+     "value": "crispr",
+     "how": "learned",
+     "route_id": "cc3da363cf66d296",
+     "result_ok": true
+    },
+    {
+     "value": "insulin",
+     "how": "called",
+     "route_id": "cc3da363cf66d296",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 2,
+   "site": "wiktionary.org",
+   "category": "reference_lifestyle",
+   "phase": "fresh",
+   "goal": "look up a word in Wiktionary",
+   "values": [
+    "serendipity",
+    "ephemeral"
+   ],
+   "outcome": "pass",
+   "error_category": null,
+   "checks": [
+    {
+     "value": "serendipity",
+     "how": "learned",
+     "route_id": "ccfb67aa05e4908a",
+     "result_ok": true
+    },
+    {
+     "value": "ephemeral",
+     "how": "called",
+     "route_id": "ccfb67aa05e4908a",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 2,
+   "site": "goodreads.com",
+   "category": "reference_lifestyle",
+   "phase": "fresh",
+   "goal": "search Goodreads books",
+   "values": [
+    "dune",
+    "foundation"
+   ],
+   "outcome": "fail",
+   "error_category": "redirect_loop_cookie_not_carried_across_hops",
+   "checks": [
+    {
+     "value": "dune",
+     "how": "browse (in pages), then learned",
+     "route_id": "6b7298f1288780d1",
+     "result_ok": false,
+     "error": "too many redirects"
+    },
+    {
+     "value": "foundation",
+     "how": "learned (duplicate)",
+     "route_id": "5aca5fa28151a85b",
+     "result_ok": false,
+     "error": "too many redirects"
+    }
+   ]
+  },
+  {
+   "batch": 3,
+   "site": "bbc.co.uk",
+   "category": "news_media",
+   "phase": "fresh",
+   "goal": "search BBC news",
+   "values": [
+    "climate",
+    "football"
+   ],
+   "outcome": "fail",
+   "error_category": "config_call_kept_value_never_carried",
+   "checks": [
+    {
+     "value": "climate",
+     "how": "learned",
+     "route_id": "8c72b886463690d8",
+     "result_ok": true
+    },
+    {
+     "value": "football",
+     "how": "learned (same id re-kept)",
+     "route_id": "8c72b886463690d8",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 3,
+   "site": "npr.org",
+   "category": "news_media",
+   "phase": "fresh",
+   "goal": "search NPR stories",
+   "values": [
+    "election",
+    "jazz"
+   ],
+   "outcome": "fail",
+   "error_category": "config_scrap_kept_value_never_carried",
+   "checks": [
+    {
+     "value": "election",
+     "how": "learned",
+     "route_id": "c277e37e9ffbfd2c",
+     "result_ok": true
+    },
+    {
+     "value": "jazz",
+     "how": "called",
+     "route_id": "c277e37e9ffbfd2c",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 3,
+   "site": "aljazeera.com",
+   "category": "news_media",
+   "phase": "fresh",
+   "goal": "search Al Jazeera articles",
+   "values": [
+    "ukraine",
+    "drought"
+   ],
+   "outcome": "fail",
+   "error_category": "config_call_kept_value_never_carried",
+   "checks": [
+    {
+     "value": "ukraine",
+     "how": "learned",
+     "route_id": "4f4d9fffcf05bf7b",
+     "result_ok": true
+    },
+    {
+     "value": "drought",
+     "how": "learned",
+     "route_id": "1f0ad8ef4554ca29",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 3,
+   "site": "techcrunch.com",
+   "category": "news_media",
+   "phase": "fresh",
+   "goal": "search TechCrunch articles",
+   "values": [
+    "robotics",
+    "fintech"
+   ],
+   "outcome": "fail",
+   "error_category": "config_call_kept_value_never_carried",
+   "checks": [
+    {
+     "value": "robotics",
+     "how": "learned",
+     "route_id": "019e2cc94379e92f",
+     "result_ok": true
+    },
+    {
+     "value": "fintech",
+     "how": "called",
+     "route_id": "019e2cc94379e92f",
+     "result_ok": true
+    }
+   ]
+  },
+  {
+   "batch": 5,
+   "site": "imdb.com",
+   "category": "video_music",
+   "phase": "fresh-replay(first reply lost to runner)",
+   "goal": "search IMDb titles",
+   "values": [
+    "inception",
+    "parasite"
+   ],
+   "outcome": null,
+   "error_category": null,
+   "checks": [
+    {
+     "value": "inception",
+     "how": "called",
+     "route_id": "86dae26f26eec5d1",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 2534,
+     "value_in_answer": false
+    },
+    {
+     "value": "parasite",
+     "how": "called",
+     "route_id": "86dae26f26eec5d1",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 2434,
+     "value_in_answer": false
+    }
+   ]
+  },
+  {
+   "batch": 5,
+   "site": "bandcamp.com",
+   "category": "video_music",
+   "phase": "fresh-replay(first reply lost to runner)",
+   "goal": "search Bandcamp music",
+   "values": [
+    "ambient",
+    "shoegaze"
+   ],
+   "outcome": null,
+   "error_category": null,
+   "checks": [
+    {
+     "value": "ambient",
+     "how": "called",
+     "route_id": "0723fa2f3a13148d",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 13278,
+     "value_in_answer": true
+    },
+    {
+     "value": "shoegaze",
+     "how": "called",
+     "route_id": "0723fa2f3a13148d",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 15731,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "batch": 5,
+   "site": "steampowered.com",
+   "category": "gaming",
+   "phase": "fresh-replay(first reply lost to runner)",
+   "goal": "search Steam store games",
+   "values": [
+    "portal",
+    "terraria"
+   ],
+   "outcome": null,
+   "error_category": null,
+   "checks": [
+    {
+     "value": "portal",
+     "how": "called",
+     "route_id": "206fca156393ff84",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 27235,
+     "value_in_answer": true
+    },
+    {
+     "value": "terraria",
+     "how": "called",
+     "route_id": "206fca156393ff84",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 27492,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "batch": 5,
+   "site": "itch.io",
+   "category": "gaming",
+   "phase": "fresh-replay(first reply lost to runner)",
+   "goal": "search itch.io games",
+   "values": [
+    "roguelike",
+    "platformer"
+   ],
+   "outcome": null,
+   "error_category": null,
+   "checks": [
+    {
+     "value": "roguelike",
+     "how": "called",
+     "route_id": "8feb9539ad918dc1",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 2526,
+     "value_in_answer": true
+    },
+    {
+     "value": "platformer",
+     "how": "called",
+     "route_id": "8feb9539ad918dc1",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 898,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "batch": 5,
+   "site": "rottentomatoes.com",
+   "category": "video_music",
+   "phase": "fresh-replay(first reply lost to runner)",
+   "goal": "search Rotten Tomatoes titles",
+   "values": [
+    "alien",
+    "gladiator"
+   ],
+   "outcome": null,
+   "error_category": null,
+   "checks": [
+    {
+     "value": "alien",
+     "how": "learned",
+     "route_id": "0ad4955d24b1beae",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 269,
+     "value_in_answer": false
+    },
+    {
+     "value": "gladiator",
+     "how": "learned",
+     "route_id": "0ad4955d24b1beae",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 269,
+     "value_in_answer": false
+    }
+   ]
+  },
+  {
+   "batch": 6,
+   "site": "openstreetmap.org",
+   "category": "travel_transport",
+   "phase": "fresh",
+   "goal": "search OpenStreetMap places",
+   "values": [
+    "Lisbon",
+    "Nairobi"
+   ],
+   "outcome": null,
+   "error_category": null,
+   "checks": [
+    {
+     "value": "Lisbon",
+     "how": "learned",
+     "route_id": "ea915f46bca2e2ef",
+     "result_ok": false,
+     "error": "the target answered, but not in the recorded shape",
+     "answer_chars": 0,
+     "value_in_answer": false
+    },
+    {
+     "value": "Nairobi",
+     "how": "learned",
+     "route_id": "fbdfc3987f86c9e2",
+     "result_ok": false,
+     "error": "the target answered, but not in the recorded shape",
+     "answer_chars": 0,
+     "value_in_answer": false
+    }
+   ]
+  },
+  {
+   "batch": 6,
+   "site": "duckduckgo.com",
+   "category": "search_portals",
+   "phase": "fresh",
+   "goal": "search DuckDuckGo web results",
+   "values": [
+    "tardigrade",
+    "axolotl"
+   ],
+   "outcome": null,
+   "error_category": null,
+   "checks": [
+    {
+     "value": "tardigrade",
+     "how": "learned",
+     "route_id": "e6ede235c22f13ad",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 14208,
+     "value_in_answer": true
+    },
+    {
+     "value": "axolotl",
+     "how": "called",
+     "route_id": "e6ede235c22f13ad",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 13978,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "batch": 6,
+   "site": "stackexchange.com",
+   "category": "social_community",
+   "phase": "fresh",
+   "goal": "search Stack Exchange questions",
+   "values": [
+    "sqlite",
+    "regex"
+   ],
+   "outcome": null,
+   "error_category": null,
+   "checks": [
+    {
+     "value": "sqlite",
+     "how": "pending",
+     "route_id": null,
+     "result_ok": null,
+     "error": null,
+     "answer_chars": 0,
+     "value_in_answer": false
+    },
+    {
+     "value": "regex",
+     "how": "pending",
+     "route_id": null,
+     "result_ok": null,
+     "error": null,
+     "answer_chars": 0,
+     "value_in_answer": false
+    }
+   ]
+  },
+  {
+   "batch": 6,
+   "site": "unsplash.com",
+   "category": "reference_lifestyle",
+   "phase": "fresh",
+   "goal": "search Unsplash photos",
+   "values": [
+    "lighthouse",
+    "glacier"
+   ],
+   "outcome": null,
+   "error_category": null,
+   "checks": [
+    {
+     "value": "lighthouse",
+     "how": "learned",
+     "route_id": "0461d854c4453b8b",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 8086,
+     "value_in_answer": true
+    },
+    {
+     "value": "glacier",
+     "how": "called",
+     "route_id": "0461d854c4453b8b",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 8040,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "batch": 6,
+   "site": "lichess.org",
+   "category": "gaming",
+   "phase": "fresh",
+   "goal": "look up a Lichess player",
+   "values": [
+    "DrNykterstein",
+    "penguingim1"
+   ],
+   "outcome": null,
+   "error_category": null,
+   "checks": [
+    {
+     "value": "DrNykterstein",
+     "how": "pending",
+     "route_id": null,
+     "result_ok": null,
+     "error": null,
+     "answer_chars": 0,
+     "value_in_answer": false
+    },
+    {
+     "value": "penguingim1",
+     "how": "browse",
+     "route_id": null,
+     "result_ok": false,
+     "error": null,
+     "answer_chars": 0,
+     "value_in_answer": false
+    }
+   ]
+  },
+  {
+   "site": "ikea.com",
+   "batch": 4,
+   "phase": "fresh",
+   "outcome": "semantic_fail",
+   "error_category": "geo_state_answer",
+   "source": "run 96cf62fc progress notes; raw record lost"
+  },
+  {
+   "site": "craigslist.org",
+   "batch": 4,
+   "phase": "fresh",
+   "outcome": "semantic_fail",
+   "error_category": "filters_only_answer",
+   "source": "run 96cf62fc progress notes; raw record lost"
+  },
+  {
+   "site": "target.com",
+   "batch": 4,
+   "phase": "fresh",
+   "outcome": "semantic_fail",
+   "error_category": "preload_vars_answer",
+   "source": "run 96cf62fc progress notes; raw record lost"
+  },
+  {
+   "site": "bestbuy.com",
+   "batch": 4,
+   "phase": "fresh",
+   "outcome": "blocked",
+   "error_category": "country_gate",
+   "source": "run 96cf62fc progress notes; raw record lost"
+  },
+  {
+   "site": "ebay.com",
+   "batch": 4,
+   "phase": "fresh",
+   "outcome": "blocked",
+   "error_category": "stuck_pending_error_page",
+   "source": "run 96cf62fc progress notes; raw record lost"
+  },
+  {
+   "site": "apnews.com",
+   "batch": 4,
+   "phase": "fresh",
+   "outcome": "blocked",
+   "error_category": "stuck_pending",
+   "source": "run 96cf62fc progress notes; raw record lost"
+  },
+  {
+   "site": "reddit.com",
+   "batch": 4,
+   "phase": "fresh",
+   "outcome": "semantic_fail",
+   "error_category": "feature_flag_state (preexisting route)",
+   "source": "run 96cf62fc progress notes; raw record lost"
+  }
+ ],
+ "final_pass": [
+  {
+   "site": "goodreads.com",
+   "goal": "search Goodreads books",
+   "values": [
+    "dune",
+    "foundation"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "dune",
+     "how": "learned",
+     "route_id": "6b7298f1288780d1",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 18361,
+     "value_in_answer": true
+    },
+    {
+     "value": "foundation",
+     "how": "called",
+     "route_id": "6b7298f1288780d1",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 18016,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "openstreetmap.org",
+   "goal": "search OpenStreetMap places",
+   "values": [
+    "Lisbon",
+    "Nairobi"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "Lisbon",
+     "how": "learned",
+     "route_id": "ea915f46bca2e2ef",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 2147,
+     "value_in_answer": true
+    },
+    {
+     "value": "Nairobi",
+     "how": "called",
+     "route_id": "ea915f46bca2e2ef",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 649,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "archive.org",
+   "goal": "search Internet Archive items",
+   "values": [
+    "apollo 11",
+    "apollo 13"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "apollo 11",
+     "how": "learned",
+     "route_id": "b826fee2052acd77",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 6389,
+     "value_in_answer": true
+    },
+    {
+     "value": "apollo 13",
+     "how": "called",
+     "route_id": "b826fee2052acd77",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 6716,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "bbc.co.uk",
+   "goal": "search BBC news",
+   "values": [
+    "climate",
+    "football"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "climate",
+     "how": "learned",
+     "route_id": "f5aedd9d9826d598",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 11404,
+     "value_in_answer": true
+    },
+    {
+     "value": "football",
+     "how": "called",
+     "route_id": "f5aedd9d9826d598",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 10011,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "aljazeera.com",
+   "goal": "search Al Jazeera articles",
+   "values": [
+    "ukraine",
+    "drought"
+   ],
+   "verdict": "transport_pass_semantic_fail",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "ukraine",
+     "how": "learned",
+     "route_id": "4f4d9fffcf05bf7b",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 810,
+     "value_in_answer": false
+    },
+    {
+     "value": "drought",
+     "how": "learned",
+     "route_id": "1f0ad8ef4554ca29",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 48,
+     "value_in_answer": false
+    }
+   ]
+  },
+  {
+   "site": "techcrunch.com",
+   "goal": "search TechCrunch articles",
+   "values": [
+    "robotics",
+    "fintech"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "robotics",
+     "how": "learned",
+     "route_id": "019e2cc94379e92f",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 2869,
+     "value_in_answer": true
+    },
+    {
+     "value": "fintech",
+     "how": "learned",
+     "route_id": "b24d66c05d848145",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 2868,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "rottentomatoes.com",
+   "goal": "search Rotten Tomatoes titles",
+   "values": [
+    "alien",
+    "gladiator"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "alien",
+     "how": "learned",
+     "route_id": "12929a6f16a54b1d",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 14132,
+     "value_in_answer": true
+    },
+    {
+     "value": "gladiator",
+     "how": "called",
+     "route_id": "12929a6f16a54b1d",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 13625,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "npr.org",
+   "goal": "search NPR stories",
+   "values": [
+    "election",
+    "jazz"
+   ],
+   "verdict": "transport_pass_semantic_fail",
+   "answer_changed": false,
+   "checks": [
+    {
+     "value": "election",
+     "how": "learned",
+     "route_id": "bdb8b86e2f063f45",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 4008,
+     "value_in_answer": false
+    },
+    {
+     "value": "jazz",
+     "how": "learned",
+     "route_id": "bdb8b86e2f063f45",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 4008,
+     "value_in_answer": false
+    }
+   ]
+  },
+  {
+   "site": "python.org",
+   "goal": "search Python.org site",
+   "values": [
+    "asyncio",
+    "decorator"
+   ],
+   "verdict": "transport_pass_semantic_fail",
+   "answer_changed": false,
+   "checks": [
+    {
+     "value": "asyncio",
+     "how": "learned",
+     "route_id": "80690dba73df9c27",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 297,
+     "value_in_answer": false
+    },
+    {
+     "value": "decorator",
+     "how": "called",
+     "route_id": "80690dba73df9c27",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 297,
+     "value_in_answer": false
+    }
+   ]
+  },
+  {
+   "site": "sourceforge.net",
+   "goal": "search SourceForge projects",
+   "values": [
+    "ffmpeg",
+    "7zip"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "ffmpeg",
+     "how": "learned",
+     "route_id": "fa224c6786a3eecf",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 81,
+     "value_in_answer": true
+    },
+    {
+     "value": "7zip",
+     "how": "called",
+     "route_id": "fa224c6786a3eecf",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 79,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "nih.gov (pubmed.ncbi.nlm.nih.gov)",
+   "goal": "search PubMed articles",
+   "values": [
+    "crispr",
+    "insulin"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "crispr",
+     "how": "learned",
+     "route_id": "cc3da363cf66d296",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 22713,
+     "value_in_answer": true
+    },
+    {
+     "value": "insulin",
+     "how": "called",
+     "route_id": "cc3da363cf66d296",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 24420,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "imdb.com",
+   "goal": "search IMDb titles",
+   "values": [
+    "inception",
+    "parasite"
+   ],
+   "verdict": "transport_pass_semantic_fail",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "inception",
+     "how": "learned",
+     "route_id": "bbf89e27b0db3b6e",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 2534,
+     "value_in_answer": false
+    },
+    {
+     "value": "parasite",
+     "how": "called",
+     "route_id": "bbf89e27b0db3b6e",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 2434,
+     "value_in_answer": false
+    }
+   ]
+  },
+  {
+   "site": "bandcamp.com",
+   "goal": "search Bandcamp music",
+   "values": [
+    "ambient",
+    "shoegaze"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "ambient",
+     "how": "learned",
+     "route_id": "e9de276cea379495",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 13278,
+     "value_in_answer": true
+    },
+    {
+     "value": "shoegaze",
+     "how": "called",
+     "route_id": "e9de276cea379495",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 15731,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "itch.io",
+   "goal": "search itch.io games",
+   "values": [
+    "roguelike",
+    "platformer"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "roguelike",
+     "how": "learned",
+     "route_id": "8feb9539ad918dc1",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 2526,
+     "value_in_answer": true
+    },
+    {
+     "value": "platformer",
+     "how": "called",
+     "route_id": "8feb9539ad918dc1",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 898,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "duckduckgo.com",
+   "goal": "search DuckDuckGo web results",
+   "values": [
+    "tardigrade",
+    "axolotl"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "tardigrade",
+     "how": "learned",
+     "route_id": "e6ede235c22f13ad",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 14513,
+     "value_in_answer": true
+    },
+    {
+     "value": "axolotl",
+     "how": "called",
+     "route_id": "e6ede235c22f13ad",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 13790,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "unsplash.com",
+   "goal": "search Unsplash photos",
+   "values": [
+    "lighthouse",
+    "glacier"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "lighthouse",
+     "how": "learned",
+     "route_id": "0461d854c4453b8b",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 8086,
+     "value_in_answer": true
+    },
+    {
+     "value": "glacier",
+     "how": "called",
+     "route_id": "0461d854c4453b8b",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 8040,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "github.com",
+   "goal": "search GitHub repositories",
+   "values": [
+    "ripgrep",
+    "fzf"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "ripgrep",
+     "how": "learned",
+     "route_id": "d11207aca72c82c2",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 2912,
+     "value_in_answer": true
+    },
+    {
+     "value": "fzf",
+     "how": "called",
+     "route_id": "d11207aca72c82c2",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 3103,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "steampowered.com",
+   "goal": "search Steam store games",
+   "values": [
+    "portal",
+    "terraria"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "portal",
+     "how": "learned",
+     "route_id": "206fca156393ff84",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 27235,
+     "value_in_answer": true
+    },
+    {
+     "value": "terraria",
+     "how": "called",
+     "route_id": "206fca156393ff84",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 27492,
+     "value_in_answer": true
+    }
+   ]
+  },
+  {
+   "site": "wiktionary.org",
+   "goal": "look up a word in Wiktionary",
+   "values": [
+    "serendipity",
+    "ephemeral"
+   ],
+   "verdict": "pass",
+   "answer_changed": true,
+   "checks": [
+    {
+     "value": "serendipity",
+     "how": "learned",
+     "route_id": "ccfb67aa05e4908a",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 198,
+     "value_in_answer": true
+    },
+    {
+     "value": "ephemeral",
+     "how": "called",
+     "route_id": "ccfb67aa05e4908a",
+     "result_ok": true,
+     "error": null,
+     "answer_chars": 190,
+     "value_in_answer": true
+    }
+   ]
+  }
+ ],
+ "excluded": "No credentials, cookies, tokens, response bodies or page URLs with queries; answer sizes and whether the asked value appears only."
+}

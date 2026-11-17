@@ -1,0 +1,5 @@
+{
+  "routes": { "route-items 0xabababababababababababababababababababababababababababababababab": { "does": true, "by": "agent-1", "at": 1700000000 } },
+  "reports": { "4:2": { "does": false, "by": "agent-1", "at": 1700000100 } },
+  "told": ["4:2"]
+}

@@ -1,0 +1,10 @@
+name: Pinned composite fixture
+description: Exercises local composite action scanning.
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned fixture
+      with:
+        persist-credentials: false
+    - run: echo composite
+      shell: bash

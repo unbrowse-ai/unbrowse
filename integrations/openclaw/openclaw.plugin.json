@@ -1,0 +1,100 @@
+{
+  "id": "unbrowse",
+  "name": "Unbrowse",
+  "description": "Websites as calls, through the Unbrowse node on this machine: the node's own agent tools.",
+  "version": "0.1.0",
+  "categories": [
+    "web"
+  ],
+  "activation": {
+    "onStartup": false
+  },
+  "reload": {
+    "turnHandover": true
+  },
+  "skills": [
+    "./skills"
+  ],
+  "contracts": {
+    "tools": [
+      "unbrowse_search",
+      "unbrowse_do",
+      "unbrowse_walk",
+      "unbrowse_browse",
+      "unbrowse_challenge",
+      "unbrowse_observe",
+      "unbrowse_logins",
+      "unbrowse_open",
+      "unbrowse_call",
+      "unbrowse_inspect",
+      "unbrowse_judge",
+      "unbrowse_whoami",
+      "unbrowse_report"
+    ]
+  },
+  "toolMetadata": {
+    "unbrowse_search": {
+      "replaySafe": true
+    },
+    "unbrowse_do": {
+      "sideEffecting": true
+    },
+    "unbrowse_walk": {
+      "sideEffecting": true
+    },
+    "unbrowse_browse": {
+      "sideEffecting": true
+    },
+    "unbrowse_challenge": {
+      "sideEffecting": true
+    },
+    "unbrowse_observe": {
+      "sideEffecting": true
+    },
+    "unbrowse_logins": {
+      "replaySafe": true
+    },
+    "unbrowse_open": {
+      "replaySafe": true
+    },
+    "unbrowse_call": {
+      "sideEffecting": true
+    },
+    "unbrowse_inspect": {
+      "replaySafe": true
+    },
+    "unbrowse_judge": {
+      "sideEffecting": true
+    },
+    "unbrowse_whoami": {
+      "replaySafe": true
+    },
+    "unbrowse_report": {
+      "sideEffecting": true
+    }
+  },
+  "uiHints": {
+    "node": {
+      "label": "Node address",
+      "help": "The Unbrowse node's address (fallback: UNBROWSE_NODE env var, then http://127.0.0.1:7788).",
+      "placeholder": "http://127.0.0.1:7788"
+    },
+    "agentToken": {
+      "label": "Agent token",
+      "help": "This agent's key token: `unbrowse agent token` prints it, or `unbrowse agent new <name>` makes a key of its own. Required; no process-wide fallback.",
+      "sensitive": true
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "node": {
+        "type": "string"
+      },
+      "agentToken": {
+        "type": "string"
+      }
+    }
+  }
+}
