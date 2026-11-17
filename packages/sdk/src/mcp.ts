@@ -75,10 +75,10 @@ export class UnbrowseMcp {
     });
     const text = await res.text();
     if (!res.ok) {
-      let body: { error?: string | { code?: string; message?: string }; error_description?: string } = {};
+      let body: { error?: string | { code?: string; message?: string }; error_description?: string } | null = {};
       try { body = JSON.parse(text); } catch { /* not JSON */ }
-      const err = typeof body.error === "object" ? body.error : undefined;
-      throw new UnbrowseError(err?.message ?? body.error_description ?? (res.statusText || `HTTP ${res.status}`), res.status, err?.code ?? (typeof body.error === "string" ? body.error : "http_error"), body);
+      const err = typeof body?.error === "object" ? body?.error : undefined;
+      throw new UnbrowseError(err?.message ?? body?.error_description ?? (res.statusText || `HTTP ${res.status}`), res.status, err?.code ?? (typeof body?.error === "string" ? body.error : "http_error"), body);
     }
     const msg = parseRpcBody(text);
     if (msg.error) throw new UnbrowseError(msg.error.message, 200, msg.error.data?.code ?? `rpc_${msg.error.code}`, msg.error);

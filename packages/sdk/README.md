@@ -95,7 +95,9 @@ The contract (statuses, headers, errors): https://unbrowse.ai/docs/site-apis
 ## Errors
 
 Every failure throws `UnbrowseError` with `status`, `code` (the server's, e.g. `quota_exceeded`,
-`unknown_argument`) and `body`.
+`unknown_argument`) and `body`. An HTTP error with a JSON `null` body still carries its HTTP
+status, using `http_error` when the server supplies no error code. The remote MCP client uses
+the same fallback.
 
 ## Install helpers
 

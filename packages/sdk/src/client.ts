@@ -63,9 +63,9 @@ export class Unbrowse {
       },
     });
     if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } | string; error_description?: string };
-      const err = typeof body.error === "object" ? body.error : undefined;
-      throw new UnbrowseError(err?.message ?? body.error_description ?? res.statusText, res.status, err?.code ?? (typeof body.error === "string" ? body.error : "http_error"), body);
+      const body = (await res.json().catch(() => ({}))) as { error?: { code?: string; message?: string } | string; error_description?: string } | null;
+      const err = typeof body?.error === "object" ? body?.error : undefined;
+      throw new UnbrowseError(err?.message ?? body?.error_description ?? res.statusText, res.status, err?.code ?? (typeof body?.error === "string" ? body.error : "http_error"), body);
     }
     return res;
   }
