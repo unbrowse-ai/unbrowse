@@ -264,6 +264,24 @@ class WorkflowSecurityTest(unittest.TestCase):
         self.assertNotIn("pull_request:", bank)
         self.assertIn("if: github.ref == 'refs/heads/staging'", bank)
 
+    def test_a_job_that_installs_a_pinned_tool_checks_out_its_lockfile(self):
+        # `npm ci --prefix <dir>` with <dir> left out of a sparse checkout finds no lockfile and stops the job, which in
+        # the release's npm job stopped the first real publish (UNB-158, run 44144861312).
+        for path in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
+            for name, job in (yaml.safe_load(path.read_text()).get("jobs") or {}).items():
+                steps = [s for s in job.get("steps", []) if isinstance(s, dict)]
+                sparse = [str((s.get("with") or {}).get("sparse-checkout", "")) for s in steps
+                          if str(s.get("uses", "")).startswith("actions/checkout@") and not (s.get("with") or {}).get("path")]
+                if not sparse or not all(sparse):
+                    continue
+                listed = {line.strip().rstrip("/") for text in sparse for line in text.splitlines() if line.strip()}
+                for step in steps:
+                    for prefix in re.findall(r"npm ci\b[^\n]*?--prefix\s+(\S+)", str(step.get("run", ""))):
+                        self.assertTrue(
+                            any(prefix == p or prefix.startswith(p + "/") for p in listed),
+                            f"{path.name}:{name} runs npm ci --prefix {prefix} but its sparse checkout leaves it out",
+                        )
+
 
 if __name__ == "__main__":
     unittest.main()
