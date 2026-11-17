@@ -190,7 +190,8 @@ one before it, and starts a clock of its own. So stable moves at most every two 
 skipped, and whatever reaches stable ran on canary for two unhalted days.
 
 A release candidate (`X.Y.P-rc.N`) is pre-production: it runs on canary but never reaches stable, by the daily refresh
-or by `promote`. It holds canary only until something newer comes, which takes canary at once, since its clock counts
+or by `promote`. A candidate made before stable's first release (13.0.0-rc.N ahead of 13.0.0) publishes no
+`@unbrowse/updates` at all: it reaches npm's `next` tag alone, and its nodes read no channel until the release. It holds canary only until something newer comes, which takes canary at once, since its clock counts
 toward nothing. A tagged release queues behind the releases ahead of it alone, never behind a candidate, and a
 candidate never takes a release's place in `waiting`: one made while a release waits is dropped, and the next
 candidate after it goes out. Replaying the first 52 tags
