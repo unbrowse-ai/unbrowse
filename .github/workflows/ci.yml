@@ -1,60 +1,475 @@
-name: ci
-on: [push, pull_request, workflow_dispatch]
-permissions:
-  contents: read
+# Every part of the repository, built and tested on Blacksmith runners. The node and its window are tested on macOS,
+# and built on Linux and Windows too, where they are released as well; everything else runs on Linux.
+name: CI
+
+on:
+  # The three long-lived branches (CONTRIBUTING.md, "Branches and releases"): a push to staging or a release branch that
+  # passes here is what release.yml releases.
+  push:
+    branches: [main, staging, "release/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  papers:
+    permissions:
+      contents: read
+    # papers/ is a byte copy of unbrowse-papers' built files; this fails on a hand edit or a file it doesn't map.
+    name: Papers are copies
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: bun install --frozen-lockfile
-      - run: bun run check:public
-      - run: bun run typecheck
-      - run: bun run check:plugins
-      - run: bun test ./packages ./tests
-      - name: OpenClaw plugin
-        working-directory: plugins/openclaw
-        run: npm run typecheck && npm run check && bun test tests
-      - name: elizaOS plugin
-        working-directory: plugins/elizaos
-        run: bun install --frozen-lockfile && bun run typecheck && bun run build && bun test tests
-      - name: n8n node
-        working-directory: plugins/n8n
-        run: npm ci --ignore-scripts && npm run lint && npm run build && npm test
-      - name: Raycast extension
-        working-directory: plugins/raycast
-        run: npm ci && npm run build && npm test && npx eslint src && npx prettier --check .
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - name: Hermes plugin
-        run: python -m pip install -q pytest pyyaml && python -m pytest -q plugins/hermes/tests
-      - name: Dify plugin
-        run: python -m pip install -q 'dify_plugin>=0.9.0,<0.10.0' pytest && python -m pytest -q plugins/dify/tests
-      - name: LangChain package
-        working-directory: plugins/langchain
-        run: python -m pip install -q -e '.[test]' && python -m pytest -q
-      - name: LlamaIndex package
-        working-directory: plugins/llamaindex
-        run: python -m pip install -q -e '.[test]' && python -m pytest -q
-      - name: Zed extension
-        working-directory: plugins/zed
-        run: rustup target add wasm32-wasip2 && rustup component add rustfmt clippy && cargo fmt --check && cargo clippy --target wasm32-wasip2 -- -D warnings && cargo build --release --target wasm32-wasip2
-      - run: bun run build
-      - run: node packages/cli/dist/cli.js --version
-      - run: node --input-type=module -e 'import("./packages/sdk/dist/index.js").then(m => { if (!new m.Unbrowse().baseUrl.endsWith("/api/v1")) process.exit(1) })'
-      - name: Pack and install clients
-        run: |
-          mkdir -p out
-          (cd packages/sdk && npm pack --pack-destination ../../out)
-          (cd packages/cli && npm pack --pack-destination ../../out)
-          bash scripts/smoke-packed.sh out/unbrowse-sdk-*.tgz out/unbrowse-[0-9]*.tgz
-      - uses: actions/upload-artifact@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          name: public-client
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trusted-main
+          persist-credentials: false
+          sparse-checkout: .github/scripts/updates.mjs
+          sparse-checkout-cone-mode: false
+      - run: python3 -I .github/scripts/check-pinned-actions.py --verify-upstream
+      - name: Check update root transition metadata
+        run: node .github/scripts/updates.mjs root-check --main-updates "$GITHUB_WORKSPACE/trusted-main/.github/scripts/updates.mjs"
+      - run: python3 -I .github/scripts/test/test_pinned_actions.py
+      - run: python3 -I .github/scripts/test/test_artifact_hashes.py
+      - run: python3 -I .github/scripts/test/test_workflow_security.py
+      - run: node --test .github/scripts/test/updates.test.mjs
+      - run: python3 -I papers/sync.py check
+      # Every number core hard-codes equals papers/params.toml (papers/params-map.json says where each one lives).
+      # Report-only until the contracts follow spec §84 and §85: it fails today on the retired priced bond, the domain
+      # deposits priced off it and the credit-finality window. Drop continue-on-error when it prints PARAMS_CHECK_PASSED.
+      - run: python3 -I papers/params_check.py
+        continue-on-error: true
+
+  sdk-typescript:
+    permissions:
+      contents: read
+    name: SDK (TypeScript)
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    defaults:
+      run:
+        working-directory: unbrowse-sdk/typescript
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.4
+          cache: npm
+          cache-dependency-path: unbrowse-sdk/typescript/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      # The OpenClaw and ElizaOS plugins build their tools from this SDK's unbrowse/tools, against the dist just built.
+      - name: OpenClaw plugin
+        working-directory: integrations/openclaw
+        run: npm ci --ignore-scripts && npm test
+      - name: ElizaOS plugin
+        working-directory: integrations/elizaos
+        run: npm ci --ignore-scripts && npm test
+
+  integrations:
+    permissions:
+      contents: read
+    # The agent plugins (integrations/) and the marketplaces at the root: every manifest parses, the paths and links
+    # they name resolve, each declares the tools agent-api.json lists, and the skill's copies match skills/unbrowse.
+    # Then the Hermes plugin's tests, against the Python SDK in this checkout. Python's standard library only.
+    name: Agent plugins
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -I integrations/check.py
+      # The Codex installer, run against a scratch home: it keeps a skill folder that was there, takes only a plain
+      # node address, and replaces an older Unbrowse's server table keeping every other setting. Once with each awk
+      # an owner may have: mawk (Ubuntu's), the one true awk (macOS's) and busybox's.
+      - name: Codex installer
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq mawk original-awk busybox > /dev/null
+          UNBROWSE_TEST_AWKS="mawk:original-awk:busybox awk" python3 -I -m unittest discover -s integrations/codex -p 'test_*.py' -v
+      - name: Hermes plugin
+        working-directory: integrations/hermes
+        run: python3 -m unittest discover -s tests -v
+
+  xray:
+    permissions:
+      contents: read
+    # The route x-ray (scripts/xray): it reads a route by shape and writes no value, keeps its pages out of a
+    # repository, and every function of the engine it names is still in the source. Standard library only; no site
+    # is asked.
+    name: Route x-ray
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -I -m unittest discover -s scripts/xray -p 'test_*.py' -v
+
+  sdk-python:
+    permissions:
+      contents: read
+    name: SDK (Python ${{ matrix.python }})
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    strategy:
+      matrix:
+        python: ["3.9.25", "3.13.18"]
+    defaults:
+      run:
+        working-directory: unbrowse-sdk/python
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m unittest discover -s tests -v
+      # The framework adapters' own tests, with the frameworks they wrap (optional extras, Python 3.10+): the run above
+      # skips them.
+      - name: Framework adapters (LangChain, OpenAI Agents)
+        if: "!startsWith(matrix.python, '3.9')"
+        run: |
+          python -m pip install ".[langchain,openai-agents]" "langchain-core==1.6.12" "openai-agents==0.24.0"
+          python -m unittest discover -s tests -p test_adapters.py -v
+      # The SDKs' typed layers are written from unbrowse-node/agent-api.json by the generator: a stale one fails here,
+      # named, with how to rewrite it.
+      - name: Generated files match agent-api.json
+        working-directory: ${{ github.workspace }}
+        run: python unbrowse-sdk/codegen/generate.py --check
+
+  dashboard:
+    permissions:
+      contents: read
+    name: Browser dashboard
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    defaults:
+      run:
+        working-directory: unbrowse-browser/packages/dashboard
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.2
+        with:
+          bun-version: 1.4.3
+      # The dashboard's rules are plain modules, so their tests need no install.
+      - run: bun test src
+
+  engine:
+    permissions:
+      contents: read
+    name: Browser engine
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    # The runner's AppArmor holds user namespaces back, so Chrome runs without its sandbox here, said outright: the
+    # browser no longer turns its sandbox off for a `CI` variable (external security review round 4).
+    env:
+      AGENT_BROWSER_NO_SANDBOX: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            unbrowse-browser/core -> target
+            unbrowse-browser/cli -> target
+      - name: Test the engine
+        working-directory: unbrowse-browser/core
+        run: cargo test --locked
+      # Four tests time a fake browser or daemon against tight deadlines, two of them through a process-wide socket
+      # directory, which a full parallel run can trip: they run one at a time after the rest.
+      - name: Test the CLI
+        working-directory: unbrowse-browser/cli
+        run: >-
+          cargo test --locked --
+          --skip test_failed_local_initialization_disconnects_and_reaps
+          --skip test_failed_lightpanda_initialization_disconnects_before_retry
+          --skip cross_origin_command_post_is_rejected_without_relaying_to_daemon
+          --skip same_origin_command_post_relays_without_wildcard_cors
+      - name: Test the CLI's timed tests, one at a time
+        working-directory: unbrowse-browser/cli
+        run: >-
+          cargo test --locked -- --test-threads=1
+          test_failed_local_initialization_disconnects_and_reaps
+          test_failed_lightpanda_initialization_disconnects_before_retry
+          cross_origin_command_post_is_rejected_without_relaying_to_daemon
+          same_origin_command_post_relays_without_wildcard_cors
+      # What an agent's script and an agent's commands can reach in a signed-in page, against a real browser: the
+      # session read as a stand-in, no markup or code sink into the page's own world, the activation guard under a
+      # poisoned page and a race, access keys. These are `#[ignore]`d with the rest of the e2e set, which needs things
+      # a runner doesn't have; they need only Chrome. A refactor once dropped one of these refusals and nothing that ran
+      # here noticed (the `srcdoc` property), so they run here by name. The larger stack is the e2e harness's need.
+      - name: Test what an agent can reach in a signed-in page, in a real browser
+        working-directory: unbrowse-browser/cli
+        env:
+          RUST_MIN_STACK: "16777216"
+        run: >-
+          cargo test --locked -- --ignored --test-threads=1
+          e2e_a_callers_script_reads_the_session_as_a_stand_in
+          e2e_an_access_key_reaches_no_script_address_in_any_frame
+          e2e_the_race_between_the_guard_and_the_click
+          e2e_what_the_agents_world_reaches_beyond_its_setters
+          e2e_no_markup_or_code_sink_reaches_the_pages_world
+          e2e_no_property_of_any_element_carries_an_agents_code_into_the_pages_world
+          e2e_hostile_page_capture_listener_and_builtin_poisoning
+          e2e_same_origin_reflection_runs_site_code_and_records_cookie
+
+  node:
+    permissions:
+      contents: read
+    name: Node
+    runs-on: blacksmith-6vcpu-macos-latest
+    defaults:
+      run:
+        working-directory: unbrowse-node
+    env:
+      # The tests of what holds a page's script fail here, rather than skip, if the runner's Node can't be held.
+      UNBROWSE_REQUIRE_PERMISSION_TESTS: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The page sandbox and scratch-node.sh need Node 25 or later (26 is the LTS): older Nodes let a page's scripts reach the network
+      # under --permission.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+          components: clippy
+      # BoringSSL with Chrome's extensions, vendored by the script (vendor/ isn't committed): made once per patch.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: vendor
+        with:
+          path: unbrowse-node/vendor
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch') }}
+      - if: steps.vendor.outputs.cache-hit != 'true'
+        run: sh scripts/apply-tls-patch.sh
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            unbrowse-node -> target
+            unbrowse-browser/cli -> target
+      # The learner's end-to-end tests drive the real browser through a test shop; without a build they fail, never
+      # skip. The browser fetches Chrome for Testing when the runner has no Chrome.
+      - name: Build the browser
+        working-directory: unbrowse-browser/cli
+        run: cargo build --locked && ./target/debug/agent-browser install
+      # Clippy's defaults, less the lints `[workspace.lints.clippy]` in unbrowse-node/Cargo.toml turns off with its reasons.
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      # Agents as an OS user of their own, for real: the user is made, reads none of the owner's secrets, runs a
+      # program with its own token, and is removed (scripts/agent-user-e2e.sh).
+      - name: Agents' OS user, end to end
+        run: cargo build --locked -p unbrowse-node-app --bin unbrowse-node && sh scripts/agent-user-e2e.sh target/debug/unbrowse-node
+      # `unb connect` on a machine the hosted Unbrowse set up, for real: a fresh node leaves the v1 key's
+      # ~/.unbrowse/config.json byte-identical, and connect shows, checks against the node, replaces and undoes, with no
+      # token on a command line (scripts/connect-e2e.sh).
+      - name: Connect, end to end
+        run: cargo build --locked -p unbrowse-node-app --bins && sh scripts/connect-e2e.sh target/debug/unbrowse-node target/debug/unb
+      # The MCP entries an older Unbrowse wrote (`npx -y unbrowse mcp`, `… dist/cli.js mcp --account x`), run against
+      # this build through the npm command: they list the node's tools at its default address, and the old hosted
+      # sign-in is left byte-identical (scripts/legacy-mcp-e2e.sh).
+      - name: Old MCP entries, end to end
+        run: (cd ../unbrowse-sdk/typescript && npm ci --ignore-scripts && npm run build) && sh scripts/legacy-mcp-e2e.sh target/debug/unbrowse-node target/debug/unb ../unbrowse-sdk/typescript/dist/cli.js
+
+  # The node, the browser and the window build on Linux and Windows as they are released there, and the node finds
+  # the machine's browsers the way that system keeps them.
+  elsewhere:
+    permissions:
+      contents: read
+    name: Builds on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: Linux, runner: blacksmith-4vcpu-ubuntu-2204 }
+          - { os: Windows, runner: blacksmith-4vcpu-windows-2025 }
+    runs-on: ${{ matrix.runner }}
+    env:
+      AGENT_BROWSER_NO_SANDBOX: "1"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: vendor
+        with:
+          path: unbrowse-node/vendor
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch') }}
+      - if: steps.vendor.outputs.cache-hit != 'true'
+        working-directory: unbrowse-node
+        run: sh scripts/apply-tls-patch.sh
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: |
+            unbrowse-node -> target
+            unbrowse-browser/cli -> target
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.17.0
+      - name: Build the node
+        working-directory: unbrowse-node
+        run: cargo build --workspace --all-targets --locked
+      - name: Find the browsers
+        working-directory: unbrowse-node
+        run: cargo test --locked -p unbrowse-node-app --bin unbrowse-node browsers
+      # Agents as an OS user of their own, for real: the user is made, reads none of the owner's secrets, runs a
+      # program with its own token, and is removed.
+      - name: Agents' OS user, end to end
+        if: matrix.os == 'Linux'
+        working-directory: unbrowse-node
+        run: sh scripts/agent-user-e2e.sh target/debug/unbrowse-node
+      - name: Agents' OS user, end to end
+        if: matrix.os == 'Windows'
+        working-directory: unbrowse-node
+        shell: powershell
+        run: ./scripts/agent-user-e2e.ps1 target/debug/unbrowse-node.exe
+      - name: Build the browser
+        working-directory: unbrowse-browser/cli
+        run: cargo build --locked
+      - name: Build the window
+        working-directory: unbrowse-node/window
+        run: zig build
+
+  window:
+    permissions:
+      contents: read
+    name: Window (nanoui)
+    runs-on: blacksmith-6vcpu-macos-latest
+    defaults:
+      run:
+        working-directory: unbrowse-node/window
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.17.0
+      - run: zig build test
+      - run: zig build
+
+  telemetry:
+    permissions:
+      contents: read
+    name: Telemetry worker
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    defaults:
+      run:
+        working-directory: unbrowse-telemetry
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.4
+      - run: node --test test/*.test.mjs
+
+  settlement:
+    # The contracts' sources are private (`.github/public-tree-exclude`): the public unbrowse-ai/unbrowse carries none.
+    if: github.repository == 'unbrowse-ai/unbrowse-core'
+    permissions:
+      contents: read
+    name: Settlement contracts
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    env:
+      FOUNDRY_VERSION: v1.8.5
+    defaults:
+      run:
+        working-directory: unbrowse-settlement
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: foundry-rs/foundry-toolchain@82dee4ba654bd2146511f85f0d013af94670c4de # v1.4.0
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      # Compiling the contracts (via-IR, one solc process) is half this job: about 10 of its 21 minutes on staging
+      # 40c12c79. The build is kept for exactly the files forge reads and this forge, so a run whose contracts, tests,
+      # scripts and libraries are unchanged compiles nothing ("No files changed, compilation skipped") and runs every
+      # test on the same bytes a fresh build makes. No partial match is restored: any change builds from nothing.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
           path: |
-            out/*.tgz
-            skill/
-            docs/public-surface.json
+            unbrowse-settlement/out
+            unbrowse-settlement/cache
+          key: forge-${{ runner.os }}-${{ env.FOUNDRY_VERSION }}-${{ hashFiles('unbrowse-settlement/foundry.toml', 'unbrowse-settlement/src/**', 'unbrowse-settlement/test/**', 'unbrowse-settlement/script/**', 'unbrowse-settlement/lib/**') }}
+      - run: forge test
+      # What the node holds a live network to (`chain/conform.rs`) is what these sources compile to.
+      - run: forge build && python3 script/runtime-manifest.py --check
+      # The artifacts the node embeds and deploys from are this build's, not an older one's.
+      - run: python3 script/artifacts.py --check
+      # The antithesis harness reads the ABIs the node embeds; a read they no longer allow fails only in an
+      # Antithesis run, where it used to be logged as a skipped round.
+      - name: Antithesis harness reads match the embedded ABIs
+        working-directory: .
+        run: python3 -I antithesis/test/check_contract_reads.py
+
+  coins-spec:
+    # The Quint spec of the route-coin contracts (unbrowse-settlement/spec/coins): the invariants every switch holds
+    # hold, each finding is still found, every reachability witness is reached, and the trace fixtures are the ones the
+    # spec makes now. check.sh's five sections are independent and ran one after another for about 51 minutes
+    # (8, 17, 12, 2 and 12 on staging 40c12c79), so each runs in a job of its own; together they make the same quint
+    # runs, and "Route-coin spec" below passes only when every part did.
+    # The contracts' sources are private (`.github/public-tree-exclude`): the public unbrowse-ai/unbrowse carries none.
+    if: github.repository == 'unbrowse-ai/unbrowse-core'
+    name: Route-coin spec, part ${{ matrix.part }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # The fixtures ride with the short section 4.
+        part: [1, 2, 3, 4, 5]
+    defaults:
+      run:
+        working-directory: unbrowse-settlement
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: npm i -g @informalsystems/quint@0.33.1
+      - run: SECTIONS=${{ matrix.part }} SAMPLES=2000 STEPS=20 spec/coins/check.sh
+      - if: matrix.part == 4
+        run: spec/coins/traces.sh && git diff --exit-code -- test/coins/fixtures/quint
+
+  coins-spec-all:
+    # The one check that says the whole spec passed, under the name it always had. Skipped means no part was asked to
+    # run (a pull request the contracts' files don't reach, once ci.yml chooses jobs by changed files); a part that
+    # failed or was cancelled fails it.
+    name: Route-coin spec
+    needs: coins-spec
+    if: ${{ !cancelled() && github.repository == 'unbrowse-ai/unbrowse-core' }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions: {}
+    steps:
+      - env:
+          RESULT: ${{ needs.coins-spec.result }}
+        run: |
+          echo "the parts: $RESULT"
+          case $RESULT in success | skipped) ;; *) exit 1 ;; esac

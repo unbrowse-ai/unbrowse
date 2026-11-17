@@ -1,0 +1,13 @@
+{
+  "name": "unbrowse-telemetry",
+  "private": true,
+  "description": "The telemetry worker: takes nodes' anonymous usage events and keeps them in D1",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.3"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs && TELEMETRY_TEST_STORE=do node --test test/*.test.mjs"
+  }
+}

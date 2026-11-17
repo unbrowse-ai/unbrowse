@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "runner": "unbrowse_mcp_with_guest_http_probe",
+  "date": "2026-10-28",
+  "node_version": "0.1.0 with local uncommitted route fixes",
+  "scope": "site-specific cPanel login and read-only protected access; outside the 400-site inventory",
+  "site": "newlife.org.sg:2083",
+  "account_label": "stored cPanel account",
+  "checks": [
+    {"phase": "guest", "method": "unauthenticated HTTP GET", "target": "Domains page without session path segment", "login_form_visible": true, "domains_heading_visible": false, "classification": "pass"},
+    {"phase": "login", "method": "Unbrowse browser with port-scoped Vault reference", "dashboard_visible": true, "otp_input_visible": false, "owner_keychain_approval_required": true, "classification": "pass"},
+    {"phase": "protected_read", "method": "Unbrowse browser followed observed Domains link", "https_port_2083": true, "domains_page_visible": true, "login_form_visible": false, "classification": "pass"},
+    {"phase": "route_discovery_and_replay", "classification": "not_tested_session_url_recording_risk"},
+    {"phase": "logout_and_expiry", "classification": "not_tested"}
+  ],
+  "site_outcome": "guest_gating_login_and_protected_browser_read_pass; route_replay_not_tested",
+  "local_fix": "Port-scoped Vault reference parsing and exact HTTPS host/port check; app unit tests: 43 passed, 4 ignored.",
+  "issue": "https://github.com/unbrowse-ai/unbrowse-core/issues/26",
+  "excluded": "No password, cookie, session ID, one-time code, account name, full URL, or response body is stored."
+}

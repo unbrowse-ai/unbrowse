@@ -1,0 +1,169 @@
+# The Unbrowse node's network and money paths under Antithesis (antithesis/scratchbook/deployment-topology.md):
+# one chain, three nodes in live mode, one fixture site and one workload driver. Every key is one of Anvil's published
+# test keys; nothing reaches a live chain or the internet.
+#
+# Build:  docker compose -f antithesis/config/docker-compose.yaml build   (or `podman compose`, from the repo root)
+# Images: unbrowse-antithesis-{node,chain,site,workload}:latest
+
+name: unbrowse-antithesis
+
+x-node: &node
+  platform: linux/amd64
+  init: true
+  build:
+    context: ../..
+    dockerfile: antithesis/Dockerfile
+    target: node
+  image: unbrowse-antithesis-node:latest
+  depends_on:
+    unbrowse-chain:
+      condition: service_healthy
+    unbrowse-site:
+      condition: service_healthy
+  healthcheck:
+    # Up once its agent API answers and it has written the owner's token.
+    test: ["CMD-SHELL", "test -s /data/owner.token && curl -s -o /dev/null -H 'Host: 127.0.0.1:7788' http://127.0.0.1:7788/v1/whoami"]
+    interval: 2s
+    timeout: 2s
+    retries: 150
+
+x-node-env: &node-env
+  NO_COLOR: "1"
+  UNBROWSE_TELEMETRY: "0"
+  UNBROWSE_CHAIN: arc-testnet
+  UNBROWSE_RPC: http://unbrowse-chain:8545
+  UNBROWSE_PEER_PORT: "4001"
+
+services:
+  unbrowse-chain:
+    container_name: unbrowse-chain
+    hostname: unbrowse-chain
+    platform: linux/amd64
+    init: true
+    build:
+      context: ../..
+      dockerfile: antithesis/Dockerfile
+      target: chain
+    image: unbrowse-antithesis-chain:latest
+    environment:
+      NO_COLOR: "1"
+      UNBROWSE_TELEMETRY: "0"
+    volumes:
+      - chain-state:/state
+      - shared:/shared
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /shared/chain-ready && cast chain-id --rpc-url http://127.0.0.1:8545"]
+      interval: 2s
+      timeout: 2s
+      retries: 150
+
+  unbrowse-site:
+    container_name: unbrowse-site
+    hostname: unbrowse-site
+    platform: linux/amd64
+    init: true
+    build:
+      context: ../..
+      dockerfile: antithesis/Dockerfile
+      target: site
+    image: unbrowse-antithesis-site:latest
+    environment:
+      NO_COLOR: "1"
+    networks:
+      default:
+        # A route's site is a registrable domain, never an address: the nodes reach the shop by this name.
+        aliases: [shop.example.com]
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/', timeout=2)\""]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  unbrowse-node-1:
+    <<: *node
+    container_name: unbrowse-node-1
+    hostname: unbrowse-node-1
+    environment:
+      <<: *node-env
+      NODE_NAME: node-1
+      # Names its own address (UNBROWSE_ANNOUNCE), as an owner who knows it does, so it serves the table from the
+      # start. node-3 doesn't: AutoNAT decides for it, so both ways a node becomes reachable run.
+      NODE_ANNOUNCE: self
+      NODE_ROLE: contributor
+      NODE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+    volumes:
+      - node-1-data:/data
+      - shared:/shared:ro
+
+  unbrowse-node-2:
+    <<: *node
+    container_name: unbrowse-node-2
+    hostname: unbrowse-node-2
+    environment:
+      <<: *node-env
+      NODE_NAME: node-2
+      NODE_ANNOUNCE: self
+      NODE_ROLE: caller
+      NODE_KEY: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
+    volumes:
+      - node-2-data:/data
+      - shared:/shared:ro
+
+  unbrowse-node-3:
+    <<: *node
+    container_name: unbrowse-node-3
+    hostname: unbrowse-node-3
+    environment:
+      <<: *node-env
+      NODE_NAME: node-3
+      NODE_ROLE: caller
+      NODE_KEY: "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
+    volumes:
+      - node-3-data:/data
+      - shared:/shared:ro
+
+  unbrowse-workload:
+    container_name: unbrowse-workload
+    hostname: unbrowse-workload
+    platform: linux/amd64
+    init: true
+    build:
+      context: ../..
+      dockerfile: antithesis/Dockerfile
+      target: workload
+    image: unbrowse-antithesis-workload:latest
+    environment:
+      NO_COLOR: "1"
+      UNBROWSE_RPC: http://unbrowse-chain:8545
+    volumes:
+      # Each node's home, read only: the owner token the workload drives the node's owner door with, and the receipt
+      # files the settlement checks compare with the chain.
+      - node-1-data:/nodes/node-1:ro
+      - node-2-data:/nodes/node-2:ro
+      - node-3-data:/nodes/node-3:ro
+      - shared:/shared:ro
+      - workload-state:/state
+    depends_on:
+      unbrowse-node-1:
+        condition: service_healthy
+      unbrowse-node-2:
+        condition: service_healthy
+      unbrowse-node-3:
+        condition: service_healthy
+
+networks:
+  default:
+    # A public-range subnet (11.0.0.0/8 is allocated, unrouted here): a route another node listed may only reach a
+    # public internet address (unbrowse-node/crates/learn/src/egress.rs `Egress::Foreign`), so the shop must resolve to
+    # one for the paid paths to run at all. Nothing here leaves the harness network.
+    ipam:
+      config:
+        - subnet: 11.77.0.0/24
+
+volumes:
+  chain-state:
+  shared:
+  node-1-data:
+  node-2-data:
+  node-3-data:
+  workload-state:

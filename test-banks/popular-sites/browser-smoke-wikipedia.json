@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "runner": "local_chrome_cdp",
+  "domain": "wikipedia.org",
+  "auth_requested": false,
+  "results": [
+    {
+      "scenario": "public.home",
+      "requested_url": "https://wikipedia.org/",
+      "requested_url_fingerprint": "724bd2ea6631c3f4",
+      "final_url": "https://www.wikipedia.org/",
+      "final_url_fingerprint": "9a9d50ec8631eafd",
+      "status": 200,
+      "classification": "public_content",
+      "redirect_count": 1,
+      "blocked_requests": {},
+      "assertion_passed": true
+    },
+    {
+      "scenario": "public.navigation",
+      "requested_url": "https://en.wikipedia.org/",
+      "requested_url_fingerprint": "a84d071ec579b605",
+      "final_url": "https://en.wikipedia.org/wiki/Main_Page",
+      "final_url_fingerprint": "d71ec714e950bddf",
+      "status": 200,
+      "classification": "public_content",
+      "redirect_count": 2,
+      "blocked_requests": {
+        "unapproved_write": 1
+      },
+      "assertion_passed": true
+    },
+    {
+      "scenario": "public.search",
+      "requested_url": "https://en.wikipedia.org/w/index.php",
+      "requested_url_fingerprint": "fec497b999292bd9",
+      "final_url": "https://en.wikipedia.org/wiki/Planet",
+      "final_url_fingerprint": "b62988405dcc484b",
+      "status": 200,
+      "classification": "public_content",
+      "redirect_count": 1,
+      "blocked_requests": {
+        "unapproved_write": 1
+      },
+      "assertion_passed": true
+    },
+    {
+      "scenario": "public.search",
+      "requested_url": "https://en.wikipedia.org/w/index.php",
+      "requested_url_fingerprint": "fe597c590e887770",
+      "final_url": "https://en.wikipedia.org/wiki/Public_library",
+      "final_url_fingerprint": "f2d71b9549c88758",
+      "status": 200,
+      "classification": "public_content",
+      "redirect_count": 1,
+      "blocked_requests": {},
+      "assertion_passed": true
+    }
+  ]
+}

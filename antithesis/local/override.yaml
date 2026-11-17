@@ -1,0 +1,7 @@
+# Local runs only (antithesis/local/soak.sh), never part of antithesis/config: with no Antithesis tenant the SDK writes
+# each assertion it evaluates to a file instead, which summarise.py reads back.
+services:
+  unbrowse-node-1: {environment: {ANTITHESIS_SDK_LOCAL_OUTPUT: /data/sdk-node.jsonl}}
+  unbrowse-node-2: {environment: {ANTITHESIS_SDK_LOCAL_OUTPUT: /data/sdk-node.jsonl}}
+  unbrowse-node-3: {environment: {ANTITHESIS_SDK_LOCAL_OUTPUT: /data/sdk-node.jsonl}}
+  unbrowse-workload: {environment: {ANTITHESIS_SDK_LOCAL_OUTPUT: /state/sdk-setup.jsonl}}

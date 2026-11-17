@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "domain": "wikipedia.org",
+  "site_scope": [
+    "https://wikipedia.org/",
+    "https://www.wikipedia.org/",
+    "https://en.wikipedia.org/"
+  ],
+  "public": {
+    "entrypoint": "https://wikipedia.org/",
+    "nav_link_selector": "a#js-link-box-en",
+    "search_url_template": "https://en.wikipedia.org/w/index.php?search={query}",
+    "search_queries": ["planet", "public library"]
+  }
+}

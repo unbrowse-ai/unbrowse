@@ -1,0 +1,31 @@
+name: unbrowse
+version: 0.1.0
+manifest_version: 2
+api_version: 1
+description: "Use websites through the Unbrowse node on this machine: say what you want and get the site's own JSON back. Drive the node's browser by hand when a page needs it, and the node learns a route from every step."
+author: Unbrowse
+license: Apache-2.0
+homepage: https://github.com/unbrowse-ai/unbrowse-core/tree/main/integrations/hermes
+tags: [web, browser, api]
+provides_tools:
+  - unbrowse_search
+  - unbrowse_do
+  - unbrowse_walk
+  - unbrowse_browse
+  - unbrowse_challenge
+  - unbrowse_observe
+  - unbrowse_logins
+  - unbrowse_open
+  - unbrowse_call
+  - unbrowse_inspect
+  - unbrowse_judge
+  - unbrowse_whoami
+  - unbrowse_report
+requires_env:
+  - name: UNBROWSE_AGENT_TOKEN
+    description: "The agent key's token: `unbrowse agent token` prints it, or `unbrowse agent new hermes` makes a key of Hermes's own."
+    secret: true
+optional_env:
+  - name: UNBROWSE_NODE
+    description: "The node's address. Defaults to http://127.0.0.1:7788."
+    secret: false

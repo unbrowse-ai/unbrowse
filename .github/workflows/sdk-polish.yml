@@ -1,0 +1,193 @@
+# When the node's API changes on staging, the generator rewrites the SDKs' typed layers and the window's command lists
+# (unbrowse-sdk/codegen/generate.py), and Claude drafts what a generator can't: a friendlier method where a new
+# primitive or command deserves one, the READMEs' tables, and the unbrowse skill. It opens a pull request for a
+# person to review; nothing it does lands on staging by itself.
+#
+# The model never holds a write token. `polish` gives Claude the model credential, a read-only token and file tools
+# only (no shell), and hands on the files it may change as an artifact. `propose` holds the write token, no secret and
+# no model: from a fresh checkout it takes only those files, as data, reruns the generator from the checkout, and pushes
+# a branch of its own and opens the pull request.
+name: SDK polish
+
+permissions: {}
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - unbrowse-node/agent-api.json
+  workflow_dispatch:
+    inputs:
+      before:
+        description: "The commit to compare agent-api.json with (empty: the commit before this one)"
+        required: false
+        default: ""
+
+# One draft at a time: a second change to the API waits for the first run to finish.
+concurrency:
+  group: sdk-polish
+  cancel-in-progress: false
+
+jobs:
+  # claude-code-action runs only on events it knows (workflow_dispatch, not push), so a push that changes the spec
+  # hands over to a dispatch of this workflow. A dispatch made with the workflow's own token still starts a run, as the
+  # github-actions bot, which the polish step has to allow.
+  hand-over:
+    if: github.event_name == 'push'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      actions: write # to dispatch this workflow
+    steps:
+      - name: Dispatch the polish run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: gh workflow run sdk-polish.yml --repo "$GITHUB_REPOSITORY" --ref staging -f before="$BEFORE"
+
+  polish:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          # Enough history to compare the manifest with what it was before this push.
+          fetch-depth: 20
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13.18"
+
+      # The generated files are the generator's: written here, never by Claude's hand (and written again by `propose`).
+      - name: Rewrite the generated files
+        run: python unbrowse-sdk/codegen/generate.py
+
+      # The spec's change, written out for Claude to read: it has no shell to ask git.
+      - name: Write the spec change
+        env:
+          BEFORE_INPUT: ${{ inputs.before || github.event.before || 'HEAD~1' }}
+        run: |
+          candidate=$BEFORE_INPUT
+          if [[ ! "$candidate" =~ ^[0-9a-fA-F]{40,64}$ ]] || ! git cat-file -e "$candidate^{commit}" 2>/dev/null; then
+            candidate=HEAD~1
+          fi
+          git diff "$(git rev-parse "$candidate")" HEAD -- unbrowse-node/agent-api.json > sdk-polish-spec.diff
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # This job's own token, read-only: no OIDC exchange for the app's token, which can write.
+          github_token: ${{ github.token }}
+          # The hand-over's dispatch runs as the github-actions bot; the action refuses a bot's run otherwise.
+          allowed_bots: github-actions
+          prompt: |
+            The node's machine-readable API, unbrowse-node/agent-api.json, changed on staging (commit ${{ github.sha }}).
+            The generator (unbrowse-sdk/codegen/generate.py) has already rewritten the files it owns:
+            unbrowse-sdk/typescript/src/generated.ts and unbrowse-sdk/python/src/unbrowse/_generated.py. Those files
+            are the generator's: never edit them by hand.
+            If one looks wrong, the fix belongs in the node's registries or in generate.py, and you say so in the
+            pull request rather than patching the output.
+
+            Read AGENTS.md and CLAUDE.md first and follow them. Then:
+
+            1. Read the spec change in sdk-polish-spec.diff. List the primitives, owner commands and types that were
+               added, removed or changed.
+            2. Where a new or changed agent primitive or owner command deserves a friendlier form than the generated
+               method, add it in the hand-written layer: unbrowse-sdk/typescript/src/client.ts, owner.ts, types.ts,
+               owner-types.ts, and unbrowse-sdk/python/src/unbrowse/client.py, models.py, owner.py. Keep every
+               existing public name, signature and field working. A new agent primitive needs its SDK methods (its
+               `sdk` names) in both clients, and each client's test that every primitive is reachable
+               (unbrowse-sdk/typescript/test, unbrowse-sdk/python/tests) needs how to call it.
+            3. Update the tables in unbrowse-sdk/typescript/README.md and unbrowse-sdk/python/README.md, and
+               skills/unbrowse/SKILL.md for anything an agent uses (agent primitives, never the owner's commands).
+               The plugins' copies of the skill are rewritten after you, by the generator. A primitive added or
+               removed is also named in the plugins' tool lists: integrations/openclaw/openclaw.plugin.json
+               (contracts.tools, toolMetadata), integrations/hermes/plugin.yaml (provides_tools) and
+               integrations/hermes/tools.py (TOOL_NAMES).
+            4. Do not install dependencies or run anything: you have file tools only. CI runs the SDK, codegen and
+               integration tests on the draft pull request.
+            5. Write the pull request's description to sdk-polish-pr.md: what changed in the spec and what you added
+               for it. Only the files named above are taken from your work; anything else you change is dropped. A
+               later job, not you, commits and opens the pull request. If nothing needs a hand-written change, write
+               no sdk-polish-pr.md and say why.
+          claude_args: >-
+            --allowedTools "Read,Write,Edit,Glob,Grep"
+            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit"
+
+      # Nothing runs git in this tree after Claude had Write over it (a hook or a config it wrote would run).
+      - name: Drop the repository
+        if: always()
+        run: rm -rf .git
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sdk-polish-draft
+          path: |
+            sdk-polish-pr.md
+            unbrowse-sdk/typescript/src
+            unbrowse-sdk/typescript/test
+            unbrowse-sdk/typescript/README.md
+            unbrowse-sdk/python/src/unbrowse
+            unbrowse-sdk/python/tests
+            unbrowse-sdk/python/README.md
+            skills/unbrowse
+            integrations/openclaw/openclaw.plugin.json
+            integrations/hermes/plugin.yaml
+            integrations/hermes/tools.py
+          if-no-files-found: ignore
+
+  # The write token, and no secret, no model and nothing the draft can run: a fresh checkout of the commit, the draft's
+  # files copied in as data from the paths a draft may change, the generator from the checkout run over them, then a
+  # branch and a pull request for a person to review.
+  propose:
+    needs: polish
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: write # to push the pull request's branch
+      pull-requests: write # to open the pull request
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ github.sha }}
+          # Kept for the push: nothing this job runs comes from the draft.
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13.18"
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sdk-polish-draft
+          path: ${{ runner.temp }}/draft
+
+      - name: Take the draft's files
+        id: take
+        run: python3 -I .github/scripts/sdk-polish-take.py "$RUNNER_TEMP/draft" . --body "$RUNNER_TEMP/pr.md" --github-output "$GITHUB_OUTPUT"
+
+      # The generator owns its files and the plugins' copies of the skill, whatever the draft held.
+      - name: Rewrite the generated files
+        if: steps.take.outputs.body == 'true'
+        run: python3 -I unbrowse-sdk/codegen/generate.py
+
+      - name: Open the pull request
+        if: steps.take.outputs.body == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then echo "The draft changed nothing."; exit 0; fi
+          branch="sdk-polish/${SHA:0:12}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add -A
+          git commit -q -m "sdk: polish for the agent API change in ${SHA:0:12}"
+          git push origin "refs/heads/$branch:refs/heads/$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base staging --head "$branch" --draft \
+            --title "sdk: polish for the agent API change in ${SHA:0:12}" --body-file "$RUNNER_TEMP/pr.md"

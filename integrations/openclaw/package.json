@@ -1,0 +1,49 @@
+{
+  "name": "@unbrowse/openclaw-plugin",
+  "version": "0.1.0",
+  "description": "Unbrowse for OpenClaw: say what you want from a website and get the site's own JSON back, through the Unbrowse node on your machine.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/unbrowse-ai/unbrowse-core",
+    "directory": "integrations/openclaw"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "skills",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "unbrowse"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p . && esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.js",
+    "test": "npm run build && node --test --test-timeout=10000 test/*.test.mjs",
+    "prepublishOnly": "npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.3",
+    "unbrowse": "file:../../unbrowse-sdk/typescript"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.10.8"
+    },
+    "build": {
+      "openclawVersion": "2026.10.8"
+    }
+  }
+}

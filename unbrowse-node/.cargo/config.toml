@@ -1,0 +1,4 @@
+# Dev builds on macOS run through scripts/dev-sign.sh, which signs them with one stable identity so the Keychain's
+# "Always Allow" for the node's root key survives rebuilds.
+[target.'cfg(target_os = "macos")']
+runner = "scripts/dev-sign.sh"

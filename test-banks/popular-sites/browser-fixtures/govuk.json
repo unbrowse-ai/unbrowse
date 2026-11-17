@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "domain": "www.gov.uk",
+  "site_scope": ["https://www.gov.uk/"],
+  "public": {
+    "entrypoint": "https://www.gov.uk/",
+    "nav_link_selector": "a[href^='/']",
+    "search_url_template": "https://www.gov.uk/search/all?keywords={query}",
+    "search_queries": ["passport", "driving licence"],
+    "listing_url": "https://www.gov.uk/search/all?keywords=passport",
+    "next_link_selector": ".govuk-pagination__next a"
+  }
+}

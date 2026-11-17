@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "runner": "unbrowse_mcp",
+  "date": "2026-10-28",
+  "node_version": "0.1.0 with local uncommitted route fixes",
+  "scope": "site-specific WordPress admin login and read-only protected access; outside the 400-site inventory",
+  "site": "newlife.org.sg",
+  "account_label": "stored WordPress account",
+  "checks": [
+    {"phase": "guest", "path": "/wp-admin/", "login_form_visible": true, "classification": "pass"},
+    {"phase": "login", "method": "Unbrowse browser with Vault reference", "dashboard_visible": true, "mfa_seen": false, "classification": "pass"},
+    {"phase": "protected_read", "path": "/wp-admin/edit.php", "posts_heading_visible": true, "login_form_visible": false, "classification": "pass"},
+    {"phase": "route_discovery", "goal": "list WordPress admin posts", "how": "learned", "route_id": "767702672d78f40a", "route_path": "/wp-admin/admin-ajax.php", "route_method": "POST", "route_write": true, "route_inputs": [], "result_ok": false, "http_status": 400, "classification": "fail_wrong_background_route"},
+    {"phase": "route_discovery_after_local_guard", "goal": "list WordPress admin posts", "how": "browse", "matching_route_saved": false, "protected_posts_visible": true, "classification": "safe_fallback_no_replay_route"},
+    {"phase": "logout", "classification": "not_tested"}
+  ],
+  "site_outcome": "login_and_protected_browser_read_pass; route_learning_not_supported_for_this_page",
+  "note": "The first route attempt sent a background POST that received HTTP 400; logs show a heal retry also received HTTP 400. No content-edit control was used. The erroneous route was backed up and removed from the active store. The authenticated node browser session remains open.",
+  "excluded": "No password, cookie, session ID, one-time code, account email, or response body is stored."
+}

@@ -1,0 +1,11 @@
+# The Unbrowse node's MCP server, for ~/.codex/config.toml.
+# `unbrowse mcp --agent first` relays Codex's MCP messages to the node, each signed with the token of the node's first
+# agent key, which it reads from the grant the owner gave once (`unbrowse grant first`): the token is in no config, no
+# environment and no command line, and never goes over the wire. For another key, put its number in place of first.
+[mcp_servers.unbrowse]
+command = "unbrowse"
+args = ["mcp", "--agent", "first"]
+env = { UNBROWSE_NODE = "http://127.0.0.1:7788" }
+startup_timeout_sec = 20
+# unbrowse_do can walk a page in the node's browser, which takes minutes. The SDKs wait 330 s.
+tool_timeout_sec = 330

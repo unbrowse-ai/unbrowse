@@ -1,0 +1,12 @@
+{
+  "about": "The contracts every node on arc-mainnet shares. `deployment` is null until the owner runs `unbrowse-node chain deploy` on arc-mainnet and copies what it prints here: Settlement, its USDC, UNB and pool, `dnssec` (the DNSSEC verifier the domain proofs' constructor makes on the IANA root anchors; a node refuses one with other anchors), `domains`, `escrow_wait`, and `coins`, the route-coin contracts as `unbrowse-settlement/script/DeployCoins.s.sol` prints them (`route_coins`, `route_coin_implementation`, `coin_stakes`, `coin_fetch`, `coin_bounties`), all fixed at deployment with no admin. A node holds every one of them to this build's code and to the protocol's route-coin numbers before it uses them (`chain/conform.rs`). Until then a node on arc-mainnet runs its identity and the peer network, and Settlement calls say it isn't deployed. `existing` names the network's own USDC, UNB and UNB/USDC pool for that deploy to build on instead of deploying test ones; a token left null is read from a named pool, else deployed as the test one. The curves' fee recipient is named on the operator's machine (`UNBROWSE_<NETWORK>_FEE_RECIPIENT`), never here. `usdc` is the network's own: the ERC-20 interface to its native gas, 6 decimals, so Settlement's fees, deposits and claims are in the same USDC that pays the gas. `registry_from` is the block nodes start reading ERC-8004 registrations from: no Unbrowse identity was registered before it. `epoch_blocks`, one epoch in this chain's blocks (R1.28), is set here before the deploy, to a day's share of the blocks the chain made over the week before it (`arc::tests::a_networks_epoch_blocks_are_a_day_of_its_blocks`, docs/OPERATIONS.md §3): a small drift from a day is accepted. Until it is, `chain deploy` refuses. A node reads ~/.unbrowse/networks/arc-mainnet.json instead of this file when that one exists.",
+  "network": "arc-mainnet",
+  "chain_id": 5042,
+  "registry_from": 28500000,
+  "deployment": null,
+  "existing": {
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "unb": null,
+    "pool": null
+  }
+}

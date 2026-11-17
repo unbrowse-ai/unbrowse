@@ -1,0 +1,8 @@
+{
+  "name": "unbrowse-release-npm",
+  "private": true,
+  "version": "1.0.0",
+  "devDependencies": {
+    "npm": "12.2.2"
+  }
+}

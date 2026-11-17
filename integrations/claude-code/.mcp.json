@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "unbrowse": {
+      "command": "unbrowse",
+      "args": [
+        "mcp",
+        "--agent",
+        "${user_config.agent}"
+      ],
+      "env": {
+        "UNBROWSE_NODE": "${user_config.node_url}"
+      },
+      "timeout": 330000
+    }
+  }
+}

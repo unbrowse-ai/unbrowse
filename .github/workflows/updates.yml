@@ -1,0 +1,220 @@
+# The update metadata between releases (.github/scripts/updates.mjs): a fresh timestamp every day, so nodes can tell
+# metadata a mirror keeps serving from what is current (a timestamp lasts a week), and canary's release promoted to
+# stable once it has run two days unhalted. Run it by hand to promote a release now, set the canary share, or halt and
+# resume every rollout. Each run reads what npm has, signs the change, checks it against the root nodes trust, and
+# publishes `@unbrowse/updates` by trusted publishing, as the release does.
+name: Updates
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to change
+        type: choice
+        options: [refresh, promote, share, halt, resume]
+        default: refresh
+      value:
+        description: "promote: the version canary runs; share: a whole percent; halt: why"
+        type: string
+        default: ""
+
+# One change to the metadata at a time, the release's among them, but for a halt. In the shared queue a halt would wait
+# out a release's whole build, and GitHub keeps only the newest pending run of a group, so the next merge could cancel
+# it. A halt stays safe outside the queue because each change's version is the timestamp npm had plus one and npm takes
+# a version once: of a halt and a change signed from the same metadata, whichever publishes second fails
+# (npm-publish.sh) and signs again on top of the first, so neither overwrites the other.
+concurrency:
+  group: ${{ inputs.action == 'halt' && 'halt' || 'release' }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  # The key-bearing job runs no dependency install or package manager.
+  sign:
+    name: Sign the update metadata
+    # The default branch (staging) only, where the schedule runs: its updates.mjs is the one that knows a release candidate
+    # never reaches stable, which main has only once a release that carries it ships.
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-24.04
+    environment: release
+    outputs:
+      targets_changed: ${{ steps.sign.outputs.targets_changed }}
+      cosign_required: ${{ steps.sign.outputs.cosign_required }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/updates.mjs
+            unbrowse-node/app/src/update.rs
+            unbrowse-node/updates
+          sparse-checkout-cone-mode: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trusted-main
+          persist-credentials: false
+          sparse-checkout: .github/scripts/updates.mjs
+          sparse-checkout-cone-mode: false
+      - name: Check update root transition metadata before signing
+        run: node .github/scripts/updates.mjs root-check --main-updates "$GITHUB_WORKSPACE/trusted-main/.github/scripts/updates.mjs"
+      - id: sign
+        name: Sign
+        env:
+          ACTION: ${{ inputs.action || 'refresh' }}
+          VALUE: ${{ inputs.value }}
+          UNBROWSE_RELEASE_KEY: ${{ secrets.UNBROWSE_RELEASE_KEY }}
+          UNBROWSE_TARGETS_KEY: ${{ secrets.UNBROWSE_TARGETS_KEY }}
+          UNBROWSE_TIMESTAMP_KEY: ${{ secrets.UNBROWSE_TIMESTAMP_KEY }}
+        run: |
+          case $ACTION in
+            refresh | resume) node .github/scripts/updates.mjs "$ACTION" --out "$RUNNER_TEMP/updates" --github-output "$GITHUB_OUTPUT" ;;
+            promote | share | halt) node .github/scripts/updates.mjs "$ACTION" "$VALUE" --out "$RUNNER_TEMP/updates" --github-output "$GITHUB_OUTPUT" ;;
+            *) echo "::error::no action $ACTION"; exit 1 ;;
+          esac
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: updates-dir
+          path: ${{ runner.temp }}/updates/**
+          if-no-files-found: error
+
+  # Timestamp-only refreshes skip this separately protected quorum step.
+  cosign:
+    name: Co-sign changed targets
+    needs: sign
+    if: needs.sign.outputs.cosign_required == 'true'
+    runs-on: ubuntu-24.04
+    environment: targets-cosign
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/updates.mjs
+            unbrowse-node/app/src/update.rs
+            unbrowse-node/updates
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: updates-dir
+          path: ${{ runner.temp }}/partial
+      - name: Add the independent targets signature
+        env:
+          ACTION: ${{ inputs.action || 'refresh' }}
+          VALUE: ${{ inputs.value }}
+          UNBROWSE_TARGETS_KEY_2: ${{ secrets.UNBROWSE_TARGETS_KEY_2 }}
+          UNBROWSE_TIMESTAMP_KEY: ${{ secrets.UNBROWSE_TIMESTAMP_KEY }}
+        run: node .github/scripts/updates.mjs co-sign "$RUNNER_TEMP/partial" --action "$ACTION" --value "$VALUE" --out "$RUNNER_TEMP/updates"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: updates-cosigned
+          path: ${{ runner.temp }}/updates/**
+          if-no-files-found: error
+
+  # The root's expiry, read every day: an expired root fails every node's check, and nothing else says it is near. A job
+  # of its own that reads no key, so going red here, from a month before, stops no timestamp being signed. On the
+  # schedule only: a halt run by hand isn't turned red by it.
+  root:
+    name: The root isn't about to expire
+    if: github.event_name == 'schedule' && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/updates.mjs
+            unbrowse-node/app/src/update.rs
+            unbrowse-node/updates
+          sparse-checkout-cone-mode: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trusted-main
+          persist-credentials: false
+          sparse-checkout: .github/scripts/updates.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.2
+      - run: node .github/scripts/updates.mjs root-check --main-updates "$GITHUB_WORKSPACE/trusted-main/.github/scripts/updates.mjs"
+
+  package:
+    name: Package signed update metadata
+    needs: [sign, cosign]
+    if: always() && needs.sign.result == 'success' && (needs.cosign.result == 'success' || needs.cosign.result == 'skipped') && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/tools/npm
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.2
+      - name: Install lockfile-pinned npm without lifecycle scripts
+        run: npm ci --ignore-scripts --prefix .github/tools/npm
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.sign.outputs.cosign_required == 'true' && 'updates-cosigned' || 'updates-dir' }}
+          path: ${{ runner.temp }}/updates
+      - name: Pack with the lockfile-pinned npm CLI
+        run: |
+          mkdir -p updates
+          cd "$RUNNER_TEMP/updates"
+          "$GITHUB_WORKSPACE/.github/tools/npm/node_modules/.bin/npm" pack --ignore-scripts --pack-destination "$GITHUB_WORKSPACE/updates" >/dev/null
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: updates
+          path: updates/*.tgz
+          if-no-files-found: error
+
+  # Publishes what `sign` made, by npm's trusted publishing, which names this workflow and the `release` environment.
+  # It reads no signing key.
+  updates:
+    name: Update metadata
+    needs: package
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/npm-publish.sh
+            .github/tools/npm
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.2
+      - name: Install lockfile-pinned npm without lifecycle scripts
+        run: npm ci --ignore-scripts --prefix .github/tools/npm
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: updates
+          path: updates
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.2
+      - name: Publish
+        run: |
+          export PATH="$GITHUB_WORKSPACE/.github/tools/npm/node_modules/.bin:$PATH"
+          sh .github/scripts/npm-publish.sh metadata updates.yml ./updates/*.tgz

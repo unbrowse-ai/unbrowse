@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unbrowse"
+  short_description: "Use websites as API calls through the Unbrowse node"
+  default_prompt: "Use $unbrowse to search Hacker News stories about rust"

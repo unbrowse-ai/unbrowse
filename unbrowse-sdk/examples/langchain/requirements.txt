@@ -1,0 +1,5 @@
+# pip install -r requirements.txt, from this folder
+../../python[langchain]
+langchain==1.4.6
+langchain-core==1.6.12
+langchain-openai

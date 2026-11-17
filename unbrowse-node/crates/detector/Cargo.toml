@@ -1,0 +1,18 @@
+[package]
+name = "unbrowse-detector"
+description = "The pinned credential detector (protocol R6.36): one pattern set, run by the node before listing, by verifiers on every fetch, and by the leak prover's guest"
+# Written out rather than inherited: the prover's guest builds this crate from its own workspace.
+edition = "2021"
+license = "Apache-2.0"
+version = "1.0.0"
+
+# The same bytes must give the same answer on the node and inside the zkVM guest: patterns are byte regexes with
+# Unicode off, the randomness measure is integer arithmetic (no float), and JSON is read with serde_json.
+[dependencies]
+regex = { version = "1", default-features = false, features = ["std", "perf"] }
+serde_json = "1"
+sha2 = "0.10"
+hex = "0.4"
+
+[lints]
+workspace = true

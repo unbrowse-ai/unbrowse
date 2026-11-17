@@ -1,0 +1,1164 @@
+{
+ "schema_version": 1,
+ "runner": "unbrowse agent API through unb (the same primitives as the MCP tools), driven by a script in the session",
+ "batch": "2026-11-02-public-batches-2-4",
+ "node_version": "13.9.0-dev, unbrowse-core fix/route-empty-and-names-2026-11-02 (PR #147), installed as /Applications/Unbrowse.app",
+ "scope": "public read-only search; no login, no writes, no challenge solving",
+ "values": "per site: a first and second value of one kind, a third unlike them, and a nonsense value (zqxjvbnmqw)",
+ "excluded": "no credentials, cookies, session IDs, response bodies or result titles",
+ "sites": [
+  {
+   "batch": "A",
+   "site": "pypi.org",
+   "goal": "search PyPI packages",
+   "phase": "fresh",
+   "values": [
+    "requests",
+    "flask",
+    "geospatial raster",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "requests",
+     "how": "browse",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "that call is no answer, so no route was kept: the site answered 200 with nothing",
+     "evidence": {}
+    },
+    {
+     "step": "replay",
+     "value": "flask",
+     "how": "learned",
+     "route_id": "5c641c39dae7c5da",
+     "path": "/search/?q={q}",
+     "inputs": [
+      "q"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 76,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "geospatial raster",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 76,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 52,
+      "mentions_value": true
+     }
+    }
+   ],
+   "judgments": 0,
+   "classification": "pass_after_retry",
+   "note": "first walk rejected its pick as '200 with nothing' (a challenge's empty first load; fixed); second ask learned the search page; all four values right, including no results"
+  },
+  {
+   "batch": "A",
+   "site": "npmjs.com",
+   "goal": "search npm packages",
+   "phase": "preexisting",
+   "values": [
+    "express",
+    "react",
+    "pdf parser",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "express",
+     "how": "called",
+     "route_id": "21667aa2de2afcf2",
+     "path": "/search?q={q}",
+     "inputs": [
+      "q"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 20,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "replay",
+     "value": "react",
+     "how": "called",
+     "route_id": "21667aa2de2afcf2",
+     "path": "/search?q={q}",
+     "inputs": [
+      "q"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 20,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "pdf parser",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 20,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 21,
+      "mentions_value": true
+     }
+    }
+   ],
+   "judgments": 0,
+   "classification": "pass",
+   "note": "preexisting route; all four values right ('0 packages found' for nonsense)"
+  },
+  {
+   "batch": "A",
+   "site": "ebay.com",
+   "goal": "search eBay listings",
+   "phase": "fresh",
+   "values": [
+    "desk lamp",
+    "office chair",
+    "vinyl record",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "desk lamp",
+     "how": "learned",
+     "route_id": "a2d3f1f169163b7c",
+     "path": "/sch/ajax/multiple_images_expsvc",
+     "inputs": [
+      "_nkw"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 58,
+      "mentions_value": false
+     }
+    },
+    {
+     "step": "replay",
+     "value": "office chair",
+     "how": "called",
+     "route_id": "a2d3f1f169163b7c",
+     "path": "/sch/ajax/multiple_images_expsvc",
+     "inputs": [
+      "_nkw"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 30,
+      "mentions_value": false
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "vinyl record",
+     "how": "error",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": false,
+     "error_category": "a request of the route couldn't be made",
+     "why": null,
+     "evidence": {}
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": "error",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": false,
+     "error_category": "a request of the route couldn't be made",
+     "why": null,
+     "evidence": {}
+    }
+   ],
+   "judgments": 2,
+   "classification": "pass_after_judge",
+   "note": "learned an image-carousel call (ok, no titles or prices); judged; then a sign-up-banner call browsing had kept; judged; then learned the search page itself; 126 prices, replays and 'No exact matches found' right"
+  },
+  {
+   "batch": "A",
+   "site": "imdb.com",
+   "goal": "search IMDb titles",
+   "phase": "fresh",
+   "values": [
+    "inception",
+    "interstellar",
+    "pride and prejudice",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "inception",
+     "how": "browse",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "that call is no answer, so no route was kept: the site answered 202: it took the request but held the answer back",
+     "evidence": {}
+    },
+    {
+     "step": "replay",
+     "value": "interstellar",
+     "how": "learned",
+     "route_id": "557e8f25199821a7",
+     "path": "/find/?q={q}",
+     "inputs": [
+      "q"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 5,
+      "mentions_value": false
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "pride and prejudice",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 5,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 0,
+      "mentions_value": false
+     }
+    }
+   ],
+   "judgments": 1,
+   "classification": "pass_after_judge",
+   "note": "first walk held (202); replay learned /find/ whose default fields missed titles; judged right with title fields; titles right; the no-results value is answered by a second route the build before the fix learned"
+  },
+  {
+   "batch": "A",
+   "site": "bbc.co.uk",
+   "goal": "search BBC articles",
+   "phase": "fresh",
+   "values": [
+    "climate",
+    "election",
+    "volcano",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "climate",
+     "how": "learned",
+     "route_id": "216ddede0ace7b7b",
+     "path": "/search?q={q}&edgeauth={edgeauth}",
+     "inputs": [
+      "q"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 79,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "replay",
+     "value": "election",
+     "how": "called",
+     "route_id": "216ddede0ace7b7b",
+     "path": "/search?q={q}&edgeauth={edgeauth}",
+     "inputs": [
+      "q"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 79,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "volcano",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 79,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 58,
+      "mentions_value": true
+     }
+    }
+   ],
+   "judgments": 0,
+   "classification": "pass",
+   "note": "all four values right"
+  },
+  {
+   "batch": "B",
+   "site": "reddit.com",
+   "goal": "search Reddit posts",
+   "phase": "preexisting",
+   "values": [
+    "rust programming",
+    "sourdough",
+    "mechanical keyboards",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "rust programming",
+     "how": "browse",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "that call is no answer, so no route was kept: the site answered 200 with nothing",
+     "evidence": {}
+    },
+    {
+     "step": "replay",
+     "value": "sourdough",
+     "how": "learned",
+     "route_id": "fc1126b8329a5a09",
+     "path": "/search/?q={q}",
+     "inputs": [
+      "q"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 72,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "mechanical keyboards",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 75,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 60,
+      "mentions_value": true
+     }
+    }
+   ],
+   "judgments": 0,
+   "classification": "pass_after_retry",
+   "note": "same flaky first walk as PyPI; replay learned the search page; posts right"
+  },
+  {
+   "batch": "B",
+   "site": "stackoverflow.com",
+   "goal": "search Stack Overflow questions",
+   "phase": "fresh",
+   "values": [
+    "rust borrow checker",
+    "python asyncio",
+    "css grid",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "rust borrow checker",
+     "how": "browse",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "the walk failed: Browser(\"mint unresolved (challenge); browser left open for verification; reconnect at ws://127.0.0.1:54051/devtools/browse",
+     "evidence": {}
+    },
+    {
+     "step": "replay",
+     "value": "python asyncio",
+     "how": "browse",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "the walk failed: Browser(\"mint unresolved (challenge); attached browser left open for verification\")",
+     "evidence": {}
+    },
+    {
+     "step": "call_unrelated",
+     "value": "css grid",
+     "how": "not_tested",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "no route with a bound input to call",
+     "evidence": {}
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": "not_tested",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "no route with a bound input to call",
+     "evidence": {}
+    }
+   ],
+   "judgments": 0,
+   "classification": "blocked",
+   "note": "Cloudflare challenge on both walks; the node said so"
+  },
+  {
+   "batch": "B",
+   "site": "archive.org",
+   "goal": "search Internet Archive items",
+   "phase": "fresh",
+   "values": [
+    "apollo 11",
+    "jazz",
+    "public domain films",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "apollo 11",
+     "how": "learned",
+     "route_id": "c936572f3cc95c04",
+     "path": "/services/offshoot/abtest.php",
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 0,
+      "mentions_value": false
+     }
+    },
+    {
+     "step": "replay",
+     "value": "jazz",
+     "how": "learned",
+     "route_id": "a68302012f2333f5",
+     "path": "/search?query={query}",
+     "inputs": [
+      "query"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 0,
+      "mentions_value": false
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "public domain films",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 0,
+      "mentions_value": false
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 0,
+      "mentions_value": false
+     }
+    }
+   ],
+   "judgments": 2,
+   "classification": "fail_then_pass_after_fix",
+   "note": "learned an A/B-test call, then an empty page shell; its search API passes the page address and was taken for a beacon; fixed, it learns the search API and replays"
+  },
+  {
+   "batch": "B",
+   "site": "etsy.com",
+   "goal": "search Etsy listings",
+   "phase": "fresh",
+   "values": [
+    "ceramic mug",
+    "wool scarf",
+    "wedding invitation",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "ceramic mug",
+     "how": "browse",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "that call is no answer, so no route was kept: the site answered 403: etsy.com: Please enable JS and disable any ad blocker; the site answere",
+     "evidence": {}
+    },
+    {
+     "step": "replay",
+     "value": "wool scarf",
+     "how": "learned",
+     "route_id": "10632b289c15071c",
+     "path": "/{path[0]}?q={q}",
+     "inputs": [
+      "part0",
+      "q"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 113,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "wedding invitation",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 116,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 83,
+      "mentions_value": true
+     }
+    }
+   ],
+   "judgments": 0,
+   "classification": "pass_after_retry",
+   "note": "first walk refused (403, profile replaced); replay learned the search page; listings right"
+  },
+  {
+   "batch": "B",
+   "site": "github.com",
+   "goal": "search GitHub repositories",
+   "phase": "fresh",
+   "values": [
+    "tauri",
+    "ripgrep",
+    "markdown editor",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "tauri",
+     "how": "learned",
+     "route_id": "8956847d5170a65d",
+     "path": "/{path[0]}?q={q}&type={type}",
+     "inputs": [
+      "part0",
+      "q",
+      "type"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 143,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "replay",
+     "value": "ripgrep",
+     "how": "called",
+     "route_id": "8956847d5170a65d",
+     "path": "/{path[0]}?q={q}&type={type}",
+     "inputs": [
+      "part0",
+      "q",
+      "type"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 138,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "markdown editor",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 150,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": "error",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": false,
+     "error_category": "the target answered, but not in the recorded shape",
+     "why": null,
+     "evidence": {}
+    }
+   ],
+   "judgments": 0,
+   "classification": "pass_after_fix",
+   "note": "three values right; no-results failed as 'not in the recorded shape' (the page's largest JSON blob was its settings); fixed in the node, re-run passes"
+  },
+  {
+   "batch": "C",
+   "site": "allrecipes.com",
+   "goal": "search Allrecipes recipes",
+   "phase": "fresh",
+   "values": [
+    "banana bread",
+    "lasagna",
+    "vegan curry",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "banana bread",
+     "how": "learned",
+     "route_id": "2dccd41d985fbc0a",
+     "path": "/search?q={q}",
+     "inputs": [
+      "q"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 150,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "replay",
+     "value": "lasagna",
+     "how": "called",
+     "route_id": "2dccd41d985fbc0a",
+     "path": "/search?q={q}",
+     "inputs": [
+      "q"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 150,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "vegan curry",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 150,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": "error",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": false,
+     "error_category": "the site answered 404",
+     "why": null,
+     "evidence": {}
+    }
+   ],
+   "judgments": 0,
+   "classification": "pass_false_failure",
+   "note": "three values right; the site answers 404 for no results, which the node counts as a failure"
+  },
+  {
+   "batch": "C",
+   "site": "goodreads.com",
+   "goal": "search Goodreads books",
+   "phase": "fresh",
+   "values": [
+    "dune",
+    "middlemarch",
+    "graphic novel",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "dune",
+     "how": "browse",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "that call is no answer, so no route was kept: the site answered 202: it took the request but held the answer back",
+     "evidence": {}
+    },
+    {
+     "step": "replay",
+     "value": "middlemarch",
+     "how": "learned",
+     "route_id": "7045e4a597e197ec",
+     "path": "/search?q={q}",
+     "inputs": [
+      "q"
+     ],
+     "result_ok": false,
+     "error_category": "a request did not complete",
+     "why": null,
+     "evidence": {}
+    },
+    {
+     "step": "call_unrelated",
+     "value": "graphic novel",
+     "how": "error",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": false,
+     "error_category": "a request did not complete",
+     "why": null,
+     "evidence": {}
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": "error",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": false,
+     "error_category": "a request did not complete",
+     "why": null,
+     "evidence": {}
+    }
+   ],
+   "judgments": 0,
+   "classification": "blocked",
+   "note": "202 hold, then requests that never complete"
+  },
+  {
+   "batch": "C",
+   "site": "bestbuy.com",
+   "goal": "search Best Buy products",
+   "phase": "fresh",
+   "values": [
+    "headphones",
+    "monitor",
+    "air fryer",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "headphones",
+     "how": "learned",
+     "route_id": "ed4e0c14a7ffe36b",
+     "path": "/site/searchpage.jsp?st={st}",
+     "inputs": [
+      "st"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 9,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "replay",
+     "value": "monitor",
+     "how": "called",
+     "route_id": "ed4e0c14a7ffe36b",
+     "path": "/site/searchpage.jsp?st={st}",
+     "inputs": [
+      "st"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 9,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "air fryer",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 9,
+      "mentions_value": true
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 9,
+      "mentions_value": true
+     }
+    }
+   ],
+   "judgments": 3,
+   "classification": "blocked_region_gate",
+   "note": "learned the 'Select your Country' gate (from a Singapore address) as the search; judged; choosing United States in the browser showed results, but replays don't carry the choice: the learner picked suggestions, a SKU fragment and a stream call, then the bot check refused the walk"
+  },
+  {
+   "batch": "C",
+   "site": "theguardian.com",
+   "goal": "search Guardian articles",
+   "phase": "fresh",
+   "values": [
+    "climate",
+    "football",
+    "artificial intelligence",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "climate",
+     "how": "browse",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "loading the page sends no call that answers the goal: it needs clicks or typing; the site answered 404: Page Not Found | The Guardian: Sorry",
+     "evidence": {}
+    },
+    {
+     "step": "replay",
+     "value": "football",
+     "how": "browse",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "loading the page sends no call that answers the goal: it needs clicks or typing; the site answered 404: Page Not Found | The Guardian: Sorry",
+     "evidence": {}
+    },
+    {
+     "step": "call_unrelated",
+     "value": "artificial intelligence",
+     "how": "not_tested",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "no route with a bound input to call",
+     "evidence": {}
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": "not_tested",
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": null,
+     "error_category": null,
+     "why": "no route with a bound input to call",
+     "evidence": {}
+    }
+   ],
+   "judgments": 0,
+   "classification": "not_applicable",
+   "note": "no first-party search page (/search answers 404)"
+  },
+  {
+   "batch": "C",
+   "site": "target.com",
+   "goal": "search Target products",
+   "phase": "fresh",
+   "values": [
+    "water bottle",
+    "towels",
+    "lego",
+    "zqxjvbnmqw"
+   ],
+   "checks": [
+    {
+     "step": "first",
+     "value": "water bottle",
+     "how": "called",
+     "route_id": "8cfbe7883cf6901e",
+     "path": "/redsky_aggregations/v1/web/store_location_v1?store_id=1771&key={key}&visitor_id={visitor_id}&channel=WEB&page={page}",
+     "inputs": [
+      "searchTerm"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 0,
+      "mentions_value": false
+     }
+    },
+    {
+     "step": "replay",
+     "value": "towels",
+     "how": "called",
+     "route_id": "8cfbe7883cf6901e",
+     "path": "/redsky_aggregations/v1/web/store_location_v1?store_id=1771&key={key}&visitor_id={visitor_id}&channel=WEB&page={page}",
+     "inputs": [
+      "searchTerm"
+     ],
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 0,
+      "mentions_value": false
+     }
+    },
+    {
+     "step": "call_unrelated",
+     "value": "lego",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 0,
+      "mentions_value": false
+     }
+    },
+    {
+     "step": "no_results",
+     "value": "zqxjvbnmqw",
+     "how": null,
+     "route_id": null,
+     "path": null,
+     "inputs": null,
+     "result_ok": true,
+     "error_category": null,
+     "why": null,
+     "evidence": {
+      "records": 0,
+      "mentions_value": false
+     }
+    }
+   ],
+   "judgments": 4,
+   "classification": "fail_then_pass_after_fix",
+   "note": "a preexisting store-locator route answered (matched on the site's name); then experiment flags, the page's own state (no products) and a recommendations call that fails; its 1.2 MB search answer was cut at 1 MB in the walk; fixed, it learns the search call on the first ask and replays"
+  },
+  {
+   "batch": "future_target",
+   "site": "carousell.sg",
+   "goal": "search Carousell listings",
+   "phase": "preexisting",
+   "values": [
+    "iphone 14 pro"
+   ],
+   "checks": [],
+   "judgments": 4,
+   "classification": "pass_after_judge_and_fix",
+   "note": "the stored route answered with 0 listings (Certified tab); judged; the page went to hands after one judgment. On the installed node the marketplace URL learned the empty page state, then filter metadata; on a cold dev node it learned the search API (POST /ds/search/cf/4.0/search/, 49 listings). A learn retired a route judged wrong for the page, losing the verdict: fixed; on the fixed build, with the page-state route renamed, the marketplace URL learns the search API and answers later searches"
+  }
+ ]
+}

@@ -1,0 +1,4 @@
+{"calls": 10, "answered": 8, "browserless_answered": 5, "by_rung": {"0": 4, "3": 2, "4": 1, "5": 3},
+ "browser_calls": [{"case": "a.example", "rung": 4, "bound_by": "unplaced"}, {"case": "b.example", "rung": 5, "bound_by": "unplaced"},
+                   {"case": "c.example", "rung": 5, "bound_by": "door"}, {"case": "d.example", "rung": 5, "bound_by": "person"}],
+ "model_calls": 0}

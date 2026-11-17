@@ -1,0 +1,3 @@
+# pip install -r requirements.txt, from this folder
+../../python[openai-agents]
+openai-agents==0.24.0

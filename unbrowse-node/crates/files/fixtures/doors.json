@@ -1,0 +1,1 @@
+{"www.shop.example": {"kind": "cloudflare", "statuses": [403, 429], "credential": "cf_clearance", "ttl": 3600, "earn": "browser"}}

@@ -1,0 +1,26 @@
+{
+  "min_version": "13.0.0",
+  "platforms": {
+    "darwin-arm64": {
+      "integrity": "sha512-7mTz2oPHP63YBwCs0jWlyagv2szjvjwFWM+vaB2NdMqmCojjhfXmYxpqfuglz0lthmdc7ZdMm9l8J8su3KKdsw==",
+      "name": "@unbrowse/darwin-arm64"
+    },
+    "darwin-x64": {
+      "integrity": "sha512-ldaR0chi36CfCxaYGzPF1If4xKL1KjT/toHqJczX5dggk+/FMi0y8qqBZz4dqY7TSna/FxVqSGxMimzu3vitxA==",
+      "name": "@unbrowse/darwin-x64"
+    },
+    "linux-arm64": {
+      "integrity": "sha512-ycZBaPTKGXzp1+eXYDOQ20m7UnFw1nrNI4DeTRGjKwZCH/y0MS4iImTPFDeb1YKbJo8GIaN4YfBybHxUv/8dOg==",
+      "name": "@unbrowse/linux-arm64"
+    },
+    "linux-x64": {
+      "integrity": "sha512-t2EddLJQscI88c58GaArXbNF7NzJtzJdjM7RVLgiLh+FnyjM9pv5PMBOHFUc70XeSTFmGIjw6UCBSJIWrwitaw==",
+      "name": "@unbrowse/linux-x64"
+    },
+    "win32-x64": {
+      "integrity": "sha512-0ABijvwrYbcU8ZQ681GmewpI7IulUZbLogyK+o6ZEq+rKpDaPO6Vuj5EMyAlfyIOFWDjZP9+YVWu7UbebqAi5w==",
+      "name": "@unbrowse/win32-x64"
+    }
+  },
+  "version": "9.9.9"
+}

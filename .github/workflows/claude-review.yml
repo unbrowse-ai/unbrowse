@@ -1,0 +1,69 @@
+# Claude reviews each pull request's code for bugs and posts what it finds inline (the code-review plugin; CLAUDE.md
+# and AGENTS.md are its rules). It reads the code; QA (qa.yml) is the one that runs it.
+#
+# Needs the Claude GitHub App on the repository and a Claude credential as a repository secret, ANTHROPIC_API_KEY or
+# CLAUDE_CODE_OAUTH_TOKEN: `/install-github-app` in Claude Code does both. Without a credential the job says so and
+# passes.
+name: Claude review
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+concurrency:
+  group: claude-review-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  review:
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    name: Claude review
+    if: >-
+      github.ref == 'refs/heads/staging'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 30
+    steps:
+      - id: auth
+        env:
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$API_KEY$OAUTH_TOKEN" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Claude review didn't run: add ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN as a repository secret (/install-github-app in Claude Code)"
+          fi
+      - if: steps.auth.outputs.ok == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      # The Claude CLI the credential is asked with: the locked one, its lifecycle scripts off, in a step with no secret.
+      - name: Install the pinned Claude CLI
+        if: steps.auth.outputs.ok == 'true'
+        run: npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
+      # A token that is set can still refuse (a weekly limit): the job runs on the first one that answers.
+      - name: Pick the Claude credential that answers
+        id: credential
+        if: steps.auth.outputs.ok == 'true'
+        env:
+          CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+      - if: steps.auth.outputs.ok == 'true'
+        uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git#ce6cb8ee39759afb5d8bf2e3fd26582f575e9095"
+          plugins: "code-review@claude-code-plugins"
+          prompt: "/code-review:code-review"
+          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment"'

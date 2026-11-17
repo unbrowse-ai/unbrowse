@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "source_list_id": "GQ3LK",
+  "status": "reserved_for_later_site_specific_test",
+  "domains": [
+    {"domain": "x.com", "tranco_rank": 47, "in_400_site_inventory": true},
+    {"domain": "instagram.com", "tranco_rank": 14, "in_400_site_inventory": true},
+    {"domain": "linkedin.com", "tranco_rank": 18, "in_400_site_inventory": true},
+    {"domain": "carousell.sg", "tranco_rank": 14537, "in_400_site_inventory": false}
+  ]
+}
