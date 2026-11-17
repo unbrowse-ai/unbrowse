@@ -1,0 +1,187 @@
+# Nightly regression on Lundy's bank, on a scratch node built from staging (the default branch). Live sites go down and change on their own, so it
+# never gates a pull request: it fails here, where someone reads why.
+#
+# Reads: the sites in regression.json, through the agent API (run_bank.py), held to the checks each passed. A check that now
+# answers wrong has regressed; a wall or an outage says nothing either way. Writes: Claude works through
+# .github/qa/writes.md on sites built to be written to.
+#
+# The agent reads pages anyone can write, so its job holds what QA's does: a read-only token kept off the disk, no shell,
+# no web of its own, and a report scrubbed before it leaves.
+name: Bank
+
+on:
+  schedule:
+    - cron: '17 19 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: bank-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  bank:
+    if: github.ref == 'refs/heads/staging'
+    name: Lundy bank
+    runs-on: blacksmith-6vcpu-macos-latest
+    timeout-minutes: 150
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The page sandbox and scratch-node.sh need Node 25 or later (26 is the LTS): older Nodes let a page's scripts reach the network
+      # under --permission.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+      # Restored, never saved: the tree this job ends with has been in reach of the agent's Write.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: vendor
+        with:
+          path: unbrowse-node/vendor
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch') }}
+      - if: steps.vendor.outputs.cache-hit != 'true'
+        working-directory: unbrowse-node
+        run: sh scripts/apply-tls-patch.sh
+      # The build's folders are restored here and saved straight after the build, before anything that reads the web
+      # or an agent with Write runs: a cache this job saves holds only what the build made. A key is saved once, for a
+      # lockfile, by the first run that misses it, and no other workflow restores it.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: build-cache
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            unbrowse-node/target
+            unbrowse-browser/cli/target
+          key: bank-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}
+          restore-keys: bank-${{ runner.os }}-rust-1.99.1-
+      - name: Build the node and its browser
+        run: |
+          cargo build --locked --manifest-path unbrowse-browser/cli/Cargo.toml
+          cargo build --locked --manifest-path unbrowse-node/Cargo.toml --bin unbrowse-node --bin unb
+
+      - name: Save the build's folders before anything else runs
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            unbrowse-node/target
+            unbrowse-browser/cli/target
+          key: bank-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}
+      - name: Start a scratch node
+        run: |
+          dir="$RUNNER_TEMP/b"
+          echo "SCRATCH=$dir" >> "$GITHUB_ENV"
+          sh test-banks/popular-sites/scratch-node.sh "$dir"
+          token=$(cat "$dir/token")
+          echo "::add-mask::$token"
+          if printf 'SuperSecretPassword!\n' | env -i HOME="$dir/home" UNBROWSE_HOME="$dir/home/node" PATH=/usr/bin:/bin \
+            unbrowse-node/target/debug/unbrowse-node vault add the-internet.herokuapp.com tomsmith --stored; then
+            echo "Demo login in the vault"
+          fi
+          # The node's MCP server as a shipped setup gives it: `unb mcp`, which signs each message.
+          jq -n --arg unb "$GITHUB_WORKSPACE/unbrowse-node/target/debug/unb" --arg token "$token" \
+            '{mcpServers: {unbrowse: {command: $unb, args: ["mcp"], env: {UNBROWSE_NODE: "http://127.0.0.1:17810", UNBROWSE_AGENT_TOKEN: $token}}}}' \
+            > "$RUNNER_TEMP/mcp.json"
+
+      # Five sites a batch, as the bank's limits say. A batch that stops short leaves its sites untested, which the
+      # comparison says.
+      - name: Reads
+        run: |
+          cd test-banks/popular-sites
+          jq -r '.sites | keys[]' regression.json | paste -d, - - - - - | sed 's/,*$//' | while read -r batch; do
+            python3 run_bank.py run --node http://127.0.0.1:17810 --token-file "$SCRATCH/token" --cases search-cases.json \
+              --sites "$batch" --seed "$(date -u +%F)" --out "$RUNNER_TEMP/reads.json" --node-home "$SCRATCH/home/node" \
+              --node-log "$SCRATCH/node.log" --guard-log "$SCRATCH/guard.log" || echo "::warning::a batch stopped short: $batch"
+          done
+
+      - name: Compare with the sites that passed
+        id: reads
+        continue-on-error: true
+        run: |
+          status=0
+          python3 test-banks/popular-sites/run_bank.py compare --out "$RUNNER_TEMP/reads.json" --summary "$RUNNER_TEMP/reads.md" || status=$?
+          cat "$RUNNER_TEMP/reads.md" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      # Coverage without a browser (docs/HARNESS.md): of the calls this run made, how many answered right with no
+      # browser process, by the run's own verdict of each site. A number to read, never a gate.
+      - name: Census
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 test-banks/popular-sites/run_bank.py census --node-home "$SCRATCH/home/node" --out "$RUNNER_TEMP/reads.json" \
+            --commit "$GITHUB_SHA" --census "$RUNNER_TEMP/census.json" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The Claude CLI the credential is asked with: the locked one, its lifecycle scripts off, in a step with no secret.
+      - name: Install the pinned Claude CLI
+        run: npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
+      # A token that is set can still refuse (a weekly limit): the Writes use the first one that answers.
+      - name: Pick the Claude credential that answers
+        id: credential
+        env:
+          CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+
+      - name: Writes
+        id: writes
+        continue-on-error: true
+        uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            Read .github/qa/writes.md and do what it says. RUN: ${{ github.run_id }}.
+          claude_args: >-
+            --mcp-config ${{ runner.temp }}/mcp.json
+            --allowedTools "mcp__unbrowse__unbrowse_do,mcp__unbrowse__unbrowse_browse,mcp__unbrowse__unbrowse_search,mcp__unbrowse__unbrowse_call,mcp__unbrowse__unbrowse_judge,mcp__unbrowse__unbrowse_report,Read,Write"
+            --disallowedTools "Bash,WebFetch,WebSearch,Edit,NotebookEdit,Glob,Grep,Read(/${{ runner.temp }}/**)"
+            --max-turns 80
+
+      - name: Scrub the report
+        if: always()
+        run: |
+          [ -f writes-report.md ] || echo "No writes report: see the Writes step's log." > writes-report.md
+          perl -pi -e '
+            s/\bunb_[A-Za-z0-9_.-]+/[redacted]/g;
+            s/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})/[redacted]/g;
+            s/\bsk-ant-[A-Za-z0-9_-]+/[redacted]/g;
+          ' writes-report.md
+          cat writes-report.md >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bank
+          path: |
+            writes-report.md
+            ${{ runner.temp }}/reads.json
+            ${{ runner.temp }}/reads.md
+            ${{ runner.temp }}/b/guard.log
+          if-no-files-found: ignore
+
+      - name: Verdict
+        if: always()
+        env:
+          READS: ${{ steps.reads.outcome }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          [ "$READS" = success ] || { echo "::error::A check that passed now answers wrong: see the summary"; failed=1; }
+          if [ "$EVENT_NAME" != pull_request ]; then
+            jq -e '.pass == true' writes-verdict.json > /dev/null || { echo "::error::A write failed, or wrote no verdict: see the summary"; failed=1; }
+          fi
+          exit "${failed:-0}"

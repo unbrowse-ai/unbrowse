@@ -1,0 +1,445 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions: {}
+
+jobs:
+  check-release:
+    name: Check for new version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      should_publish_sandbox: ${{ steps.check.outputs.should_publish_sandbox }}
+      should_publish_eve: ${{ steps.check.outputs.should_publish_eve }}
+      needs_github_release: ${{ steps.check.outputs.needs_github_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+
+      - name: Compare package.json version to npm and check GitHub release
+        id: check
+        run: |
+          LOCAL_VERSION=$(node -p "require('./package.json').version")
+          SANDBOX_VERSION=$(node -p "require('./packages/@agent-browser/sandbox/package.json').version")
+          EVE_VERSION=$(node -p "require('./packages/@agent-browser/eve/package.json').version")
+          echo "Local version: $LOCAL_VERSION"
+          echo "Sandbox package version: $SANDBOX_VERSION"
+          echo "Eve package version: $EVE_VERSION"
+
+          NPM_VERSION=$(npm view agent-browser version 2>/dev/null || echo "0.0.0")
+          SANDBOX_NPM_VERSION=$(npm view @agent-browser/sandbox version 2>/dev/null || echo "0.0.0")
+          EVE_NPM_VERSION=$(npm view @agent-browser/eve version 2>/dev/null || echo "0.0.0")
+          echo "npm version: $NPM_VERSION"
+          echo "@agent-browser/sandbox npm version: $SANDBOX_NPM_VERSION"
+          echo "@agent-browser/eve npm version: $EVE_NPM_VERSION"
+
+          if [ "$LOCAL_VERSION" != "$NPM_VERSION" ]; then
+            echo "Version changed: $NPM_VERSION -> $LOCAL_VERSION"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "needs_github_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version unchanged on npm, skipping build and publish"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+
+            # Check if GitHub release exists; it may be missing if a prior run
+            # published to npm but failed before creating the release.
+            TAG="v$LOCAL_VERSION"
+            if gh release view "$TAG" &>/dev/null; then
+              echo "GitHub release $TAG exists"
+              echo "needs_github_release=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "GitHub release $TAG is missing, will rebuild and create it"
+              echo "needs_github_release=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          if [ "$SANDBOX_VERSION" != "$SANDBOX_NPM_VERSION" ]; then
+            echo "Sandbox package version changed: $SANDBOX_NPM_VERSION -> $SANDBOX_VERSION"
+            echo "should_publish_sandbox=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Sandbox package version unchanged on npm, skipping publish"
+            echo "should_publish_sandbox=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$EVE_VERSION" != "$EVE_NPM_VERSION" ]; then
+            echo "Eve package version changed: $EVE_NPM_VERSION -> $EVE_VERSION"
+            echo "should_publish_eve=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Eve package version unchanged on npm, skipping publish"
+            echo "should_publish_eve=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$LOCAL_VERSION" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-binaries:
+    permissions:
+      contents: read
+    name: Build ${{ matrix.name }}
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true' || needs.check-release.outputs.needs_github_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            os: ubuntu-24.04
+            rust_target: x86_64-unknown-linux-gnu
+            build_target: x86_64-unknown-linux-gnu.2.28
+            binary: agent-browser-linux-x64
+            use_zigbuild: true
+          - name: Linux ARM64
+            os: ubuntu-24.04
+            rust_target: aarch64-unknown-linux-gnu
+            build_target: aarch64-unknown-linux-gnu.2.28
+            binary: agent-browser-linux-arm64
+            use_zigbuild: true
+          - name: Linux musl x64
+            os: ubuntu-24.04
+            rust_target: x86_64-unknown-linux-musl
+            build_target: x86_64-unknown-linux-musl
+            binary: agent-browser-linux-musl-x64
+            use_zigbuild: true
+          - name: Linux musl ARM64
+            os: ubuntu-24.04
+            rust_target: aarch64-unknown-linux-musl
+            build_target: aarch64-unknown-linux-musl
+            binary: agent-browser-linux-musl-arm64
+            use_zigbuild: true
+          - name: Windows x64
+            os: ubuntu-latest
+            rust_target: x86_64-pc-windows-gnu
+            build_target: x86_64-pc-windows-gnu
+            binary: agent-browser-win32-x64.exe
+            use_zigbuild: false
+          - name: macOS x64
+            os: macos-latest
+            rust_target: x86_64-apple-darwin
+            build_target: x86_64-apple-darwin
+            binary: agent-browser-darwin-x64
+            use_zigbuild: false
+          - name: macOS ARM64
+            os: macos-latest
+            rust_target: aarch64-apple-darwin
+            build_target: aarch64-apple-darwin
+            binary: agent-browser-darwin-arm64
+            use_zigbuild: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install npm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync version
+        run: pnpm run version:sync
+
+      - name: Build dashboard
+        run: pnpm --filter dashboard build
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install cross-compilation tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu=4:13.2.0-7ubuntu1 \
+            gcc-x86-64-linux-gnu=4:13.2.0-7ubuntu1 \
+            mingw-w64=11.0.1-3build1
+
+      - name: Install Zig
+        if: matrix.use_zigbuild
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.0.0
+        with:
+          version: 0.17.0
+          use-cache: false
+
+      - name: Install cargo-zigbuild
+        if: matrix.use_zigbuild
+        run: cargo install cargo-zigbuild --version 0.23.2 --locked
+
+      - name: Configure Rust linkers
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml << 'EOF'
+          [target.aarch64-unknown-linux-gnu]
+          linker = "aarch64-linux-gnu-gcc"
+
+          [target.x86_64-pc-windows-gnu]
+          linker = "x86_64-w64-mingw32-gcc"
+          EOF
+
+      - name: Build with zigbuild
+        if: matrix.use_zigbuild
+        run: cargo zigbuild --release --manifest-path cli/Cargo.toml --target ${{ matrix.build_target }}
+
+      - name: Build with cargo
+        if: '!matrix.use_zigbuild'
+        run: cargo build --release --manifest-path cli/Cargo.toml --target ${{ matrix.rust_target }}
+
+      - name: Copy binary
+        run: |
+          mkdir -p artifacts
+          if [[ "${{ matrix.rust_target }}" == *"windows"* ]]; then
+            cp cli/target/${{ matrix.rust_target }}/release/agent-browser.exe artifacts/${{ matrix.binary }}
+          else
+            cp cli/target/${{ matrix.rust_target }}/release/agent-browser artifacts/${{ matrix.binary }}
+            chmod +x artifacts/${{ matrix.binary }}
+          fi
+
+      - name: Verify Linux GNU glibc floor
+        if: matrix.binary == 'agent-browser-linux-x64' || matrix.binary == 'agent-browser-linux-arm64'
+        run: |
+          set -euo pipefail
+          if objdump -p artifacts/${{ matrix.binary }} | grep -E 'GLIBC_2\.([3-9][0-9]|29)'; then
+            echo "ERROR: ${{ matrix.binary }} requires glibc newer than 2.28"
+            exit 1
+          fi
+          objdump -p artifacts/${{ matrix.binary }} | sed -n '/Version References:/,$p'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.binary }}
+          path: artifacts/${{ matrix.binary }}
+          retention-days: 7
+
+  prepare-packages:
+    name: Prepare npm package tarballs
+    needs: [check-release, build-binaries]
+    if: >-
+      always() &&
+      needs.check-release.result == 'success' &&
+      (needs.check-release.outputs.should_release == 'true' ||
+       needs.check-release.outputs.should_publish_sandbox == 'true' ||
+       needs.check-release.outputs.should_publish_eve == 'true') &&
+      (needs.check-release.outputs.should_release != 'true' || needs.build-binaries.result == 'success')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      hashes: ${{ steps.hashes.outputs.hashes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13.18"
+      - name: Install lockfile-pinned npm CLI
+        run: |
+          npm ci --ignore-scripts --prefix .github/tools/npm
+      - name: Install workspace dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Sync version
+        run: pnpm run version:sync
+      - name: Build sandbox and Eve packages
+        run: |
+          pnpm --filter @agent-browser/sandbox run build
+          pnpm --filter @agent-browser/eve run build
+      - if: needs.check-release.outputs.should_release == 'true'
+        name: Download built binaries
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: artifacts/
+      - if: needs.check-release.outputs.should_release == 'true'
+        name: Stage agent-browser binaries
+        run: |
+          mkdir -p bin
+          find artifacts -type f -name 'agent-browser-*' -exec mv {} bin/ \;
+          rm -rf artifacts
+          chmod +x bin/agent-browser-* 2>/dev/null || true
+      - name: Pack selected packages
+        env:
+          SHOULD_RELEASE: ${{ needs.check-release.outputs.should_release }}
+          SHOULD_PUBLISH_SANDBOX: ${{ needs.check-release.outputs.should_publish_sandbox }}
+          SHOULD_PUBLISH_EVE: ${{ needs.check-release.outputs.should_publish_eve }}
+        run: |
+          mkdir -p packages
+          if [ "$SHOULD_RELEASE" = true ]; then pnpm pack --ignore-scripts --pack-destination packages; fi
+          if [ "$SHOULD_PUBLISH_SANDBOX" = true ]; then (cd packages/@agent-browser/sandbox && pnpm pack --ignore-scripts --pack-destination "$GITHUB_WORKSPACE/packages"); fi
+          if [ "$SHOULD_PUBLISH_EVE" = true ]; then (cd packages/@agent-browser/eve && pnpm pack --ignore-scripts --pack-destination "$GITHUB_WORKSPACE/packages"); fi
+      - name: Record package hashes
+        id: hashes
+        run: python3 -I .github/scripts/artifact-hashes.py record packages --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-packages
+          path: packages/*.tgz
+          if-no-files-found: error
+  publish-packages:
+    name: Publish prepared packages to npm
+    needs: [check-release, prepare-packages]
+    if: >-
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      needs.check-release.result == 'success' &&
+      needs.prepare-packages.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout trusted release files
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/artifact-hashes.py
+            .github/scripts/npm-publish.sh
+            .github/tools/npm
+          sparse-checkout-cone-mode: false
+      - name: Download the prepared packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npm-packages
+          path: packages
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13.18"
+      - name: Install lockfile-pinned npm without lifecycle scripts
+        run: npm ci --ignore-scripts --prefix .github/tools/npm
+      - name: Verify prepared package bytes
+        env:
+          EXPECTED_HASHES: ${{ needs.prepare-packages.outputs.hashes }}
+        run: python3 -I .github/scripts/artifact-hashes.py verify packages --expected "$EXPECTED_HASHES"
+      - name: Publish prepared packages with provenance
+        env:
+          SHOULD_RELEASE: ${{ needs.check-release.outputs.should_release }}
+          SHOULD_PUBLISH_SANDBOX: ${{ needs.check-release.outputs.should_publish_sandbox }}
+          SHOULD_PUBLISH_EVE: ${{ needs.check-release.outputs.should_publish_eve }}
+          VERSION: ${{ needs.check-release.outputs.version }}
+        run: |
+          export PATH="$GITHUB_WORKSPACE/.github/tools/npm/node_modules/.bin:$PATH"
+          publish_if_new() {
+            package=$1
+            tarball=$2
+            if npm view "${package}@${VERSION}" version >/dev/null 2>&1; then
+              echo "${package}@${VERSION} is already published; skipping"
+            else
+              npm publish "$tarball" --provenance --no-git-checks --access public
+            fi
+          }
+          if [ "$SHOULD_RELEASE" = true ]; then publish_if_new agent-browser "$(find packages -maxdepth 1 -name 'agent-browser-*.tgz' -print -quit)"; fi
+          if [ "$SHOULD_PUBLISH_SANDBOX" = true ]; then publish_if_new @agent-browser/sandbox "$(find packages -maxdepth 1 -name 'agent-browser-sandbox-*.tgz' -print -quit)"; fi
+          if [ "$SHOULD_PUBLISH_EVE" = true ]; then publish_if_new @agent-browser/eve "$(find packages -maxdepth 1 -name 'agent-browser-eve-*.tgz' -print -quit)"; fi
+
+  github-release:
+    name: Create GitHub Release
+    needs: [check-release, build-binaries, publish-packages]
+    if: >-
+      always() &&
+      needs.build-binaries.result == 'success' &&
+      needs.check-release.outputs.needs_github_release == 'true' &&
+      (needs.publish-packages.result == 'success' || needs.publish-packages.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: artifacts/
+
+      - name: Move binaries to bin directory
+        run: |
+          mkdir -p bin
+          find artifacts -type f -name 'agent-browser-*' -exec mv {} bin/ \;
+          rm -rf artifacts
+          chmod +x bin/agent-browser-* 2>/dev/null || true
+          ls -la bin/
+
+      - name: Verify binaries exist
+        run: |
+          BINARY_COUNT=$(ls bin/agent-browser-* 2>/dev/null | wc -l)
+          if [ "$BINARY_COUNT" -lt 7 ]; then
+            echo "Error: Expected 7 binaries, found $BINARY_COUNT"
+            ls -la bin/
+            exit 1
+          fi
+          echo "Found $BINARY_COUNT binaries"
+
+      - name: Extract changelog entry
+        env:
+          VERSION: ${{ needs.check-release.outputs.version }}
+        run: |
+          awk '/<!-- release:start -->/{found=1; next} /<!-- release:end -->/{found=0} found{print}' CHANGELOG.md > /tmp/release-notes.md
+
+          LINES=$(wc -l < /tmp/release-notes.md | tr -d ' ')
+          if [ "$LINES" -lt 2 ]; then
+            echo "Error: No release notes found between <!-- release:start --> and <!-- release:end --> markers in CHANGELOG.md"
+            exit 1
+          fi
+          echo "Extracted release notes for $VERSION ($LINES lines)"
+
+      - name: Create GitHub Release
+        env:
+          VERSION: ${{ needs.check-release.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+
+          if gh release view "$TAG" &>/dev/null; then
+            echo "Release $TAG already exists, uploading assets..."
+            gh release upload "$TAG" bin/agent-browser-* --clobber
+          else
+            echo "Creating release $TAG..."
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file /tmp/release-notes.md \
+              bin/agent-browser-*
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "domain": "example.test",
+  "site_scope": ["https://example.test/"],
+  "test_account_label": "disposable route-test account",
+  "login_url": "https://example.test/login",
+  "protected_url": "https://example.test/private",
+  "username": "test-account-identifier",
+  "vault_ref": "vault:example.test:test-account-identifier",
+  "guest_marker": "login form or redirect observed on the protected URL",
+  "authenticated_marker": "test-only private page marker",
+  "logout_control": "observed logout control, if available",
+  "mfa_expected": false
+}

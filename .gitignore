@@ -1,11 +1,48 @@
+.DS_Store
+.graff/
+
+# build output
+target/
 node_modules/
 dist/
-*.tgz
-packages/cli/SKILL.md
-packages/cli/references/
-packages/cli/contribute/
-.agents/*
-!.agents/plugins/
-skills-lock.json
+
+# walks, HARs and jars carry live cookies and tokens
+captures/
+*.har
+*.jsonl
+# except the cuts of walks the learner's tests are built from: a few lines each, every cookie, token and session
+# value scrubbed by hand
+!unbrowse-node/app/tests/fixtures/walks/*.jsonl
+
+# local secrets
+.env
+.env.*
+!.env.example
+*.log
+
+# design working files
+.taste-skill/
+
+# local audit working files: they stay on the machine and out of commits
+.audit/
+
+# python
 __pycache__/
-.pytest_cache/
+*.pyc
+
+# the programs and the skill a release packs into the SDKs
+unbrowse-sdk/python/src/unbrowse/Unbrowse.app/
+unbrowse-sdk/python/src/unbrowse/bin/
+unbrowse-sdk/python/src/unbrowse/skill/
+unbrowse-sdk/python/src/unbrowse/app-team
+unbrowse-sdk/typescript/skill/
+unbrowse-sdk/typescript/manifest.json
+unbrowse-sdk/typescript/manifest.sig
+
+# Machine notes kept beside a working copy; never published (UNB-158)
+LOCAL-USE.md
+
+# release train (telemetry worker)
+.deploy/.*
+.wrangler.preview.*
+unbrowse-telemetry/.wrangler/

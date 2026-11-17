@@ -1,0 +1,11 @@
+{
+  "name": "unbrowse-example-mastra",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node index.mjs", "stub": "UNBROWSE_STUB_MODEL=1 node index.mjs" },
+  "dependencies": {
+    "@mastra/core": "1.78.0",
+    "unbrowse": "file:../../typescript",
+    "zod": "4.6.7"
+  }
+}

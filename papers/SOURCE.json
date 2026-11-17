@@ -1,0 +1,64 @@
+{
+  "repo": "lekt9/unbrowse-papers",
+  "ref": "origin/staging",
+  "commit": "c7e14fc09a7829bf3d188baeed35fe584b5ec720",
+  "files": {
+    "abstract.md": {
+      "from": "papers/build/abstract.md",
+      "sha256": "7a57b9a644b23766a323115ab13aa42b60225d642a32815ccfaa5677517bb5ea"
+    },
+    "abstract.pdf": {
+      "from": "papers/build/abstract.pdf",
+      "sha256": "dabfc6bb4d41498eb269c02f8d063c3d21d4c38648179e813d04bae718c89a38"
+    },
+    "whitepaper.md": {
+      "from": "papers/build/whitepaper.md",
+      "sha256": "0feb529e04058f57432a6bb28a23dfb5d67497e7cba246bcb3c552a9cec1192d"
+    },
+    "whitepaper.pdf": {
+      "from": "papers/build/whitepaper.pdf",
+      "sha256": "06f3c07bce6f0b37fbce25b27e812fea8618027bb9453a2bf948534aedb0ac46"
+    },
+    "economy.md": {
+      "from": "papers/build/economy.md",
+      "sha256": "1560e0393ea7f464ddd08b3da32fb033c85111d062d81ba940289eb2069db0d5"
+    },
+    "economy.pdf": {
+      "from": "papers/build/economy.pdf",
+      "sha256": "6ec228ccafe636bb30713a39f8ff76bb574fac9cc96b809f6475b28b4ed426a6"
+    },
+    "selection.md": {
+      "from": "papers/build/selection.md",
+      "sha256": "933d18dc3a622aa50f00143602e2b562e630b8f30c0750d613aaf3fe79913708"
+    },
+    "selection.pdf": {
+      "from": "papers/build/selection.pdf",
+      "sha256": "5fb92f3042a62e62f83f44098a6dfbba6080d22f867beee3da932ce555f2a1e0"
+    },
+    "protocol.md": {
+      "from": "protocol/build/spec.md",
+      "sha256": "49e4270c51ef163aba7192a8a3d53b5317f379d5a8072e475cb4d409d5e7c393"
+    },
+    "protocol.pdf": {
+      "from": "protocol/build/spec.pdf",
+      "sha256": "201582b14b91fc025065574f42d6609a74e2e8ca55918a4b3e70488e8ddaac97"
+    },
+    "params.toml": {
+      "from": "protocol/params.toml",
+      "sha256": "0c38c67eacb03873bd242f94e2e855bdb306ee2f611a7f70ecc9cf5b0aab2a4d"
+    },
+    "mining-the-machine-web.pdf": {
+      "from": "arxiv/main.pdf",
+      "sha256": "1d4a98f49626883371f3b4568b8fd82c16fb7db138ea99b34fa7e617ecad2e12"
+    },
+    "internal-apis-drift.pdf": {
+      "from": "paper/internal-apis-maintenance.pdf",
+      "sha256": "50a2db29414c305b0e9e169c19d3559229fdded68dfacda45f4486ad8967c25b"
+    },
+    "internal-apis-are-all-you-need.pdf": {
+      "from": null,
+      "frozen": "arXiv:2604.00694 as published",
+      "sha256": "f0e6f89c34b4666f8c87bcafb2c2bdeb6673ad454deed17411e1c1c1f2fca653"
+    }
+  }
+}

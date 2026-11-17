@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- unbrowse mark on the night ground -->
+  <rect width="64" height="64" rx="14" fill="#04060E"/>
+  <g transform="translate(6.4 6.4) scale(.8)">
+    <path d="M12 19V37a20 20 0 0 0 40 0V19H40v18a8 8 0 0 1-16 0V19Z" fill="#1F5EFF"/>
+    <path d="M12 7h12v10H12zM40 7h12v10H40z" fill="#F4F6FB"/>
+  </g>
+</svg>

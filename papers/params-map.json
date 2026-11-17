@@ -1,0 +1,774 @@
+{
+  "about": "Where unbrowse-core states each papers/params.toml value. Checked by `python3 -I papers/params_check.py`. code_value = params_v * scale. Text params use `nth`: the nth number in the text v. `implied` is the code value of a site with no literal (the pattern has no capture group). Every params key is in `mapped` or `unmapped`, never both; `open_in_code` annotates unmapped keys whose value core already fixes; `retired_in_code` lists parameters papers retired that code still defines (each site fails the check).",
+  "mapped": [
+    {
+      "key": "supply.decimals",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/chain/amounts.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const UNB_DECIMALS: u8 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "time.epoch",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/script/DeployLean.s.sol",
+          "pattern": "uint64 constant EPOCH_BLOCKS = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 3600,
+          "note": "a devnet's blocks at one a second; passed to every contract's constructor"
+        },
+        {
+          "file": "unbrowse-node/app/src/chain.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const EPOCH: u64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 3600,
+          "note": "seconds"
+        }
+      ]
+    },
+    {
+      "key": "time.withdrawal_delay",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/src/lean/LeanSettlement.sol",
+          "pattern": "uint(?:64|256) (?:public|private|internal) constant WITHDRAW_DELAY = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "fees.contributor",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/src/lean/LeanSettlement.sol",
+          "pattern": "uint(?:64|256) (?:public|private|internal) constant ROUTE_PCT = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 100,
+          "note": "percent: the route's share, paid to the coin contracts"
+        },
+        {
+          "file": "unbrowse-node/app/src/chain/wallet.rs",
+          "pattern": "pub const SPLIT: Split = Split \\{ contributor: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 100,
+          "note": "percent"
+        }
+      ]
+    },
+    {
+      "key": "fees.website",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/src/lean/LeanSettlement.sol",
+          "pattern": "uint(?:64|256) (?:public|private|internal) constant SITE_PCT = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 100,
+          "note": "percent"
+        },
+        {
+          "file": "unbrowse-node/app/src/chain/wallet.rs",
+          "pattern": "pub const SPLIT: Split = Split \\{ contributor: [0-9]+, site: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 100,
+          "note": "percent"
+        }
+      ]
+    },
+    {
+      "key": "fees.server",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/chain/wallet.rs",
+          "pattern": "pub const SPLIT: Split = Split \\{[^}]*serving: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 100,
+          "note": "percent"
+        }
+      ]
+    },
+    {
+      "key": "fees.burn",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/chain/wallet.rs",
+          "pattern": "pub const SPLIT: Split = Split \\{[^}]*burn: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?) \\};",
+          "scale": 100,
+          "note": "percent; LeanSettlement states no burn constant: the burn takes the remainder"
+        }
+      ]
+    },
+    {
+      "key": "fees.platform",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/chain/wallet.rs",
+          "pattern": "pub const SPLIT: Split = Split \\{[^}]*platform: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 100,
+          "note": "percent"
+        }
+      ]
+    },
+    {
+      "key": "fees.burn_batch_max_share",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/src/lean/LeanSettlement.sol",
+          "pattern": "uint(?:64|256) (?:public|private|internal) constant BURN_BATCH_BPS = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 10000,
+          "note": "bps"
+        }
+      ]
+    },
+    {
+      "key": "fees.batch_margin",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/src/lean/LeanSettlement.sol",
+          "pattern": "uint(?:64|256) (?:public|private|internal) constant BATCH_MARGIN_BPS = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 10000,
+          "note": "bps"
+        }
+      ]
+    },
+    {
+      "key": "rating.complaints_per_day",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/rank/reputation.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const COMPLAINTS_PER_DAY: usize = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "rating.local_demotion",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/rank/reputation.rs",
+          "pattern": "pub const LOCAL_DEMOTION: Duration = Duration::from_secs\\(([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?) \\* 3600\\);",
+          "scale": 1,
+          "note": "hours"
+        }
+      ]
+    },
+    {
+      "key": "ranking.switch_margin",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/rank/reputation.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const SWITCH_MARGIN: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "ranking.switch_confidence",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/rank/reputation.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const SWITCH_CONFIDENCE: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "ranking.prior_a",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/rank/reputation.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const PRIOR_A: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "ranking.prior_b",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/rank/reputation.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const PRIOR_B: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "ranking.exploration_share",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/rank/reputation.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const EXPLORATION_SHARE: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "ranking.unverified_uses",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/rank/reputation.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const UNVERIFIED_USES: u64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "ranking.link_hops",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/rank/reputation.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const LINK_HOPS: usize = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "liveness.penalty_cap",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/providers.rs",
+          "pattern": "pub const MAX_EXCLUSION: u64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1,
+          "note": "R7.12's P: the doubling set-aside of a provider; params now puts the schedule on entries"
+        }
+      ]
+    },
+    {
+      "key": "serving.provider_record",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/node.rs",
+          "pattern": "provider_ttl: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?) \\* minute,",
+          "scale": 60,
+          "note": "minutes"
+        }
+      ]
+    },
+    {
+      "key": "serving.provider_refresh",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/node.rs",
+          "pattern": "provider_refresh: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?) \\* minute,",
+          "scale": 1,
+          "note": "minutes"
+        }
+      ]
+    },
+    {
+      "key": "serving.max_providers",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/body.rs",
+          "pattern": "pub const MAX_BODY_PROVIDERS: usize = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "serving.listings_rate",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const LISTINGS_RATE: Rate = Rate \\{ burst: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 0
+        },
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const LISTINGS_RATE: Rate = Rate \\{ burst: [0-9.]+, per_second: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 1
+        }
+      ]
+    },
+    {
+      "key": "serving.body_rate",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const BODY_RATE: Rate = Rate \\{ burst: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 0
+        },
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const BODY_RATE: Rate = Rate \\{ burst: [0-9.]+, per_second: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 1
+        }
+      ]
+    },
+    {
+      "key": "serving.strangers_rate",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const STRANGERS_LISTINGS: Rate = Rate \\{ burst: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 0
+        },
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const STRANGERS_LISTINGS: Rate = Rate \\{ burst: [0-9.]+, per_second: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 1
+        },
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const STRANGERS_BODIES: Rate = Rate \\{ burst: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 0
+        },
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const STRANGERS_BODIES: Rate = Rate \\{ burst: [0-9.]+, per_second: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 1
+        },
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const STRANGERS_KAD: Rate = Rate \\{ burst: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 2
+        },
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const STRANGERS_KAD: Rate = Rate \\{ burst: [0-9.]+, per_second: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 3
+        }
+      ]
+    },
+    {
+      "key": "serving.slots",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "pub const SLOTS: usize = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1,
+          "note": "'one kept for a newcomer' is behaviour, not checked",
+          "nth": 0
+        },
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "pub const SLOTS_PER_PEER: usize = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1,
+          "nth": 1
+        }
+      ]
+    },
+    {
+      "key": "serving.slot_wait",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "pub const SLOT_WAIT: Duration = Duration::from_secs\\(([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?)\\);",
+          "scale": 1,
+          "note": "seconds",
+          "nth": 0
+        }
+      ]
+    },
+    {
+      "key": "dht.k",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/node.rs",
+          "pattern": "\\n\\s+k: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "note": "Config::new"
+        }
+      ]
+    },
+    {
+      "key": "dht.alpha",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/node.rs",
+          "pattern": "\\n\\s+alpha: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "note": "Config::new"
+        }
+      ]
+    },
+    {
+      "key": "dht.position_bits",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/node.rs",
+          "pattern": "rules: Rules \\{ position_bits: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "note": "Config::new"
+        }
+      ]
+    },
+    {
+      "key": "dht.nodes_per_identity",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/node.rs",
+          "pattern": "rules: Rules \\{ position_bits: [0-9]+, nodes_per_identity: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?) \\}",
+          "scale": 1,
+          "note": "Config::new"
+        }
+      ]
+    },
+    {
+      "key": "dht.query_rate",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const KAD_RATE: Rate = Rate \\{ burst: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 0
+        },
+        {
+          "file": "unbrowse-node/crates/net/src/budget.rs",
+          "pattern": "const KAD_RATE: Rate = Rate \\{ burst: [0-9.]+, per_second: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "nth": 1
+        }
+      ]
+    },
+    {
+      "key": "dht.listing_sources",
+      "sites": [
+        {
+          "file": "unbrowse-node/crates/net/src/node.rs",
+          "pattern": "\\n\\s+listing_sources: ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "note": "Config::new"
+        }
+      ]
+    },
+    {
+      "key": "pool.fee",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/src/lean/Pool.sol",
+          "pattern": "uint(?:64|256) (?:public|private|internal) constant FEE_BPS = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 10000,
+          "note": "bps; the devnet stand-in pool. The live pool's fee is its own (V4UnbPool reads it, immutable)"
+        }
+      ]
+    },
+    {
+      "key": "agent.max_fetch",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/store.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const MAX_FETCH_USDC: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "agent.key_cap",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/agents.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const AUTO_CAP_USDC: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "sharing.days",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/autolist.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const DAYS_EARNED: u32 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "sharing.runs",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/autolist.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const RUNS_EARNED: u64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "sharing.list_per_day",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/store.rs",
+          "pattern": "ShareMode::Used => ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "note": "ShareMode::per_day"
+        }
+      ]
+    },
+    {
+      "key": "sharing.list_per_day_all",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/store.rs",
+          "pattern": "ShareMode::All => ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?),",
+          "scale": 1,
+          "note": "ShareMode::per_day"
+        }
+      ]
+    },
+    {
+      "key": "listing.reserve_root_interval",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/reserve.rs",
+          "pattern": "\\.filter\\(\\|s\\| \\*s > 0\\)\\.unwrap_or\\(([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?)\\)",
+          "scale": 3600,
+          "note": "seconds; UNBROWSE_RESERVE_INTERVAL overrides"
+        }
+      ]
+    },
+    {
+      "key": "routes.site_hosts_max",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/src/lean/Domains.sol",
+          "pattern": "uint(?:64|256) (?:public|private|internal) constant HOSTS_MAX = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "escrow.wait",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/script/DeployLean.s.sol",
+          "pattern": "uint64 constant ESCROW_WAIT = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1,
+          "note": "constructor arg of Domains"
+        },
+        {
+          "file": "unbrowse-node/app/src/chain.rs",
+          "pattern": "(?:pub(?:\\([a-z]+\\))? )?const ESCROW_WAIT: u64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 1
+        }
+      ]
+    },
+    {
+      "key": "route_coin.supply",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/script/DeployCoins.s.sol",
+          "pattern": "uint(?:64|256) internal constant ROUTE_COIN_SUPPLY = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?) ether;",
+          "scale": 1,
+          "note": "whole coins"
+        }
+      ]
+    },
+    {
+      "key": "route_coin.virtual_unb",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/script/DeployCoins.s.sol",
+          "pattern": "uint(?:64|256) internal constant ROUTE_COIN_VIRTUAL_UNB = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?) ether;",
+          "scale": 1,
+          "note": "whole UNB"
+        }
+      ]
+    },
+    {
+      "key": "route_coin.trade_fee",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/script/DeployCoins.s.sol",
+          "pattern": "uint(?:64|256) internal constant ROUTE_COIN_TRADE_FEE_BPS = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 10000,
+          "note": "basis points"
+        }
+      ]
+    },
+    {
+      "key": "route_coin.snipe_start",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/script/DeployCoins.s.sol",
+          "pattern": "uint(?:64|256) internal constant ROUTE_COIN_SNIPE_START_BPS = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 10000,
+          "note": "basis points"
+        }
+      ]
+    },
+    {
+      "key": "route_coin.snipe_window",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/script/DeployCoins.s.sol",
+          "pattern": "uint(?:64|256) internal constant ROUTE_COIN_SNIPE_WINDOW = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?) minutes;",
+          "scale": 1,
+          "note": "minutes"
+        }
+      ]
+    },
+    {
+      "key": "route_coin.unstake_delay",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/script/DeployCoins.s.sol",
+          "pattern": "uint(?:64|256) internal constant ROUTE_COIN_UNSTAKE_DELAY = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?) hours;",
+          "scale": 1,
+          "note": "hours"
+        }
+      ]
+    },
+    {
+      "key": "route_coin.bounty_lister_share",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/script/DeployCoins.s.sol",
+          "pattern": "uint(?:64|256) internal constant ROUTE_COIN_BOUNTY_LISTER_SHARE_BPS = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 10000,
+          "note": "basis points"
+        }
+      ]
+    },
+    {
+      "key": "route_coin.bounty_use_cap",
+      "sites": [
+        {
+          "file": "unbrowse-settlement/script/DeployCoins.s.sol",
+          "pattern": "uint(?:64|256) internal constant ROUTE_COIN_BOUNTY_USE_CAP_BPS = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 10000,
+          "note": "basis points"
+        }
+      ]
+    },
+    {
+      "key": "rank.price_window",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/rank/coin.rs",
+          "pattern": "pub const RANK_PRICE_WINDOW: u64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?) \\* 3600;",
+          "scale": 1,
+          "note": "hours: the client's rank window"
+        }
+      ]
+    },
+    {
+      "key": "route_coin.dev_buy_share",
+      "sites": [
+        {
+          "file": "unbrowse-node/app/src/store.rs",
+          "pattern": "pub const COIN_DEV_BUY_BPS: u32 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+          "scale": 10000,
+          "note": "basis points: the node's default first buy"
+        }
+      ]
+    }
+  ],
+  "retired_in_code": [],
+  "open_in_code": {
+    "fees.suggested_detail": [
+      {
+        "file": "unbrowse-node/app/src/main.rs",
+        "pattern": "(?:pub(?:\\([a-z]+\\))? )?const STARTING_FEE: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+        "scale": 1,
+        "note": "USDC; spec: core uses the old 0.01 until the owner decides"
+      }
+    ],
+    "rating.canary_penalty": [
+      {
+        "file": "unbrowse-node/app/src/rank/reputation.rs",
+        "pattern": "(?:pub(?:\\([a-z]+\\))? )?const CANARY_PENALTY: u64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+        "scale": 1,
+        "note": "epochs ('the refund window')"
+      }
+    ],
+    "rating.decay": [
+      {
+        "file": "unbrowse-node/app/src/rank/reputation.rs",
+        "pattern": "(?:pub(?:\\([a-z]+\\))? )?const HALF_LIFE: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+        "scale": 1,
+        "note": "half-life in epochs: delta = 0.5^(1/7)"
+      }
+    ],
+    "rating.payer_weight": [
+      {
+        "file": "unbrowse-node/app/src/rank/reputation.rs",
+        "pattern": "(?:pub(?:\\([a-z]+\\))? )?const AGE_HALF: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+        "scale": 1,
+        "note": "epochs"
+      },
+      {
+        "file": "unbrowse-node/app/src/rank/reputation.rs",
+        "pattern": "(?:pub(?:\\([a-z]+\\))? )?const SPEND_HALF: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+        "scale": 1,
+        "note": "USDC"
+      },
+      {
+        "file": "unbrowse-node/app/src/rank/reputation.rs",
+        "pattern": "(?:pub(?:\\([a-z]+\\))? )?const SPREAD_HALF: f64 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+        "scale": 1,
+        "note": "distinct routes and sites paid for (R5.2)"
+      }
+    ],
+    "fraud.detector": [
+      {
+        "file": "unbrowse-node/crates/detector/src/lib.rs",
+        "pattern": "pub const VERSION_NUMBER: u32 = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+        "scale": 1
+      }
+    ],
+    "listing.credit_final": [
+      {
+        "file": "unbrowse-settlement/src/lean/Listings.sol",
+        "pattern": "uint(?:64|256) (?:public|private|internal) constant CREDIT_FINAL_EPOCHS = ([0-9][0-9_]*(?:\\.[0-9]+)?(?:e[0-9]+)?);",
+        "scale": 1,
+        "note": "epochs; params is OPEN (candidate 14); the contract fixes 7 until the owner decides"
+      }
+    ]
+  },
+  "unmapped": {
+    "allocation.airdrop": "launch allocation: not in core code",
+    "allocation.public_pool": "launch allocation: not in core code",
+    "allocation.reserve": "launch allocation: not in core code",
+    "allocation.team": "launch allocation: not in core code",
+    "allocation.team_launch_buy_max": "launch intent, not an allocation: not in core code",
+    "allocation.treasury_1": "launch allocation: not in core code",
+    "allocation.treasury_2": "launch allocation: not in core code",
+    "capacity.base": "Bond.capacity(k0, gamma, clean) takes it as an argument; no caller and no value in code",
+    "capacity.clean_share": "Bond.capacity(k0, gamma, clean) takes it as an argument; no caller and no value in code",
+    "escrow.unclaimed": "open: no value in code",
+    "fees.smallest_unit": "USDC's own decimals, read from the token at runtime",
+    "fees.suggested_detail": "open (text): core still uses 0.01, see open_in_code",
+    "fraud.detector": "open (text): code pins detector version 1, see open_in_code",
+    "launch.pilot_agents": "pilot size: not in code",
+    "launch.pilot_length": "open: not in code",
+    "liveness.detection_lag": "client: model assumption, not in code",
+    "liveness.reports": "open: no value in code",
+    "pool.own_lp": "open: no value in code",
+    "pool.seed_lock": "open: launchpad term, not in code",
+    "pool.seeding": "text: deploy-time choice (setPool), not a number",
+    "pool.trade_tax": "launch: it is the pool's own fee (pool.fee, spec §97), which the public pool charges; core adds no trade tax of its own",
+    "pool.trade_tax_to": "text: not in code",
+    "privacy.relay": "open: no value in code",
+    "ranking.evidence_cap": "open: no value in code",
+    "ranking.link_recall_min": "proposed: pilot measurement rule, not in code",
+    "rating.canary_penalty": "open (text): code fixes 30 epochs, see open_in_code",
+    "rating.canary_share": "launch: no value in code (update.rs canary_share is the release channel, unrelated)",
+    "rating.decay": "open (text): code fixes a 7-epoch half-life, see open_in_code",
+    "rating.declared_fault": "open: no value in code",
+    "rating.escalation_start": "open: no value in code",
+    "rating.payer_weight": "open (text): code fixes the half-points, see open_in_code",
+    "rating.rebuttal_window": "open: no value in code",
+    "refund.false_fail_gate": "client default not in code",
+    "routes.binding_window": "proposed: no value in code",
+    "routes.description_max": "open: no value in code",
+    "routes.optout_recheck": "proposed: no value in code",
+    "supply.minted_after_launch": "live token on Arc mainnet; not stated in core code",
+    "supply.total": "live token on Arc mainnet; core's UNB.sol is a faucet test token with no supply constant",
+    "vesting.lock_long": "launch lock: not in core code",
+    "vesting.lock_short": "launch lock: not in core code",
+    "listing.credit_final": "OPEN in the papers (spec §84 item E, candidate 14 = claims.vest); the contract fixes 7",
+    "route_coin.curve_share": "the whole supply is on the curve: RouteCoins holds nothing back, so no constant states a share",
+    "rank.identity_window": "the client's rank has no identity weight (decide.users-stake-no-weight): not in core code",
+    "refund.min_lines": "removed by decide.failed-fetch-always-free (Lewis, 12 Nov 2026): a failed line is never charged and no failure is counted, so core states no value (FailureCap.sol is deleted; papers PR 111 retires the parameter)",
+    "refund.max_fail_rate": "removed by decide.failed-fetch-always-free (Lewis, 12 Nov 2026): a failed line is never charged and no failure is counted, so core states no value (FailureCap.sol is deleted; papers PR 111 retires the parameter)",
+    "refund.window": "removed by decide.failed-fetch-always-free (Lewis, 12 Nov 2026): a failed line is never charged and no failure is counted, so core states no value (FailureCap.sol is deleted; papers PR 111 retires the parameter)",
+    "refund.fail_value": "removed by decide.failed-fetch-always-free (Lewis, 12 Nov 2026): a failed line is never charged and no failure is counted, so core states no value (FailureCap.sol is deleted; papers PR 111 retires the parameter)"
+  },
+  "stale_in_code": []
+}

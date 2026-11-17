@@ -1,0 +1,18 @@
+Unbrowse
+Copyright 2026 Unbrowse contributors
+
+This product is licensed under the Apache License, Version 2.0 (LICENSE).
+"Unbrowse", "UNB" and the Unbrowse logo are trademarks of the Unbrowse project
+and are not licensed under the Apache License (see TRADEMARKS.md).
+
+This product includes software developed by others:
+
+- agent-browser (unbrowse-browser/), Copyright 2025 Vercel Inc.,
+  Apache License 2.0. https://github.com/vercel-labs/agent-browser
+- forge-std (unbrowse-settlement/lib/forge-std), MIT or Apache License 2.0.
+- SP1's verifier contracts (unbrowse-settlement/src/lean/sp1/), Copyright Succinct Labs, MIT License.
+  https://github.com/succinctlabs/sp1-contracts
+- OpenZeppelin Contracts (unbrowse-settlement/lib/openzeppelin-contracts),
+  MIT License.
+- Unbrowse 12.x (https://github.com/unbrowse-ai/unbrowse, npm `unbrowse` 12.x and earlier), Copyright (c) 2025 Unbrowse AI,
+  MIT License. Code carried from it keeps that licence and its notice (LICENSE-MIT); the 12.x releases stay MIT.

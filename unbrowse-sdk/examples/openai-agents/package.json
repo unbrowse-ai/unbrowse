@@ -1,0 +1,11 @@
+{
+  "name": "unbrowse-example-openai-agents",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node index.mjs", "stub": "UNBROWSE_STUB_MODEL=1 node index.mjs" },
+  "dependencies": {
+    "@openai/agents": "0.20.0",
+    "unbrowse": "file:../../typescript",
+    "zod": "4.6.7"
+  }
+}

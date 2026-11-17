@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "runner": "unbrowse_mcp",
+  "batch": "2026-10-28-public-batch-1",
+  "run_finished_at": "2026-10-28T14:51:51Z",
+  "node_version": null,
+  "node_version_note": "Not exposed by the unbrowse_* MCP tools; the running binary revision was not independently identified.",
+  "scope": "public read-only search; no login, no writes, no challenge solving",
+  "baseline": {
+    "call": "unbrowse_search with empty query, before any goal call",
+    "local_route_count": 3,
+    "local_route_sites": ["www.gov.uk", "en.wikipedia.org", "uj5wyc0l7x-dsn.algolia.net"],
+    "batch_sites_with_preexisting_route": [],
+    "session_note": "Each site was scouted in the browser before its first goal call, so these were fresh goal-route attempts in warm sessions."
+  },
+  "sites": [
+    {
+      "domain": "npmjs.com",
+      "tranco_rank": 2026,
+      "goal": "search npm packages",
+      "observed_search_url": "https://www.npmjs.com/search?q=<value>",
+      "values": ["react", "express"],
+      "checks": [
+        {"phase": "scouting", "tool": "unbrowse_browse", "action": "type in search box, submit", "value": "lodash",
+         "learned_route_ids": ["ce869a6cac01d0c9", "d5b08d097ee1a004"], "learned_paths": ["/search/suggestions?q={q}", "/search?q={q}"],
+         "learned_goal": "scout npm package search URL", "classification": "scouting_learned"},
+        {"phase": "fresh", "tool": "unbrowse_do", "value": "react", "how": "browse", "route_id": null, "result_ok": null,
+         "error_category": "challenge", "error": "Cloudflare 'Performing security verification' page; walk left browser open for verification",
+         "classification": "blocked"},
+        {"phase": "fresh", "tool": "unbrowse_do", "step": "replay", "classification": "not_run",
+         "reason": "no route learned for this goal in the fresh step"},
+        {"phase": "scouting", "tool": "unbrowse_call", "route_id": "ce869a6cac01d0c9", "route_site": "www.npmjs.com", "inputs": ["q"],
+         "value": "express", "result_ok": true, "classification": "direct_call_pass",
+         "note": "replays the scout-learned suggestions JSON route, not the fresh goal"}
+      ],
+      "site_outcome": "blocked"
+    },
+    {
+      "domain": "arxiv.org",
+      "tranco_rank": 458,
+      "goal": "search arXiv papers",
+      "observed_search_url": "https://arxiv.org/search/?query=<value>&searchtype=all&source=header",
+      "values": ["protein folding", "dark matter"],
+      "checks": [
+        {"phase": "scouting", "tool": "unbrowse_browse", "action": "expand header search, fill, Enter", "value": "graph neural network",
+         "learned_route_ids": ["b4dbf774be6f04d3", "d1a31e9238d0267d"], "learned_goal": "scout arXiv search URL", "classification": "scouting_learned"},
+        {"phase": "fresh", "tool": "unbrowse_do", "value": "protein folding", "how": "learned", "route_id": "42794748fa16ee0c",
+         "route_site": "arxiv.org", "method": "GET", "path": "/search/?query={query}&searchtype={searchtype}&source={source}",
+         "inputs": ["query", "searchtype", "source"], "result_ok": true, "response_shape": "rendered page text + links (HTML, not a JSON API)",
+         "classification": "pass"},
+        {"phase": "fresh", "tool": "unbrowse_do", "step": "replay", "value": "dark matter", "how": "called", "route_id": "42794748fa16ee0c",
+         "same_route": true, "result_ok": true, "input_honoured": true, "classification": "pass"}
+      ],
+      "site_outcome": "pass"
+    },
+    {
+      "domain": "theguardian.com",
+      "tranco_rank": 196,
+      "goal": null,
+      "observed_search_url": null,
+      "values": [],
+      "checks": [
+        {"phase": "scouting", "tool": "unbrowse_browse", "action": "open homepage, list forms",
+         "finding": "only search forms submit to https://www.google.co.uk/search (off-site)",
+         "learned_route_ids": [], "classification": "no_first_party_route"}
+      ],
+      "site_outcome": "not_tested",
+      "reason": "no first-party public search route observed; a route was not guessed"
+    },
+    {
+      "domain": "huggingface.co",
+      "tranco_rank": 1093,
+      "goal": "search Hugging Face models",
+      "observed_search_url": "https://huggingface.co/models?sort=trending&search=<value>",
+      "values": ["whisper", "stable-diffusion"],
+      "checks": [
+        {"phase": "scouting", "tool": "unbrowse_browse", "action": "fill 'Filter by name', Enter", "value": "bert",
+         "learned_route_ids": ["9908ea9de9fddb92"], "learned_inputs": ["Filter by name"], "learned_goal": "scout Hugging Face model search URL",
+         "classification": "scouting_learned"},
+        {"phase": "fresh", "tool": "unbrowse_do", "value": "whisper", "how": "learned", "route_id": "dccda83ed15d403b",
+         "route_site": "huggingface.co", "method": "GET", "path": "/models?sort={sort}&search={search}", "inputs": ["sort", "search"],
+         "result_ok": true, "response_shape": "rendered page text + page state object", "classification": "pass"},
+        {"phase": "fresh", "tool": "unbrowse_do", "step": "replay", "value": "stable-diffusion", "how": "called", "route_id": "dccda83ed15d403b",
+         "same_route": true, "result_ok": true, "input_honoured": true, "classification": "pass"}
+      ],
+      "site_outcome": "pass"
+    },
+    {
+      "domain": "merriam-webster.com",
+      "tranco_rank": 641,
+      "goal": "look up a word in Merriam-Webster",
+      "observed_search_url": "https://www.merriam-webster.com/dictionary/<value>",
+      "values": ["ephemeral", "quixotic", "laconic"],
+      "checks": [
+        {"phase": "scouting", "tool": "unbrowse_browse", "action": "fill #search-term, Enter", "value": "serendipity",
+         "learned_route_ids": ["4fa2cca62961590b", "e02275b5d4f9036b", "db3e926b4866c2c4"],
+         "learned_paths": ["GET /dictionary/{path[1]}", "GET /lapi/v1/mwol-search/autocomplete?search={search}", "POST event.ay.delivery/ (write: true, no inputs)"],
+         "learned_goal": "scout Merriam-Webster dictionary search URL", "classification": "scouting_learned",
+         "anomaly": "a third-party analytics POST was kept as a write route during a read-only search"},
+        {"phase": "fresh", "tool": "unbrowse_do", "value": "ephemeral", "how": null, "route_id": null, "result_ok": null,
+         "error_category": "timeout", "error": "Operation timed out", "route_stored": false, "classification": "fail"},
+        {"phase": "fresh", "tool": "unbrowse_do", "attempt": 2, "value": "ephemeral", "how": "learned", "route_id": "e98c53199c1a5630",
+         "route_site": "www.merriam-webster.com", "method": "GET", "path": "/lapi/v1/mwol-search/autocomplete?search={search}",
+         "inputs": ["dictionary"], "result_ok": true, "response_shape": "JSON API",
+         "note": "same path as a scout-learned route on this site; the input is named 'dictionary' while the path slot is {search}",
+         "classification": "pass_after_retry"},
+        {"phase": "fresh", "tool": "unbrowse_do", "step": "replay", "value": "quixotic", "how": "called", "route_id": "e98c53199c1a5630",
+         "same_route": true, "result_ok": true, "input_honoured": true, "classification": "pass"},
+        {"phase": "fresh", "tool": "unbrowse_call", "route_id": "e98c53199c1a5630", "value": "laconic", "result_ok": true,
+         "input_honoured": true, "classification": "direct_call_pass"}
+      ],
+      "site_outcome": "pass_after_retry"
+    }
+  ],
+  "counts": {
+    "sites": 5,
+    "sites_pass": 2,
+    "sites_pass_after_retry": 1,
+    "sites_blocked": 1,
+    "sites_not_tested": 1,
+    "goal_checks": {"learned": 3, "called": 3, "browse_blocked": 1, "failed": 1, "not_run": 1},
+    "direct_unbrowse_call": {"pass": 2},
+    "scouting_sessions": 5,
+    "scouting_routes_learned": 8
+  },
+  "findings": [
+    "Third-party beacon kept as a write route: scouting merriam-webster.com stored route db3e926b4866c2c4, a POST to event.ay.delivery with write: true and no inputs. This fits the class CLAUDE.md names ('a call reporting the page'). Not called.",
+    "Preexisting Wikipedia route bc6c42c23d187540 is GET /wiki/Planet with no inputs. The earlier 'moon' replay could not search for moon despite result.ok: true; that smoke report has been corrected. The Merriam-Webster scout route 4fa2cca62961590b parameterises a similar path segment (/dictionary/{path[1]}).",
+    "Input names can come from form labels or URL path words rather than the request parameter ('Filter by name' on huggingface.co, 'dictionary' for ?search= on merriam-webster.com). Values still bound correctly on replay.",
+    "arXiv and Hugging Face routes return rendered page text, not a site JSON API."
+  ],
+  "excluded": "No response bodies, cookies, tokens, or credentials. Response data was used only to check ok status and whether the input changed the result."
+}

@@ -1,0 +1,89 @@
+{
+  "name": "unbrowse",
+  "version": "0.1.0",
+  "description": "Unbrowse on your machine: the node, its browser, the agent skill and the TypeScript client. Search, learn and call website routes, drive the node's browser by hand, and run the node as its owner.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "unbrowse": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./local": {
+      "types": "./dist/local.d.ts",
+      "default": "./dist/local.js"
+    },
+    "./ai-sdk": {
+      "types": "./dist/adapters/ai-sdk.d.ts",
+      "default": "./dist/adapters/ai-sdk.js"
+    },
+    "./langchain": {
+      "types": "./dist/adapters/langchain.d.ts",
+      "default": "./dist/adapters/langchain.js"
+    },
+    "./mastra": {
+      "types": "./dist/adapters/mastra.d.ts",
+      "default": "./dist/adapters/mastra.js"
+    },
+    "./openai-agents": {
+      "types": "./dist/adapters/openai-agents.d.ts",
+      "default": "./dist/adapters/openai-agents.js"
+    },
+    "./tools": {
+      "types": "./dist/adapters/core.d.ts",
+      "default": "./dist/adapters/core.js"
+    }
+  },
+  "files": [
+    "dist",
+    "skill",
+    "README.md",
+    "manifest.json",
+    "manifest.sig"
+  ],
+  "engines": {
+    "node": ">=20.3"
+  },
+  "peerDependencies": {
+    "@langchain/core": "^1.0.0",
+    "@mastra/core": "^1.0.0",
+    "@openai/agents": ">=0.20.0 <1",
+    "ai": "^5.0.0 || ^6.0.0 || ^7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@langchain/core": {
+      "optional": true
+    },
+    "@mastra/core": {
+      "optional": true
+    },
+    "@openai/agents": {
+      "optional": true
+    },
+    "ai": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p .",
+    "gen": "python3 ../codegen/generate.py",
+    "gen:check": "python3 ../codegen/generate.py --check",
+    "test": "npm run build && node --test --test-timeout=10000 test/*.test.mjs",
+    "postinstall": "node dist/cli.js postinstall",
+    "prepublishOnly": "npm test"
+  },
+  "devDependencies": {
+    "@langchain/core": "1.2.18",
+    "@mastra/core": "1.78.0",
+    "@openai/agents": "0.20.0",
+    "@types/node": "^22.10.0",
+    "ai": "7.0.143",
+    "typescript": "^5.6.3",
+    "zod": "4.6.7"
+  }
+}

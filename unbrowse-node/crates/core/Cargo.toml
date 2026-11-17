@@ -1,0 +1,38 @@
+[package]
+name = "unbrowse-core"
+description = "The node's core: keys, and later the vault, route learner, body store and relay"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+unbrowse-files = { path = "../files" }
+data-encoding = "2"
+hex = "0.4"
+hmac = "0.12"
+k256 = "0.13"
+sha1 = "0.10"
+sha2 = "0.10"
+sha3 = "0.10"
+thiserror = "2"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bip39 = { version = "2", features = ["zeroize"] }
+# Sealing vault records kept on disk (website passkeys).
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+getrandom = "0.3"
+scrypt = { version = "0.11", default-features = false }
+aes = { version = "0.8", default-features = false }
+ctr = { version = "0.9", default-features = false }
+
+# The OS's own store for keys: the Keychain, Windows' Credential Manager, the Secret Service on Linux.
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust", "vendored"] }
+
+[lints]
+workspace = true

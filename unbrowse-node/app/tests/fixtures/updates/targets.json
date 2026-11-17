@@ -1,0 +1,47 @@
+{
+  "signed": {
+    "_type": "targets",
+    "version": 2,
+    "releases": {
+      "13.5.0": {
+        "platforms": {
+          "darwin-arm64": {
+            "name": "@unbrowse/darwin-arm64",
+            "integrity": "sha512-ZGFyd2luLWFybTY0IDEzLjUuMA=="
+          },
+          "linux-x64": {
+            "name": "@unbrowse/linux-x64",
+            "integrity": "sha512-bGludXgteDY0IDEzLjUuMA=="
+          }
+        }
+      },
+      "13.6.0": {
+        "platforms": {
+          "darwin-arm64": {
+            "name": "@unbrowse/darwin-arm64",
+            "integrity": "sha512-ZGFyd2luLWFybTY0IDEzLjYuMA=="
+          },
+          "linux-x64": {
+            "name": "@unbrowse/linux-x64",
+            "integrity": "sha512-bGludXgteDY0IDEzLjYuMA=="
+          }
+        }
+      }
+    },
+    "channels": {
+      "stable": "13.5.0",
+      "canary": "13.6.0"
+    },
+    "canary_share": 10,
+    "halt": null,
+    "min_version": "13.0.0",
+    "expires": 1821436000,
+    "canary_since": 1789900000
+  },
+  "signatures": [
+    {
+      "keyid": "ca93ac1705187071d67b83c7ff0efe8108e8ec4530575d7726879333dbdabe7c",
+      "sig": "31edd6b21e2e6856da60c06371b2fe5f5d5435fae7bfa444afa25cd12b5ee03f5a3912b42bd5b1e1b2fae262257ed990c26f5e03dfa0418fb6c81b026dea3b09"
+    }
+  ]
+}

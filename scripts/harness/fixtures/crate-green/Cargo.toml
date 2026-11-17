@@ -1,0 +1,8 @@
+# A crate the check runner judges itself against. It stands alone: no workspace adopts it.
+[package]
+name = "harness-fixture-green"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]

@@ -1,0 +1,41 @@
+[package]
+name = "agent-browser-core"
+version = "0.39.1"
+edition = "2021"
+description = "The engine behind agent-browser: CDP transport, capture, session and mint primitives as a library, so the node links them instead of driving a daemon over a socket"
+license = "Apache-2.0"
+
+[features]
+# The engine's test helpers, for the CLI's own tests.
+test-utils = []
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "sync", "signal", "process"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+base64 = "0.22"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+sha2 = "0.10"
+dirs = "5.0"
+uuid = { version = "1", features = ["v4"] }
+socket2 = "0.5"
+url = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rustls-pemfile = "2"
+thiserror = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# The CLI's version and features: windows_process.rs is the same file in both.
+windows-sys = { version = "0.52", features = ["Win32_System_Threading", "Win32_Foundation", "Win32_System_IO", "Win32_Storage_FileSystem", "Win32_Security", "Win32_System_JobObjects", "Win32_System_StationsAndDesktops", "Win32_Graphics_Gdi"] }
+
+[build-dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+tempfile = "3"

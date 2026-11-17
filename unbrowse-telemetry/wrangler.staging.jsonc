@@ -1,0 +1,13 @@
+// The telemetry worker on staging: its own Worker and its own store, on workers.dev. No node sends here.
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "unbrowse-telemetry-staging",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "durable_objects": { "bindings": [{ "name": "STORE", "class_name": "TelemetryStore" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TelemetryStore"] }],
+  "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
+  "vars": { "REPORTS_REPO": "unbrowse-ai/unbrowse" },
+  "observability": { "enabled": false }
+}

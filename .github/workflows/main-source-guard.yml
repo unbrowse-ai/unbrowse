@@ -1,0 +1,38 @@
+# The branches' rules (CONTRIBUTING.md, "Branches and releases"), as checks on a pull request: main takes a release
+# branch alone, and a release branch takes fixes alone. GitHub's plan for this repository can't make a check required,
+# so these say a pull request breaks a rule; the person merging keeps it.
+name: main-source-guard
+
+on:
+  pull_request:
+    branches: [main, "release/**"]
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  guard:
+    name: Only release branches may merge into main
+    if: github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          HEAD: ${{ github.head_ref }}
+        run: |
+          case $HEAD in
+            release/*) echo "ok" ;;
+            *) echo "::error::main only accepts release/* branches, not $HEAD"; exit 1 ;;
+          esac
+
+  fixes-only:
+    name: A release branch takes fixes alone
+    if: startsWith(github.base_ref, 'release/')
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          case $TITLE in
+            fix:* | "fix("*) echo "ok" ;;
+            *) echo "::error::a release branch is feature-locked: its pull requests are titled fix: …, not \"$TITLE\""; exit 1 ;;
+          esac

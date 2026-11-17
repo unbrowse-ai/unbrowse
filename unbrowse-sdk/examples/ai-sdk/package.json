@@ -1,0 +1,11 @@
+{
+  "name": "unbrowse-example-ai-sdk",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node index.mjs", "stub": "UNBROWSE_STUB_MODEL=1 node index.mjs" },
+  "dependencies": {
+    "@ai-sdk/openai": "4.0.96",
+    "ai": "7.0.143",
+    "unbrowse": "file:../../typescript"
+  }
+}

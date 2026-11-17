@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "domain": "nytimes.com",
+  "site_scope": ["https://nytimes.com/", "https://www.nytimes.com/"],
+  "public": {"entrypoint": "https://nytimes.com/"}
+}
