@@ -1,0 +1,47 @@
+# S9 (UNB-158): one-time npm bootstrap, run by GitHub Actions, not by hand.
+# Lives alone on the orphan branch s9/npm-bootstrap; a push there runs it. MODE=check only reads;
+# MODE=publish publishes a 0.0.0 placeholder of each @unbrowse/* package npm lacks, so its trusted
+# publisher can be set (npm can only bind a package that exists). Real versions come from release.yml.
+name: npm bootstrap (S9)
+on:
+  push:
+    branches: [s9/npm-bootstrap]
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    env:
+      MODE: check
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Token works
+        run: |
+          [ -n "$NODE_AUTH_TOKEN" ] || { echo "::error::NPM_TOKEN is empty"; exit 1; }
+          who=$(npm whoami 2>/dev/null) || { echo "::error::NPM_TOKEN is rejected by npm (whoami failed)"; exit 1; }
+          echo "npm token belongs to: $who"
+          npm access list packages @unbrowse 2>&1 | head -20 || true
+      - name: Placeholders
+        run: |
+          set -eu
+          REPO=unbrowse-ai/unbrowse
+          missing=0
+          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+            for name in "@unbrowse/$p" "@unbrowse/browser-$p"; do echo "$name"; done
+          done > names; echo "@unbrowse/updates" >> names
+          while read -r name; do
+            if npm view "$name" name >/dev/null 2>&1; then echo "npm has $name"; continue; fi
+            missing=$((missing+1))
+            if [ "$MODE" != publish ]; then echo "missing: $name"; continue; fi
+            d=$(mktemp -d)
+            printf '{"name":"%s","version":"0.0.0","description":"Placeholder so trusted publishing can bind; real versions come from %s release.yml.","license":"MIT","repository":{"type":"git","url":"git+https://github.com/%s.git"}}\n' "$name" "$REPO" "$REPO" > "$d/package.json"
+            (cd "$d" && npm publish --access public --provenance)
+            sleep 2
+          done < names
+          echo "missing before this run: $missing (mode $MODE)"
+          [ "$MODE" = publish ] && echo "S9_BOOTSTRAP_PUBLISHED" || echo "S9_BOOTSTRAP_CHECKED"
