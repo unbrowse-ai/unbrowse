@@ -4,7 +4,7 @@
 #
 #   staging       every commit on staging CI passes: X.Y.0-staging.N on npm's `staging` tag, and nothing else
 #   pre-production every commit on a release/X.Y branch CI passes: X.Y.P-rc.N on npm's `next` tag and on canary, which
-#                 it holds until something newer comes and never hands to stable
+#                 it holds until something newer comes and never hands to stable (before stable's first release, `next` alone)
 #   production    a vX.Y.Z tag pushed on main: X.Y.Z on npm's `latest`, a GitHub release, and canary, which updates.yml
 #                 gives to stable once it has soaked
 #
@@ -496,6 +496,8 @@ jobs:
     outputs:
       targets_changed: ${{ steps.sign.outputs.targets_changed }}
       cosign_required: ${{ steps.sign.outputs.cosign_required }}
+      # false only for a release candidate before stable's first release: it publishes no update metadata.
+      published: ${{ steps.sign.outputs.published }}
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -549,7 +551,8 @@ jobs:
           UNBROWSE_TIMESTAMP_KEY: ${{ secrets.UNBROWSE_TIMESTAMP_KEY }}
         run: |
           node .github/scripts/updates.mjs release "$VERSION" dist --out "$RUNNER_TEMP/updates" --github-output "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - if: steps.sign.outputs.published == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: updates-dir
           path: ${{ runner.temp }}/updates/**
@@ -605,7 +608,7 @@ jobs:
     needs: [version, sign-updates, cosign-updates, sdks]
     outputs:
       updates: ${{ steps.updates.outputs.updates }}
-    if: always() && needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging' && needs.sdks.result == 'success' && needs.sign-updates.result == 'success' && (needs.cosign-updates.result == 'success' || needs.cosign-updates.result == 'skipped')
+    if: always() && needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging' && needs.sdks.result == 'success' && needs.sign-updates.result == 'success' && needs.sign-updates.outputs.published == 'true' && (needs.cosign-updates.result == 'success' || needs.cosign-updates.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -765,7 +768,7 @@ jobs:
   # no update metadata to publish.
   npm:
     name: Publish to npm
-    needs: [version, sdks, platforms, pack-updates, sign-artifacts]
+    needs: [version, sdks, platforms, sign-updates, pack-updates, sign-artifacts]
     if: ${{ !cancelled() && !failure() && needs.version.outputs.version != '' && inputs.dry_run != true }}
     runs-on: ubuntu-24.04
     environment: release
@@ -776,6 +779,8 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
       CHANNEL: ${{ needs.version.outputs.channel }}
       NPM_TAG: ${{ needs.version.outputs.npm_tag }}
+      # A staging build, or a release candidate before stable's first release, publishes no @unbrowse/updates.
+      WITH_UPDATES: ${{ needs.version.outputs.channel != 'staging' && needs.sign-updates.outputs.published == 'true' }}
     steps:
       # The publishing script only.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -799,7 +804,7 @@ jobs:
         with:
           name: release-artifacts
           path: release-artifacts
-      - if: needs.version.outputs.channel != 'staging'
+      - if: env.WITH_UPDATES == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: updates
@@ -817,7 +822,8 @@ jobs:
           python3 -I .github/scripts/artifact-hashes.py verify dist --expected "$HASHES"
           node .github/scripts/verify-artifact-manifest.mjs dist "$VERSION" "$HASHES" unbrowse-node/app/src/update.rs release-artifacts/release-artifacts.json
           python3 -I .github/scripts/artifact-hashes.py verify-files dist --expected "$FILES"
-          [ "$CHANNEL" = staging ] || python3 -I .github/scripts/artifact-hashes.py verify-files updates --expected "$UPDATES"
+          if [ "$CHANNEL" = production ] && [ "$WITH_UPDATES" != true ]; then echo "::error::a production release always publishes update metadata"; exit 1; fi
+          [ "$WITH_UPDATES" != true ] || python3 -I .github/scripts/artifact-hashes.py verify-files updates --expected "$UPDATES"
       # No registry-url: with one, setup-node writes an .npmrc whose token is a placeholder, and when npm's OIDC exchange
       # fails npm publishes with that placeholder and npm answers 404, which hides why. Without it npm says it couldn't
       # authenticate.
@@ -828,5 +834,5 @@ jobs:
         run: |
           export PATH="$GITHUB_WORKSPACE/.github/tools/npm/node_modules/.bin:$PATH"
           set -- ./dist/unbrowse-*-"$VERSION".tgz "./dist/unbrowse-$VERSION.tgz"
-          [ "$CHANNEL" = staging ] || set -- "$@" ./updates/*.tgz
+          [ "$WITH_UPDATES" != true ] || set -- "$@" ./updates/*.tgz
           sh .github/scripts/npm-publish.sh "$VERSION" release.yml "$@"
