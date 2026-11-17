@@ -1,0 +1,999 @@
+{
+ "schema_version": 2,
+ "batch": "2026-11-07-pinterest",
+ "node_version": "debug build of fix/pinterest-answers-2026-11-07 at f658e79a9, on #316's branch at 0d230bd98",
+ "seed": "2026-11-07-pinterest",
+ "nonsense": "zqdvjbvjtqjl",
+ "scope": "public read-only search; no login, no writes, no challenge solved",
+ "excluded": "no credentials, cookies, session IDs or response bodies; up to three short titles per check",
+ "sites": [
+  {
+   "site": "pinterest.com",
+   "goal": "search Pinterest pins",
+   "url": "https://www.pinterest.com/search/pins/",
+   "values": [
+    "kitchen",
+    "garden",
+    "tiny house loft",
+    "zqdvjbvjtqjl"
+   ],
+   "category": "social_community",
+   "market": "GLOBAL",
+   "retest": false,
+   "url_source": "known",
+   "phase": "fresh",
+   "bound_input": "q",
+   "route_first_party": true,
+   "checks": [
+    {
+     "step": "first",
+     "value": "kitchen",
+     "status": 200,
+     "how": "learned",
+     "route_id": "73fa3e170107008b",
+     "method": "GET",
+     "path": "/resource/BaseSearchResource/get/?source_url={source_url}&data={data}&_={_}",
+     "route_host": "www.pinterest.com",
+     "inputs": [
+      "part0",
+      "part1",
+      "q"
+     ],
+     "write": false,
+     "picked_by": "the rule",
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 148,
+     "route_failed": false,
+     "window_refused": false,
+     "evidence": {
+      "kind": "records",
+      "count": 10,
+      "own_lines": 10,
+      "hits": 10,
+      "titles": [
+       "kitchen organization",
+       "kitchen cabinets",
+       "kitchen design ideas"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "replay",
+     "value": "garden",
+     "status": 200,
+     "how": "called",
+     "route_id": "73fa3e170107008b",
+     "method": "GET",
+     "path": "/resource/BaseSearchResource/get/?source_url={source_url}&data={data}&_={_}",
+     "route_host": "www.pinterest.com",
+     "inputs": [
+      "part0",
+      "part1",
+      "q"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 148,
+     "route_failed": false,
+     "window_refused": false,
+     "evidence": {
+      "kind": "records",
+      "count": 10,
+      "own_lines": 10,
+      "hits": 10,
+      "titles": [
+       "garden ideas",
+       "garden design",
+       "garden party"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "call_unrelated",
+     "value": "tiny house loft",
+     "status": 200,
+     "how": null,
+     "route_id": "73fa3e170107008b",
+     "method": "GET",
+     "path": "/resource/BaseSearchResource/get/?source_url={source_url}&data={data}&_={_}",
+     "route_host": "www.pinterest.com",
+     "inputs": [
+      "part0",
+      "part1",
+      "q"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 148,
+     "route_failed": false,
+     "evidence": {
+      "kind": "records",
+      "count": 10,
+      "own_lines": 10,
+      "hits": 10,
+      "titles": [
+       "tiny house loft stairs",
+       "small living room ideas cozy tiny house loft",
+       "tiny house loft bed"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "no_results",
+     "value": "zqdvjbvjtqjl",
+     "status": 200,
+     "how": null,
+     "route_id": "73fa3e170107008b",
+     "method": "GET",
+     "path": "/resource/BaseSearchResource/get/?source_url={source_url}&data={data}&_={_}",
+     "route_host": "www.pinterest.com",
+     "inputs": [
+      "part0",
+      "part1",
+      "q"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 138,
+     "route_failed": false,
+     "evidence": {
+      "kind": "records",
+      "count": 25,
+      "own_lines": 25,
+      "hits": 0,
+      "titles": [
+       "[token]=",
+       "[token]=",
+       "[token]=="
+      ],
+      "no_results_words": false
+     },
+     "outcome": "ok_but_wrong",
+     "why": "results_for_nonsense"
+    },
+    {
+     "step": "recheck",
+     "value": "kitchen",
+     "status": 200,
+     "how": null,
+     "route_id": "73fa3e170107008b",
+     "method": "GET",
+     "path": "/resource/BaseSearchResource/get/?source_url={source_url}&data={data}&_={_}",
+     "route_host": "www.pinterest.com",
+     "inputs": [
+      "part0",
+      "part1",
+      "q"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 148,
+     "route_failed": false,
+     "evidence": {
+      "kind": "records",
+      "count": 10,
+      "own_lines": 0,
+      "hits": 0,
+      "titles": [],
+      "no_results_words": false,
+      "overlap_with_first": 1.0
+     },
+     "outcome": "pass",
+     "why": null
+    }
+   ],
+   "calls": 5,
+   "judgments": 0,
+   "paid_usdc": 0,
+   "links": {
+    "status": 200,
+    "link_echoed": true,
+    "refused_why": null,
+    "routes": 0,
+    "unavailable": false,
+    "says_nothing_paid": true,
+    "activity_added": 0,
+    "calls_added": 0,
+    "browsers_added": 0,
+    "paid": null,
+    "sound_forms": {
+     "plain": 200,
+     "upper_case": 200,
+     "trailing_slash": 200
+    },
+    "malformed_tried": 18,
+    "malformed_not_refused": [],
+    "outcome": "pass"
+   },
+   "suggested": "ok_but_wrong",
+   "classification": "pass",
+   "read_differs": true,
+   "note": "All right on the first ask, with no judgment. The defaults are the pins and the site's guides. The nonsense value answers 25 pins, and that is the site's fallback: the site's own page, in the node's browser, made the same call for this exact word and got the same 25 pins, and the same held for two other nonsense words on the base build, where a screenshot showed the page rendering a grid of pins for one of them behind its login dialog. Its document holds no pin data. Pins hold only ids and images for a guest, so the names read here are the site's guides."
+  },
+  {
+   "site": "kubernetes.io",
+   "goal": "search Kubernetes docs",
+   "url": "https://kubernetes.io/search/",
+   "values": [
+    "pod",
+    "ingress",
+    "persistent volume claim",
+    "zqdvjbvjtqjl"
+   ],
+   "category": "developer_technical",
+   "market": "GLOBAL",
+   "retest": false,
+   "url_source": "known",
+   "phase": "fresh",
+   "bound_input": "q",
+   "route_first_party": false,
+   "checks": [
+    {
+     "step": "first",
+     "value": "pod",
+     "status": 200,
+     "how": "learned",
+     "route_id": "b4f1883a3e58d84e",
+     "method": "GET",
+     "path": "/cse/element/v1?rsz={rsz}&num=10&hl=en&source=gcsc&cselibv={cselibv}&cx={cx}&q={q}&safe=off&cse_tok={cse_tok}&exp={exp}&fexp={fexp}&callback={callback}&rurl={rurl}",
+     "route_host": "cse.google.com",
+     "inputs": [
+      "q"
+     ],
+     "write": false,
+     "picked_by": "the rule",
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 60,
+     "route_failed": false,
+     "window_refused": false,
+     "evidence": {
+      "kind": "records",
+      "count": 10,
+      "own_lines": 10,
+      "hits": 9,
+      "titles": [
+       "<b>Pods</b> - Kubernetes",
+       "<b>Pod</b> | Kubernetes",
+       "<b>Pod</b> Lifecycle - Kubernetes"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "replay",
+     "value": "ingress",
+     "status": 200,
+     "how": "called",
+     "route_id": "b4f1883a3e58d84e",
+     "method": "GET",
+     "path": "/cse/element/v1?rsz={rsz}&num=10&hl=en&source=gcsc&cselibv={cselibv}&cx={cx}&q={q}&safe=off&cse_tok={cse_tok}&exp={exp}&fexp={fexp}&callback={callback}&rurl={rurl}",
+     "route_host": "cse.google.com",
+     "inputs": [
+      "q"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 63,
+     "route_failed": false,
+     "window_refused": false,
+     "evidence": {
+      "kind": "records",
+      "count": 10,
+      "own_lines": 8,
+      "hits": 8,
+      "titles": [
+       "<b>Ingress</b> - Kubernetes",
+       "<b>Ingress</b> Controllers - Kubernetes",
+       "Before You Migrate: Five Surprising <b>Ingress</b>-NGINX Beh"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "call_unrelated",
+     "value": "persistent volume claim",
+     "status": 200,
+     "how": null,
+     "route_id": "b4f1883a3e58d84e",
+     "method": "GET",
+     "path": "/cse/element/v1?rsz={rsz}&num=10&hl=en&source=gcsc&cselibv={cselibv}&cx={cx}&q={q}&safe=off&cse_tok={cse_tok}&exp={exp}&fexp={fexp}&callback={callback}&rurl={rurl}",
+     "route_host": "cse.google.com",
+     "inputs": [
+      "q"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 61,
+     "route_failed": false,
+     "evidence": {
+      "kind": "records",
+      "count": 10,
+      "own_lines": 10,
+      "hits": 10,
+      "titles": [
+       "<b>Persistent Volumes</b> - Kubernetes",
+       "<b>PersistentVolumeClaim</b> - Kubernetes",
+       "Configure a Pod to Use a <b>PersistentVolume</b> for Storage"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "no_results",
+     "value": "zqdvjbvjtqjl",
+     "status": 200,
+     "how": null,
+     "route_id": "b4f1883a3e58d84e",
+     "method": "GET",
+     "path": "/cse/element/v1?rsz={rsz}&num=10&hl=en&source=gcsc&cselibv={cselibv}&cx={cx}&q={q}&safe=off&cse_tok={cse_tok}&exp={exp}&fexp={fexp}&callback={callback}&rurl={rurl}",
+     "route_host": "cse.google.com",
+     "inputs": [
+      "q"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 0,
+     "route_failed": false,
+     "evidence": {
+      "kind": "object",
+      "count": null,
+      "own_lines": 2,
+      "hits": 2,
+      "titles": [
+       "cursor: {'currentPageIndex': 0, 'moreResultsUrl': 'http://ww",
+       "findMoreOnGoogle: {'url': 'https://www.google.com/search?cli"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": "nothing_of_its_own"
+    },
+    {
+     "step": "recheck",
+     "value": "pod",
+     "status": 200,
+     "how": null,
+     "route_id": "b4f1883a3e58d84e",
+     "method": "GET",
+     "path": "/cse/element/v1?rsz={rsz}&num=10&hl=en&source=gcsc&cselibv={cselibv}&cx={cx}&q={q}&safe=off&cse_tok={cse_tok}&exp={exp}&fexp={fexp}&callback={callback}&rurl={rurl}",
+     "route_host": "cse.google.com",
+     "inputs": [
+      "q"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 60,
+     "route_failed": false,
+     "evidence": {
+      "kind": "records",
+      "count": 10,
+      "own_lines": 0,
+      "hits": 0,
+      "titles": [],
+      "no_results_words": false,
+      "overlap_with_first": 0.9
+     },
+     "outcome": "pass",
+     "why": null
+    }
+   ],
+   "calls": 5,
+   "judgments": 0,
+   "paid_usdc": 0,
+   "links": {
+    "status": 200,
+    "link_echoed": true,
+    "refused_why": null,
+    "routes": 0,
+    "unavailable": false,
+    "says_nothing_paid": true,
+    "activity_added": 0,
+    "calls_added": 0,
+    "browsers_added": 0,
+    "paid": null,
+    "sound_forms": {
+     "plain": 200,
+     "upper_case": 200,
+     "trailing_slash": 200
+    },
+    "malformed_tried": 18,
+    "malformed_not_refused": [],
+    "outcome": "pass"
+   },
+   "suggested": "pass",
+   "classification": "pass",
+   "read_differs": false,
+   "note": null
+  },
+  {
+   "site": "target.com",
+   "goal": "search Target products",
+   "url": "https://www.target.com/s",
+   "values": [
+    "water bottle",
+    "towels",
+    "lego",
+    "zqdvjbvjtqjl"
+   ],
+   "category": "commerce_marketplace",
+   "market": "GLOBAL",
+   "retest": true,
+   "url_source": "previous_run",
+   "phase": "fresh",
+   "bound_input": "searchTerm",
+   "route_first_party": true,
+   "checks": [
+    {
+     "step": "first",
+     "value": "water bottle",
+     "status": 200,
+     "how": "learned",
+     "route_id": "1bc7d22ae277eeb2",
+     "method": "GET",
+     "path": "/cdui_orchestrations/v1/pages/slp?key={key}&platform=WEB&privacy_do_not_sell=false&targeted_advertising_opt_out=false&device_type={device_type}&sapphire_channel=WEB&sapphire_page={sapphire_page}&channel=WEB&page={page}&visitor_id={visitor_id}&purchasable_store_ids={purchasable_store_ids}&latitude={latitude}&longitude={longitude}&scheduled_delivery_store_id=1771&scheduled_delivery_zip_code=52404&state=IA&store_id=1771&zip=52404&country=US&has_pending_inputs=false&count=24&default_purchasability_filter=true&include_sponsored=true&new_search=true&offset=0&spellcheck=true&store_ids={store_ids}&keyword={keyword}&is_seo_bot=false&include_data_source_modules=true&query_string={query_string}&timezone={timezone}",
+     "route_host": "cdui-orchestrations.target.com",
+     "inputs": [
+      "searchTerm",
+      "offset"
+     ],
+     "write": false,
+     "picked_by": "the rule",
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 451,
+     "route_failed": false,
+     "window_refused": false,
+     "evidence": {
+      "kind": "records",
+      "count": 30,
+      "own_lines": 30,
+      "hits": 29,
+      "titles": [
+       "ThermoFlask 32 oz Double Wall Vacuum Insulated Stainless Ste",
+       "ThermoFlask 24 oz Double Wall Vacuum Insulated Stainless Ste",
+       "Owala 24 fl oz Stainless Steel FreeSip Water Bottle - Sleek"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "replay",
+     "value": "towels",
+     "status": 200,
+     "how": "called",
+     "route_id": "1bc7d22ae277eeb2",
+     "method": "GET",
+     "path": "/cdui_orchestrations/v1/pages/slp?key={key}&platform=WEB&privacy_do_not_sell=false&targeted_advertising_opt_out=false&device_type={device_type}&sapphire_channel=WEB&sapphire_page={sapphire_page}&channel=WEB&page={page}&visitor_id={visitor_id}&purchasable_store_ids={purchasable_store_ids}&latitude={latitude}&longitude={longitude}&scheduled_delivery_store_id=1771&scheduled_delivery_zip_code=52404&state=IA&store_id=1771&zip=52404&country=US&has_pending_inputs=false&count=24&default_purchasability_filter=true&include_sponsored=true&new_search=true&offset=0&spellcheck=true&store_ids={store_ids}&keyword={keyword}&is_seo_bot=false&include_data_source_modules=true&query_string={query_string}&timezone={timezone}",
+     "route_host": "cdui-orchestrations.target.com",
+     "inputs": [
+      "searchTerm",
+      "offset"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 452,
+     "route_failed": false,
+     "window_refused": false,
+     "evidence": {
+      "kind": "records",
+      "count": 30,
+      "own_lines": 30,
+      "hits": 30,
+      "titles": [
+       "Premiuim Cotton Super Soft Zero Twist 6 Piece Assorted Bathr",
+       "Egyptian Cotton Absorbent Luxury Heavyweight Face Towel/Wash",
+       "Quick-Drying Cotton Face Towels Washcloths, Set of 24, Stone"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "call_unrelated",
+     "value": "lego",
+     "status": 200,
+     "how": null,
+     "route_id": "1bc7d22ae277eeb2",
+     "method": "GET",
+     "path": "/cdui_orchestrations/v1/pages/slp?key={key}&platform=WEB&privacy_do_not_sell=false&targeted_advertising_opt_out=false&device_type={device_type}&sapphire_channel=WEB&sapphire_page={sapphire_page}&channel=WEB&page={page}&visitor_id={visitor_id}&purchasable_store_ids={purchasable_store_ids}&latitude={latitude}&longitude={longitude}&scheduled_delivery_store_id=1771&scheduled_delivery_zip_code=52404&state=IA&store_id=1771&zip=52404&country=US&has_pending_inputs=false&count=24&default_purchasability_filter=true&include_sponsored=true&new_search=true&offset=0&spellcheck=true&store_ids={store_ids}&keyword={keyword}&is_seo_bot=false&include_data_source_modules=true&query_string={query_string}&timezone={timezone}",
+     "route_host": "cdui-orchestrations.target.com",
+     "inputs": [
+      "searchTerm",
+      "offset"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 456,
+     "route_failed": false,
+     "evidence": {
+      "kind": "records",
+      "count": 30,
+      "own_lines": 29,
+      "hits": 29,
+      "titles": [
+       "LEGO City Advent Calendar 2026 60510",
+       "LEGO Marvel Advent Calendar 2026 76340",
+       "LEGO Star Wars Advent Calendar 2026 75456"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "no_results",
+     "value": "zqdvjbvjtqjl",
+     "status": 200,
+     "how": null,
+     "route_id": "1bc7d22ae277eeb2",
+     "method": "GET",
+     "path": "/cdui_orchestrations/v1/pages/slp?key={key}&platform=WEB&privacy_do_not_sell=false&targeted_advertising_opt_out=false&device_type={device_type}&sapphire_channel=WEB&sapphire_page={sapphire_page}&channel=WEB&page={page}&visitor_id={visitor_id}&purchasable_store_ids={purchasable_store_ids}&latitude={latitude}&longitude={longitude}&scheduled_delivery_store_id=1771&scheduled_delivery_zip_code=52404&state=IA&store_id=1771&zip=52404&country=US&has_pending_inputs=false&count=24&default_purchasability_filter=true&include_sponsored=true&new_search=true&offset=0&spellcheck=true&store_ids={store_ids}&keyword={keyword}&is_seo_bot=false&include_data_source_modules=true&query_string={query_string}&timezone={timezone}",
+     "route_host": "cdui-orchestrations.target.com",
+     "inputs": [
+      "searchTerm",
+      "offset"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 363,
+     "route_failed": false,
+     "evidence": {
+      "kind": "records",
+      "count": 24,
+      "own_lines": 24,
+      "hits": 0,
+      "titles": [
+       "BALLERS NFL Series 1 Mini Figures",
+       "Our Generation Surprise Decorations Holiday Ball Series1 of ",
+       "Caylus Vs. Foltyn Mystery 11&#34; Mystery Plush"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "ok_but_wrong",
+     "why": "results_for_nonsense"
+    },
+    {
+     "step": "recheck",
+     "value": "water bottle",
+     "status": 200,
+     "how": null,
+     "route_id": "1bc7d22ae277eeb2",
+     "method": "GET",
+     "path": "/cdui_orchestrations/v1/pages/slp?key={key}&platform=WEB&privacy_do_not_sell=false&targeted_advertising_opt_out=false&device_type={device_type}&sapphire_channel=WEB&sapphire_page={sapphire_page}&channel=WEB&page={page}&visitor_id={visitor_id}&purchasable_store_ids={purchasable_store_ids}&latitude={latitude}&longitude={longitude}&scheduled_delivery_store_id=1771&scheduled_delivery_zip_code=52404&state=IA&store_id=1771&zip=52404&country=US&has_pending_inputs=false&count=24&default_purchasability_filter=true&include_sponsored=true&new_search=true&offset=0&spellcheck=true&store_ids={store_ids}&keyword={keyword}&is_seo_bot=false&include_data_source_modules=true&query_string={query_string}&timezone={timezone}",
+     "route_host": "cdui-orchestrations.target.com",
+     "inputs": [
+      "searchTerm",
+      "offset"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 451,
+     "route_failed": false,
+     "evidence": {
+      "kind": "records",
+      "count": 30,
+      "own_lines": 0,
+      "hits": 0,
+      "titles": [],
+      "no_results_words": false,
+      "overlap_with_first": 1.0
+     },
+     "outcome": "pass",
+     "why": null
+    }
+   ],
+   "calls": 5,
+   "judgments": 0,
+   "paid_usdc": 0,
+   "links": {
+    "status": 200,
+    "link_echoed": true,
+    "refused_why": null,
+    "routes": 0,
+    "unavailable": false,
+    "says_nothing_paid": true,
+    "activity_added": 0,
+    "calls_added": 0,
+    "browsers_added": 0,
+    "paid": null,
+    "sound_forms": {
+     "plain": 200,
+     "upper_case": 200,
+     "trailing_slash": 200
+    },
+    "malformed_tried": 18,
+    "malformed_not_refused": [],
+    "outcome": "pass"
+   },
+   "suggested": "ok_but_wrong",
+   "classification": "pass",
+   "read_differs": true,
+   "note": "Real values right on the first ask. The nonsense value answers 24 unrelated items, and the site's own page for this exact word says 200 results for it, read in the node's browser: the site's fallback, which the node reports faithfully."
+  },
+  {
+   "site": "asos.com",
+   "goal": "search ASOS products",
+   "url": "https://www.asos.com/search/",
+   "values": [
+    "dress",
+    "jacket",
+    "waterproof walking boots",
+    "zqdvjbvjtqjl"
+   ],
+   "category": "commerce_marketplace",
+   "market": "GLOBAL",
+   "retest": false,
+   "url_source": "known",
+   "phase": "fresh",
+   "bound_input": "q",
+   "route_first_party": true,
+   "checks": [
+    {
+     "step": "first",
+     "value": "dress",
+     "status": 200,
+     "how": "learned",
+     "route_id": "e14a8e3d0bc2755c",
+     "method": "GET",
+     "path": "/{path[0]}/?q={q}",
+     "route_host": "www.asos.com",
+     "inputs": [
+      "part0",
+      "q",
+      "page"
+     ],
+     "write": false,
+     "picked_by": "the rule",
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 285,
+     "route_failed": false,
+     "window_refused": false,
+     "evidence": {
+      "kind": "page",
+      "count": 72,
+      "own_lines": 9,
+      "hits": 0,
+      "titles": [
+       "Shop by edit: Gifts under £20",
+       "SHOP BY PRICE: Sale under £10",
+       "SHOP BY PRICE: Knitwear under £30"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "ok_but_wrong",
+     "why": "nothing_mentions_the_value"
+    },
+    {
+     "step": "replay",
+     "value": "jacket",
+     "status": 200,
+     "how": "called",
+     "route_id": "e14a8e3d0bc2755c",
+     "method": "GET",
+     "path": "/{path[0]}/?q={q}",
+     "route_host": "www.asos.com",
+     "inputs": [
+      "part0",
+      "q",
+      "page"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 0,
+     "route_failed": false,
+     "window_refused": false,
+     "evidence": {
+      "kind": "page",
+      "count": null,
+      "own_lines": 120,
+      "hits": 55,
+      "titles": [
+       "Stradivarius Cropped trench jacket in brown",
+       "Stradivarius Soft-touch bomber jacket in ecru",
+       "Bershka Funnel neck trench jacket in brown"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "call_unrelated",
+     "value": "waterproof walking boots",
+     "status": 200,
+     "how": null,
+     "route_id": "e14a8e3d0bc2755c",
+     "method": "GET",
+     "path": "/{path[0]}/?q={q}",
+     "route_host": "www.asos.com",
+     "inputs": [
+      "part0",
+      "q",
+      "page"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 0,
+     "route_failed": false,
+     "evidence": {
+      "kind": "page",
+      "count": null,
+      "own_lines": 102,
+      "hits": 67,
+      "titles": [
+       "Regatta Amble isotex walking boots in soft taupe",
+       "Columbia Newton Ridge Plus Waterproof Amped boots in grey",
+       "Regatta Waterproof amble walking boots in briar wisteria"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "pass",
+     "why": null
+    },
+    {
+     "step": "no_results",
+     "value": "zqdvjbvjtqjl",
+     "status": 200,
+     "how": null,
+     "route_id": "e14a8e3d0bc2755c",
+     "method": "GET",
+     "path": "/{path[0]}/?q={q}",
+     "route_host": "www.asos.com",
+     "inputs": [
+      "part0",
+      "q",
+      "page"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 0,
+     "route_failed": false,
+     "evidence": {
+      "kind": "page",
+      "count": null,
+      "own_lines": 11,
+      "hits": 0,
+      "titles": [
+       "4 styles found",
+       "ASOS DESIGN knitted co-ord in sage",
+       "£47.59"
+      ],
+      "no_results_words": false
+     },
+     "outcome": "ok_but_wrong",
+     "why": "results_for_nonsense"
+    },
+    {
+     "step": "recheck",
+     "value": "dress",
+     "status": 200,
+     "how": null,
+     "route_id": "e14a8e3d0bc2755c",
+     "method": "GET",
+     "path": "/{path[0]}/?q={q}",
+     "route_host": "www.asos.com",
+     "inputs": [
+      "part0",
+      "q",
+      "page"
+     ],
+     "write": false,
+     "picked_by": null,
+     "result_ok": true,
+     "error": null,
+     "ignored_inputs": [],
+     "paid_usdc": null,
+     "truncated": false,
+     "fields_more": 285,
+     "route_failed": false,
+     "evidence": {
+      "kind": "page",
+      "count": 72,
+      "own_lines": 0,
+      "hits": 0,
+      "titles": [],
+      "no_results_words": false,
+      "overlap_with_first": 1.0
+     },
+     "outcome": "pass",
+     "why": null
+    }
+   ],
+   "calls": 5,
+   "judgments": 0,
+   "paid_usdc": 0,
+   "links": {
+    "status": 200,
+    "link_echoed": true,
+    "refused_why": null,
+    "routes": 0,
+    "unavailable": false,
+    "says_nothing_paid": true,
+    "activity_added": 0,
+    "calls_added": 0,
+    "browsers_added": 0,
+    "paid": null,
+    "sound_forms": {
+     "plain": 200,
+     "upper_case": 200,
+     "trailing_slash": 200
+    },
+    "malformed_tried": 18,
+    "malformed_not_refused": [],
+    "outcome": "pass"
+   },
+   "suggested": "ok_but_wrong",
+   "classification": "ok_but_wrong",
+   "read_differs": false,
+   "note": "No regression, and not fixed. Dress is the right page and its products are in the answer, but it came back as the page's state, whose default fields are id and brandName, so no product is named until an agent asks for description. It did the same in two of the three runs before this one. Jacket and walking boots read right. The nonsense value answers 4 styles, not read against the site's page in this run."
+  }
+ ],
+ "judgments": [],
+ "odd_links": [
+  {
+   "name": "ip_address",
+   "link": "unbrowse://127.0.0.1",
+   "expected": 400,
+   "status": 400,
+   "named_site": null
+  },
+  {
+   "name": "localhost",
+   "link": "unbrowse://localhost",
+   "expected": 400,
+   "status": 400,
+   "named_site": null
+  },
+  {
+   "name": "bare_public_suffix",
+   "link": "unbrowse://co.uk",
+   "expected": 400,
+   "status": 400,
+   "named_site": null
+  },
+  {
+   "name": "empty_host",
+   "link": "unbrowse://",
+   "expected": 400,
+   "status": 400,
+   "named_site": null
+  },
+  {
+   "name": "dots_only",
+   "link": "unbrowse://..",
+   "expected": 400,
+   "status": 400,
+   "named_site": null
+  },
+  {
+   "name": "leading_dash",
+   "link": "unbrowse://-example.com",
+   "expected": 400,
+   "status": 400,
+   "named_site": null
+  },
+  {
+   "name": "punycode_lookalike",
+   "link": "unbrowse://xn--pple-43d.com",
+   "expected": 400,
+   "status": 200,
+   "named_site": "xn--pple-43d.com"
+  }
+ ],
+ "counts": {
+  "pass": 3,
+  "ok_but_wrong": 1
+ },
+ "checks_total": 20,
+ "calls_total": 20,
+ "paid_usdc_total": 0,
+ "read_differs": 2
+}

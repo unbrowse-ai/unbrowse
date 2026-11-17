@@ -1,0 +1,78 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "unbrowse",
+  "displayName": "Unbrowse",
+  "version": "0.2.0",
+  "description": "Use websites through the Unbrowse node on this machine: the site's own JSON, with no browser once a route is learned. WebFetch is answered from the node's routes, each node answer shows what it cost and the tokens it saved, and learned routes become tools.",
+  "author": {
+    "name": "Unbrowse",
+    "url": "https://unbrowse.ai"
+  },
+  "homepage": "https://unbrowse.ai",
+  "repository": "https://github.com/unbrowse-ai/unbrowse-core",
+  "license": "Apache-2.0",
+  "privacyPolicyUrl": "https://github.com/unbrowse-ai/unbrowse-core/blob/main/PRIVACY.md",
+  "keywords": [
+    "web",
+    "browser",
+    "api",
+    "scraping",
+    "automation",
+    "mcp"
+  ],
+  "userConfig": {
+    "agent": {
+      "type": "string",
+      "title": "Agent",
+      "description": "Which agent key Claude uses: its number (`unbrowse agent new <name>` prints it; the window shows it under Money, Agents), or first for the key the node made on its first run. Let it in once with `unbrowse grant first` (or `unbrowse grant <number>`): the node asks you. No token is kept here.",
+      "default": "first"
+    },
+    "node_url": {
+      "type": "string",
+      "title": "Node address",
+      "description": "Where the Unbrowse node listens.",
+      "default": "http://127.0.0.1:7788"
+    },
+    "web_fetch": {
+      "type": "string",
+      "title": "WebFetch",
+      "description": "routes (the default): when Claude fetches a page, the node answers first from a route it already has, with no browser and nothing paid, and Claude reads the site's own JSON; when it has none, WebFetch runs as usual. off: WebFetch always runs as usual.",
+      "options": [
+        "routes",
+        "off"
+      ],
+      "default": "routes"
+    },
+    "savings": {
+      "type": "string",
+      "title": "Tokens saved",
+      "description": "measure (the default): after a node answer, fetch the page it stood for once, so the receipt and the ledger can say how many tokens Claude did not read (page against answer, about four characters a token). off: no fetch, no savings figure.",
+      "options": [
+        "measure",
+        "off"
+      ],
+      "default": "measure"
+    },
+    "route_tools": {
+      "type": "string",
+      "title": "Route tools",
+      "description": "on (the default): each of the node's local read routes becomes a tool Claude can call (route_<site>_<what>, found with ToolSearch), and the system prompt names the sites they cover. off: neither.",
+      "options": [
+        "on",
+        "off"
+      ],
+      "default": "on"
+    },
+    "heal": {
+      "type": "string",
+      "title": "Heal routes",
+      "description": "on: when a route fails, the node learns the page afresh in the background (it may open its browser; it pays nothing) and a toast says how it went. off (the default): Claude decides.",
+      "options": [
+        "off",
+        "on"
+      ],
+      "default": "off"
+    }
+  },
+  "types": "./types/index.d.ts"
+}

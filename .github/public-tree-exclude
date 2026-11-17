@@ -1,0 +1,5 @@
+# Paths unbrowse-core holds that the public unbrowse-ai/unbrowse leaves out (UNB-158, Lewis 2026-11-17: the smart
+# contracts stay private, in a repo of their own). Each public sync builds one commit of core's tree without these.
+# One path per line, a folder ends in /. papers/params_check.py reads this list; ci.yml runs the contracts jobs only
+# in unbrowse-core.
+unbrowse-settlement/

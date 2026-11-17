@@ -1,12 +1,20 @@
 {
   "name": "unbrowse",
-  "interface": { "displayName": "Unbrowse" },
+  "interface": {
+    "displayName": "Unbrowse"
+  },
   "plugins": [
     {
       "name": "unbrowse",
-      "source": { "source": "local", "path": "./plugins/codex" },
-      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
-      "category": "Productivity"
+      "source": {
+        "source": "local",
+        "path": "./integrations/codex/plugins/unbrowse"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
     }
   ]
 }

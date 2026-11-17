@@ -1,0 +1,5741 @@
+use serde_json::{json, Value};
+use std::collections::{HashMap, HashSet};
+use std::future::Future;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::{broadcast, Mutex};
+
+use super::cdp::chrome::{
+    auto_connect_cdp, launch_chrome, BrowserHold, ChromeProcess, LaunchOptions, ReattachedChrome,
+};
+use super::cdp::client::CdpClient;
+use super::cdp::discovery::discover_cdp_url;
+use super::cdp::lightpanda::{launch_lightpanda, LightpandaLaunchOptions, LightpandaProcess};
+use super::cdp::obscura::{
+    launch_obscura, stealth_from_env as obscura_stealth_from_env, ObscuraLaunchOptions,
+    ObscuraProcess,
+};
+use super::cdp::types::*;
+use super::element::{resolve_element_object_id, RefMap};
+use super::tab_binding;
+
+// ---------------------------------------------------------------------------
+// Launch validation
+// ---------------------------------------------------------------------------
+
+/// Validates launch/connect options for incompatible combinations.
+/// Returns `Ok(())` if valid, or `Err(msg)` with a user-friendly error.
+pub fn validate_launch_options(
+    extensions: Option<&[String]>,
+    has_cdp: bool,
+    profile: Option<&str>,
+    storage_state: Option<&str>,
+    allow_file_access: bool,
+    executable_path: Option<&str>,
+    ca_cert: Option<&str>,
+) -> Result<(), String> {
+    let has_extensions = extensions.map(|e| !e.is_empty()).unwrap_or(false);
+
+    if has_extensions && has_cdp {
+        return Err(
+            "Cannot use extensions with cdp_url (extensions require local browser launch)"
+                .to_string(),
+        );
+    }
+    if profile.is_some() && has_cdp {
+        return Err(
+            "Cannot use profile with cdp_url (profile requires local browser launch)".to_string(),
+        );
+    }
+    if storage_state.is_some() && profile.is_some() {
+        return Err("Cannot use storage_state with profile".to_string());
+    }
+    if storage_state.is_some() && has_extensions {
+        return Err("Cannot use storage_state with extensions".to_string());
+    }
+    if ca_cert.is_some() && has_cdp {
+        return Err("--ca-cert requires a locally launched Chromium browser on Linux".to_string());
+    }
+    if ca_cert.is_some() && profile.is_some() {
+        return Err(
+            "--ca-cert cannot be combined with a Chrome profile because isolated CA trust changes the profile's NSS environment"
+                .to_string(),
+        );
+    }
+    if ca_cert.is_some() && !cfg!(target_os = "linux") {
+        return Err("--ca-cert is currently supported only on Linux".to_string());
+    }
+    if allow_file_access {
+        if let Some(path) = executable_path {
+            let lower = path.to_lowercase();
+            if lower.contains("firefox") || lower.contains("webkit") || lower.contains("safari") {
+                return Err(
+                    "allow_file_access is not supported with non-Chromium browsers".to_string(),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Validates that Chrome-only options are not used with Lightpanda.
+fn validate_lightpanda_options(options: &LaunchOptions) -> Result<(), String> {
+    if options
+        .extensions
+        .as_ref()
+        .map(|e| !e.is_empty())
+        .unwrap_or(false)
+    {
+        return Err("Extensions are not supported with Lightpanda".to_string());
+    }
+    if options.profile.is_some() {
+        return Err("Profiles are not supported with Lightpanda".to_string());
+    }
+    if options.storage_state.is_some() {
+        return Err("Storage state is not supported with Lightpanda".to_string());
+    }
+    if options.allow_file_access {
+        return Err("File access is not supported with Lightpanda".to_string());
+    }
+    if !options.headless {
+        return Err("Headed mode is not supported with Lightpanda (headless only)".to_string());
+    }
+    if options.webgpu {
+        return Err("WebGPU (--webgpu) is not supported with Lightpanda".to_string());
+    }
+    if options.ca_cert.is_some() {
+        return Err("--ca-cert is not supported with Lightpanda (Chromium only)".to_string());
+    }
+    if !options.args.is_empty() {
+        return Err(
+            "Custom Chrome arguments (--args) are not supported with Lightpanda".to_string(),
+        );
+    }
+    Ok(())
+}
+
+/// Liveness-probe timeout. A live renderer answers in ms; a discarded tab has
+/// no renderer and never answers, so a short timeout is the only discard signal
+/// CDP exposes (#1528). A false positive is cheap: recovery reactivates the tab,
+/// which only reloads a genuinely discarded one and just focuses a live one.
+const RENDERER_PROBE_TIMEOUT_MS: u64 = 3_000;
+
+/// How long a reactivated renderer gets to start answering before the tab is
+/// declared unrecoverable.
+const REVIVED_RENDERER_TIMEOUT_MS: u64 = 10_000;
+
+/// Outcome of ensuring a tab's renderer can serve commands.
+enum RendererState {
+    /// The renderer answered the liveness probe.
+    Responsive,
+    /// The renderer did not answer and was reactivated; the page may have reloaded.
+    Revived,
+    /// The tab is alive but paused by a JavaScript dialog, so it cannot answer
+    /// renderer-bound commands until the dialog is resolved.
+    DialogBlocked,
+}
+
+/// Rejects unsupported Obscura launch options, including proxy bypass rules.
+fn validate_obscura_options(options: &LaunchOptions) -> Result<(), String> {
+    if options
+        .extensions
+        .as_ref()
+        .map(|e| !e.is_empty())
+        .unwrap_or(false)
+    {
+        return Err("Extensions are not supported with Obscura".to_string());
+    }
+    if options.profile.is_some() {
+        return Err("Profiles are not supported with Obscura".to_string());
+    }
+    if options.storage_state.is_some() {
+        return Err("Storage state is not supported with Obscura".to_string());
+    }
+    if options.allow_file_access {
+        return Err("File access is not supported with Obscura".to_string());
+    }
+    if !options.headless {
+        return Err("Headed mode is not supported with Obscura (headless only)".to_string());
+    }
+    if options.webgpu {
+        return Err("WebGPU (--webgpu) is not supported with Obscura".to_string());
+    }
+    if options.ca_cert.is_some() {
+        return Err("--ca-cert is not supported with Obscura (Chromium only)".to_string());
+    }
+    if options.proxy_bypass.is_some() {
+        return Err("--proxy-bypass is not supported with Obscura (including AGENT_BROWSER_PROXY_BYPASS and NO_PROXY)".to_string());
+    }
+    if !options.args.is_empty() {
+        return Err("Custom Chrome arguments (--args) are not supported with Obscura".to_string());
+    }
+    Ok(())
+}
+
+/// Returns true for Chrome internal targets that should not be selected
+/// during auto-connect (e.g. chrome://, chrome-extension://, devtools://).
+fn is_internal_chrome_target(url: &str) -> bool {
+    url.starts_with("chrome://")
+        || url.starts_with("chrome-extension://")
+        || url.starts_with("devtools://")
+}
+
+pub(crate) fn should_track_target(target: &TargetInfo) -> bool {
+    (target.target_type == "page" || target.target_type == "webview")
+        && (target.url.is_empty() || !is_internal_chrome_target(&target.url))
+}
+
+fn update_page_target_info_in_pages(pages: &mut [PageInfo], target: &TargetInfo) -> bool {
+    if let Some(page) = pages.iter_mut().find(|p| p.target_id == target.target_id) {
+        page.url = target.url.clone();
+        page.title = target.title.clone();
+        page.target_type = target.target_type.clone();
+        return true;
+    }
+    false
+}
+
+fn active_page_index_after_removal(
+    active_page_index: usize,
+    removed_index: usize,
+    remaining_pages: usize,
+) -> usize {
+    if remaining_pages == 0 {
+        return 0;
+    }
+
+    if removed_index < active_page_index {
+        return active_page_index - 1;
+    }
+
+    if active_page_index >= remaining_pages {
+        return remaining_pages - 1;
+    }
+
+    active_page_index
+}
+
+/// Decides the active page index after a page is appended.
+///
+/// A freshly appended page becomes active only when the caller explicitly
+/// activates it (an explicit user command such as `tab new` / `window new`) or
+/// when it is the first page (so a non-empty manager always has a valid active
+/// index). Event-discovered / human-opened tabs are appended with
+/// `activate = false` and must not steal the active pointer.
+fn active_page_index_after_add(
+    active_page_index: usize,
+    new_index: usize,
+    was_empty: bool,
+    activate: bool,
+) -> usize {
+    if was_empty || activate {
+        new_index
+    } else {
+        active_page_index
+    }
+}
+
+/// Unbrowse fork: how an eval that ran past its time is answered (`actions::eval_timed_out`). That answer
+/// already says what happened and what to do, and it names `eval --timeout`, so the generic rewrites below
+/// must leave it alone: the "timeout" one would flatten it to "Operation timed out".
+pub const EVAL_TIMED_OUT_LEAD: &str = "the script didn't finish within ";
+
+/// Converts common error messages into AI-friendly, actionable descriptions.
+pub fn to_ai_friendly_error(error: &str) -> String {
+    if error.starts_with(EVAL_TIMED_OUT_LEAD) {
+        return error.to_string();
+    }
+    let lower = error.to_lowercase();
+    // Classify a genuine locator miss first: its anchored shape ("No element
+    // found: ...") echoes the selector/name, which may itself contain a word like
+    // "timeout" or "intercept". The broad substring checks below would otherwise
+    // flatten such a miss into the wrong guidance.
+    if is_locator_miss(&lower) {
+        let detail = error.trim_end_matches('.');
+        return format!(
+            "{detail}. Verify the selector, role, or name is correct and the element exists in the DOM."
+        );
+    }
+    if lower.contains("strict mode violation") {
+        return "Element matched multiple results. Use a more specific selector.".to_string();
+    }
+    if lower.contains("element is not visible") {
+        return "Element exists but is not visible. Wait for it to become visible or scroll it into view."
+            .to_string();
+    }
+    if lower.contains("intercept") {
+        return "Another element is covering the target element. Try scrolling or closing overlays."
+            .to_string();
+    }
+    if lower.contains("timeout") {
+        return "Operation timed out. The page may still be loading or the element may not exist."
+            .to_string();
+    }
+    error.to_string()
+}
+
+/// True for the "couldn't find a matching element" family of messages
+/// produced by locator code (`find role`, `find text`, CSS/ref resolution,
+/// and friends). Every such message already carries the selector, role, or
+/// name that failed to match, so this only appends actionable advice
+/// instead of discarding that detail.
+///
+/// Deliberately narrower than a bare "no element" substring match, which
+/// would also catch WebDriver protocol errors like "No element in response"
+/// or "No element ID in response"; those indicate a malformed driver
+/// payload, and "verify the selector is correct" is misleading advice for
+/// them. A genuine WebDriver locator miss never reaches this function in
+/// protocol shape: `element_id_from_value` translates the driver's
+/// "no such element" error into the anchored "No element found by ..."
+/// form, which this function classifies like any other miss.
+fn is_locator_miss(lower: &str) -> bool {
+    lower.starts_with("element not found")
+        || lower.starts_with("no element found")
+        || lower.starts_with("no element at index")
+}
+
+#[derive(Debug, Clone)]
+pub struct PageInfo {
+    pub tab_id: u32,
+    /// Optional user-assigned label (e.g. "docs", "app"). Set via
+    /// `tab new --label <name>`. Labels are agent-assigned and never
+    /// auto-generated, never rewritten on navigation, and unique within a
+    /// session. Agents use labels instead of `t<N>` for readable multi-tab
+    /// workflows.
+    pub label: Option<String>,
+    pub target_id: String,
+    pub session_id: String,
+    pub url: String,
+    pub title: String,
+    pub target_type: String, // "page" or "webview"
+}
+
+/// Canonical string form of a stable tab id: `t1`, `t2`, ... The `t` prefix
+/// disambiguates stable ids from positional indices (which the CLI no longer
+/// accepts) and matches the `@e<N>` convention used for element refs.
+pub fn format_tab_id(tab_id: u32) -> String {
+    format!("t{}", tab_id)
+}
+
+/// A tab reference as parsed from CLI/JSON input. Either a stable id like
+/// `t2`, a user-assigned label like `docs`, or a CDP target id like
+/// `4A0B...C3`. Target ids are stable across daemon restarts, unlike `t<N>`
+/// ids which are per-daemon counters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TabRef {
+    Id(u32),
+    Label(String),
+    Target(String),
+}
+
+/// Heuristic for CDP target ids: long hex strings (Chrome uses 32 uppercase
+/// hex chars). Only used for inputs that are not valid labels; label-shaped
+/// hex strings resolve label-first with a target-id fallback.
+fn looks_like_target_id(s: &str) -> bool {
+    s.len() >= 16 && s.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+impl TabRef {
+    /// Parse a user-supplied string tab reference. Rejects bare integers
+    /// with a teaching error so agents and scripts don't silently confuse
+    /// stable ids with positional indices.
+    pub fn parse(input: &str) -> Result<Self, String> {
+        let input = input.trim();
+        if input.is_empty() {
+            return Err("Empty tab reference; expected `t<N>` (e.g. `t2`) or a label".to_string());
+        }
+        if let Some(digits) = input.strip_prefix('t').or_else(|| input.strip_prefix('T')) {
+            if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) {
+                let id: u32 = digits.parse().map_err(|_| {
+                    format!(
+                        "Tab id `{}` out of range; ids are incrementing positive integers",
+                        input
+                    )
+                })?;
+                if id == 0 {
+                    return Err(format!(
+                        "Tab id `{}` is invalid; tab ids start at t1",
+                        input
+                    ));
+                }
+                return Ok(TabRef::Id(id));
+            }
+        }
+        if looks_like_target_id(input) && !is_valid_label(input) {
+            return Ok(TabRef::Target(input.to_string()));
+        }
+        if input.chars().all(|c| c.is_ascii_digit()) {
+            return Err(format!(
+                "Expected a tab id like `t{}` or a label; positional integers are not accepted \
+                 (run `agent-browser tab` to list stable tab ids)",
+                input
+            ));
+        }
+        if !is_valid_label(input) {
+            return Err(format!(
+                "Invalid tab label `{}`; labels must start with a letter and contain only \
+                 letters, digits, `-`, and `_`",
+                input
+            ));
+        }
+        Ok(TabRef::Label(input.to_string()))
+    }
+}
+
+/// Labels must look like identifiers: start with a letter, contain only
+/// letters/digits/dashes/underscores. This keeps them distinguishable from
+/// `t<N>` ids at a glance and safe to pass through shells without quoting.
+pub fn is_valid_label(s: &str) -> bool {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WaitUntil {
+    Load,
+    DomContentLoaded,
+    NetworkIdle,
+    None,
+}
+
+impl WaitUntil {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "domcontentloaded" => Self::DomContentLoaded,
+            "networkidle" => Self::NetworkIdle,
+            "none" => Self::None,
+            _ => Self::Load,
+        }
+    }
+}
+
+pub enum BrowserProcess {
+    Chrome(ChromeProcess),
+    /// A runtime Chrome an earlier daemon launched. It is this daemon's to close as much as one it launched: nobody else
+    /// is left to do it, and a browser nobody can close outlives every daemon after it.
+    Reattached(ReattachedChrome),
+    Lightpanda(LightpandaProcess),
+    Obscura(ObscuraProcess),
+}
+
+impl BrowserProcess {
+    pub fn kill(&mut self) {
+        match self {
+            BrowserProcess::Chrome(p) => p.kill(),
+            BrowserProcess::Reattached(p) => p.wait_or_kill(std::time::Duration::ZERO),
+            BrowserProcess::Lightpanda(p) => p.kill(),
+            BrowserProcess::Obscura(p) => p.kill(),
+        }
+    }
+
+    pub fn wait_or_kill(&mut self, timeout: std::time::Duration) {
+        match self {
+            BrowserProcess::Chrome(p) => p.wait_or_kill(timeout),
+            BrowserProcess::Reattached(p) => p.wait_or_kill(timeout),
+            BrowserProcess::Lightpanda(p) => p.kill(),
+            BrowserProcess::Obscura(p) => p.kill(),
+        }
+    }
+
+    /// Non-blocking check whether the browser process has exited.
+    pub fn has_exited(&mut self) -> bool {
+        match self {
+            BrowserProcess::Chrome(p) => p.has_exited(),
+            BrowserProcess::Reattached(p) => p.has_exited(),
+            BrowserProcess::Lightpanda(p) => p.has_exited(),
+            BrowserProcess::Obscura(p) => p.has_exited(),
+        }
+    }
+
+    /// Whether another daemon is still using this browser, which then stays when this one leaves.
+    fn others_remain(&mut self) -> bool {
+        match self {
+            BrowserProcess::Chrome(p) => p.others_remain(),
+            BrowserProcess::Reattached(p) => p.others_remain(),
+            BrowserProcess::Lightpanda(_) | BrowserProcess::Obscura(_) => false,
+        }
+    }
+}
+
+pub struct BrowserManager {
+    pub client: Arc<CdpClient>,
+    browser_process: Option<BrowserProcess>,
+    ws_url: String,
+    pages: Vec<PageInfo>,
+    active_page_index: usize,
+    default_timeout_ms: u64,
+    /// Stored download path from launch options, re-applied to new contexts (e.g., recording)
+    pub download_path: Option<String>,
+    /// Whether to ignore HTTPS certificate errors, re-applied to new contexts (e.g., recording)
+    pub ignore_https_errors: bool,
+    /// Origins visited during this session, used by save_state to collect cross-origin localStorage.
+    visited_origins: HashSet<String>,
+    next_tab_id: u32,
+    /// True when the CDP WebSocket is already scoped to a page target and
+    /// browser-level Target.* commands are not available.
+    direct_page: bool,
+    /// Strict session-to-tab binding (`--pin-tab`). When enabled, the session
+    /// never silently adopts another tab: if the bound tab goes away, page
+    /// commands fail with a `tab_gone` error until the agent re-binds via
+    /// `tab new` or `tab <ref>`.
+    pin_tab: bool,
+    /// CDP target id of the tab this session is bound to. Updated whenever
+    /// the session creates a tab or explicitly switches tabs; persisted by
+    /// the daemon so re-attach selects the same tab instead of index 0.
+    bound_target_id: Option<String>,
+    /// Set when `pin_tab` is enabled and the bound tab was destroyed
+    /// (externally, or found missing at attach time): `(target_id, last_url)`.
+    /// While set, commands that need the active page fail with `tab_gone`.
+    bound_target_gone: Option<(String, String)>,
+    /// The user agent the session set, which preparing a page session must not undo ([`Self::prepare_domains`]).
+    pub session_user_agent: Option<String>,
+    /// Whether the daemon-spawned browser actually runs headless after
+    /// launch rules such as extension-forced headed mode. Meaningless for
+    /// attached browsers (browser_process is None).
+    headless: bool,
+}
+
+/// Stable machine-readable prefix for "the bound tab no longer exists"
+/// errors, so scripts using `--json` can match on it.
+pub const TAB_GONE_PREFIX: &str = "tab_gone:";
+
+fn tab_gone_error(target_id: &str, last_url: &str) -> String {
+    let url_part = if last_url.is_empty() {
+        String::new()
+    } else {
+        format!(", last url {}", last_url)
+    };
+    format!(
+        "{} bound tab is gone (target {}{}). Run `agent-browser tab new <url>` to bind a new \
+         tab, or `agent-browser tab list` to pick an existing one",
+        TAB_GONE_PREFIX, target_id, url_part
+    )
+}
+
+const LIGHTPANDA_CDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const LIGHTPANDA_CDP_CONNECT_POLL_INTERVAL: Duration = Duration::from_millis(100);
+const LIGHTPANDA_TARGET_INIT_TIMEOUT: Duration = Duration::from_secs(10);
+const FAILED_INITIALIZATION_CLOSE_TIMEOUT: Duration = Duration::from_secs(1);
+
+const OBSCURA_CDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const OBSCURA_CDP_CONNECT_POLL_INTERVAL: Duration = Duration::from_millis(100);
+const OBSCURA_TARGET_INIT_TIMEOUT: Duration = Duration::from_secs(10);
+
+impl BrowserManager {
+    #[cfg(test)]
+    pub(super) fn owns_obscura_process(&self) -> bool {
+        matches!(
+            self.browser_process.as_ref(),
+            Some(BrowserProcess::Obscura(_))
+        )
+    }
+
+    /// True when a *default* idle timeout must not close this browser:
+    /// a headed window may be in direct human use outside the daemon's socket
+    /// commands and dashboard input, and a user-attached browser
+    /// (`connect_cdp`) was not spawned by the daemon and cannot be relaunched
+    /// on the next command. Provider connections also use `connect_cdp`, so
+    /// callers must override this result when the daemon owns the provider
+    /// lifecycle. An explicit AGENT_BROWSER_IDLE_TIMEOUT_MS applies regardless.
+    pub fn blocks_default_idle_shutdown(&self) -> bool {
+        self.browser_process.is_none() || !self.headless
+    }
+
+    pub async fn launch(options: LaunchOptions, engine: Option<&str>) -> Result<Self, String> {
+        let engine = engine.unwrap_or("chrome");
+        crate::unbrowse_policy::check_engine(engine)?;
+
+        match engine {
+            "chrome" => {
+                validate_launch_options(
+                    options.extensions.as_deref(),
+                    false,
+                    options.profile.as_deref(),
+                    options.storage_state.as_deref(),
+                    options.allow_file_access,
+                    options.executable_path.as_deref(),
+                    options.ca_cert.as_deref(),
+                )?;
+                if options.ca_cert.is_some() && options.ignore_https_errors {
+                    return Err(
+                        "--ca-cert cannot be combined with --ignore-https-errors".to_string()
+                    );
+                }
+            }
+            "lightpanda" => {
+                validate_lightpanda_options(&options)?;
+            }
+            "obscura" => {
+                validate_obscura_options(&options)?;
+            }
+            _ => {
+                return Err(format!(
+                    "Unknown engine '{}'. Supported engines: chrome, lightpanda, obscura",
+                    engine
+                ));
+            }
+        }
+
+        let ignore_https_errors = options.ignore_https_errors;
+        let user_agent = options.user_agent.clone();
+        let color_scheme = options.color_scheme.clone();
+        let download_path = options.download_path.clone();
+        let headless = options.effectively_headless();
+
+        let (ws_url, process) = match engine {
+            "lightpanda" => {
+                let lp_options = LightpandaLaunchOptions {
+                    executable_path: options.executable_path.clone(),
+                    proxy: options.proxy.clone(),
+                    port: None,
+                };
+                let lp = launch_lightpanda(&lp_options).await?;
+                let url = lp.ws_url.clone();
+                (url, BrowserProcess::Lightpanda(lp))
+            }
+            "obscura" => {
+                let obscura_options = ObscuraLaunchOptions {
+                    executable_path: options.executable_path.clone(),
+                    proxy: options.proxy.clone(),
+                    port: None,
+                    stealth: obscura_stealth_from_env(),
+                };
+                let ob = launch_obscura(&obscura_options).await?;
+                let url = ob.ws_url.clone();
+                (url, BrowserProcess::Obscura(ob))
+            }
+            _ => {
+                // A previous daemon's Chrome may still be alive on the fixed
+                // runtime dir: reattach instead of launching, so a daemon
+                // restart keeps the pages, cookies and capture a random temp
+                // dir would have orphaned (the manufactured about:blank bug).
+                // A browser left in a profile comes back the same way: the launch that would follow finds the
+                // profile held, and without this nobody could use it until a person killed that browser.
+                let found_again = super::cdp::chrome::reattachable_dir(&options);
+                if let Some(ref dir) = found_again {
+                    if let Some((ws, chrome)) = super::cdp::chrome::reattach_chrome(dir).await {
+                        return Self::connect_runtime_chrome(ws, chrome, &options, download_path, ignore_https_errors).await;
+                    }
+                }
+                let in_a_profile = options.profile.is_some();
+                let mut chrome = tokio::task::spawn_blocking(move || launch_chrome(&options))
+                    .await
+                    .map_err(|e| format!("Chrome launch task failed: {}", e))??;
+                if let Some(dir) = found_again {
+                    if in_a_profile {
+                        super::cdp::chrome::remember_chrome(&dir, chrome.id(), headless);
+                    }
+                    chrome.share(BrowserHold::take(&dir));
+                }
+                let url = chrome.ws_url.clone();
+                (url, BrowserProcess::Chrome(chrome))
+            }
+        };
+
+        let mut manager = if engine == "lightpanda" {
+            initialize_lightpanda_manager(ws_url, process).await?
+        } else if engine == "obscura" {
+            initialize_obscura_manager(ws_url, process).await?
+        } else {
+            let client = Arc::new(CdpClient::connect(&ws_url).await?);
+            let mut manager = Self {
+                client,
+                browser_process: Some(process),
+                ws_url,
+                pages: Vec::new(),
+                active_page_index: 0,
+                default_timeout_ms: 25_000,
+                download_path: download_path.clone(),
+                ignore_https_errors,
+                visited_origins: HashSet::new(),
+                next_tab_id: 1,
+                direct_page: false,
+                pin_tab: false,
+                bound_target_id: None,
+                bound_target_gone: None,
+                session_user_agent: None,
+                headless,
+            };
+            if let Err(error) = manager.discover_and_attach_targets().await {
+                let _ = manager
+                    .close_with_timeout(Some(FAILED_INITIALIZATION_CLOSE_TIMEOUT))
+                    .await;
+                return Err(error);
+            }
+            manager
+        };
+
+        let session_id = match manager.active_session_id() {
+            Ok(session_id) => session_id.to_string(),
+            Err(error) => {
+                let _ = manager
+                    .close_with_timeout(Some(FAILED_INITIALIZATION_CLOSE_TIMEOUT))
+                    .await;
+                return Err(error);
+            }
+        };
+
+        if ignore_https_errors {
+            let _ = manager
+                .client
+                .send_command(
+                    "Security.setIgnoreCertificateErrors",
+                    Some(json!({ "ignore": true })),
+                    Some(&session_id),
+                )
+                .await;
+        }
+
+        if let Some(ref ua) = user_agent {
+            let _ = manager
+                .client
+                .send_command(
+                    "Emulation.setUserAgentOverride",
+                    Some(json!({ "userAgent": ua })),
+                    Some(&session_id),
+                )
+                .await;
+        }
+
+        if let Some(ref scheme) = color_scheme {
+            let _ = manager
+                .client
+                .send_command(
+                    "Emulation.setEmulatedMedia",
+                    Some(json!({ "features": [{ "name": "prefers-color-scheme", "value": scheme }] })),
+                    Some(&session_id),
+                )
+                .await;
+        }
+
+        if let Some(ref path) = download_path {
+            let _ = manager
+                .client
+                .send_command(
+                    "Browser.setDownloadBehavior",
+                    Some(json!({ "behavior": "allow", "downloadPath": path })),
+                    None,
+                )
+                .await;
+        }
+
+        Ok(manager)
+    }
+
+    pub async fn connect_cdp(url: &str) -> Result<Self, String> {
+        Self::connect_cdp_inner(url, false, None).await
+    }
+
+    /// Connect to a provider CDP proxy where the WebSocket IS the page session.
+    /// Skips browser-level Target.* commands that most proxies don't support.
+    pub async fn connect_cdp_direct(url: &str) -> Result<Self, String> {
+        Self::connect_cdp_inner(url, true, None).await
+    }
+
+
+    /// Connects to the surviving runtime Chrome. A crash of this daemon still
+    /// leaves it for the next one; a `close` or the idle timer closes it unless
+    /// another daemon is on it. Discovery registers the existing pages.
+    async fn connect_runtime_chrome(
+        ws: String,
+        chrome: ReattachedChrome,
+        options: &LaunchOptions,
+        download_path: Option<String>,
+        ignore_https_errors: bool,
+    ) -> Result<Self, String> {
+        let client = Arc::new(CdpClient::connect(&ws).await?);
+        let headless = chrome.headless().unwrap_or(options.effectively_headless());
+        let mut manager = Self {
+            client,
+            browser_process: Some(BrowserProcess::Reattached(chrome)),
+            ws_url: ws,
+            pages: Vec::new(),
+            active_page_index: 0,
+            default_timeout_ms: 25_000,
+            download_path,
+            ignore_https_errors,
+            visited_origins: HashSet::new(),
+            next_tab_id: 1,
+            direct_page: false,
+            pin_tab: false,
+            bound_target_id: None,
+            bound_target_gone: None,
+            session_user_agent: None,
+            headless,
+        };
+        if let Err(error) = manager.discover_and_attach_targets().await {
+            let _ = manager
+                .close_with_timeout(Some(FAILED_INITIALIZATION_CLOSE_TIMEOUT))
+                .await;
+            return Err(error);
+        }
+        manager.ensure_page().await?;
+        Ok(manager)
+    }
+
+    pub async fn connect_cdp_with_headers(
+        url: &str,
+        headers: Option<Vec<(String, String)>>,
+    ) -> Result<Self, String> {
+        Self::connect_cdp_inner(url, false, headers).await
+    }
+
+    async fn connect_cdp_inner(
+        url: &str,
+        direct_page: bool,
+        headers: Option<Vec<(String, String)>>,
+    ) -> Result<Self, String> {
+        let ws_url = resolve_cdp_url(url).await?;
+        let client = Arc::new(CdpClient::connect_with_headers(&ws_url, headers).await?);
+        let mut manager = Self {
+            client,
+            browser_process: None,
+            ws_url,
+            pages: Vec::new(),
+            active_page_index: 0,
+            default_timeout_ms: 25_000,
+            download_path: None,
+            ignore_https_errors: false,
+            visited_origins: HashSet::new(),
+            next_tab_id: 1,
+            direct_page,
+            pin_tab: false,
+            bound_target_id: None,
+            bound_target_gone: None,
+            session_user_agent: None,
+            headless: true,
+        };
+
+        let initialization = if direct_page {
+            let tab_id = manager.assign_tab_id();
+            manager.pages.push(PageInfo {
+                tab_id,
+                label: None,
+                target_id: "provider-page".to_string(),
+                session_id: String::new(),
+                url: String::new(),
+                title: String::new(),
+                target_type: "page".to_string(),
+            });
+            manager.active_page_index = 0;
+            manager.enable_domains_direct().await
+        } else {
+            manager.discover_and_attach_targets().await
+        };
+        if let Err(error) = initialization {
+            let _ = manager
+                .close_with_timeout(Some(FAILED_INITIALIZATION_CLOSE_TIMEOUT))
+                .await;
+            return Err(error);
+        }
+        Ok(manager)
+    }
+
+    pub async fn connect_auto() -> Result<Self, String> {
+        let ws_url = auto_connect_cdp().await?;
+        Self::connect_cdp(&ws_url).await
+    }
+
+    async fn discover_and_attach_targets(&mut self) -> Result<(), String> {
+        self.client
+            .send_command_typed::<_, Value>(
+                "Target.setDiscoverTargets",
+                &SetDiscoverTargetsParams { discover: true },
+                None,
+            )
+            .await?;
+
+        let result: GetTargetsResult = self
+            .client
+            .send_command_typed("Target.getTargets", &json!({}), None)
+            .await?;
+
+        let page_targets: Vec<TargetInfo> = result
+            .target_infos
+            .into_iter()
+            .filter(should_track_target)
+            .collect();
+
+        if page_targets.is_empty() {
+            // Create a new tab
+            let result: CreateTargetResult = self
+                .client
+                .send_command_typed(
+                    "Target.createTarget",
+                    &CreateTargetParams {
+                        url: "about:blank".to_string(),
+                    },
+                    None,
+                )
+                .await?;
+
+            let attach_result: AttachToTargetResult = self
+                .client
+                .send_command_typed(
+                    "Target.attachToTarget",
+                    &AttachToTargetParams {
+                        target_id: result.target_id.clone(),
+                        flatten: true,
+                    },
+                    None,
+                )
+                .await?;
+
+            let tab_id = self.next_tab_id;
+            self.next_tab_id += 1;
+            self.pages.push(PageInfo {
+                tab_id,
+                label: None,
+                target_id: result.target_id,
+                session_id: attach_result.session_id.clone(),
+                url: "about:blank".to_string(),
+                title: String::new(),
+                target_type: "page".to_string(),
+            });
+            self.active_page_index = 0;
+            self.bind_active_target();
+            self.enable_domains(&attach_result.session_id).await?;
+        } else {
+            for target in &page_targets {
+                let attach_result: AttachToTargetResult = self
+                    .client
+                    .send_command_typed(
+                        "Target.attachToTarget",
+                        &AttachToTargetParams {
+                            target_id: target.target_id.clone(),
+                            flatten: true,
+                        },
+                        None,
+                    )
+                    .await?;
+
+                let tab_id = self.next_tab_id;
+                self.next_tab_id += 1;
+                self.pages.push(PageInfo {
+                    tab_id,
+                    label: None,
+                    target_id: target.target_id.clone(),
+                    session_id: attach_result.session_id.clone(),
+                    url: target.url.clone(),
+                    title: target.title.clone(),
+                    target_type: target.target_type.clone(),
+                });
+            }
+
+            // Enable domains on a live tab, not blindly on the first target.
+            // Target.getTargets order is not activity-sorted, so the first
+            // target is often a Memory-Saver-discarded tab whose renderer is
+            // gone; Page.enable on it never answers and connect hangs (#1036).
+            // Probe for a live renderer and make that tab active. Only if every
+            // tab is discarded do we revive the first one (browser-level and
+            // bounded, so connect never rides the 30s renderer-command ceiling).
+            let session_ids: Vec<String> =
+                self.pages.iter().map(|p| p.session_id.clone()).collect();
+            let active = match self.find_live_page_index(&session_ids).await {
+                Some(index) => index,
+                None => {
+                    // No live tab to fall back to: revive the first one. There
+                    // is no active dialog at connect time, so dialog_session is
+                    // None. The RendererState is discarded; we only need it to
+                    // not error (an unrevivable tab fails connect fast).
+                    let target_id = self.pages[0].target_id.clone();
+                    self.ensure_renderer_alive(&session_ids[0], &target_id, &[])
+                        .await?;
+                    0
+                }
+            };
+            self.active_page_index = active;
+            let session_id = self.pages[active].session_id.clone();
+            self.enable_domains(&session_id).await?;
+        }
+
+        Ok(())
+    }
+
+    /// Revive the active tab if the browser discarded it (Memory Saver), then
+    /// enable CDP domains on it. The pin-tab restore path re-selects a
+    /// persisted tab that may be discarded; enabling domains on it directly
+    /// hangs on `Page.enable`, so revive first (the path tab switch uses).
+    pub async fn revive_and_enable_active(&self) -> Result<(), String> {
+        let session_id = self.active_session_id()?.to_string();
+        let target_id = self.active_target_id()?.to_string();
+        self.ensure_renderer_alive(&session_id, &target_id, &[])
+            .await?;
+        self.enable_domains(&session_id).await
+    }
+
+    pub async fn prepare_domains_pub(&self, session_id: &str) -> Result<(), String> {
+        self.prepare_domains(session_id).await
+    }
+
+    pub async fn resume_if_waiting_pub(&self, session_id: &str) -> Result<(), String> {
+        self.resume_if_waiting(session_id).await
+    }
+
+    pub async fn enable_browser_auto_attach_pub(&self) -> Result<(), String> {
+        self.client
+            .send_command(
+                "Target.setAutoAttach",
+                Some(json!({
+                    "autoAttach": true,
+                    "waitForDebuggerOnStart": true,
+                    "flatten": true
+                })),
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
+    async fn enable_domains(&self, session_id: &str) -> Result<(), String> {
+        self.prepare_domains(session_id).await?;
+        self.resume_if_waiting(session_id).await?;
+        Ok(())
+    }
+
+    async fn prepare_domains(&self, session_id: &str) -> Result<(), String> {
+        self.client
+            .send_command_no_params("Page.enable", Some(session_id))
+            .await?;
+        // Console and exception events are what the caller reads from this
+        // connection, and this is the domain that produces them. The page can
+        // read that the domain is on, so sessions that never report the page's
+        // console back (--no-console) do not send it at all.
+        if crate::flags::console_capture_enabled() {
+            self.client
+                .send_command_no_params("Runtime.enable", Some(session_id))
+                .await?;
+        }
+        self.client
+            .send_command_no_params("Network.enable", Some(session_id))
+            .await?;
+        // A headless tab behind another reports itself hidden, and Chrome then
+        // runs no animation frames in it: a page that waits on one to move to its
+        // next screen (Google's sign-in sliding to "Verifying it's you") stalls
+        // there for good, and WebAuthn answers only a focused page. Every page we
+        // drive reads as the focused, visible one.
+        let _ = self
+            .client
+            .send_command(
+                "Emulation.setFocusEmulationEnabled",
+                Some(serde_json::json!({ "enabled": true })),
+                Some(session_id),
+            )
+            .await;
+        // The browser reports the product it is, not the switch it was started
+        // with: a page that reads the launch mode knows the session is
+        // machine-driven before any script runs.
+        if let Err(e) =
+            agent_browser_core::fingerprint::apply_browser_identity(&self.client, session_id).await
+        {
+            eprintln!("[identity] {e}");
+        }
+        // That is the browser's identity, and it replaces the session's: every tab switch comes through here, and of two
+        // sessions on one target the last to speak wins. What the session set stays what the page reads.
+        if let Some(ref user_agent) = self.session_user_agent {
+            let params = json!({ "userAgent": user_agent });
+            let _ = self.client.send_command("Emulation.setUserAgentOverride", Some(params), Some(session_id)).await;
+        }
+        // A window is never bigger than the screen it is on. Headless reports
+        // the opposite, which no real display produces.
+        if let Err(e) =
+            agent_browser_core::fingerprint::apply_window_metrics(&self.client, session_id, (1280, 720))
+                .await
+        {
+            eprintln!("[identity] {e}");
+        }
+        let _ = self
+            .client
+            .send_command_no_params("WebMCP.enable", Some(session_id))
+            .await;
+        // Enable auto-attach for cross-origin iframe support.
+        // flatten: true gives each iframe its own session_id.
+        // waitForDebuggerOnStart keeps child targets paused until the daemon
+        // installs any required network controls and explicitly resumes them.
+        // Ignored on engines that don't support it (e.g. Lightpanda).
+        let _ = self
+            .client
+            .send_command(
+                "Target.setAutoAttach",
+                Some(json!({
+                    "autoAttach": true,
+                    "waitForDebuggerOnStart": true,
+                    "flatten": true
+                })),
+                Some(session_id),
+            )
+            .await;
+        Ok(())
+    }
+
+    /// Whether the tab's renderer answers a renderer-bound command within
+    /// `timeout_ms`. A discarded tab keeps its CDP session but has no
+    /// renderer to reply (#1528). A CDP error still counts as responding.
+    async fn renderer_responds(&self, session_id: &str, timeout_ms: u64) -> bool {
+        tokio::time::timeout(
+            Duration::from_millis(timeout_ms),
+            self.client.send_command(
+                "Runtime.evaluate",
+                Some(json!({ "expression": "1", "returnByValue": true })),
+                Some(session_id),
+            ),
+        )
+        .await
+        .is_ok()
+    }
+
+    /// Ensure the tab's renderer can serve commands. A non-responsive renderer
+    /// is reactivated with Target.activateTarget, which reloads a genuinely
+    /// discarded tab but only focuses a live one, so a probe false positive
+    /// cannot lose page state, and it answers promptly rather than riding the
+    /// renderer command timeout. A tab paused by a JavaScript dialog is alive
+    /// and reported as blocked, not revived.
+    async fn ensure_renderer_alive(
+        &self,
+        session_id: &str,
+        target_id: &str,
+        dialog_sessions: &[String],
+    ) -> Result<RendererState, String> {
+        if self
+            .renderer_responds(session_id, RENDERER_PROBE_TIMEOUT_MS)
+            .await
+        {
+            return Ok(RendererState::Responsive);
+        }
+        // A tab blocked by a JavaScript dialog is alive; its main thread is
+        // paused, so the probe times out without the tab being discarded.
+        if dialog_sessions.iter().any(|s| s == session_id) {
+            return Ok(RendererState::DialogBlocked);
+        }
+        match tokio::time::timeout(
+            Duration::from_millis(REVIVED_RENDERER_TIMEOUT_MS),
+            self.client.send_command(
+                "Target.activateTarget",
+                Some(json!({ "targetId": target_id })),
+                None,
+            ),
+        )
+        .await
+        {
+            Ok(Ok(_)) => {}
+            Ok(Err(e)) => {
+                return Err(format!(
+                    "tab is not responding and Target.activateTarget \
+                     failed: {}",
+                    e
+                ))
+            }
+            Err(_) => {
+                return Err("tab is not responding and Target.activateTarget \
+                     timed out"
+                    .to_string())
+            }
+        }
+        if self
+            .renderer_responds(session_id, REVIVED_RENDERER_TIMEOUT_MS)
+            .await
+        {
+            Ok(RendererState::Revived)
+        } else {
+            Err("tab is not responding and did not recover after activation".to_string())
+        }
+    }
+
+    /// Index of the lowest-numbered page whose renderer answers a liveness
+    /// probe, or `None` if every tab is discarded. The conventional active tab
+    /// (index 0) is almost always live, so it is probed first to keep the
+    /// common connect instant; only when it is discarded do we probe the rest
+    /// concurrently to pick a live tab to enable domains on, instead of hanging
+    /// on the dead first one (#1036). Probing is browser-safe: a `Runtime.evaluate`
+    /// to a discarded session simply never answers (cleaned up when the probe
+    /// times out) and does not reload or focus the tab.
+    async fn find_live_page_index(&self, session_ids: &[String]) -> Option<usize> {
+        if let Some(first) = session_ids.first() {
+            if self
+                .renderer_responds(first, RENDERER_PROBE_TIMEOUT_MS)
+                .await
+            {
+                return Some(0);
+            }
+        }
+        let probes = session_ids
+            .iter()
+            .enumerate()
+            .skip(1)
+            .map(|(index, session_id)| async move {
+                self.renderer_responds(session_id, RENDERER_PROBE_TIMEOUT_MS)
+                    .await
+                    .then_some(index)
+            });
+        futures_util::future::join_all(probes)
+            .await
+            .into_iter()
+            .flatten()
+            .min()
+    }
+
+    async fn resume_if_waiting(&self, session_id: &str) -> Result<(), String> {
+        // Needed for real browser sessions (Chrome 144+) where targets are
+        // paused after attach until explicitly resumed. No-op otherwise.
+        let _ = self
+            .client
+            .send_command_no_wait("Runtime.runIfWaitingForDebugger", None, Some(session_id))
+            .await;
+        Ok(())
+    }
+
+    /// Enable domains on a direct page connection (no session_id needed).
+    async fn enable_domains_direct(&self) -> Result<(), String> {
+        self.client
+            .send_command_no_params("Page.enable", None)
+            .await?;
+        if crate::flags::console_capture_enabled() {
+            self.client
+                .send_command_no_params("Runtime.enable", None)
+                .await?;
+        }
+        let _ = self
+            .client
+            .send_command_no_params("Runtime.runIfWaitingForDebugger", None)
+            .await;
+        self.client
+            .send_command_no_params("Network.enable", None)
+            .await?;
+        let _ = self
+            .client
+            .send_command_no_params("WebMCP.enable", None)
+            .await;
+        Ok(())
+    }
+
+    pub fn active_session_id(&self) -> Result<&str, String> {
+        self.check_bound()?;
+        self.pages
+            .get(self.active_page_index)
+            .map(|p| p.session_id.as_str())
+            .ok_or_else(|| "No active page".to_string())
+    }
+
+    // -----------------------------------------------------------------------
+    // Session-to-tab binding
+    // -----------------------------------------------------------------------
+
+    /// Enable or disable strict pin-tab semantics. Enabling binds the active
+    /// tab now, so a runtime toggle enforces on the live tab rather than
+    /// waiting for a restart to re-derive it. Disabling clears any pending
+    /// `tab_gone` state so the session falls back to legacy selection.
+    pub fn set_pin_tab(&mut self, pin: bool) {
+        self.pin_tab = pin;
+        if pin {
+            self.bind_active_target();
+        } else {
+            self.bound_target_gone = None;
+        }
+    }
+
+    pub fn pin_tab(&self) -> bool {
+        self.pin_tab
+    }
+
+    /// The target id this session is bound to, if any.
+    pub fn bound_target_id(&self) -> Option<&str> {
+        self.bound_target_id.as_deref()
+    }
+
+    /// Returns the `tab_gone` error when the bound tab no longer exists.
+    /// Commands that operate on the active page call this (via
+    /// `active_session_id` / `active_target_id`) so they fail loudly instead
+    /// of acting on a neighboring tab. Recovery commands (`tab list`,
+    /// `tab new`, `tab <ref>`) do not.
+    fn check_bound(&self) -> Result<(), String> {
+        match self.bound_target_gone {
+            Some((ref target_id, ref last_url)) => Err(tab_gone_error(target_id, last_url)),
+            None => Ok(()),
+        }
+    }
+
+    /// True when the bound tab is gone and the session needs an explicit
+    /// re-bind (`tab new` / `tab <ref>`) before page commands can proceed.
+    pub fn bound_target_is_gone(&self) -> bool {
+        self.bound_target_gone.is_some()
+    }
+
+    /// Recovery identifiers for a `tab_gone` response. The URL is already
+    /// reduced by `tab_binding::sanitize_url`; an empty value must be omitted
+    /// from public structured output.
+    pub fn bound_target_gone_details(&self) -> Option<(&str, &str)> {
+        self.bound_target_gone
+            .as_ref()
+            .map(|(target_id, last_url)| (target_id.as_str(), last_url.as_str()))
+    }
+
+    /// Bind this session to the currently active tab. Called whenever the
+    /// session creates a tab or explicitly switches tabs; clears any
+    /// `tab_gone` state.
+    fn bind_active_target(&mut self) {
+        self.bound_target_id = self
+            .pages
+            .get(self.active_page_index)
+            .map(|p| p.target_id.clone());
+        self.bound_target_gone = None;
+    }
+
+    /// Restore a persisted binding after (re)attach. If the bound target is
+    /// still alive, make it the active page and return `true`. If it is
+    /// gone, return `false`: with `pin_tab` the manager enters the `tab_gone`
+    /// state, otherwise the legacy selection (index 0) is kept unchanged.
+    pub fn restore_target_binding(&mut self, target_id: &str, last_url: &str) -> bool {
+        if let Some(index) = self.pages.iter().position(|p| p.target_id == target_id) {
+            self.active_page_index = index;
+            self.bound_target_id = Some(target_id.to_string());
+            self.bound_target_gone = None;
+            return true;
+        }
+        self.bound_target_id = None;
+        if self.pin_tab {
+            self.bound_target_gone =
+                Some((target_id.to_string(), tab_binding::sanitize_url(last_url)));
+        }
+        false
+    }
+
+    /// React to the bound tab disappearing (closed externally, or closed by
+    /// this session). With `pin_tab`, enter the `tab_gone` state so nothing
+    /// silently retargets; otherwise just drop the stale binding.
+    fn handle_bound_target_removed(&mut self, target_id: &str, last_url: &str) {
+        if self.bound_target_id.as_deref() != Some(target_id) {
+            return;
+        }
+        self.bound_target_id = None;
+        if self.pin_tab {
+            self.bound_target_gone =
+                Some((target_id.to_string(), tab_binding::sanitize_url(last_url)));
+        }
+    }
+
+    pub async fn navigate(&mut self, url: &str, wait_until: WaitUntil) -> Result<Value, String> {
+        let session_id = self.active_session_id()?.to_string();
+        let mut lifecycle_rx = self.client.subscribe();
+
+        let nav_result: PageNavigateResult = self
+            .client
+            .send_command_typed(
+                "Page.navigate",
+                &PageNavigateParams {
+                    url: url.to_string(),
+                    referrer: None,
+                },
+                Some(&session_id),
+            )
+            .await?;
+
+        if let Some(ref error_text) = nav_result.error_text {
+            return Err(format!("Navigation failed: {}", error_text));
+        }
+
+        // Only wait for lifecycle events if Chrome created a new loader (full navigation).
+        // If loader_id is None, it was a same-document navigation (e.g., hash routing)
+        // which does not fire Page.loadEventFired or Page.domContentEventFired.
+        if nav_result.loader_id.is_some() && wait_until != WaitUntil::None {
+            self.wait_for_lifecycle(wait_until, &session_id, &mut lifecycle_rx)
+                .await?;
+        }
+
+        let page_url = self.get_url().await.unwrap_or_else(|_| url.to_string());
+        let title = self.get_title().await.unwrap_or_default();
+
+        // Track visited origin for cross-origin localStorage collection in save_state
+        if let Ok(parsed) = url::Url::parse(&page_url) {
+            let origin = parsed.origin().ascii_serialization();
+            if origin != "null" {
+                self.visited_origins.insert(origin);
+            }
+        }
+
+        if let Some(page) = self.pages.get_mut(self.active_page_index) {
+            page.url = page_url.clone();
+            page.title = title.clone();
+        }
+
+        let target_id = self
+            .pages
+            .get(self.active_page_index)
+            .map(|p| p.target_id.clone());
+        Ok(json!({ "url": page_url, "title": title, "targetId": target_id }))
+    }
+
+    async fn wait_for_lifecycle(
+        &self,
+        wait_until: WaitUntil,
+        session_id: &str,
+        rx: &mut broadcast::Receiver<CdpEvent>,
+    ) -> Result<(), String> {
+        let event_name = match wait_until {
+            WaitUntil::Load => "Page.loadEventFired",
+            WaitUntil::DomContentLoaded => "Page.domContentEventFired",
+            WaitUntil::NetworkIdle => return self.wait_for_network_idle(session_id, rx).await,
+            WaitUntil::None => return Ok(()),
+        };
+
+        let timeout = tokio::time::Duration::from_millis(self.default_timeout_ms);
+
+        tokio::time::timeout(timeout, async {
+            loop {
+                match rx.recv().await {
+                    Ok(event) => {
+                        if event.method == event_name
+                            && event.session_id.as_deref() == Some(session_id)
+                        {
+                            return Ok(());
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+            Err("Event stream closed".to_string())
+        })
+        .await
+        .map_err(|_| format!("Timeout waiting for {}", event_name))?
+    }
+
+    async fn wait_for_network_idle(
+        &self,
+        session_id: &str,
+        rx: &mut broadcast::Receiver<CdpEvent>,
+    ) -> Result<(), String> {
+        let timeout = tokio::time::Duration::from_millis(self.default_timeout_ms);
+        let on_their_way = self.client.requests_in_flight(session_id);
+        poll_network_idle(session_id, rx, on_their_way, timeout).await
+    }
+
+    pub async fn get_url(&self) -> Result<String, String> {
+        let result = self.evaluate_simple("location.href").await?;
+        Ok(result.as_str().unwrap_or("").to_string())
+    }
+
+    pub async fn get_title(&self) -> Result<String, String> {
+        let result = self.evaluate_simple("document.title").await?;
+        Ok(result.as_str().unwrap_or("").to_string())
+    }
+
+    pub async fn get_content(&self) -> Result<String, String> {
+        let result = self
+            .evaluate_simple("document.documentElement.outerHTML")
+            .await?;
+        Ok(result.as_str().unwrap_or("").to_string())
+    }
+
+    pub async fn evaluate(&self, script: &str, _args: Option<Value>) -> Result<Value, String> {
+        self.evaluate_within(script, super::cdp::client::COMMAND_TIMEOUT).await
+    }
+
+    /// Unbrowse fork: [`evaluate`](Self::evaluate), waiting up to `within` for the script's answer.
+    pub async fn evaluate_within(&self, script: &str, within: std::time::Duration) -> Result<Value, String> {
+        let session_id = self.active_session_id()?.to_string();
+
+        let params = serde_json::to_value(EvaluateParams {
+            expression: script.to_string(),
+            return_by_value: Some(true),
+            await_promise: Some(true),
+        })
+        .map_err(|e| format!("Failed to serialize params: {}", e))?;
+        let result: EvaluateResult = serde_json::from_value(
+            self.client
+                .send_command_within("Runtime.evaluate", Some(params), Some(&session_id), within)
+                .await?,
+        )
+        .map_err(|e| format!("Failed to deserialize CDP response for Runtime.evaluate: {}", e))?;
+
+        if let Some(ref details) = result.exception_details {
+            let msg = details
+                .exception
+                .as_ref()
+                .and_then(|e| e.description.as_deref())
+                .unwrap_or(&details.text);
+            return Err(format!("Evaluation error: {}", msg));
+        }
+
+        Ok(result.result.value.unwrap_or(Value::Null))
+    }
+
+    async fn evaluate_simple(&self, expression: &str) -> Result<Value, String> {
+        self.evaluate(expression, None).await
+    }
+
+    pub async fn wait_for_lifecycle_external(
+        &self,
+        wait_until: WaitUntil,
+        session_id: &str,
+    ) -> Result<(), String> {
+        // Subscribe before probing so a lifecycle event that fires between
+        // the probe and the wait cannot be missed.
+        let mut rx = self.client.subscribe();
+
+        // `wait_for_lifecycle` waits for the NEXT lifecycle event, which is
+        // right mid-navigation but wrong for a standalone `wait --load`: a
+        // page that already finished loading (or navigated client-side,
+        // which fires no new load event) never emits another one, so the
+        // wait would burn its entire timeout. Resolve immediately when the
+        // document is already in the requested state.
+        let already_reached = match wait_until {
+            WaitUntil::Load => Some("document.readyState === 'complete'"),
+            // readyState leaves 'loading' when DOMContentLoaded fires.
+            WaitUntil::DomContentLoaded => Some("document.readyState !== 'loading'"),
+            // Network idle is tracked from live network events; its poller
+            // already treats a quiet stream as idle.
+            WaitUntil::NetworkIdle | WaitUntil::None => None,
+        };
+        if let Some(expression) = already_reached {
+            let probe: Result<EvaluateResult, String> = self
+                .client
+                .send_command_typed(
+                    "Runtime.evaluate",
+                    &EvaluateParams {
+                        expression: expression.to_string(),
+                        return_by_value: Some(true),
+                        await_promise: Some(false),
+                    },
+                    Some(session_id),
+                )
+                .await;
+            // A failed probe is not fatal; fall back to waiting for the event.
+            if let Ok(result) = probe {
+                if result.result.value.as_ref().and_then(|v| v.as_bool()) == Some(true) {
+                    return Ok(());
+                }
+            }
+        }
+
+        self.wait_for_lifecycle(wait_until, session_id, &mut rx)
+            .await
+    }
+
+    pub async fn close(&mut self) -> Result<(), String> {
+        self.close_with_timeout(None).await
+    }
+
+    async fn close_with_timeout(
+        &mut self,
+        browser_close_timeout: Option<Duration>,
+    ) -> Result<(), String> {
+        // Another daemon on a runtime browser keeps it: this one only disconnects.
+        let others_remain = self
+            .browser_process
+            .as_mut()
+            .is_some_and(BrowserProcess::others_remain);
+        let mut answered = false;
+        if self.browser_process.is_some() && !others_remain {
+            // Only send Browser.close when the browser is ours.
+            // For external connections (--auto-connect, --cdp) we just disconnect
+            // without shutting down the user's browser.
+            let close = self.client.send_command_no_params("Browser.close", None);
+            answered = if let Some(timeout) = browser_close_timeout {
+                matches!(tokio::time::timeout(timeout, close).await, Ok(Ok(_)))
+            } else {
+                close.await.is_ok()
+            };
+        }
+
+        self.client.close().await;
+
+        match self.browser_process.take() {
+            None => {}
+            // The launcher holds the browser's debugger pipe: it stays to serve the others, and closes the browser when
+            // the last has gone (the daemon waits for that before it exits).
+            Some(BrowserProcess::Chrome(process)) if others_remain => process.serve_while_others_remain(),
+            Some(BrowserProcess::Reattached(_)) if others_remain || !answered => {}
+            Some(mut process) => {
+                let timeout = std::time::Duration::from_secs(5);
+                let _ = tokio::task::spawn_blocking(move || {
+                    process.wait_or_kill(timeout);
+                })
+                .await;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn has_pages(&self) -> bool {
+        !self.pages.is_empty()
+    }
+
+    pub fn default_timeout_ms(&self) -> u64 {
+        self.default_timeout_ms
+    }
+
+    /// Checks if the CDP connection is alive by sending a simple command.
+    /// Returns false if the command times out or fails.
+    pub async fn is_connection_alive(&self) -> bool {
+        let timeout = tokio::time::Duration::from_secs(3);
+        let result = tokio::time::timeout(
+            timeout,
+            self.client
+                .send_command_no_params("Browser.getVersion", None),
+        )
+        .await;
+
+        match result {
+            Ok(Ok(_)) => true,
+            Ok(Err(_)) | Err(_) => false,
+        }
+    }
+
+    /// Non-blocking check whether the locally-launched browser process has exited
+    /// (crashed or terminated). Also reaps the zombie if it has exited.
+    /// Returns false for external CDP connections (no child process to monitor).
+    pub fn has_process_exited(&mut self) -> bool {
+        if let Some(ref mut process) = self.browser_process {
+            process.has_exited()
+        } else {
+            false
+        }
+    }
+
+    pub fn get_cdp_url(&self) -> &str {
+        &self.ws_url
+    }
+
+    /// Whether the browser's debugger is an HTTP server (one this daemon attached to). A browser it launched keeps its
+    /// debugger on a pipe, served only over a WebSocket at a secret path.
+    pub fn debugger_serves_http(&self) -> bool {
+        self.browser_process.is_none()
+    }
+
+    /// Returns the Chrome debug server address as "host:port".
+    pub fn chrome_host_port(&self) -> &str {
+        let stripped = self
+            .ws_url
+            .strip_prefix("ws://")
+            .or_else(|| self.ws_url.strip_prefix("wss://"))
+            .unwrap_or(&self.ws_url);
+        stripped.split('/').next().unwrap_or(stripped)
+    }
+
+    pub fn active_target_id(&self) -> Result<&str, String> {
+        self.check_bound()?;
+        self.pages
+            .get(self.active_page_index)
+            .map(|p| p.target_id.as_str())
+            .ok_or_else(|| "No active page".to_string())
+    }
+
+    pub fn has_page_session(&self, session_id: &str) -> bool {
+        self.pages.iter().any(|page| page.session_id == session_id)
+    }
+
+    pub fn session_id_for_target(&self, target_id: &str) -> Option<&str> {
+        self.pages
+            .iter()
+            .find(|page| page.target_id == target_id)
+            .map(|page| page.session_id.as_str())
+    }
+
+    /// Returns true if this manager was connected via CDP (as opposed to local launch).
+    pub fn is_cdp_connection(&self) -> bool {
+        self.browser_process.is_none()
+    }
+
+    pub fn is_direct_page_connection(&self) -> bool {
+        self.direct_page
+    }
+
+    /// Ensures the browser has at least one page. If `pages` is empty, creates a new
+    /// about:blank page and attaches to it.
+    pub async fn ensure_page(&mut self) -> Result<(), String> {
+        if !self.pages.is_empty() {
+            return Ok(());
+        }
+        // A pinned session in the tab_gone state must not get a fresh blank
+        // tab: creating one binds it and clears tab_gone, silently recovering
+        // onto a blank page. Recovery stays explicit (tab new / tab <ref>).
+        if self.pin_tab && self.bound_target_gone.is_some() {
+            return Ok(());
+        }
+
+        let result: CreateTargetResult = self
+            .client
+            .send_command_typed(
+                "Target.createTarget",
+                &CreateTargetParams {
+                    url: "about:blank".to_string(),
+                },
+                None,
+            )
+            .await?;
+
+        let attach_result: AttachToTargetResult = self
+            .client
+            .send_command_typed(
+                "Target.attachToTarget",
+                &AttachToTargetParams {
+                    target_id: result.target_id.clone(),
+                    flatten: true,
+                },
+                None,
+            )
+            .await?;
+
+        let tab_id = self.next_tab_id;
+        self.next_tab_id += 1;
+        self.pages.push(PageInfo {
+            tab_id,
+            label: None,
+            target_id: result.target_id,
+            session_id: attach_result.session_id.clone(),
+            url: "about:blank".to_string(),
+            title: String::new(),
+            target_type: "page".to_string(),
+        });
+        self.active_page_index = 0;
+        self.bind_active_target();
+        self.enable_domains(&attach_result.session_id).await?;
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Tab management
+    // -----------------------------------------------------------------------
+
+    /// Checks if `active_page_index` is still valid and adjusts it if not
+    /// (e.g., after a tab was closed).
+    pub fn update_active_page_if_needed(&mut self) {
+        if self.pages.is_empty() {
+            self.active_page_index = 0;
+            return;
+        }
+        if self.active_page_index >= self.pages.len() {
+            self.active_page_index = self.pages.len() - 1;
+        }
+    }
+
+    fn update_active_page_after_removal(&mut self, removed_index: usize) {
+        self.active_page_index = active_page_index_after_removal(
+            self.active_page_index,
+            removed_index,
+            self.pages.len(),
+        );
+    }
+
+    pub fn tab_list(&self) -> Vec<Value> {
+        self.pages
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                json!({
+                    "tabId": format_tab_id(p.tab_id),
+                    "targetId": p.target_id,
+                    "label": p.label,
+                    "title": p.title,
+                    "url": p.url,
+                    "type": p.target_type,
+                    "active": i == self.active_page_index && !self.bound_target_is_gone(),
+                })
+            })
+            .collect()
+    }
+
+    /// Resolve a user-supplied `TabRef` (either `t<N>` or a label) to the
+    /// stable numeric `tab_id`. Returns a teaching error for unknown tabs.
+    pub fn resolve_tab_ref(&self, tab_ref: &TabRef) -> Result<u32, String> {
+        match tab_ref {
+            TabRef::Id(id) => {
+                if self.has_tab_id(*id) {
+                    Ok(*id)
+                } else {
+                    Err(format!(
+                        "Tab {} not found; run `agent-browser tab` to list open tabs",
+                        format_tab_id(*id)
+                    ))
+                }
+            }
+            TabRef::Label(name) => self
+                .pages
+                .iter()
+                .find(|p| p.label.as_deref() == Some(name.as_str()))
+                .map(|p| p.tab_id)
+                // A label-shaped hex string may actually be a CDP target id
+                // (target ids can start with a letter); fall back to an
+                // exact target-id match before giving up.
+                .or_else(|| {
+                    if looks_like_target_id(name) {
+                        self.find_tab_id_by_target(name)
+                    } else {
+                        None
+                    }
+                })
+                .ok_or_else(|| {
+                    format!(
+                        "No tab with label `{}`; run `agent-browser tab` to list open tabs",
+                        name
+                    )
+                }),
+            TabRef::Target(target_id) => self.find_tab_id_by_target(target_id).ok_or_else(|| {
+                format!(
+                    "No tab with target id `{}`; run `agent-browser tab list --json` to \
+                         list open tabs with their target ids",
+                    target_id
+                )
+            }),
+        }
+    }
+
+    /// Exact, case-insensitive match of a CDP target id to a stable tab id.
+    fn find_tab_id_by_target(&self, target_id: &str) -> Option<u32> {
+        self.pages
+            .iter()
+            .find(|p| p.target_id.eq_ignore_ascii_case(target_id))
+            .map(|p| p.tab_id)
+    }
+
+    /// Returns true iff a tab already carries the given label.
+    pub fn has_label(&self, label: &str) -> bool {
+        self.pages.iter().any(|p| p.label.as_deref() == Some(label))
+    }
+
+    /// Unbrowse fork: the active tab's label, if it has one.
+    pub fn active_label(&self) -> Option<&str> {
+        self.pages.get(self.active_page_index).and_then(|p| p.label.as_deref())
+    }
+
+    /// Unbrowse fork: names the active tab `label` when nobody has it yet: an unlabelled tab showing
+    /// nothing (the blank page a browser starts with). True when it did.
+    pub fn adopt_blank_active(&mut self, label: &str) -> bool {
+        if !is_valid_label(label) || self.has_label(label) {
+            return false;
+        }
+        let Some(page) = self.pages.get_mut(self.active_page_index) else { return false };
+        let blank = matches!(page.url.as_str(), "" | "about:blank" | "chrome://newtab/" | "chrome://new-tab-page/");
+        if page.label.is_some() || !blank {
+            return false;
+        }
+        page.label = Some(label.to_string());
+        true
+    }
+
+    /// Unbrowse fork: makes the tab `tab_id` the active one again, without switching to it over DevTools: a page
+    /// found by event (a popup) while sessions share the browser never takes the page from under another
+    /// session's command; the session it belongs to enters it with its own next command.
+    pub fn keep_active(&mut self, tab_id: u32) {
+        if let Some(index) = self.pages.iter().position(|p| p.tab_id == tab_id) {
+            self.active_page_index = index;
+            self.bind_active_target();
+        }
+    }
+
+    pub async fn tab_new(
+        &mut self,
+        url: Option<&str>,
+        label: Option<&str>,
+    ) -> Result<Value, String> {
+        if let Some(label) = label {
+            if !is_valid_label(label) {
+                return Err(format!(
+                    "Invalid tab label `{}`; labels must start with a letter and contain only \
+                     letters, digits, `-`, and `_`",
+                    label
+                ));
+            }
+            if self.has_label(label) {
+                return Err(format!(
+                    "Label `{}` is already used by another tab; labels must be unique within a \
+                     session",
+                    label
+                ));
+            }
+        }
+
+        let target_url = url.unwrap_or("about:blank");
+
+        let result: CreateTargetResult = self
+            .client
+            .send_command_typed(
+                "Target.createTarget",
+                &CreateTargetParams {
+                    url: target_url.to_string(),
+                },
+                None,
+            )
+            .await?;
+
+        let attach: AttachToTargetResult = self
+            .client
+            .send_command_typed(
+                "Target.attachToTarget",
+                &AttachToTargetParams {
+                    target_id: result.target_id.clone(),
+                    flatten: true,
+                },
+                None,
+            )
+            .await?;
+
+        self.enable_domains(&attach.session_id).await?;
+
+        let tab_id = self.next_tab_id;
+        self.next_tab_id += 1;
+        let index = self.pages.len();
+        let label = label.map(|s| s.to_string());
+        let target_id = result.target_id.clone();
+        self.pages.push(PageInfo {
+            tab_id,
+            label: label.clone(),
+            target_id: result.target_id,
+            session_id: attach.session_id,
+            url: target_url.to_string(),
+            title: String::new(),
+            target_type: "page".to_string(),
+        });
+        self.active_page_index = index;
+        self.bind_active_target();
+
+        Ok(json!({
+            "tabId": format_tab_id(tab_id),
+            "targetId": target_id,
+            "label": label,
+            "url": target_url,
+            "total": self.pages.len(),
+        }))
+    }
+
+    pub async fn tab_switch(
+        &mut self,
+        index: usize,
+        dialog_sessions: &[String],
+    ) -> Result<Value, String> {
+        if index >= self.pages.len() {
+            return Err(format!(
+                "Tab index {} out of range (0-{})",
+                index,
+                self.pages.len().saturating_sub(1)
+            ));
+        }
+
+        let session_id = self.pages[index].session_id.clone();
+        let target_id = self.pages[index].target_id.clone();
+        // A discarded tab has no renderer to answer Page.enable, so revive it
+        // first and commit the switch only once it is usable.
+        let renderer_state = self
+            .ensure_renderer_alive(&session_id, &target_id, dialog_sessions)
+            .await
+            .map_err(|e| {
+                format!(
+                    "Cannot switch to tab {}: {}",
+                    format_tab_id(self.pages[index].tab_id),
+                    e
+                )
+            })?;
+        // A page a dialog has paused can't answer Page.enable (measured on Chrome 155: it runs out the 30 s timeout), and
+        // needs no asking: the dialog event came through the domains it would enable.
+        if !matches!(renderer_state, RendererState::DialogBlocked) {
+            self.enable_domains(&session_id).await?;
+        }
+        self.active_page_index = index;
+        // An explicit switch re-binds the session and clears any tab_gone.
+        self.bind_active_target();
+
+        // Bring tab to front
+        let _ = self
+            .client
+            .send_command("Page.bringToFront", None, Some(&session_id))
+            .await;
+
+        // A dialog-blocked tab cannot answer script evaluation until the dialog
+        // is resolved, so fall back to the last known url/title instead of
+        // hanging on get_url/get_title.
+        let (url, title) = if matches!(renderer_state, RendererState::DialogBlocked) {
+            (
+                self.pages[index].url.clone(),
+                self.pages[index].title.clone(),
+            )
+        } else {
+            let url = self.get_url().await.unwrap_or_default();
+            let title = self.get_title().await.unwrap_or_default();
+            if let Some(page) = self.pages.get_mut(index) {
+                page.url = url.clone();
+                page.title = title.clone();
+            }
+            (url, title)
+        };
+
+        let page = &self.pages[index];
+        let mut result = json!({
+            "tabId": format_tab_id(page.tab_id),
+            "targetId": page.target_id,
+            "label": page.label,
+            "url": url,
+            "title": title,
+        });
+        // Surface the revival so agents know a discarded tab was reactivated
+        // and its page may have been reloaded, rather than recovering silently.
+        if matches!(renderer_state, RendererState::Revived) {
+            result["revived"] = json!(true);
+        }
+        // Surface a dialog block so agents resolve the dialog before treating
+        // the tab as interactive, since its renderer is paused, not discarded.
+        if matches!(renderer_state, RendererState::DialogBlocked) {
+            result["dialogBlocked"] = json!(true);
+        }
+        Ok(result)
+    }
+
+    pub async fn tab_close(
+        &mut self,
+        index: Option<usize>,
+        dialog_sessions: &[String],
+    ) -> Result<Value, String> {
+        if index.is_none() {
+            // "Close the current tab" must not silently close a fallback tab
+            // when the bound tab is already gone.
+            self.check_bound()?;
+        }
+        let target_index = index.unwrap_or(self.active_page_index);
+
+        if target_index >= self.pages.len() {
+            return Err(format!("Tab index {} out of range", target_index));
+        }
+
+        if self.pages.len() <= 1 {
+            return Err("Cannot close the last tab".to_string());
+        }
+
+        let page = self.pages.remove(target_index);
+        self.update_active_page_after_removal(target_index);
+        let closed_tab_id = page.tab_id;
+        let closed_label = page.label.clone();
+        let closed_target_id = page.target_id.clone();
+        self.handle_bound_target_removed(&page.target_id, &page.url);
+        let _ = self
+            .client
+            .send_command_typed::<_, Value>(
+                "Target.closeTarget",
+                &CloseTargetParams {
+                    target_id: page.target_id,
+                },
+                None,
+            )
+            .await;
+
+        let mut result = json!({
+            "tabId": format_tab_id(closed_tab_id),
+            "targetId": closed_target_id,
+            "label": closed_label,
+            "closed": true,
+        });
+
+        // With pin-tab, closing the bound tab leaves the session unbound (page
+        // commands return `tab_gone` until an explicit re-bind), so don't touch
+        // the neighboring tab that inherited the active slot.
+        if !self.bound_target_is_gone() {
+            // The close has already committed. The tab that becomes active may
+            // itself be discarded, which would hang enable_domains; revive it
+            // first. A successor that cannot revive must not turn the completed
+            // close into a reported failure, so its error is not propagated.
+            let session_id = self.pages[self.active_page_index].session_id.clone();
+            let target_id = self.pages[self.active_page_index].target_id.clone();
+            if let Ok(state) = self
+                .ensure_renderer_alive(&session_id, &target_id, dialog_sessions)
+                .await
+            {
+                // Best-effort: enabling domains on the successor must not turn
+                // the completed close into a reported failure either.
+                if !matches!(state, RendererState::DialogBlocked) {
+                    let _ = self.enable_domains(&session_id).await;
+                }
+                // Surface a reload of the newly active tab, mirroring tab switch.
+                if matches!(state, RendererState::Revived) {
+                    result["activeTabRevived"] = json!(true);
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    // -----------------------------------------------------------------------
+    // Emulation
+    // -----------------------------------------------------------------------
+
+    pub async fn set_viewport(
+        &self,
+        width: i32,
+        height: i32,
+        device_scale_factor: f64,
+        mobile: bool,
+    ) -> Result<(), String> {
+        let session_id = self.active_session_id()?;
+        self.client
+            .send_command(
+                "Emulation.setDeviceMetricsOverride",
+                Some(json!({
+                    "width": width,
+                    "height": height,
+                    "deviceScaleFactor": device_scale_factor,
+                    "mobile": mobile,
+                })),
+                Some(session_id),
+            )
+            .await?;
+
+        // Screencast captures the actual content area, not the emulated CSS
+        // viewport, so resize the content area to match.
+        if let Ok(target_id) = self.active_target_id() {
+            if let Ok(window_info) = self
+                .client
+                .send_command(
+                    "Browser.getWindowForTarget",
+                    Some(json!({ "targetId": target_id })),
+                    None,
+                )
+                .await
+            {
+                if let Some(window_id) = window_info.get("windowId").and_then(|v| v.as_i64()) {
+                    if let Err(e) = self
+                        .client
+                        .send_command(
+                            "Browser.setContentsSize",
+                            Some(json!({
+                                "windowId": window_id,
+                                "width": width,
+                                "height": height,
+                            })),
+                            None,
+                        )
+                        .await
+                    {
+                        eprintln!("Browser.setContentsSize failed (experimental CDP): {e}");
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn set_user_agent(&self, user_agent: &str) -> Result<(), String> {
+        let session_id = self.active_session_id()?;
+        self.client
+            .send_command(
+                "Emulation.setUserAgentOverride",
+                Some(json!({ "userAgent": user_agent })),
+                Some(session_id),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_emulated_media(
+        &self,
+        media: Option<&str>,
+        features: Option<Vec<(String, String)>>,
+    ) -> Result<(), String> {
+        let session_id = self.active_session_id()?;
+        let mut params = json!({});
+        if let Some(m) = media {
+            params["media"] = Value::String(m.to_string());
+        }
+        if let Some(feats) = features {
+            let features_arr: Vec<Value> = feats
+                .iter()
+                .map(|(name, value)| json!({ "name": name, "value": value }))
+                .collect();
+            params["features"] = Value::Array(features_arr);
+        }
+        self.client
+            .send_command("Emulation.setEmulatedMedia", Some(params), Some(session_id))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn bring_to_front(&self) -> Result<(), String> {
+        let session_id = self.active_session_id()?;
+        self.client
+            .send_command("Page.bringToFront", None, Some(session_id))
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_timezone(&self, timezone_id: &str) -> Result<(), String> {
+        let session_id = self.active_session_id()?;
+        self.client
+            .send_command(
+                "Emulation.setTimezoneOverride",
+                Some(json!({ "timezoneId": timezone_id })),
+                Some(session_id),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_locale(&self, locale: &str) -> Result<(), String> {
+        let session_id = self.active_session_id()?;
+        self.client
+            .send_command(
+                "Emulation.setLocaleOverride",
+                Some(json!({ "locale": locale })),
+                Some(session_id),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_geolocation(
+        &self,
+        latitude: f64,
+        longitude: f64,
+        accuracy: Option<f64>,
+    ) -> Result<(), String> {
+        let session_id = self.active_session_id()?;
+        self.client
+            .send_command(
+                "Emulation.setGeolocationOverride",
+                Some(json!({
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "accuracy": accuracy.unwrap_or(1.0),
+                })),
+                Some(session_id),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn grant_permissions(&self, permissions: &[String]) -> Result<(), String> {
+        self.client
+            .send_command(
+                "Browser.grantPermissions",
+                Some(json!({ "permissions": permissions })),
+                None,
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn handle_dialog(
+        &self,
+        session: Option<&str>,
+        accept: bool,
+        prompt_text: Option<&str>,
+    ) -> Result<(), String> {
+        let session_id = match session {
+            Some(session) => session,
+            None => self.active_session_id()?,
+        };
+        let mut params = json!({ "accept": accept });
+        if let Some(text) = prompt_text {
+            params["promptText"] = Value::String(text.to_string());
+        }
+        self.client
+            .send_command(
+                "Page.handleJavaScriptDialog",
+                Some(params),
+                Some(session_id),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn upload_files(
+        &self,
+        selector: &str,
+        files: &[String],
+        ref_map: &RefMap,
+        iframe_sessions: &HashMap<String, String>,
+    ) -> Result<(), String> {
+        let session_id = self.active_session_id()?;
+
+        let (object_id, effective_session_id) =
+            resolve_element_object_id(&self.client, session_id, ref_map, selector, iframe_sessions)
+                .await?;
+
+        let describe: Value = self
+            .client
+            .send_command(
+                "DOM.describeNode",
+                Some(json!({ "objectId": object_id })),
+                Some(&effective_session_id),
+            )
+            .await?;
+
+        let backend_node_id = describe
+            .get("node")
+            .and_then(|n| n.get("backendNodeId"))
+            .and_then(|v| v.as_i64())
+            .ok_or("Could not get backendNodeId for file input")?;
+
+        self.client
+            .send_command(
+                "DOM.setFileInputFiles",
+                Some(json!({
+                    "files": files,
+                    "backendNodeId": backend_node_id,
+                })),
+                Some(&effective_session_id),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn add_script_to_evaluate(&self, source: &str) -> Result<String, String> {
+        let session_id = self.active_session_id()?;
+        let result = self
+            .client
+            .send_command(
+                "Page.addScriptToEvaluateOnNewDocument",
+                Some(json!({ "source": source })),
+                Some(session_id),
+            )
+            .await?;
+        Ok(result
+            .get("identifier")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string())
+    }
+
+    pub async fn remove_script_to_evaluate(&self, identifier: &str) -> Result<(), String> {
+        let session_id = self.active_session_id()?;
+        self.client
+            .send_command(
+                "Page.removeScriptToEvaluateOnNewDocument",
+                Some(json!({ "identifier": identifier })),
+                Some(session_id),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn tab_switch_by_id(
+        &mut self,
+        tab_id: u32,
+        dialog_sessions: &[String],
+    ) -> Result<Value, String> {
+        let index = self
+            .pages
+            .iter()
+            .position(|p| p.tab_id == tab_id)
+            .ok_or_else(|| format!("Tab ID {} not found", tab_id))?;
+        self.tab_switch(index, dialog_sessions).await
+    }
+
+    pub async fn tab_close_by_id(
+        &mut self,
+        tab_id: Option<u32>,
+        dialog_sessions: &[String],
+    ) -> Result<Value, String> {
+        let index = match tab_id {
+            Some(id) => Some(
+                self.pages
+                    .iter()
+                    .position(|p| p.tab_id == id)
+                    .ok_or_else(|| format!("Tab ID {} not found", id))?,
+            ),
+            None => None,
+        };
+        self.tab_close(index, dialog_sessions).await
+    }
+
+    pub fn assign_tab_id(&mut self) -> u32 {
+        let id = self.next_tab_id;
+        self.next_tab_id += 1;
+        id
+    }
+
+    /// Append a page and make it active (and bound). Use for explicit user
+    /// commands (`window new`, recording setup) where the new page should
+    /// become active.
+    pub fn add_page(&mut self, page: PageInfo) {
+        self.add_page_with_activation(page, true);
+    }
+
+    /// Append a page WITHOUT activating it. Use for event-discovered targets
+    /// (`Target.targetCreated` drained from the shared Chrome) so a tab the
+    /// human opens never steals the agent's active tab or its binding.
+    pub fn add_page_without_activation(&mut self, page: PageInfo) {
+        self.add_page_with_activation(page, false);
+    }
+
+    fn add_page_with_activation(&mut self, page: PageInfo, activate: bool) {
+        let new_index = self.pages.len();
+        // In the tab_gone state, adopting a discovered tab would clear it and
+        // re-bind to a tab the session never opened. Recovery stays explicit
+        // (`tab new` / `tab <ref>` pass `activate = true`).
+        if !activate && self.pin_tab && self.bound_target_gone.is_some() {
+            self.pages.push(page);
+            return;
+        }
+        let was_empty = self.pages.is_empty();
+        self.pages.push(page);
+        self.active_page_index =
+            active_page_index_after_add(self.active_page_index, new_index, was_empty, activate);
+        // Only pages that actually became active update the session binding;
+        // background-registered pages must never overwrite it.
+        if self.active_page_index == new_index {
+            self.bind_active_target();
+        }
+    }
+
+    /// The active page's `(target_id, url)` for binding persistence, or
+    /// `None` when there is no page or the bound tab is gone (a stale
+    /// binding must not be overwritten by the fallback tab).
+    pub fn binding_snapshot(&self) -> Option<(String, String)> {
+        if self.bound_target_is_gone() {
+            return None;
+        }
+        self.pages
+            .get(self.active_page_index)
+            .map(|p| (p.target_id.clone(), p.url.clone()))
+    }
+
+    pub fn update_page_target_info(&mut self, target: &TargetInfo) -> bool {
+        update_page_target_info_in_pages(&mut self.pages, target)
+    }
+
+    pub fn remove_page_by_target_id(&mut self, target_id: &str) {
+        if let Some(pos) = self.pages.iter().position(|p| p.target_id == target_id) {
+            let page = self.pages.remove(pos);
+            self.update_active_page_after_removal(pos);
+            // If the destroyed target was the bound tab (closed externally,
+            // e.g. by another session sharing this browser), fail loudly
+            // under pin-tab instead of silently pointing at a neighbor.
+            self.handle_bound_target_removed(&page.target_id, &page.url);
+        }
+    }
+
+    pub fn has_target(&self, target_id: &str) -> bool {
+        self.pages.iter().any(|p| p.target_id == target_id)
+    }
+
+    /// Single decision point for both CDP target drains
+    /// (`Target.attachedToTarget` and `Target.targetCreated`). A tracked
+    /// target only has its metadata refreshed; a new one is appended and
+    /// activated per pin mode: a pinned session never lets a discovered tab
+    /// steal the active tab or pin binding, a legacy session follows it.
+    /// Explicit commands (`tab new`, `window new`, `click --new-tab`) take
+    /// their own `add_page` path. Covered by `test_register_discovered_page_*`.
+    pub fn register_discovered_page(
+        &mut self,
+        target_id: &str,
+        session_id: &str,
+        url: String,
+        title: String,
+        target_type: String,
+    ) -> bool {
+        if let Some(p) = self.pages.iter_mut().find(|p| p.target_id == target_id) {
+            p.url = url;
+            p.title = title;
+            p.target_type = target_type;
+            return false;
+        }
+        let tab_id = self.assign_tab_id();
+        // Pinned sessions never activate a discovered tab (strict no-steal);
+        // legacy sessions follow it, matching pre-pin behavior.
+        let activate = !self.pin_tab;
+        self.add_page_with_activation(
+            PageInfo {
+                tab_id,
+                label: None,
+                target_id: target_id.to_string(),
+                session_id: session_id.to_string(),
+                url,
+                title,
+                target_type,
+            },
+            activate,
+        );
+        true
+    }
+
+    pub fn page_count(&self) -> usize {
+        self.pages.len()
+    }
+
+    /// Returns the stable `tab_id` of the currently active page, if any.
+    pub fn active_tab_id(&self) -> Option<u32> {
+        self.pages.get(self.active_page_index).map(|p| p.tab_id)
+    }
+
+    /// Returns true if a tab with the given stable `tab_id` is still open.
+    pub fn has_tab_id(&self, tab_id: u32) -> bool {
+        self.pages.iter().any(|p| p.tab_id == tab_id)
+    }
+
+    pub fn pages_list(&self) -> Vec<PageInfo> {
+        self.pages.clone()
+    }
+
+    pub fn visited_origins(&self) -> &HashSet<String> {
+        &self.visited_origins
+    }
+
+    pub async fn set_download_behavior(&self, download_path: &str) -> Result<(), String> {
+        let session_id = self.active_session_id()?;
+        self.client
+            .send_command(
+                "Browser.setDownloadBehavior",
+                Some(json!({
+                    "behavior": "allowAndName",
+                    "downloadPath": download_path,
+                    "eventsEnabled": true,
+                })),
+                Some(session_id),
+            )
+            .await?;
+        Ok(())
+    }
+}
+
+/// Core network-idle polling loop, extracted so it can be unit-tested without a
+/// full `BrowserManager` / CDP connection.
+///
+/// Returns `Ok(())` once no network requests have been in-flight for at least
+/// 500 ms, or `Err` if `overall_timeout` elapses first.
+async fn poll_network_idle(
+    session_id: &str,
+    rx: &mut broadcast::Receiver<CdpEvent>,
+    on_their_way: HashSet<String>,
+    overall_timeout: tokio::time::Duration,
+) -> Result<(), String> {
+    let pending = Arc::new(Mutex::new(on_their_way));
+
+    tokio::time::timeout(overall_timeout, async {
+        let mut idle_start: Option<tokio::time::Instant> = None;
+        // When this page last said anything. Measured here, not by a quiet receive: another tab's traffic comes through
+        // the same stream, and would keep the receive busy while this page has long gone quiet.
+        let mut last_heard = tokio::time::Instant::now();
+
+        loop {
+            let recv_result =
+                tokio::time::timeout(tokio::time::Duration::from_millis(600), rx.recv()).await;
+
+            match recv_result {
+                Ok(Ok(event)) if event.session_id.as_deref() == Some(session_id) => {
+                    last_heard = tokio::time::Instant::now();
+                    let mut p = pending.lock().await;
+                    match event.method.as_str() {
+                        "Network.requestWillBeSent" => {
+                            if let Some(id) = event.params.get("requestId").and_then(|v| v.as_str())
+                            {
+                                p.insert(id.to_string());
+                                idle_start = None;
+                            }
+                        }
+                        "Network.loadingFinished" | "Network.loadingFailed" => {
+                            if let Some(id) = event.params.get("requestId").and_then(|v| v.as_str())
+                            {
+                                p.remove(id);
+                                if p.is_empty() {
+                                    idle_start = Some(tokio::time::Instant::now());
+                                }
+                            }
+                        }
+                        "Page.loadEventFired" if p.is_empty() => {
+                            idle_start = Some(tokio::time::Instant::now());
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(Ok(_)) | Err(_) => {}
+                // The events lost may be the ends of what is pending, which would then wait for good: start counting
+                // again from what comes next.
+                Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(_))) => {
+                    pending.lock().await.clear();
+                    idle_start = None;
+                    last_heard = tokio::time::Instant::now();
+                    continue;
+                }
+                // Nothing more can come: that is a browser gone, not a page gone quiet.
+                Ok(Err(_)) => return Err("The browser connection closed while waiting for networkidle".to_string()),
+            }
+
+            // If no pending requests, start (or continue) the idle timer
+            // instead of returning immediately. This prevents false-positive
+            // idle detection when the subscription starts after the page has
+            // already loaded (e.g. cached pages).
+            if idle_start.is_none()
+                && last_heard.elapsed() >= tokio::time::Duration::from_millis(600)
+                && pending.lock().await.is_empty()
+            {
+                idle_start = Some(tokio::time::Instant::now());
+            }
+
+            if let Some(start) = idle_start {
+                if start.elapsed() >= tokio::time::Duration::from_millis(500) {
+                    return Ok(());
+                }
+            }
+        }
+
+    })
+    .await
+    .map_err(|_| "Timeout waiting for networkidle".to_string())?
+}
+
+async fn connect_cdp_with_retry(
+    ws_url: &str,
+    total_timeout: Duration,
+    poll_interval: Duration,
+) -> Result<CdpClient, String> {
+    let deadline = Instant::now() + total_timeout;
+
+    loop {
+        match CdpClient::connect(ws_url).await {
+            Ok(client) => return Ok(client),
+            Err(err) => {
+                if Instant::now() >= deadline {
+                    return Err(err);
+                }
+            }
+        }
+
+        tokio::time::sleep(poll_interval).await;
+    }
+}
+
+async fn initialize_lightpanda_manager(
+    ws_url: String,
+    process: BrowserProcess,
+) -> Result<BrowserManager, String> {
+    let deadline = Instant::now() + LIGHTPANDA_TARGET_INIT_TIMEOUT;
+    let mut process = Some(process);
+
+    loop {
+        let client = match connect_cdp_with_retry(
+            &ws_url,
+            LIGHTPANDA_CDP_CONNECT_TIMEOUT,
+            LIGHTPANDA_CDP_CONNECT_POLL_INTERVAL,
+        )
+        .await
+        {
+            Ok(client) => client,
+            Err(err) => {
+                if Instant::now() >= deadline {
+                    return Err(lightpanda_target_init_timeout(Some(&err)));
+                }
+                tokio::time::sleep(LIGHTPANDA_CDP_CONNECT_POLL_INTERVAL).await;
+                continue;
+            }
+        };
+
+        let mut manager = BrowserManager {
+            client: Arc::new(client),
+            browser_process: None,
+            ws_url: ws_url.clone(),
+            pages: Vec::new(),
+            active_page_index: 0,
+            default_timeout_ms: 25_000,
+            download_path: None,
+            ignore_https_errors: false,
+            visited_origins: HashSet::new(),
+            next_tab_id: 1,
+            direct_page: false,
+            pin_tab: false,
+            bound_target_id: None,
+            bound_target_gone: None,
+            session_user_agent: None,
+            headless: true,
+        };
+
+        match discover_and_attach_lightpanda_targets(&mut manager, deadline).await {
+            Ok(()) => {
+                manager.browser_process = process.take();
+                return Ok(manager);
+            }
+            Err(err) => {
+                let _ = manager
+                    .close_with_timeout(Some(FAILED_INITIALIZATION_CLOSE_TIMEOUT))
+                    .await;
+                if Instant::now() >= deadline {
+                    return Err(lightpanda_target_init_timeout(Some(&err)));
+                }
+                tokio::time::sleep(LIGHTPANDA_CDP_CONNECT_POLL_INTERVAL).await;
+            }
+        }
+    }
+}
+
+async fn discover_and_attach_lightpanda_targets(
+    manager: &mut BrowserManager,
+    deadline: Instant,
+) -> Result<(), String> {
+    run_with_lightpanda_deadline(
+        deadline,
+        manager.discover_and_attach_targets(),
+        "Target domain initialization attempt exceeded the remaining startup deadline",
+    )
+    .await
+}
+
+fn remaining_until(deadline: Instant) -> Option<Duration> {
+    deadline.checked_duration_since(Instant::now())
+}
+
+async fn run_with_lightpanda_deadline<F, T>(
+    deadline: Instant,
+    operation: F,
+    timeout_context: &'static str,
+) -> Result<T, String>
+where
+    F: Future<Output = Result<T, String>>,
+{
+    let remaining = remaining_until(deadline)
+        .ok_or_else(|| lightpanda_target_init_timeout(Some("deadline expired before retry")))?;
+
+    match tokio::time::timeout(remaining, operation).await {
+        Ok(result) => result,
+        Err(_) => Err(lightpanda_target_init_timeout(Some(timeout_context))),
+    }
+}
+
+fn lightpanda_target_init_timeout(last_error: Option<&str>) -> String {
+    let mut message = format!(
+        "Timed out after {}ms waiting for Lightpanda Target domain to initialize",
+        LIGHTPANDA_TARGET_INIT_TIMEOUT.as_millis(),
+    );
+    if let Some(last_error) = last_error {
+        message.push_str(&format!("\nLast error: {}", last_error));
+    }
+    message
+}
+
+async fn initialize_obscura_manager(
+    ws_url: String,
+    process: BrowserProcess,
+) -> Result<BrowserManager, String> {
+    let deadline = Instant::now() + OBSCURA_TARGET_INIT_TIMEOUT;
+    let mut process = Some(process);
+
+    loop {
+        let client = match run_with_obscura_deadline(
+            deadline,
+            connect_cdp_with_retry(
+                &ws_url,
+                OBSCURA_CDP_CONNECT_TIMEOUT,
+                OBSCURA_CDP_CONNECT_POLL_INTERVAL,
+            ),
+            "CDP WebSocket connection exceeded the remaining startup deadline",
+        )
+        .await
+        {
+            Ok(client) => client,
+            Err(err) => {
+                if Instant::now() >= deadline {
+                    return Err(obscura_target_init_timeout(Some(&err)));
+                }
+                tokio::time::sleep(OBSCURA_CDP_CONNECT_POLL_INTERVAL).await;
+                continue;
+            }
+        };
+
+        let mut manager = BrowserManager {
+            client: Arc::new(client),
+            browser_process: None,
+            ws_url: ws_url.clone(),
+            pages: Vec::new(),
+            active_page_index: 0,
+            default_timeout_ms: 25_000,
+            download_path: None,
+            ignore_https_errors: false,
+            visited_origins: HashSet::new(),
+            next_tab_id: 1,
+            direct_page: false,
+            pin_tab: false,
+            bound_target_id: None,
+            bound_target_gone: None,
+            session_user_agent: None,
+            headless: true,
+        };
+
+        match run_with_obscura_deadline(
+            deadline,
+            manager.discover_and_attach_targets(),
+            "Target domain initialization attempt exceeded the remaining startup deadline",
+        )
+        .await
+        {
+            Ok(()) => {
+                manager.browser_process = process.take();
+                return Ok(manager);
+            }
+            Err(err) => {
+                let _ = manager
+                    .close_with_timeout(Some(FAILED_INITIALIZATION_CLOSE_TIMEOUT))
+                    .await;
+                if Instant::now() >= deadline {
+                    return Err(obscura_target_init_timeout(Some(&err)));
+                }
+                tokio::time::sleep(OBSCURA_CDP_CONNECT_POLL_INTERVAL).await;
+            }
+        }
+    }
+}
+
+/// Bounds Obscura connection and target setup; failed managers still need explicit cleanup.
+async fn run_with_obscura_deadline<F, T>(
+    deadline: Instant,
+    operation: F,
+    timeout_context: &'static str,
+) -> Result<T, String>
+where
+    F: Future<Output = Result<T, String>>,
+{
+    let remaining = remaining_until(deadline)
+        .ok_or_else(|| obscura_target_init_timeout(Some("deadline expired before retry")))?;
+    match tokio::time::timeout(remaining, operation).await {
+        Ok(result) => result,
+        Err(_) => Err(obscura_target_init_timeout(Some(timeout_context))),
+    }
+}
+
+fn obscura_target_init_timeout(last_error: Option<&str>) -> String {
+    let mut message = format!(
+        "Timed out after {}ms waiting for Obscura Target domain to initialize",
+        OBSCURA_TARGET_INIT_TIMEOUT.as_millis(),
+    );
+    if let Some(last_error) = last_error {
+        message.push_str(&format!("\nLast error: {}", last_error));
+    }
+    message
+}
+
+async fn resolve_cdp_url(input: &str) -> Result<String, String> {
+    if input.starts_with("ws://") || input.starts_with("wss://") {
+        return Ok(input.to_string());
+    }
+
+    if input.starts_with("http://") || input.starts_with("https://") {
+        let parsed = url::Url::parse(input).map_err(|e| format!("Invalid CDP URL: {}", e))?;
+        // If no explicit port and path is empty/root, this is likely a provider
+        // WebSocket endpoint (e.g. https://xxx.cdp0.browser-use.com). Convert
+        // the scheme to ws/wss and connect directly instead of probing :9222.
+        if parsed.port().is_none() && (parsed.path().is_empty() || parsed.path() == "/") {
+            let ws_scheme = if input.starts_with("https://") {
+                "wss"
+            } else {
+                "ws"
+            };
+            let mut ws_url = parsed.clone();
+            let _ = ws_url.set_scheme(ws_scheme);
+            return Ok(ws_url.to_string());
+        }
+        let host = parsed
+            .host_str()
+            .ok_or_else(|| format!("No host in CDP URL: {}", input))?;
+        let port = parsed.port().unwrap_or(9222);
+        let query = parsed.query().map(|q| q.to_string());
+        return discover_cdp_url(host, port, query.as_deref()).await;
+    }
+
+    // Try as numeric port
+    if let Ok(port) = input.parse::<u16>() {
+        return discover_cdp_url("127.0.0.1", port, None).await;
+    }
+
+    Err(format!(
+        "Invalid CDP target: {}. Use ws://, http://, or a port number.",
+        input
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::time::sleep;
+
+    #[tokio::test]
+    #[ignore = "the Unbrowse build refuses the Obscura engine; unbrowse_policy tests the refusal"]
+    async fn test_obscura_rejects_unsupported_options_before_spawn() {
+        assert!(validate_obscura_options(&LaunchOptions::default()).is_ok());
+        let cases = [
+            (
+                LaunchOptions {
+                    extensions: Some(vec!["extension".into()]),
+                    ..Default::default()
+                },
+                "Extensions",
+            ),
+            (
+                LaunchOptions {
+                    profile: Some("profile".into()),
+                    ..Default::default()
+                },
+                "Profiles",
+            ),
+            (
+                LaunchOptions {
+                    storage_state: Some("state.json".into()),
+                    ..Default::default()
+                },
+                "Storage state",
+            ),
+            (
+                LaunchOptions {
+                    allow_file_access: true,
+                    ..Default::default()
+                },
+                "File access",
+            ),
+            (
+                LaunchOptions {
+                    headless: false,
+                    ..Default::default()
+                },
+                "Headed mode",
+            ),
+            (
+                LaunchOptions {
+                    webgpu: true,
+                    ..Default::default()
+                },
+                "WebGPU",
+            ),
+            (
+                LaunchOptions {
+                    ca_cert: Some("root.pem".into()),
+                    ..Default::default()
+                },
+                "--ca-cert",
+            ),
+            (
+                LaunchOptions {
+                    args: vec!["--no-sandbox".into()],
+                    ..Default::default()
+                },
+                "--args",
+            ),
+            (
+                LaunchOptions {
+                    proxy_bypass: Some("localhost".into()),
+                    ..Default::default()
+                },
+                "--proxy-bypass",
+            ),
+            (
+                LaunchOptions {
+                    proxy: Some("http://localhost:8080".into()),
+                    proxy_bypass: Some("localhost".into()),
+                    ..Default::default()
+                },
+                "--proxy-bypass",
+            ),
+            (
+                LaunchOptions {
+                    proxy_bypass: Some(String::new()),
+                    ..Default::default()
+                },
+                "--proxy-bypass",
+            ),
+        ];
+        for (mut options, expected) in cases {
+            options.executable_path = Some("/nonexistent/obscura".into());
+            let error = BrowserManager::launch(options, Some("obscura"))
+                .await
+                .err()
+                .expect("unsupported option must fail before spawn");
+            assert!(error.contains(expected), "{error}");
+        }
+        assert!(validate_obscura_options(&LaunchOptions {
+            proxy: Some("http://localhost:8080".into()),
+            ..Default::default()
+        })
+        .is_ok());
+    }
+
+    #[test]
+    fn test_format_tab_id() {
+        assert_eq!(format_tab_id(1), "t1");
+        assert_eq!(format_tab_id(42), "t42");
+    }
+
+    #[test]
+    fn test_parse_tab_ref_id() {
+        assert_eq!(TabRef::parse("t1"), Ok(TabRef::Id(1)));
+        assert_eq!(TabRef::parse("t42"), Ok(TabRef::Id(42)));
+        assert_eq!(TabRef::parse("T7"), Ok(TabRef::Id(7)));
+    }
+
+    #[test]
+    fn test_parse_tab_ref_label() {
+        assert_eq!(TabRef::parse("docs"), Ok(TabRef::Label("docs".to_string())));
+        assert_eq!(
+            TabRef::parse("app-2"),
+            Ok(TabRef::Label("app-2".to_string()))
+        );
+        assert_eq!(
+            TabRef::parse("my_tab"),
+            Ok(TabRef::Label("my_tab".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_tab_ref_rejects_bare_integer() {
+        let err = TabRef::parse("2").unwrap_err();
+        assert!(
+            err.contains("positional integers are not accepted"),
+            "error should teach the user to use `t<N>`: {}",
+            err
+        );
+        assert!(err.contains("t2"));
+    }
+
+    #[test]
+    fn test_parse_tab_ref_rejects_empty() {
+        assert!(TabRef::parse("").is_err());
+        assert!(TabRef::parse("   ").is_err());
+    }
+
+    #[test]
+    fn test_parse_tab_ref_rejects_zero() {
+        let err = TabRef::parse("t0").unwrap_err();
+        assert!(err.contains("start at t1"));
+    }
+
+    #[test]
+    fn test_parse_tab_ref_rejects_invalid_label() {
+        assert!(TabRef::parse("2docs").is_err());
+        assert!(TabRef::parse("-docs").is_err());
+        assert!(TabRef::parse("docs!").is_err());
+        assert!(TabRef::parse("docs space").is_err());
+    }
+
+    #[test]
+    fn test_is_valid_label() {
+        assert!(is_valid_label("docs"));
+        assert!(is_valid_label("Docs"));
+        assert!(is_valid_label("app-2"));
+        assert!(is_valid_label("my_tab"));
+        assert!(!is_valid_label(""));
+        assert!(!is_valid_label("2docs"));
+        assert!(!is_valid_label("-docs"));
+        assert!(!is_valid_label("docs!"));
+    }
+
+    #[test]
+    fn test_should_track_popup_target_with_empty_url() {
+        let target = TargetInfo {
+            target_id: "popup-1".to_string(),
+            target_type: "page".to_string(),
+            title: String::new(),
+            url: String::new(),
+            attached: None,
+            browser_context_id: None,
+            opener_id: None,
+        };
+
+        assert!(should_track_target(&target));
+    }
+
+    #[test]
+    fn test_should_not_track_internal_chrome_target() {
+        let target = TargetInfo {
+            target_id: "chrome-tab".to_string(),
+            target_type: "page".to_string(),
+            title: "New Tab".to_string(),
+            url: "chrome://newtab/".to_string(),
+            attached: None,
+            browser_context_id: None,
+            opener_id: None,
+        };
+
+        assert!(!should_track_target(&target));
+    }
+
+    #[test]
+    fn test_update_page_target_info_in_pages_updates_existing_page() {
+        let mut pages = vec![PageInfo {
+            tab_id: 1,
+            label: None,
+            target_id: "popup-1".to_string(),
+            session_id: "session-1".to_string(),
+            url: String::new(),
+            title: String::new(),
+            target_type: "page".to_string(),
+        }];
+        let target = TargetInfo {
+            target_id: "popup-1".to_string(),
+            target_type: "page".to_string(),
+            title: "Popup".to_string(),
+            url: "https://example.com/popup".to_string(),
+            attached: None,
+            browser_context_id: None,
+            opener_id: None,
+        };
+
+        assert!(update_page_target_info_in_pages(&mut pages, &target));
+        assert_eq!(pages[0].url, "https://example.com/popup");
+        assert_eq!(pages[0].title, "Popup");
+    }
+
+    #[test]
+    fn test_active_page_index_after_removal_shifts_when_earlier_tab_is_removed() {
+        assert_eq!(active_page_index_after_removal(2, 0, 3), 1);
+    }
+
+    #[test]
+    fn test_active_page_index_after_removal_keeps_same_slot_when_later_tab_is_removed() {
+        assert_eq!(active_page_index_after_removal(1, 2, 3), 1);
+    }
+
+    #[test]
+    fn test_active_page_index_after_removal_clamps_when_active_last_tab_is_removed() {
+        assert_eq!(active_page_index_after_removal(3, 3, 3), 2);
+    }
+
+    #[test]
+    fn test_active_page_index_after_removal_resets_when_last_page_disappears() {
+        assert_eq!(active_page_index_after_removal(0, 0, 0), 0);
+    }
+
+    #[test]
+    fn test_active_page_index_after_add_first_page_always_activates() {
+        // The first page must become active even without explicit activation,
+        // so a manager that has pages always has a valid active index.
+        assert_eq!(active_page_index_after_add(0, 0, true, false), 0);
+        assert_eq!(active_page_index_after_add(0, 0, true, true), 0);
+    }
+
+    #[test]
+    fn test_active_page_index_after_add_discovered_tab_does_not_steal_active() {
+        // Event-discovered / human-opened tabs are appended without activation and
+        // must NOT move the active pointer (the active-tab steal fix).
+        assert_eq!(active_page_index_after_add(2, 5, false, false), 2);
+    }
+
+    #[test]
+    fn test_active_page_index_after_add_explicit_activation_moves_active() {
+        // Explicit user commands (`tab new`, `window new`) activate the new page.
+        assert_eq!(active_page_index_after_add(2, 5, false, true), 5);
+    }
+
+    #[test]
+    fn test_validate_launch_options_extensions_and_cdp() {
+        let ext = vec!["/path/to/ext".to_string()];
+        assert!(validate_launch_options(Some(&ext), true, None, None, false, None, None).is_err());
+    }
+
+    #[test]
+    fn test_validate_launch_options_profile_and_cdp() {
+        assert!(
+            validate_launch_options(None, true, Some("/path"), None, false, None, None).is_err()
+        );
+    }
+
+    #[test]
+    fn test_validate_launch_options_storage_state_and_profile() {
+        assert!(validate_launch_options(
+            None,
+            false,
+            Some("/profile"),
+            Some("/state.json"),
+            false,
+            None,
+            None,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_launch_options_storage_state_and_extensions() {
+        let ext = vec!["/ext".to_string()];
+        assert!(validate_launch_options(
+            Some(&ext),
+            false,
+            None,
+            Some("/state.json"),
+            false,
+            None,
+            None,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_launch_options_allow_file_access_firefox() {
+        assert!(validate_launch_options(
+            None,
+            false,
+            None,
+            None,
+            true,
+            Some("/usr/bin/firefox"),
+            None,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_validate_launch_options_valid() {
+        assert!(validate_launch_options(None, false, None, None, false, None, None).is_ok());
+    }
+
+    #[test]
+    fn test_to_ai_friendly_error_strict_mode() {
+        assert_eq!(
+            to_ai_friendly_error("Strict mode violation: multiple elements"),
+            "Element matched multiple results. Use a more specific selector."
+        );
+    }
+
+    #[test]
+    fn test_to_ai_friendly_error_not_visible() {
+        assert_eq!(
+            to_ai_friendly_error("element is not visible"),
+            "Element exists but is not visible. Wait for it to become visible or scroll it into view."
+        );
+    }
+
+    #[test]
+    fn test_to_ai_friendly_error_intercept() {
+        assert_eq!(
+            to_ai_friendly_error("element intercepted by another element"),
+            "Another element is covering the target element. Try scrolling or closing overlays."
+        );
+    }
+
+    #[test]
+    fn test_to_ai_friendly_error_timeout() {
+        assert_eq!(
+            to_ai_friendly_error("Timeout waiting for element"),
+            "Operation timed out. The page may still be loading or the element may not exist."
+        );
+    }
+
+    #[test]
+    fn test_to_ai_friendly_error_keeps_an_eval_that_ran_past_its_time() {
+        let said = format!(
+            "{EVAL_TIMED_OUT_LEAD}30 s, so its answer was given up on (it may still be running in the page): \
+             return sooner, or give eval --timeout <ms> (up to 300000)"
+        );
+        assert_eq!(to_ai_friendly_error(&said), said);
+    }
+
+    #[test]
+    fn test_to_ai_friendly_error_miss_wins_over_keyword_in_name() {
+        // A genuine locator miss whose echoed name contains a classifier keyword
+        // must classify as a miss, not be flattened by the broad substring checks.
+        // Force-red: run the broad checks before is_locator_miss and this returns
+        // the timeout guidance instead.
+        let out =
+            to_ai_friendly_error("No element found: getByRole('button', { name: 'timeout' })");
+        assert!(
+            out.starts_with("No element found") && out.contains("Verify the selector"),
+            "miss with 'timeout' in the name must stay a miss, got: {out}"
+        );
+        let out = to_ai_friendly_error("No element found: getByText('please do not intercept')");
+        assert!(
+            out.contains("Verify the selector"),
+            "miss with 'intercept' in the name must stay a miss, got: {out}"
+        );
+    }
+
+    #[test]
+    fn test_to_ai_friendly_error_not_found() {
+        assert_eq!(
+            to_ai_friendly_error("Element not found"),
+            "Element not found. Verify the selector, role, or name is correct and the element exists in the DOM."
+        );
+    }
+
+    #[test]
+    fn test_to_ai_friendly_error_unknown() {
+        let msg = "Some custom error message";
+        assert_eq!(to_ai_friendly_error(msg), msg);
+    }
+
+    /// Errors containing "not found" but NOT "element" should pass through unchanged.
+    #[test]
+    fn test_to_ai_friendly_error_ignores_non_element_not_found() {
+        let err = "Chrome not found. Install Chrome or use --executable-path.";
+        assert_eq!(to_ai_friendly_error(err), err);
+    }
+
+    /// The specific selector/role/name that failed to match must survive:
+    /// this used to get discarded and replaced with a single indistinguishable
+    /// generic message, which made it impossible to tell a role miss from a
+    /// name miss from an index-out-of-range miss.
+    #[test]
+    fn test_to_ai_friendly_error_preserves_locator_detail() {
+        assert_eq!(
+            to_ai_friendly_error("No element found for css 'x'"),
+            "No element found for css 'x'. Verify the selector, role, or name is correct and the element exists in the DOM."
+        );
+        assert_eq!(
+            to_ai_friendly_error("No element found: getByRole('heading', { name: 'Skillz' })"),
+            "No element found: getByRole('heading', { name: 'Skillz' }). Verify the selector, role, or name is correct and the element exists in the DOM."
+        );
+        assert_eq!(
+            to_ai_friendly_error("No element at index 5 for selector '.card'"),
+            "No element at index 5 for selector '.card'. Verify the selector, role, or name is correct and the element exists in the DOM."
+        );
+        assert_eq!(
+            to_ai_friendly_error("Element not found in the selected frame: iframe#f"),
+            "Element not found in the selected frame: iframe#f. Verify the selector, role, or name is correct and the element exists in the DOM."
+        );
+    }
+
+    /// WebDriver protocol errors happen to contain "element" and "no" but
+    /// are not locator misses; "verify the selector is correct" would be
+    /// actively misleading advice for a malformed response payload. Genuine
+    /// WebDriver misses are translated to the anchored form before they get
+    /// here (see `element_id_from_value`), so only malformed payloads keep
+    /// this protocol shape.
+    #[test]
+    fn test_to_ai_friendly_error_does_not_flatten_webdriver_protocol_errors() {
+        assert_eq!(
+            to_ai_friendly_error("No element in response"),
+            "No element in response"
+        );
+        assert_eq!(
+            to_ai_friendly_error("No element ID in response"),
+            "No element ID in response"
+        );
+    }
+
+    #[test]
+    fn test_remaining_until_returns_none_for_past_deadline() {
+        let deadline = Instant::now()
+            .checked_sub(Duration::from_millis(1))
+            .expect("past instant should be representable");
+        assert!(remaining_until(deadline).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_run_with_lightpanda_deadline_enforces_timeout() {
+        let deadline = Instant::now() + Duration::from_millis(25);
+        let err = tokio::time::timeout(
+            Duration::from_secs(1),
+            run_with_lightpanda_deadline(
+                deadline,
+                async {
+                    sleep(Duration::from_millis(100)).await;
+                    Ok::<(), String>(())
+                },
+                "Target domain initialization attempt exceeded the remaining startup deadline",
+            ),
+        )
+        .await
+        .expect("outer timeout should not fire")
+        .unwrap_err();
+
+        assert!(err.contains(
+            "Timed out after 10000ms waiting for Lightpanda Target domain to initialize"
+        ));
+        assert!(err.contains("remaining startup deadline"));
+    }
+
+    #[tokio::test]
+    async fn test_run_with_lightpanda_deadline_returns_operation_error() {
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let err = run_with_lightpanda_deadline(
+            deadline,
+            async { Err::<(), String>("Target.getTargets failed".to_string()) },
+            "unused timeout context",
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(err, "Target.getTargets failed");
+    }
+
+    #[test]
+    fn test_lightpanda_target_init_timeout_includes_last_error() {
+        let err = lightpanda_target_init_timeout(Some("Target.setDiscoverTargets failed"));
+        assert!(err.contains(
+            "Timed out after 10000ms waiting for Lightpanda Target domain to initialize"
+        ));
+        assert!(err.contains("Target.setDiscoverTargets failed"));
+    }
+
+    #[test]
+    fn test_validate_lightpanda_rejects_webgpu() {
+        let options = LaunchOptions {
+            webgpu: true,
+            ..Default::default()
+        };
+        let err = validate_lightpanda_options(&options).unwrap_err();
+        assert!(err.contains("WebGPU"));
+        assert!(validate_lightpanda_options(&LaunchOptions::default()).is_ok());
+    }
+
+    #[test]
+    fn test_is_internal_chrome_target() {
+        assert!(is_internal_chrome_target("chrome://newtab/"));
+        assert!(is_internal_chrome_target(
+            "chrome://omnibox-popup.top-chrome/"
+        ));
+        assert!(is_internal_chrome_target(
+            "chrome-extension://abc123/popup.html"
+        ));
+        assert!(is_internal_chrome_target(
+            "devtools://devtools/bundled/inspector.html"
+        ));
+        assert!(!is_internal_chrome_target("https://example.com"));
+        assert!(!is_internal_chrome_target("http://localhost:3000"));
+        assert!(!is_internal_chrome_target("about:blank"));
+    }
+
+    // -----------------------------------------------------------------------
+    // poll_network_idle tests
+    // -----------------------------------------------------------------------
+
+    fn cdp_event(method: &str, session_id: &str, params: Value) -> CdpEvent {
+        CdpEvent {
+            method: method.to_string(),
+            params,
+            session_id: Some(session_id.to_string()),
+        }
+    }
+
+    /// Regression test for #846: when no network events arrive at all (e.g.
+    /// page fully served from cache), poll_network_idle must NOT return
+    /// instantly.  It should observe at least 500 ms of idle before resolving.
+    #[tokio::test]
+    async fn test_network_idle_no_events_does_not_return_instantly() {
+        let (tx, mut rx) = broadcast::channel::<CdpEvent>(16);
+        let session = "s1";
+
+        let start = tokio::time::Instant::now();
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            poll_network_idle(session, &mut rx, HashSet::new(), Duration::from_secs(5)),
+        )
+        .await
+        .expect("outer timeout should not fire");
+
+        assert!(result.is_ok());
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed >= Duration::from_millis(500),
+            "network idle returned in {:?}, expected >= 500ms",
+            elapsed
+        );
+
+        drop(tx);
+    }
+
+    /// Normal flow: requests start and finish, idle is detected after the last
+    /// request completes and 500 ms of silence passes.
+    #[tokio::test]
+    async fn test_network_idle_after_requests_complete() {
+        let (tx, mut rx) = broadcast::channel::<CdpEvent>(16);
+        let session = "s1";
+
+        let _keep_alive = tx.clone();
+        tokio::spawn(async move {
+            sleep(Duration::from_millis(50)).await;
+            let _ = tx.send(cdp_event(
+                "Network.requestWillBeSent",
+                session,
+                json!({ "requestId": "r1" }),
+            ));
+            sleep(Duration::from_millis(100)).await;
+            let _ = tx.send(cdp_event(
+                "Network.loadingFinished",
+                session,
+                json!({ "requestId": "r1" }),
+            ));
+        });
+
+        let start = tokio::time::Instant::now();
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            poll_network_idle(session, &mut rx, HashSet::new(), Duration::from_secs(5)),
+        )
+        .await
+        .expect("outer timeout should not fire");
+
+        assert!(result.is_ok());
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed >= Duration::from_millis(500),
+            "should wait >= 500ms after last request finishes, got {:?}",
+            elapsed
+        );
+    }
+
+    /// A new request arriving during the idle window resets the timer.
+    #[tokio::test]
+    async fn test_network_idle_resets_on_new_request() {
+        let (tx, mut rx) = broadcast::channel::<CdpEvent>(16);
+        let session = "s1";
+
+        let _keep_alive = tx.clone();
+        tokio::spawn(async move {
+            sleep(Duration::from_millis(50)).await;
+            let _ = tx.send(cdp_event(
+                "Network.requestWillBeSent",
+                session,
+                json!({ "requestId": "r1" }),
+            ));
+            sleep(Duration::from_millis(50)).await;
+            let _ = tx.send(cdp_event(
+                "Network.loadingFinished",
+                session,
+                json!({ "requestId": "r1" }),
+            ));
+            // Wait 200ms (< 500ms idle window), then fire another request
+            sleep(Duration::from_millis(200)).await;
+            let _ = tx.send(cdp_event(
+                "Network.requestWillBeSent",
+                session,
+                json!({ "requestId": "r2" }),
+            ));
+            sleep(Duration::from_millis(100)).await;
+            let _ = tx.send(cdp_event(
+                "Network.loadingFinished",
+                session,
+                json!({ "requestId": "r2" }),
+            ));
+        });
+
+        let start = tokio::time::Instant::now();
+        let result = tokio::time::timeout(
+            Duration::from_secs(5),
+            poll_network_idle(session, &mut rx, HashSet::new(), Duration::from_secs(5)),
+        )
+        .await
+        .expect("outer timeout should not fire");
+
+        assert!(result.is_ok());
+        let elapsed = start.elapsed();
+        // r2 finishes at ~400ms; idle should be detected at ~900ms
+        assert!(
+            elapsed >= Duration::from_millis(800),
+            "should wait for idle after second request, got {:?}",
+            elapsed
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Session-to-tab binding tests
+    // -----------------------------------------------------------------------
+
+    fn page(tab_id: u32, target_id: &str, url: &str) -> PageInfo {
+        PageInfo {
+            tab_id,
+            label: None,
+            target_id: target_id.to_string(),
+            session_id: format!("session-{}", tab_id),
+            url: url.to_string(),
+            title: String::new(),
+            target_type: "page".to_string(),
+        }
+    }
+
+    /// Build a `BrowserManager` backed by a dummy WebSocket server that
+    /// accepts the connection and then stays silent. Enough for the binding
+    /// logic, which never awaits a CDP response in these tests.
+    async fn test_manager(pages: Vec<PageInfo>) -> BrowserManager {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                if let Ok(_ws) = tokio_tungstenite::accept_async(stream).await {
+                    tokio::time::sleep(Duration::from_secs(60)).await;
+                }
+            }
+        });
+        let client = CdpClient::connect(&format!("ws://{}", addr)).await.unwrap();
+        BrowserManager {
+            client: Arc::new(client),
+            browser_process: None,
+            ws_url: format!("ws://{}", addr),
+            pages,
+            active_page_index: 0,
+            default_timeout_ms: 25_000,
+            download_path: None,
+            ignore_https_errors: false,
+            visited_origins: HashSet::new(),
+            next_tab_id: 100,
+            direct_page: false,
+            pin_tab: false,
+            bound_target_id: None,
+            bound_target_gone: None,
+            session_user_agent: None,
+            headless: true,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_obscura_ownership_excludes_attached_browser() {
+        let mut manager = test_manager(Vec::new()).await;
+        assert!(!manager.owns_obscura_process());
+        manager.close().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_close_external_manager_disconnects_without_closing_browser() {
+        use futures_util::StreamExt;
+        use tokio::io::AsyncReadExt;
+        use tokio_tungstenite::tungstenite::Message;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let mut browser_close_seen = false;
+
+            loop {
+                match ws.next().await {
+                    Some(Ok(Message::Text(text))) => {
+                        let command: Value = serde_json::from_str(&text).unwrap();
+                        browser_close_seen |= command["method"] == "Browser.close";
+                    }
+                    Some(Ok(Message::Close(_))) => break,
+                    Some(Ok(_)) => {}
+                    Some(Err(_)) | None => break,
+                }
+            }
+
+            let mut byte = [0u8; 1];
+            let count = tokio::time::timeout(Duration::from_secs(1), ws.get_mut().read(&mut byte))
+                .await
+                .expect("external manager close should shut down TCP")
+                .expect("external manager TCP read should succeed");
+            (browser_close_seen, count)
+        });
+
+        let client = CdpClient::connect(&format!("ws://{}", addr)).await.unwrap();
+        let mut manager = BrowserManager {
+            client: Arc::new(client),
+            browser_process: None,
+            ws_url: format!("ws://{}", addr),
+            pages: Vec::new(),
+            active_page_index: 0,
+            default_timeout_ms: 25_000,
+            download_path: None,
+            ignore_https_errors: false,
+            visited_origins: HashSet::new(),
+            next_tab_id: 1,
+            direct_page: false,
+            pin_tab: false,
+            bound_target_id: None,
+            bound_target_gone: None,
+            session_user_agent: None,
+            headless: true,
+        };
+        manager.close().await.unwrap();
+
+        let (browser_close_seen, count) = server.await.unwrap();
+        assert!(!browser_close_seen);
+        assert_eq!(count, 0);
+    }
+
+    async fn initialization_server(
+        fail_method: &'static str,
+        existing_target: bool,
+        attempts: usize,
+        ignore_browser_close: bool,
+    ) -> (String, tokio::task::JoinHandle<Vec<Vec<String>>>) {
+        use futures_util::{SinkExt, StreamExt};
+        use tokio::io::AsyncReadExt;
+        use tokio_tungstenite::tungstenite::Message;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let mut observed = Vec::new();
+            for attempt in 0..attempts {
+                let (stream, _) = listener.accept().await.unwrap();
+                let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+                let mut methods = Vec::new();
+                loop {
+                    let message = tokio::time::timeout(Duration::from_secs(2), ws.next())
+                        .await
+                        .expect("failed initialization must disconnect before retry or return");
+                    match message {
+                        Some(Ok(Message::Text(text))) => {
+                            let command: Value = serde_json::from_str(&text).unwrap();
+                            let method = command["method"].as_str().unwrap();
+                            methods.push(method.to_string());
+                            if ignore_browser_close && method == "Browser.close" {
+                                continue;
+                            }
+                            let response = if attempt == 0 && method == fail_method {
+                                json!({"id": command["id"], "error": {
+                                    "code": -32000, "message": "injected initialization failure"
+                                }})
+                            } else {
+                                let result = match method {
+                                    "Target.getTargets" if existing_target => {
+                                        json!({"targetInfos": [{
+                                            "targetId": "page-1", "type": "page", "url": "about:blank",
+                                            "title": "", "attached": false
+                                        }]})
+                                    }
+                                    "Target.getTargets" => json!({"targetInfos": []}),
+                                    "Target.createTarget" => json!({"targetId": "page-1"}),
+                                    "Target.attachToTarget" => json!({"sessionId": "session-1"}),
+                                    "Runtime.evaluate" => {
+                                        json!({"result": {"type": "number", "value": 1}})
+                                    }
+                                    _ => json!({}),
+                                };
+                                json!({"id": command["id"], "result": result})
+                            };
+                            ws.send(Message::Text(response.to_string())).await.unwrap();
+                        }
+                        Some(Ok(Message::Close(_))) => break,
+                        Some(Ok(_)) => {}
+                        other => panic!("expected client close, got {other:?}"),
+                    }
+                }
+                let mut byte = [0u8; 1];
+                let count =
+                    tokio::time::timeout(Duration::from_secs(1), ws.get_mut().read(&mut byte))
+                        .await
+                        .expect("initialization cleanup must shut down TCP");
+                assert!(
+                    matches!(count, Ok(0))
+                        || matches!(count, Err(ref error) if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::ConnectionReset
+                                | std::io::ErrorKind::ConnectionAborted
+                        )),
+                    "connection remained readable: {count:?}"
+                );
+                observed.push(methods);
+            }
+            observed
+        });
+        (url, server)
+    }
+
+    async fn assert_failed_external_initialization(
+        fail_method: &'static str,
+        direct: bool,
+        existing: bool,
+    ) {
+        let (url, server) = initialization_server(fail_method, existing, 2, false).await;
+        let error = BrowserManager::connect_cdp_inner(&url, direct, None)
+            .await
+            .err()
+            .expect("initialization should fail");
+        assert!(error.contains("injected initialization failure"), "{error}");
+        let mut manager = tokio::time::timeout(
+            Duration::from_secs(4),
+            BrowserManager::connect_cdp_inner(&url, direct, None),
+        )
+        .await
+        .expect("retry should succeed after cleanup")
+        .unwrap();
+        manager.close().await.unwrap();
+        for methods in server.await.unwrap() {
+            assert!(!methods.iter().any(|method| method == "Browser.close"));
+        }
+    }
+
+    macro_rules! failed_initialization_test {
+        ($name:ident, $method:literal, $direct:literal, $existing:literal) => {
+            #[tokio::test]
+            async fn $name() {
+                assert_failed_external_initialization($method, $direct, $existing).await;
+            }
+        };
+    }
+
+    failed_initialization_test!(
+        test_failed_discover_disconnects,
+        "Target.setDiscoverTargets",
+        false,
+        false
+    );
+    failed_initialization_test!(
+        test_failed_get_targets_disconnects,
+        "Target.getTargets",
+        false,
+        false
+    );
+    failed_initialization_test!(
+        test_failed_create_target_disconnects,
+        "Target.createTarget",
+        false,
+        false
+    );
+    failed_initialization_test!(
+        test_failed_attach_disconnects,
+        "Target.attachToTarget",
+        false,
+        false
+    );
+    failed_initialization_test!(
+        test_failed_direct_page_disconnects,
+        "Page.enable",
+        true,
+        false
+    );
+    failed_initialization_test!(
+        test_failed_new_page_page_disconnects,
+        "Page.enable",
+        false,
+        false
+    );
+    failed_initialization_test!(
+        test_failed_existing_page_page_disconnects,
+        "Page.enable",
+        false,
+        true
+    );
+    failed_initialization_test!(
+        test_failed_direct_runtime_disconnects,
+        "Runtime.enable",
+        true,
+        false
+    );
+    failed_initialization_test!(
+        test_failed_new_page_runtime_disconnects,
+        "Runtime.enable",
+        false,
+        false
+    );
+    failed_initialization_test!(
+        test_failed_existing_page_runtime_disconnects,
+        "Runtime.enable",
+        false,
+        true
+    );
+    failed_initialization_test!(
+        test_failed_direct_network_disconnects,
+        "Network.enable",
+        true,
+        false
+    );
+    failed_initialization_test!(
+        test_failed_new_page_network_disconnects,
+        "Network.enable",
+        false,
+        false
+    );
+    failed_initialization_test!(
+        test_failed_existing_page_network_disconnects,
+        "Network.enable",
+        false,
+        true
+    );
+
+    /// Connect against a fake browser that fails `Network.enable` — sent last,
+    /// so every command before it was recorded — and hand back what was sent.
+    async fn recorded_commands(capture: bool) -> Vec<Vec<String>> {
+        let guard = crate::test_utils::EnvGuard::new(&["AGENT_BROWSER_NO_CONSOLE"]);
+        if capture {
+            guard.remove("AGENT_BROWSER_NO_CONSOLE");
+        } else {
+            guard.set("AGENT_BROWSER_NO_CONSOLE", "1");
+        }
+        let (url, server) = initialization_server("Network.enable", false, 2, false).await;
+        assert!(
+            BrowserManager::connect_cdp_inner(&url, false, None).await.is_err(),
+            "the first connection fails at Network.enable"
+        );
+        let mut manager = tokio::time::timeout(
+            Duration::from_secs(4),
+            BrowserManager::connect_cdp_inner(&url, false, None),
+        )
+        .await
+        .expect("the retry connects in time")
+        .unwrap();
+        manager.close().await.unwrap();
+        let observed = server.await.unwrap();
+        drop(guard);
+        observed
+    }
+
+    #[tokio::test]
+    async fn console_capture_sends_the_runtime_domain_by_default() {
+        for methods in recorded_commands(true).await {
+            assert!(
+                methods.iter().any(|method| method == "Runtime.enable"),
+                "capture is on by default: {methods:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn console_capture_switched_off_never_sends_the_runtime_domain() {
+        for methods in recorded_commands(false).await {
+            assert!(
+                !methods.iter().any(|method| method == "Runtime.enable"),
+                "--no-console must keep the domain dark: {methods:?}"
+            );
+        }
+    }
+
+    /// A fake Chrome as a launch sees it: it writes its pid to `pid_file` and answers its debugger's pipe (fd 3 in, fd 4
+    /// out) by running [`fake_chrome_pipe_helper`], which gives each browser session on the pipe a connection of its own
+    /// to the fake server at `port`, as each client had one when Chrome listened on a port.
+    #[cfg(unix)]
+    fn fake_chrome_on_a_pipe(pid_file: &std::path::Path, port: u16) -> String {
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$$\" > '{}'\nFAKE_CHROME_WS='ws://127.0.0.1:{port}/devtools/browser/test' exec '{}' --exact native::browser::tests::fake_chrome_pipe_helper --ignored --test-threads=1 -q\n",
+            pid_file.display(),
+            std::env::current_exe().unwrap().display()
+        )
+    }
+
+    /// Not a test: the body of [`fake_chrome_on_a_pipe`], run by this binary in the fake's process. It does nothing
+    /// unless that process runs it.
+    #[cfg(unix)]
+    #[test]
+    #[ignore]
+    fn fake_chrome_pipe_helper() {
+        use futures_util::{SinkExt, StreamExt};
+        use std::io::{Read, Write};
+        use std::os::fd::FromRawFd;
+        use tokio_tungstenite::tungstenite::Message;
+        let Ok(url) = std::env::var("FAKE_CHROME_WS") else { return };
+        // SAFETY: the launch put the debugger's pipe at fds 3 and 4 of this process.
+        let (mut from_launcher, to_launcher) =
+            unsafe { (std::fs::File::from_raw_fd(3), std::fs::File::from_raw_fd(4)) };
+        let to_launcher = Arc::new(std::sync::Mutex::new(to_launcher));
+        let say = move |message: Value| {
+            let mut bytes = message.to_string().into_bytes();
+            bytes.push(0);
+            let mut out = to_launcher.lock().unwrap();
+            if out.write_all(&bytes).is_err() {
+                std::process::exit(0);
+            }
+        };
+        let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        let (commands_tx, mut commands_rx) = tokio::sync::mpsc::unbounded_channel::<Value>();
+        std::thread::spawn(move || {
+            let (mut buffer, mut chunk) = (Vec::new(), [0u8; 65536]);
+            while let Ok(n) = from_launcher.read(&mut chunk) {
+                if n == 0 {
+                    break;
+                }
+                buffer.extend_from_slice(&chunk[..n]);
+                while let Some(end) = buffer.iter().position(|b| *b == 0) {
+                    if let Ok(message) = serde_json::from_slice(&buffer[..end]) {
+                        let _ = commands_tx.send(message);
+                    }
+                    buffer.drain(..=end);
+                }
+            }
+            // The launcher has gone: so does the browser.
+            std::process::exit(0);
+        });
+        runtime.block_on(async move {
+            // Each browser session: the sender of its connection, and the tasks that hold its two halves.
+            #[allow(clippy::type_complexity)]
+            let mut sessions: HashMap<
+                String,
+                (tokio::sync::mpsc::UnboundedSender<String>, [tokio::task::JoinHandle<()>; 2]),
+            > = HashMap::new();
+            // Page sessions, by the browser session they were opened in.
+            let pages: Arc<std::sync::Mutex<HashMap<String, String>>> = Arc::default();
+            // The session each command came in, by its id (the relay's ids are unique on the pipe).
+            let asked_in: Arc<std::sync::Mutex<HashMap<u64, String>>> = Arc::default();
+            let mut opened = 0;
+            while let Some(mut command) = commands_rx.recv().await {
+                let id = command["id"].clone();
+                let session = command.get("sessionId").and_then(Value::as_str).map(str::to_string);
+                let method = command["method"].as_str().unwrap_or("").to_string();
+                let Some(session) = session else {
+                    match method.as_str() {
+                        "Target.attachToBrowserTarget" => {
+                            opened += 1;
+                            let browser = format!("browser-{opened}");
+                            let Ok((ws, _)) = tokio_tungstenite::connect_async(url.as_str()).await else {
+                                say(json!({"id": id, "error": {"code": -32000, "message": "no browser"}}));
+                                continue;
+                            };
+                            let (mut sink, mut source) = ws.split();
+                            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+                            let writing = tokio::spawn(async move {
+                                while let Some(text) = rx.recv().await {
+                                    if sink.send(Message::Text(text)).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                let _ = sink.close().await;
+                            });
+                            let (say_back, pages, asked_in, browser_session) =
+                                (say.clone(), pages.clone(), asked_in.clone(), browser.clone());
+                            let reading = tokio::spawn(async move {
+                                while let Some(Ok(Message::Text(text))) = source.next().await {
+                                    let Ok(mut answer) = serde_json::from_str::<Value>(&text) else { continue };
+                                    if let Some(page) = answer.pointer("/result/sessionId").and_then(Value::as_str) {
+                                        pages.lock().unwrap().insert(page.to_string(), browser_session.clone());
+                                    }
+                                    if answer.get("sessionId").is_none() {
+                                        let asked = answer["id"].as_u64().and_then(|id| asked_in.lock().unwrap().remove(&id));
+                                        answer["sessionId"] = json!(asked.unwrap_or_else(|| browser_session.clone()));
+                                    }
+                                    say_back(answer);
+                                }
+                            });
+                            sessions.insert(browser.clone(), (tx, [writing, reading]));
+                            say(json!({"id": id, "result": {"sessionId": browser}}));
+                        }
+                        "Target.detachFromTarget" => {
+                            // As Chrome drops a client's connection: the writer, its sender gone, closes it and ends,
+                            // the reader is stopped, and with both halves gone the socket closes.
+                            if let Some((sender, [_, reading])) = command
+                                .pointer("/params/sessionId")
+                                .and_then(Value::as_str)
+                                .and_then(|gone| sessions.remove(gone))
+                            {
+                                drop(sender);
+                                reading.abort();
+                            }
+                            say(json!({"id": id, "result": {}}));
+                        }
+                        "Browser.close" => std::process::exit(0),
+                        _ => say(json!({"id": id, "result": {}})),
+                    }
+                    continue;
+                };
+                // A browser session's own command goes to its connection without the session; a page session's goes
+                // to the connection that opened it, as it is.
+                if let Some(n) = id.as_u64() {
+                    asked_in.lock().unwrap().insert(n, session.clone());
+                }
+                let browser = if sessions.contains_key(&session) {
+                    command.as_object_mut().unwrap().remove("sessionId");
+                    session.clone()
+                } else {
+                    pages.lock().unwrap().get(&session).cloned().unwrap_or_default()
+                };
+                match sessions.get(&browser) {
+                    Some((connection, _)) => {
+                        let _ = connection.send(command.to_string());
+                    }
+                    None => say(json!({"id": id, "sessionId": session, "error": {"code": -32001, "message": "Session with given id not found."}})),
+                }
+            }
+        });
+    }
+
+    /// A browser any number of daemons can be connected to at once. It says it is the process named in `pid_file`,
+    /// writes down every command, and goes when told to close unless `ignores_close`.
+    #[cfg(unix)]
+    async fn shared_browser(
+        pid_file: std::path::PathBuf,
+        ignores_close: bool,
+    ) -> (u16, Arc<std::sync::Mutex<Vec<String>>>) {
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let commands = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let heard = commands.clone();
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = listener.accept().await {
+                let (heard, pid_file) = (heard.clone(), pid_file.clone());
+                tokio::spawn(async move {
+                    let Ok(mut ws) = tokio_tungstenite::accept_async(stream).await else { return };
+                    while let Some(Ok(message)) = ws.next().await {
+                        let Message::Text(text) = message else { continue };
+                        let command: Value = serde_json::from_str(&text).unwrap();
+                        let method = command["method"].as_str().unwrap().to_string();
+                        heard.lock().unwrap().push(method.clone());
+                        let pid: u32 = std::fs::read_to_string(&pid_file)
+                            .ok()
+                            .and_then(|pid| pid.trim().parse().ok())
+                            .unwrap_or(0);
+                        let result = match method.as_str() {
+                            "SystemInfo.getProcessInfo" => {
+                                json!({"processInfo": [{"type": "browser", "id": pid}]})
+                            }
+                            "Target.getTargets" => json!({"targetInfos": [{
+                                "targetId": "page-1", "type": "page", "url": "about:blank",
+                                "title": "", "attached": false
+                            }]}),
+                            "Target.attachToTarget" => json!({"sessionId": "session-1"}),
+                            "Runtime.evaluate" => json!({"result": {"type": "number", "value": 1}}),
+                            _ => json!({}),
+                        };
+                        let answer = json!({"id": command["id"], "result": result}).to_string();
+                        let _ = ws.send(Message::Text(answer)).await;
+                        if method == "Browser.close" && !ignores_close {
+                            unsafe { libc::kill(pid as i32, libc::SIGKILL) };
+                            break;
+                        }
+                    }
+                });
+            }
+        });
+        (port, commands)
+    }
+
+    /// A Chrome some earlier daemon left in the runtime dir, as a crash leaves it: nobody here launched it, and the
+    /// thread keeps it from lingering as a zombie once it goes.
+    #[cfg(unix)]
+    fn survivor_in(runtime: &std::path::Path, port: u16) -> u32 {
+        use std::os::unix::process::CommandExt;
+        let mut child = std::process::Command::new("/bin/sleep")
+            .arg("60")
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        std::thread::spawn(move || child.wait());
+        std::fs::write(runtime.join("DevToolsActivePort"), format!("{port}\n/devtools/browser/test\n")).unwrap();
+        std::fs::write(runtime.join("agent-browser-chrome.pid"), format!("{pid}\n")).unwrap();
+        std::fs::write(runtime.join("pid"), format!("{pid}\n")).unwrap();
+        pid
+    }
+
+    #[cfg(unix)]
+    fn gone_soon(pid: u32) -> bool {
+        let deadline = std::time::Instant::now() + Duration::from_secs(8);
+        while std::time::Instant::now() < deadline {
+            if unsafe { libc::kill(pid as i32, 0) } != 0 {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        false
+    }
+
+    /// What `close` and the idle timer can do with a browser that outlived the daemon that launched it: it was the only
+    /// way out of one, and a daemon that reattached had none.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_reattached_browser_can_be_closed_and_its_daemon_idles_out() {
+        let guard = crate::test_utils::EnvGuard::new(&["AGENT_BROWSER_RUNTIME_DIR"]);
+        let runtime = tempfile::tempdir().unwrap();
+        guard.set("AGENT_BROWSER_RUNTIME_DIR", runtime.path().to_str().unwrap());
+        let (port, commands) = shared_browser(runtime.path().join("pid"), false).await;
+        let chrome = survivor_in(runtime.path(), port);
+
+        let options = LaunchOptions { headless: true, ..Default::default() };
+        let mut manager = BrowserManager::launch(options, None).await.unwrap();
+        assert!(!manager.is_cdp_connection(), "a browser of ours is not somebody else's");
+        assert!(!manager.blocks_default_idle_shutdown(), "a headless browser of ours keeps nothing awake");
+        assert!(!manager.has_process_exited());
+
+        manager.close().await.unwrap();
+        assert!(commands.lock().unwrap().iter().any(|c| c == "Browser.close"), "it was left running");
+        assert!(gone_soon(chrome));
+    }
+
+    /// Asked to close, a survivor that stays is put down like one this daemon launched.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_reattached_browser_that_ignores_close_is_still_closed() {
+        let guard = crate::test_utils::EnvGuard::new(&["AGENT_BROWSER_RUNTIME_DIR"]);
+        let runtime = tempfile::tempdir().unwrap();
+        guard.set("AGENT_BROWSER_RUNTIME_DIR", runtime.path().to_str().unwrap());
+        let (port, _) = shared_browser(runtime.path().join("pid"), true).await;
+        let chrome = survivor_in(runtime.path(), port);
+
+        let options = LaunchOptions { headless: true, ..Default::default() };
+        let mut manager = BrowserManager::launch(options, None).await.unwrap();
+        manager.close().await.unwrap();
+        assert!(gone_soon(chrome));
+    }
+
+    /// The process is the answer for a browser with no child of ours to ask.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_reattached_browser_that_dies_reads_as_gone() {
+        let guard = crate::test_utils::EnvGuard::new(&["AGENT_BROWSER_RUNTIME_DIR"]);
+        let runtime = tempfile::tempdir().unwrap();
+        guard.set("AGENT_BROWSER_RUNTIME_DIR", runtime.path().to_str().unwrap());
+        let (port, _) = shared_browser(runtime.path().join("pid"), false).await;
+        let chrome = survivor_in(runtime.path(), port);
+
+        let options = LaunchOptions { headless: true, ..Default::default() };
+        let mut manager = BrowserManager::launch(options, None).await.unwrap();
+        unsafe { libc::kill(chrome as i32, libc::SIGKILL) };
+        assert!(gone_soon(chrome));
+        assert!(manager.has_process_exited());
+        manager.close().await.unwrap();
+    }
+
+    /// A daemon that dies leaves its browser holding the profile. The next one finds it, where a launch could only be
+    /// told the profile is open, and until now nobody could get it back but a person killing the process.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_browser_left_in_a_profile_is_found_by_the_next_daemon() {
+        let profile = tempfile::tempdir().unwrap();
+        let (port, commands) = shared_browser(profile.path().join("pid"), false).await;
+        let chrome = survivor_in(profile.path(), port);
+        let options = LaunchOptions {
+            headless: true,
+            executable_path: Some("/usr/bin/false".to_string()),
+            profile: Some(profile.path().to_string_lossy().into_owned()),
+            ..Default::default()
+        };
+
+        let mut manager = BrowserManager::launch(options, None).await.unwrap();
+        assert!(!manager.blocks_default_idle_shutdown());
+        manager.close().await.unwrap();
+        assert!(commands.lock().unwrap().iter().any(|c| c == "Browser.close"));
+        assert!(gone_soon(chrome));
+    }
+
+    /// Only a browser a daemon recorded is reattached: the one in a profile may be a walk's, or a person's.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_browser_with_no_record_in_a_profile_is_left_alone() {
+        let profile = tempfile::tempdir().unwrap();
+        let (port, commands) = shared_browser(profile.path().join("pid"), false).await;
+        let chrome = survivor_in(profile.path(), port);
+        std::fs::remove_file(profile.path().join("agent-browser-chrome.pid")).unwrap();
+        let options = LaunchOptions {
+            headless: true,
+            executable_path: Some("/usr/bin/false".to_string()),
+            profile: Some(profile.path().to_string_lossy().into_owned()),
+            ..Default::default()
+        };
+
+        assert!(BrowserManager::launch(options, None).await.is_err());
+        assert!(commands.lock().unwrap().is_empty(), "nothing is said to a browser nobody here launched");
+        unsafe { libc::kill(chrome as i32, libc::SIGKILL) };
+    }
+
+    /// What a launch in a profile leaves is what the next daemon needs, the mode with it: a window stays exempt from
+    /// the idle timer whatever the daemon that finds it was asked for.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_daemons_browser_in_a_profile_is_found_again_in_its_own_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let fixture = tempfile::tempdir().unwrap();
+        let profile = fixture.path().join("profile");
+        std::fs::create_dir(&profile).unwrap();
+        let pid_file = fixture.path().join("pid");
+        let (port, _) = shared_browser(pid_file.clone(), false).await;
+        let executable = fixture.path().join("chrome");
+        std::fs::write(&executable, fake_chrome_on_a_pipe(&pid_file, port)).unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let options = LaunchOptions {
+            headless: false,
+            no_xvfb: true,
+            executable_path: Some(executable.to_string_lossy().into_owned()),
+            profile: Some(profile.to_string_lossy().into_owned()),
+            ..Default::default()
+        };
+
+        let mut first = BrowserManager::launch(options.clone(), None).await.unwrap();
+        let launched = std::fs::read_to_string(&pid_file).unwrap();
+        let mut second = BrowserManager::launch(LaunchOptions { headless: true, ..options }, None).await.unwrap();
+        assert_eq!(std::fs::read_to_string(&pid_file).unwrap(), launched, "a second browser was started");
+        assert!(second.blocks_default_idle_shutdown(), "it has a window, whatever this daemon was asked for");
+
+        first.close().await.unwrap();
+        second.close().await.unwrap();
+        assert!(gone_soon(launched.trim().parse().unwrap()));
+    }
+
+    /// Two daemons on one runtime browser: whichever leaves first leaves the other its browser, and the last one out
+    /// closes it, whichever of them launched it.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_shared_browser_stays_until_the_last_daemon_leaves() {
+        use std::os::unix::fs::PermissionsExt;
+        let guard = crate::test_utils::EnvGuard::new(&["AGENT_BROWSER_RUNTIME_DIR"]);
+        let runtime = tempfile::tempdir().unwrap();
+        guard.set("AGENT_BROWSER_RUNTIME_DIR", runtime.path().to_str().unwrap());
+        let pid_file = runtime.path().join("pid");
+        let (port, commands) = shared_browser(pid_file.clone(), false).await;
+        let fixture = tempfile::tempdir().unwrap();
+        let executable = fixture.path().join("chrome");
+        std::fs::write(&executable, fake_chrome_on_a_pipe(&pid_file, port)).unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let options = LaunchOptions {
+            headless: true,
+            executable_path: Some(executable.to_string_lossy().into_owned()),
+            ..Default::default()
+        };
+
+        let mut first = BrowserManager::launch(options.clone(), None).await.unwrap();
+        let mut second = BrowserManager::launch(options, None).await.unwrap();
+        let chrome: u32 = std::fs::read_to_string(&pid_file).unwrap().trim().parse().unwrap();
+
+        first.close().await.unwrap();
+        assert!(!commands.lock().unwrap().iter().any(|c| c == "Browser.close"), "the browser went from under another daemon");
+        assert_eq!(unsafe { libc::kill(chrome as i32, 0) }, 0, "the browser went from under another daemon");
+        assert!(second.is_connection_alive().await);
+
+        second.close().await.unwrap();
+        assert!(commands.lock().unwrap().iter().any(|c| c == "Browser.close"), "nobody closed it");
+        assert!(gone_soon(chrome));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_lightpanda_that_stopped_reads_as_stopped() {
+        let child = std::process::Command::new("/bin/sleep").arg("30").spawn().unwrap();
+        let pid = child.id() as i32;
+        let mut process = BrowserProcess::Lightpanda(LightpandaProcess::for_test(child, String::new()));
+        assert!(!process.has_exited());
+        unsafe { libc::kill(pid, libc::SIGKILL) };
+        let deadline = std::time::Instant::now() + Duration::from_secs(3);
+        while !process.has_exited() && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(process.has_exited());
+    }
+
+    #[cfg(unix)]
+    fn initialization_process(url: &str) -> (tempfile::TempDir, LaunchOptions) {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let executable = dir.path().join("chrome");
+        let port = url::Url::parse(url).unwrap().port().unwrap();
+        // Speaks on its pipe as Chrome does, each browser session a connection to this fake's server.
+        std::fs::write(&executable, fake_chrome_on_a_pipe(&dir.path().join("pid"), port)).unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let options = LaunchOptions {
+            executable_path: Some(executable.to_string_lossy().into_owned()),
+            // A profile of its own: with none, this would write into the machine's real runtime dir.
+            profile: Some(dir.path().join("profile").to_string_lossy().into_owned()),
+            ..Default::default()
+        };
+        (dir, options)
+    }
+
+    #[cfg(unix)]
+    fn assert_initialization_process_reaped(dir: &std::path::Path) {
+        let pid: i32 = std::fs::read_to_string(dir.join("pid"))
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        assert_eq!(
+            unsafe { libc::kill(pid, 0) },
+            -1,
+            "browser process is still alive"
+        );
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ESRCH)
+        );
+        assert_eq!(
+            unsafe { libc::waitpid(pid, std::ptr::null_mut(), libc::WNOHANG) },
+            -1
+        );
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ECHILD)
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_failed_local_initialization_disconnects_and_reaps() {
+        for (method, ignore_close) in [
+            ("Target.getTargets", false),
+            ("Network.enable", false),
+            ("Network.enable", true),
+        ] {
+            let (url, server) = initialization_server(method, false, 1, ignore_close).await;
+            let (dir, options) = initialization_process(&url);
+            let error = BrowserManager::launch(options, None)
+                .await
+                .err()
+                .expect("launch should fail");
+            assert!(error.contains("injected initialization failure"), "{error}");
+            let observed = server.await.unwrap();
+            assert!(observed[0].iter().any(|method| method == "Browser.close"));
+            assert_initialization_process_reaped(dir.path());
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_failed_lightpanda_initialization_disconnects_before_retry() {
+        let (url, server) = initialization_server("Network.enable", false, 2, false).await;
+        let (dir, options) = initialization_process(&url);
+        let process = tokio::task::spawn_blocking(move || launch_chrome(&options))
+            .await
+            .unwrap()
+            .unwrap();
+        let mut manager = tokio::time::timeout(
+            Duration::from_secs(4),
+            initialize_lightpanda_manager(url, BrowserProcess::Chrome(process)),
+        )
+        .await
+        .expect("Lightpanda should release the failed connection and retry")
+        .unwrap();
+        assert!(!manager.browser_process.as_mut().unwrap().has_exited());
+        manager.close().await.unwrap();
+        let observed = server.await.unwrap();
+        assert!(!observed[0].iter().any(|method| method == "Browser.close"));
+        assert!(observed[1].iter().any(|method| method == "Browser.close"));
+        assert_initialization_process_reaped(dir.path());
+    }
+
+    #[cfg(unix)]
+    fn obscura_initialization_process(url: &str) -> (tempfile::TempDir, BrowserProcess) {
+        let dir = tempfile::tempdir().unwrap();
+        let child = std::process::Command::new("/bin/sleep")
+            .arg("60")
+            .spawn()
+            .unwrap();
+        std::fs::write(dir.path().join("pid"), child.id().to_string()).unwrap();
+        (
+            dir,
+            BrowserProcess::Obscura(ObscuraProcess::for_test(child, url.to_string())),
+        )
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_obscura_failed_initialization_disconnects_before_retry() {
+        for method in [
+            "Target.setDiscoverTargets",
+            "Target.getTargets",
+            "Target.createTarget",
+            "Target.attachToTarget",
+            "Page.enable",
+            "Runtime.enable",
+            "Network.enable",
+        ] {
+            let (url, server) = initialization_server(method, false, 2, false).await;
+            let (dir, process) = obscura_initialization_process(&url);
+            let mut manager = tokio::time::timeout(
+                Duration::from_secs(4),
+                initialize_obscura_manager(url, process),
+            )
+            .await
+            .expect("Obscura should disconnect before retrying")
+            .unwrap();
+            assert!(manager.owns_obscura_process());
+            assert!(!manager.browser_process.as_mut().unwrap().has_exited());
+            manager.close().await.unwrap();
+            let observed = server.await.unwrap();
+            assert!(!observed[0].iter().any(|method| method == "Browser.close"));
+            assert!(observed[1].iter().any(|method| method == "Browser.close"));
+            assert_initialization_process_reaped(dir.path());
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_obscura_stalled_websocket_handshake_is_bounded_and_reaps() {
+        use tokio::io::AsyncReadExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            stream.read_to_end(&mut request).await.unwrap();
+            assert!(String::from_utf8_lossy(&request).contains("Upgrade: websocket"));
+        });
+        let (dir, process) = obscura_initialization_process(&url);
+        let started = Instant::now();
+        let error = tokio::time::timeout(
+            OBSCURA_TARGET_INIT_TIMEOUT + Duration::from_secs(2),
+            initialize_obscura_manager(url, process),
+        )
+        .await
+        .expect("Obscura handshake must obey its startup deadline")
+        .err()
+        .expect("stalled handshake must fail");
+        assert!(error.contains("CDP WebSocket connection"), "{error}");
+        assert!(started.elapsed() >= OBSCURA_TARGET_INIT_TIMEOUT);
+        tokio::time::timeout(Duration::from_secs(1), server)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_initialization_process_reaped(dir.path());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_obscura_stalled_target_initialization_disconnects_and_reaps() {
+        use futures_util::StreamExt;
+        use tokio::io::AsyncReadExt;
+        use tokio_tungstenite::tungstenite::Message;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let mut target_seen = false;
+            while let Some(Ok(message)) = ws.next().await {
+                match message {
+                    Message::Text(text) => {
+                        let command: Value = serde_json::from_str(&text).unwrap();
+                        assert_ne!(command["method"], "Browser.close");
+                        target_seen |= command["method"] == "Target.setDiscoverTargets";
+                    }
+                    Message::Close(_) => break,
+                    _ => {}
+                }
+            }
+            assert!(target_seen);
+            let mut byte = [0u8; 1];
+            assert_eq!(ws.get_mut().read(&mut byte).await.unwrap(), 0);
+        });
+        let (dir, process) = obscura_initialization_process(&url);
+        let error = tokio::time::timeout(
+            OBSCURA_TARGET_INIT_TIMEOUT + Duration::from_secs(2),
+            initialize_obscura_manager(url, process),
+        )
+        .await
+        .expect("Obscura target setup must obey its startup deadline")
+        .err()
+        .expect("stalled target setup must fail");
+        assert!(
+            error.contains("Target domain initialization attempt"),
+            "{error}"
+        );
+        tokio::time::timeout(Duration::from_secs(1), server)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_initialization_process_reaped(dir.path());
+    }
+
+    const TARGET_A: &str = "AAAA0000BBBB1111CCCC2222DDDD3333";
+    const TARGET_B: &str = "4F0A1111BBBB2222CCCC3333DDDD4444";
+
+    #[tokio::test]
+    async fn test_restore_target_binding_selects_bound_target() {
+        let mut mgr = test_manager(vec![
+            page(1, TARGET_B, "https://other.example"),
+            page(2, TARGET_A, "https://mine.example"),
+        ])
+        .await;
+
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+        assert_eq!(mgr.active_target_id().unwrap(), TARGET_A);
+        assert_eq!(mgr.bound_target_id(), Some(TARGET_A));
+        assert!(!mgr.bound_target_is_gone());
+    }
+
+    #[tokio::test]
+    async fn test_restore_target_binding_missing_with_pin_enters_tab_gone() {
+        let mut mgr = test_manager(vec![page(1, TARGET_B, "https://other.example")]).await;
+        mgr.set_pin_tab(true);
+
+        assert!(!mgr.restore_target_binding(TARGET_A, "https://mine.example/checkout"));
+        assert!(mgr.bound_target_is_gone());
+
+        let err = mgr.active_session_id().unwrap_err();
+        assert!(
+            err.starts_with(TAB_GONE_PREFIX),
+            "unexpected error: {}",
+            err
+        );
+        assert!(err.contains(TARGET_A));
+        assert!(err.contains("https://mine.example/checkout"));
+        assert!(err.contains("tab new"));
+
+        // active_target_id is guarded the same way
+        assert!(mgr
+            .active_target_id()
+            .unwrap_err()
+            .starts_with(TAB_GONE_PREFIX));
+        // No tab is reported active while the binding is unresolved.
+        assert!(mgr.tab_list().iter().all(|t| t["active"] == false));
+    }
+
+    #[tokio::test]
+    async fn test_restore_target_binding_omits_opaque_url_from_tab_gone() {
+        let mut mgr = test_manager(vec![page(1, TARGET_B, "https://other.example")]).await;
+        mgr.set_pin_tab(true);
+
+        assert!(!mgr.restore_target_binding(TARGET_A, "data:text/html,restore-secret"));
+
+        let err = mgr.active_session_id().unwrap_err();
+        assert!(err.contains(TARGET_A));
+        assert!(!err.contains("restore-secret"));
+        assert!(!err.contains("last url"));
+    }
+
+    #[tokio::test]
+    async fn test_restore_target_binding_missing_without_pin_keeps_legacy_selection() {
+        let mut mgr = test_manager(vec![page(1, TARGET_B, "https://other.example")]).await;
+
+        assert!(!mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+        assert!(!mgr.bound_target_is_gone());
+        // Legacy behavior: first target stays selected and commands work.
+        assert_eq!(mgr.active_target_id().unwrap(), TARGET_B);
+    }
+
+    #[tokio::test]
+    async fn test_external_removal_of_bound_tab_with_pin_enters_tab_gone() {
+        let mut mgr = test_manager(vec![
+            page(1, TARGET_A, "https://mine.example"),
+            page(2, TARGET_B, "https://other.example"),
+        ])
+        .await;
+        mgr.set_pin_tab(true);
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+
+        mgr.remove_page_by_target_id(TARGET_A);
+
+        assert!(mgr.bound_target_is_gone());
+        let err = mgr.active_session_id().unwrap_err();
+        assert!(err.starts_with(TAB_GONE_PREFIX));
+        // Recovery data is intact: the other tab is still listed.
+        assert_eq!(mgr.tab_list().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_external_removal_omits_opaque_url_from_tab_gone() {
+        let mut mgr = test_manager(vec![
+            page(1, TARGET_A, "data:text/html,live-secret"),
+            page(2, TARGET_B, "https://other.example"),
+        ])
+        .await;
+        mgr.set_pin_tab(true);
+        assert!(mgr.restore_target_binding(TARGET_A, "data:text/html,live-secret"));
+
+        mgr.remove_page_by_target_id(TARGET_A);
+
+        let err = mgr.active_session_id().unwrap_err();
+        assert!(err.contains(TARGET_A));
+        assert!(!err.contains("live-secret"));
+        assert!(!err.contains("last url"));
+    }
+
+    #[tokio::test]
+    async fn test_external_removal_of_bound_tab_without_pin_falls_back() {
+        let mut mgr = test_manager(vec![
+            page(1, TARGET_A, "https://mine.example"),
+            page(2, TARGET_B, "https://other.example"),
+        ])
+        .await;
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+
+        mgr.remove_page_by_target_id(TARGET_A);
+
+        assert!(!mgr.bound_target_is_gone());
+        assert_eq!(mgr.bound_target_id(), None);
+        assert_eq!(mgr.active_target_id().unwrap(), TARGET_B);
+    }
+
+    #[tokio::test]
+    async fn test_removal_of_other_tab_does_not_affect_binding() {
+        let mut mgr = test_manager(vec![
+            page(1, TARGET_B, "https://other.example"),
+            page(2, TARGET_A, "https://mine.example"),
+        ])
+        .await;
+        mgr.set_pin_tab(true);
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+
+        mgr.remove_page_by_target_id(TARGET_B);
+
+        assert!(!mgr.bound_target_is_gone());
+        assert_eq!(mgr.active_target_id().unwrap(), TARGET_A);
+        assert_eq!(mgr.bound_target_id(), Some(TARGET_A));
+    }
+
+    #[tokio::test]
+    async fn test_tab_close_current_in_tab_gone_state_errors() {
+        let mut mgr = test_manager(vec![
+            page(1, TARGET_A, "https://mine.example"),
+            page(2, TARGET_B, "https://other.example"),
+        ])
+        .await;
+        mgr.set_pin_tab(true);
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+        mgr.remove_page_by_target_id(TARGET_A);
+
+        // "Close the current tab" must not close the fallback neighbor.
+        let err = mgr.tab_close(None, &[]).await.unwrap_err();
+        assert!(err.starts_with(TAB_GONE_PREFIX));
+        assert_eq!(mgr.tab_list().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_binding_snapshot_reflects_active_page_and_gone_state() {
+        let mut mgr = test_manager(vec![
+            page(1, TARGET_A, "https://mine.example"),
+            page(2, TARGET_B, "https://other.example"),
+        ])
+        .await;
+        mgr.set_pin_tab(true);
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+        assert_eq!(
+            mgr.binding_snapshot(),
+            Some((TARGET_A.to_string(), "https://mine.example".to_string()))
+        );
+
+        mgr.remove_page_by_target_id(TARGET_A);
+        // A stale binding must not be overwritten by the fallback tab.
+        assert_eq!(mgr.binding_snapshot(), None);
+    }
+
+    #[tokio::test]
+    async fn test_add_page_without_activation_does_not_steal_active_slot_or_binding() {
+        let mut mgr = test_manager(vec![page(1, TARGET_A, "https://mine.example")]).await;
+        mgr.set_pin_tab(true);
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+
+        mgr.add_page_without_activation(page(2, TARGET_B, "https://other.example"));
+
+        assert_eq!(mgr.active_target_id().unwrap(), TARGET_A);
+        assert_eq!(mgr.bound_target_id(), Some(TARGET_A));
+        assert_eq!(mgr.tab_list().len(), 2);
+    }
+
+    /// Calls the REAL production function `BrowserManager::register_discovered_page`
+    /// that both `apply_drained_events` drain handlers in cli/src/native/actions.rs
+    /// call (the `Target.attachedToTarget` handler ~line 945 and the
+    /// `Target.targetCreated` handler ~line 1082) — not a duplicated copy. This
+    /// is the single decision point for finding #3: a foreign target discovered
+    /// via a CDP event drain, while untracked, must never steal the active tab
+    /// or overwrite the pin binding. If `register_discovered_page`'s internal
+    /// call is reverted from `add_page_without_activation` to `add_page`, this
+    /// test fails, and BOTH actions.rs call sites are broken simultaneously
+    /// since there is no other path to diverge through.
+    /// A pinned session whose sole tab closed (page list empty, tab_gone) must
+    /// not have `ensure_page` silently create+bind a blank tab, which would
+    /// clear tab_gone. Force-red: drop the pin_tab+gone guard in ensure_page
+    /// and this either creates a tab (page_count 1) or hangs on the create.
+    #[tokio::test]
+    async fn test_ensure_page_skips_creation_for_gone_pinned_session() {
+        let mut mgr = test_manager(vec![page(1, TARGET_A, "https://mine.example")]).await;
+        mgr.set_pin_tab(true);
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+        mgr.remove_page_by_target_id(TARGET_A);
+        assert!(mgr.bound_target_is_gone());
+        assert_eq!(mgr.page_count(), 0);
+
+        mgr.ensure_page().await.unwrap();
+
+        assert_eq!(
+            mgr.page_count(),
+            0,
+            "must not auto-create a tab while a pin is in the tab_gone state"
+        );
+        assert!(
+            mgr.bound_target_is_gone(),
+            "ensure_page must not clear tab_gone"
+        );
+    }
+
+    /// A legacy (non-pin) session follows an event-discovered tab; no-steal is
+    /// scoped to pinned sessions. Force-red: register without activation and
+    /// the active tab stays on TARGET_A.
+    #[tokio::test]
+    async fn test_register_discovered_page_activates_for_non_pin_session() {
+        let mut mgr = test_manager(vec![page(1, TARGET_A, "https://mine.example")]).await;
+        // No set_pin_tab(true): legacy session, active on its only tab.
+        assert_eq!(mgr.active_target_id().unwrap(), TARGET_A);
+
+        let newly_added = mgr.register_discovered_page(
+            TARGET_B,
+            "session-b",
+            "https://popup.example".to_string(),
+            String::new(),
+            "page".to_string(),
+        );
+
+        assert!(newly_added, "an untracked target must be registered");
+        assert_eq!(
+            mgr.active_target_id().unwrap(),
+            TARGET_B,
+            "a non-pin session must follow the newly discovered tab (legacy behavior)"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_register_discovered_page_untracked_target_does_not_steal_pinned_tab() {
+        let mut mgr = test_manager(vec![page(1, TARGET_A, "https://mine.example")]).await;
+        mgr.set_pin_tab(true);
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+
+        assert!(
+            !mgr.has_target(TARGET_B),
+            "target must be untracked to exercise the vulnerable branch"
+        );
+        let newly_added = mgr.register_discovered_page(
+            TARGET_B,
+            "session-b",
+            "https://foreign.example".to_string(),
+            String::new(),
+            "page".to_string(),
+        );
+
+        assert!(newly_added, "an untracked target must be registered");
+        assert_eq!(
+            mgr.active_target_id().unwrap(),
+            TARGET_A,
+            "the pinned session's active tab must not be stolen by the foreign auto-attached tab"
+        );
+        assert_eq!(
+            mgr.bound_target_id(),
+            Some(TARGET_A),
+            "the pin binding must not be overwritten by the foreign auto-attached tab"
+        );
+        assert_eq!(
+            mgr.tab_list().len(),
+            2,
+            "the foreign tab must still be registered so it shows in `tab list`"
+        );
+    }
+
+    /// Enabling pin binds the active tab immediately (attach-to-existing leaves
+    /// `bound_target_id` unset). Force-red: make `set_pin_tab` only flip the
+    /// flag and `bound_target_id` stays `None`.
+    #[tokio::test]
+    async fn test_enabling_pin_binds_active_tab_immediately() {
+        let mut mgr = test_manager(vec![
+            page(1, TARGET_A, "https://a.example"),
+            page(2, TARGET_B, "https://b.example"),
+        ])
+        .await;
+        assert_eq!(
+            mgr.bound_target_id(),
+            None,
+            "no binding exists before pin is enabled (attach-to-existing path)"
+        );
+
+        mgr.set_pin_tab(true);
+
+        assert_eq!(
+            mgr.bound_target_id(),
+            Some(TARGET_A),
+            "enabling pin must bind the active tab (index 0) right away"
+        );
+        assert_eq!(
+            mgr.binding_snapshot(),
+            Some((TARGET_A.to_string(), "https://a.example".to_string())),
+            "the live binding must be persistable immediately, not only after restart"
+        );
+    }
+
+    /// Once a pinned session is in the `tab_gone` state, a discovered
+    /// (non-activated) tab must not clear it and re-bind the session.
+    /// Force-red: drop the `pin_tab && bound_target_gone` guard in
+    /// `add_page_with_activation` and `active_target_id` becomes `Ok` here.
+    #[tokio::test]
+    async fn test_discovered_tab_does_not_recover_gone_pinned_session() {
+        let mut mgr = test_manager(vec![page(1, TARGET_A, "https://mine.example")]).await;
+        mgr.set_pin_tab(true);
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+
+        // The bound tab is closed externally: the session's only tracked page
+        // is removed, draining the list to empty and entering tab_gone.
+        mgr.remove_page_by_target_id(TARGET_A);
+        assert!(
+            mgr.bound_target_is_gone(),
+            "closing the bound tab must enter tab_gone"
+        );
+        assert_eq!(
+            mgr.page_count(),
+            0,
+            "the session tracks no pages after the close"
+        );
+
+        // A foreign tab appears and is discovered via a CDP event drain while
+        // the session is gone.
+        let newly_added = mgr.register_discovered_page(
+            TARGET_B,
+            "session-b",
+            "https://foreign.example".to_string(),
+            String::new(),
+            "page".to_string(),
+        );
+        assert!(
+            newly_added,
+            "the foreign tab is still registered so it shows in `tab list`"
+        );
+
+        assert!(
+            mgr.bound_target_is_gone(),
+            "a discovered tab must not clear the tab_gone state"
+        );
+        assert!(
+            mgr.active_target_id().is_err(),
+            "page commands must still fail with tab_gone, not act on the foreign tab"
+        );
+        assert_eq!(
+            mgr.bound_target_id(),
+            None,
+            "the session must not silently re-bind to a tab it never opened"
+        );
+    }
+
+    /// The already-tracked branch: `register_discovered_page` must refresh
+    /// metadata in place rather than pushing a duplicate page or touching
+    /// activation/binding at all.
+    #[tokio::test]
+    async fn test_register_discovered_page_tracked_target_updates_metadata_only() {
+        let mut mgr = test_manager(vec![page(1, TARGET_A, "https://mine.example")]).await;
+        mgr.set_pin_tab(true);
+        assert!(mgr.restore_target_binding(TARGET_A, "https://mine.example"));
+
+        let newly_added = mgr.register_discovered_page(
+            TARGET_A,
+            "session-a",
+            "https://mine.example/updated".to_string(),
+            "Updated Title".to_string(),
+            "page".to_string(),
+        );
+
+        assert!(
+            !newly_added,
+            "an already-tracked target must not be re-added"
+        );
+        assert_eq!(
+            mgr.tab_list().len(),
+            1,
+            "no duplicate page should be created"
+        );
+        assert_eq!(
+            mgr.bound_target_id(),
+            Some(TARGET_A),
+            "binding must be unaffected by a metadata-only update"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_add_page_activates_and_binds() {
+        let mut mgr = test_manager(vec![page(1, TARGET_A, "https://mine.example")]).await;
+        mgr.add_page(page(2, TARGET_B, "https://new.example"));
+
+        assert_eq!(mgr.active_target_id().unwrap(), TARGET_B);
+        assert_eq!(mgr.bound_target_id(), Some(TARGET_B));
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tab_ref_by_target_id() {
+        let mgr = test_manager(vec![
+            page(1, TARGET_A, "https://mine.example"),
+            page(2, TARGET_B, "https://other.example"),
+        ])
+        .await;
+
+        // Digit-leading target ids parse as TabRef::Target.
+        let tab_ref = TabRef::parse(TARGET_B).unwrap();
+        assert_eq!(tab_ref, TabRef::Target(TARGET_B.to_string()));
+        assert_eq!(mgr.resolve_tab_ref(&tab_ref).unwrap(), 2);
+
+        // Letter-leading target ids parse as labels and fall back to a
+        // target-id match.
+        let tab_ref = TabRef::parse(TARGET_A).unwrap();
+        assert_eq!(mgr.resolve_tab_ref(&tab_ref).unwrap(), 1);
+
+        // Case-insensitive.
+        let lower = TARGET_B.to_lowercase();
+        assert_eq!(
+            mgr.resolve_tab_ref(&TabRef::parse(&lower).unwrap())
+                .unwrap(),
+            2
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tab_ref_unknown_target_id_errors() {
+        let mgr = test_manager(vec![page(1, TARGET_A, "https://mine.example")]).await;
+        let err = mgr
+            .resolve_tab_ref(&TabRef::Target("0123456789ABCDEF".to_string()))
+            .unwrap_err();
+        assert!(err.contains("target id"));
+    }
+
+    #[tokio::test]
+    async fn test_tab_list_includes_target_id() {
+        let mgr = test_manager(vec![page(1, TARGET_A, "https://mine.example")]).await;
+        let tabs = mgr.tab_list();
+        assert_eq!(tabs[0]["targetId"], TARGET_A);
+    }
+
+    #[test]
+    fn test_parse_tab_ref_short_hex_is_label_not_target() {
+        // Short hex strings stay labels (or errors), not target ids.
+        assert_eq!(
+            TabRef::parse("deadbeef"),
+            Ok(TabRef::Label("deadbeef".to_string()))
+        );
+        assert!(TabRef::parse("1234").is_err());
+    }
+
+    #[test]
+    fn test_tab_gone_error_without_url_omits_url_part() {
+        let err = tab_gone_error("ABCD", "");
+        assert!(err.starts_with(TAB_GONE_PREFIX));
+        assert!(err.contains("(target ABCD)"));
+        assert!(!err.contains("last url"));
+    }
+
+    /// When the overall timeout expires before idle is reached, the function
+    /// returns an error.
+    #[tokio::test]
+    async fn test_network_idle_overall_timeout() {
+        let (tx, mut rx) = broadcast::channel::<CdpEvent>(16);
+        let session = "s1";
+
+        // Keep sending requests so idle is never reached
+        tokio::spawn(async move {
+            for i in 0u64.. {
+                let _ = tx.send(cdp_event(
+                    "Network.requestWillBeSent",
+                    session,
+                    json!({ "requestId": format!("r{}", i) }),
+                ));
+                sleep(Duration::from_millis(100)).await;
+            }
+        });
+
+        let result = poll_network_idle(session, &mut rx, HashSet::new(), Duration::from_millis(800)).await;
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("Timeout waiting for networkidle"));
+    }
+
+    /// A call sent before the wait began holds the wait as one sent during it does.
+    #[tokio::test]
+    async fn a_call_already_on_its_way_holds_off_idle() {
+        let (tx, mut rx) = broadcast::channel::<CdpEvent>(16);
+        tokio::spawn(async move {
+            sleep(Duration::from_millis(1_500)).await;
+            let _ = tx.send(cdp_event("Network.loadingFinished", "s1", json!({ "requestId": "r1" })));
+            sleep(Duration::from_secs(3)).await;
+        });
+        let started = tokio::time::Instant::now();
+        let on_their_way = HashSet::from(["r1".to_string()]);
+        let result = poll_network_idle("s1", &mut rx, on_their_way, Duration::from_secs(4)).await;
+        assert!(result.is_ok(), "{result:?}");
+        assert!(started.elapsed() >= Duration::from_millis(1_500), "idle before the call answered");
+    }
+
+    /// A stream that closes means the browser went, and "the network is idle" would send the caller on to a page that
+    /// isn't there.
+    #[tokio::test]
+    async fn a_closed_stream_is_not_an_idle_network() {
+        let (tx, mut rx) = broadcast::channel::<CdpEvent>(16);
+        drop(tx);
+        let result = poll_network_idle("s1", &mut rx, HashSet::new(), Duration::from_secs(5)).await;
+        assert!(result.unwrap_err().contains("closed"));
+    }
+
+    /// Another tab's traffic comes through the same stream. It says nothing about this page, which has gone quiet.
+    #[tokio::test]
+    async fn another_tabs_traffic_does_not_hold_off_idle() {
+        let (tx, mut rx) = broadcast::channel::<CdpEvent>(16);
+        tokio::spawn(async move {
+            for i in 0u64.. {
+                let id = json!({ "requestId": format!("r{}", i) });
+                if tx.send(cdp_event("Network.requestWillBeSent", "other-tab", id)).is_err() {
+                    break;
+                }
+                sleep(Duration::from_millis(100)).await;
+            }
+        });
+        let result = poll_network_idle("s1", &mut rx, HashSet::new(), Duration::from_secs(4)).await;
+        assert!(result.is_ok(), "{result:?}");
+    }
+
+    /// Events lost to a full stream may be the ends of what is pending. A request nobody can see finish must not hold
+    /// the wait until it times out.
+    #[tokio::test]
+    async fn events_lost_leave_no_request_pending_for_good() {
+        let (tx, mut rx) = broadcast::channel::<CdpEvent>(2);
+        tx.send(cdp_event("Network.requestWillBeSent", "s1", json!({ "requestId": "lost" }))).unwrap();
+        let wait = tokio::spawn(async move { poll_network_idle("s1", &mut rx, HashSet::new(), Duration::from_secs(4)).await });
+        sleep(Duration::from_millis(50)).await;
+        for _ in 0..8 {
+            let _ = tx.send(cdp_event("Network.dataReceived", "other-tab", json!({})));
+        }
+        let result = wait.await.unwrap();
+        assert!(result.is_ok(), "{result:?}");
+        drop(tx);
+    }
+
+    // -----------------------------------------------------------------------
+    // Discarded-tab revival tests (#1528)
+    // -----------------------------------------------------------------------
+
+    /// Mock CDP endpoint with two page targets; the second mimics a
+    /// Memory-Saver-discarded tab: its session exists but renderer-bound
+    /// commands get no response until Target.activateTarget revives it (when
+    /// `revivable`).
+    async fn start_mock_cdp_browser_with_discarded_tab(revivable: bool) -> String {
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!(
+            "ws://127.0.0.1:{}/devtools/browser/mock",
+            listener.local_addr().unwrap().port()
+        );
+
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let (mut tx, mut rx) = ws.split();
+            let mut revived = false;
+
+            while let Some(Ok(msg)) = rx.next().await {
+                let text = match msg {
+                    Message::Text(t) => t,
+                    Message::Ping(p) => {
+                        let _ = tx.send(Message::Pong(p)).await;
+                        continue;
+                    }
+                    _ => continue,
+                };
+                let cmd: Value = match serde_json::from_str(&text) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                let Some(id) = cmd["id"].as_u64() else {
+                    continue;
+                };
+                let method = cmd["method"].as_str().unwrap_or("");
+                let session = cmd["sessionId"].as_str().unwrap_or("");
+                let respond = |result: Value| json!({ "id": id, "result": result }).to_string();
+
+                let reply = match method {
+                    "Target.setDiscoverTargets" | "Target.setAutoAttach" => {
+                        Some(respond(json!({})))
+                    }
+                    "Target.getTargets" => Some(respond(json!({
+                        "targetInfos": [
+                            {
+                                "targetId": "T-ALIVE",
+                                "type": "page",
+                                "title": "alive",
+                                "url": "https://alive.test/",
+                                "attached": false,
+                            },
+                            {
+                                "targetId": "T-DISCARDED",
+                                "type": "page",
+                                "title": "discarded",
+                                "url": "https://discarded.test/",
+                                "attached": false,
+                            },
+                        ]
+                    }))),
+                    "Target.attachToTarget" => {
+                        let target = cmd["params"]["targetId"].as_str().unwrap_or("");
+                        Some(respond(json!({ "sessionId": format!("S-{}", target) })))
+                    }
+                    // The browser answers Target.activateTarget even when the
+                    // renderer is gone, and activating a discarded tab reloads
+                    // and respawns it.
+                    "Target.activateTarget" => {
+                        if cmd["params"]["targetId"].as_str() == Some("T-DISCARDED") && revivable {
+                            revived = true;
+                        }
+                        Some(respond(json!({})))
+                    }
+                    // Renderer-bound commands on the discarded session never
+                    // get any response until the tab is revived.
+                    _ if session == "S-T-DISCARDED" && !revived => None,
+                    "Runtime.evaluate" => Some(respond(
+                        json!({ "result": { "type": "string", "value": "https://discarded.test/" } }),
+                    )),
+                    _ => Some(respond(json!({}))),
+                };
+                if let Some(r) = reply {
+                    let _ = tx.send(Message::Text(r)).await;
+                }
+            }
+        });
+
+        url
+    }
+
+    /// Regression test for #1528: switching to a discarded tab must revive it
+    /// via Target.activateTarget instead of hanging until the CDP command
+    /// timeout (and wedging the daemon behind the held state lock), and report
+    /// the revival.
+    #[tokio::test]
+    async fn test_tab_switch_revives_discarded_tab() {
+        let url = start_mock_cdp_browser_with_discarded_tab(true).await;
+        let mut mgr = BrowserManager::connect_cdp(&url).await.expect("connect");
+        assert_eq!(mgr.pages.len(), 2);
+        assert_eq!(mgr.active_page_index, 0);
+
+        let result = tokio::time::timeout(Duration::from_secs(20), mgr.tab_switch(1, &[]))
+            .await
+            .expect("tab_switch must not hang on a discarded tab")
+            .expect("switching to a discarded tab should revive it");
+
+        assert_eq!(result["tabId"], json!("t2"));
+        assert_eq!(
+            result["revived"],
+            json!(true),
+            "a revived tab must report revived:true so the recovery is not silent"
+        );
+        assert_eq!(mgr.active_page_index, 1);
+    }
+
+    /// Regression test for #1528: when the dead tab cannot be revived, the
+    /// switch must fail fast with a clear error and must NOT leave
+    /// active_page_index pointing at the dead tab, which would wedge every
+    /// subsequent command (and the periodic autosave) against it.
+    #[tokio::test]
+    async fn test_tab_switch_to_dead_tab_fails_without_poisoning_active_tab() {
+        let url = start_mock_cdp_browser_with_discarded_tab(false).await;
+        let mut mgr = BrowserManager::connect_cdp(&url).await.expect("connect");
+
+        let err = tokio::time::timeout(Duration::from_secs(25), mgr.tab_switch(1, &[]))
+            .await
+            .expect("tab_switch must not hang on a dead tab")
+            .expect_err("switching to an unrevivable tab should fail");
+
+        assert!(err.contains("not responding"), "unexpected error: {}", err);
+        assert_eq!(
+            mgr.active_page_index, 0,
+            "a failed switch must not leave the active tab pointing at a dead renderer"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Regression tests for the #1528 review notes.
+    // -----------------------------------------------------------------------
+
+    /// Mock CDP endpoint whose second tab is responsive. Returns a counter of
+    /// Target.activateTarget calls, so a test can assert a responsive tab is
+    /// never needlessly reactivated.
+    async fn start_mock_cdp_browser_responsive(
+    ) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use futures_util::{SinkExt, StreamExt};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        use tokio_tungstenite::tungstenite::Message;
+
+        let activations = Arc::new(AtomicUsize::new(0));
+        let activations_task = activations.clone();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!(
+            "ws://127.0.0.1:{}/devtools/browser/mock",
+            listener.local_addr().unwrap().port()
+        );
+
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let (mut tx, mut rx) = ws.split();
+
+            while let Some(Ok(msg)) = rx.next().await {
+                let text = match msg {
+                    Message::Text(t) => t,
+                    Message::Ping(p) => {
+                        let _ = tx.send(Message::Pong(p)).await;
+                        continue;
+                    }
+                    _ => continue,
+                };
+                let cmd: Value = match serde_json::from_str(&text) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                let Some(id) = cmd["id"].as_u64() else {
+                    continue;
+                };
+                let method = cmd["method"].as_str().unwrap_or("");
+                let respond = |result: Value| json!({ "id": id, "result": result }).to_string();
+
+                if method == "Target.activateTarget" {
+                    activations_task.fetch_add(1, Ordering::SeqCst);
+                }
+
+                let reply = match method {
+                    "Target.getTargets" => Some(respond(json!({
+                        "targetInfos": [
+                            { "targetId": "T-ONE", "type": "page", "title": "one",
+                              "url": "https://one.test/", "attached": false },
+                            { "targetId": "T-TWO", "type": "page", "title": "two",
+                              "url": "https://two.test/", "attached": false },
+                        ]
+                    }))),
+                    "Target.attachToTarget" => {
+                        let target = cmd["params"]["targetId"].as_str().unwrap_or("");
+                        Some(respond(json!({ "sessionId": format!("S-{}", target) })))
+                    }
+                    "Runtime.evaluate" => Some(respond(
+                        json!({ "result": { "type": "string", "value": "https://two.test/" } }),
+                    )),
+                    _ => Some(respond(json!({}))),
+                };
+                if let Some(r) = reply {
+                    let _ = tx.send(Message::Text(r)).await;
+                }
+            }
+        });
+
+        (url, activations)
+    }
+
+    /// A responsive tab must not be reactivated: recovery only runs when the
+    /// liveness probe gets no answer, so a healthy tab keeps its state and is
+    /// never touched by Target.activateTarget (#1528).
+    #[tokio::test]
+    async fn test_tab_switch_does_not_revive_responsive_tab() {
+        let (url, activations) = start_mock_cdp_browser_responsive().await;
+        let mut mgr = BrowserManager::connect_cdp(&url).await.expect("connect");
+        assert_eq!(mgr.pages.len(), 2);
+
+        let result = tokio::time::timeout(Duration::from_secs(20), mgr.tab_switch(1, &[]))
+            .await
+            .expect("tab_switch must not hang")
+            .expect("switching to a responsive tab should succeed");
+
+        assert!(
+            result.get("revived").is_none(),
+            "a responsive tab must not be marked revived"
+        );
+        assert_eq!(
+            activations.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "a responsive tab must not be reactivated"
+        );
+    }
+
+    /// A liveness probe that times out (discarded tab never answers) must not
+    /// leave its CDP request behind in the pending map after the switch (#1528).
+    #[tokio::test]
+    async fn test_tab_switch_cancelled_probe_leaves_no_pending_request() {
+        let url = start_mock_cdp_browser_with_discarded_tab(true).await;
+        let mut mgr = BrowserManager::connect_cdp(&url).await.expect("connect");
+
+        let _ = tokio::time::timeout(Duration::from_secs(20), mgr.tab_switch(1, &[]))
+            .await
+            .expect("tab_switch must not hang")
+            .expect("switching to a discarded tab should revive it");
+
+        // Cleanup runs on the guard's drop via a spawned task; let it settle.
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        assert_eq!(
+            mgr.client.pending_len().await,
+            0,
+            "a cancelled probe left an orphaned CDP request in the pending map"
+        );
+    }
+
+    /// Mock CDP endpoint whose second tab is alive but blocked by a JavaScript
+    /// dialog: it never answers Runtime.evaluate (its main thread is paused)
+    /// but still answers domain-enable and other browser-served commands.
+    /// Returns a counter of Target.activateTarget calls so a test can assert a
+    /// blocked tab is treated as live without reactivation.
+    async fn start_mock_cdp_browser_with_dialog_blocked_tab(
+    ) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use futures_util::{SinkExt, StreamExt};
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        use tokio_tungstenite::tungstenite::Message;
+
+        let activations = Arc::new(AtomicUsize::new(0));
+        let activations_task = activations.clone();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!(
+            "ws://127.0.0.1:{}/devtools/browser/mock",
+            listener.local_addr().unwrap().port()
+        );
+
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let (mut tx, mut rx) = ws.split();
+
+            while let Some(Ok(msg)) = rx.next().await {
+                let text = match msg {
+                    Message::Text(t) => t,
+                    Message::Ping(p) => {
+                        let _ = tx.send(Message::Pong(p)).await;
+                        continue;
+                    }
+                    _ => continue,
+                };
+                let cmd: Value = match serde_json::from_str(&text) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                let Some(id) = cmd["id"].as_u64() else {
+                    continue;
+                };
+                let method = cmd["method"].as_str().unwrap_or("");
+                let session = cmd["sessionId"].as_str().unwrap_or("");
+                let respond = |result: Value| json!({ "id": id, "result": result }).to_string();
+
+                if method == "Target.activateTarget" {
+                    activations_task.fetch_add(1, Ordering::SeqCst);
+                }
+
+                let reply = match method {
+                    "Target.getTargets" => Some(respond(json!({
+                        "targetInfos": [
+                            { "targetId": "T-ALIVE", "type": "page", "title": "alive",
+                              "url": "https://alive.test/", "attached": false },
+                            { "targetId": "T-BLOCKED", "type": "page", "title": "blocked",
+                              "url": "https://blocked.test/", "attached": false },
+                        ]
+                    }))),
+                    "Target.attachToTarget" => {
+                        let target = cmd["params"]["targetId"].as_str().unwrap_or("");
+                        Some(respond(json!({ "sessionId": format!("S-{}", target) })))
+                    }
+                    // The blocked tab's main thread is paused, so evaluation
+                    // never answers, but the tab is alive: everything else does.
+                    "Runtime.evaluate" if session == "S-T-BLOCKED" => None,
+                    "Runtime.evaluate" => Some(respond(
+                        json!({ "result": { "type": "string", "value": "https://alive.test/" } }),
+                    )),
+                    _ => Some(respond(json!({}))),
+                };
+                if let Some(r) = reply {
+                    let _ = tx.send(Message::Text(r)).await;
+                }
+            }
+        });
+
+        (url, activations)
+    }
+
+    /// A live tab blocked by a JavaScript dialog must not be misread as
+    /// discarded: the probe times out because the main thread is paused, but
+    /// when a dialog is known to be open on that tab the switch must succeed
+    /// without reactivation and without hanging on script evaluation.
+    #[tokio::test]
+    async fn test_tab_switch_does_not_misclassify_dialog_blocked_tab() {
+        let (url, activations) = start_mock_cdp_browser_with_dialog_blocked_tab().await;
+        let mut mgr = BrowserManager::connect_cdp(&url).await.expect("connect");
+        assert_eq!(mgr.pages.len(), 2);
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(20),
+            mgr.tab_switch(1, &["S-T-BLOCKED".to_string()]),
+        )
+        .await
+        .expect("tab_switch must not hang on a dialog-blocked tab")
+        .expect("switching to a dialog-blocked live tab should succeed");
+
+        assert!(
+            result.get("revived").is_none(),
+            "a dialog-blocked live tab must not be marked revived"
+        );
+        assert_eq!(
+            result["dialogBlocked"],
+            json!(true),
+            "a dialog-blocked switch must surface the block so the agent resolves it"
+        );
+        assert_eq!(
+            activations.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "a dialog-blocked live tab must not be reactivated"
+        );
+        assert_eq!(mgr.active_page_index, 1);
+    }
+
+    /// Closing the active tab must not hang when the tab that becomes active is
+    /// itself discarded: the successor is revived before domains are enabled,
+    /// rather than enable_domains blocking on a dead renderer.
+    #[tokio::test]
+    async fn test_tab_close_revives_discarded_successor() {
+        let url = start_mock_cdp_browser_with_discarded_tab(true).await;
+        let mut mgr = BrowserManager::connect_cdp(&url).await.expect("connect");
+        assert_eq!(mgr.pages.len(), 2);
+        assert_eq!(mgr.active_page_index, 0);
+
+        // Close the live active tab; the discarded tab becomes the successor.
+        let result = tokio::time::timeout(Duration::from_secs(20), mgr.tab_close(Some(0), &[]))
+            .await
+            .expect("tab_close must not hang on a discarded successor")
+            .expect("closing a tab with a discarded successor should succeed");
+
+        assert_eq!(result["closed"], json!(true));
+        assert_eq!(
+            result["activeTabRevived"],
+            json!(true),
+            "a reloaded successor must be surfaced, mirroring tab switch"
+        );
+        assert_eq!(mgr.pages.len(), 1);
+    }
+
+    /// Once the close has committed, a successor that cannot revive must not
+    /// turn the completed close into a reported failure: the closed tab is
+    /// already gone, so reporting an error would leave the caller unable to
+    /// retry.
+    #[tokio::test]
+    async fn test_tab_close_succeeds_even_if_successor_unrevivable() {
+        let url = start_mock_cdp_browser_with_discarded_tab(false).await;
+        let mut mgr = BrowserManager::connect_cdp(&url).await.expect("connect");
+        assert_eq!(mgr.pages.len(), 2);
+
+        let result = tokio::time::timeout(Duration::from_secs(25), mgr.tab_close(Some(0), &[]))
+            .await
+            .expect("tab_close must not hang")
+            .expect("a committed close must report success even if the successor is dead");
+
+        assert_eq!(result["closed"], json!(true));
+        assert!(
+            result.get("activeTabRevived").is_none(),
+            "an unrevivable successor must not be marked revived"
+        );
+        assert_eq!(mgr.pages.len(), 1);
+    }
+
+    // -----------------------------------------------------------------------
+    // Regression tests for the connect-attach path (#1036).
+    // -----------------------------------------------------------------------
+
+    /// Flexible mock CDP endpoint for connect-path tests. `targets` is the
+    /// `Target.getTargets` order as `(targetId, initially_alive)`; that order is
+    /// intentionally NOT activity-sorted, mirroring real Chrome. A tab that is
+    /// not alive mimics a Memory-Saver-discarded tab: renderer-bound commands on
+    /// its session get no response, ever, until `Target.activateTarget` revives
+    /// it (only when `revive_on_activate`). Returns the ws URL and a counter of
+    /// `Target.activateTarget` calls, so a test can assert a discarded tab is
+    /// only reactivated when there is no live tab to fall back to.
+    async fn start_mock_cdp_connect(
+        targets: Vec<(&'static str, bool)>,
+        revive_on_activate: bool,
+    ) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use futures_util::{SinkExt, StreamExt};
+        use std::collections::HashSet;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        use tokio_tungstenite::tungstenite::Message;
+
+        let activations = Arc::new(AtomicUsize::new(0));
+        let activations_task = activations.clone();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!(
+            "ws://127.0.0.1:{}/devtools/browser/mock",
+            listener.local_addr().unwrap().port()
+        );
+
+        let target_infos: Vec<Value> = targets
+            .iter()
+            .map(|(id, _)| {
+                json!({
+                    "targetId": id,
+                    "type": "page",
+                    "title": id,
+                    "url": format!("https://{}.test/", id),
+                    "attached": false,
+                })
+            })
+            .collect();
+        let alive_sessions: HashSet<String> = targets
+            .iter()
+            .filter(|(_, alive)| *alive)
+            .map(|(id, _)| format!("S-{}", id))
+            .collect();
+
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let (mut tx, mut rx) = ws.split();
+            let mut revived: HashSet<String> = HashSet::new();
+
+            while let Some(Ok(msg)) = rx.next().await {
+                let text = match msg {
+                    Message::Text(t) => t,
+                    Message::Ping(p) => {
+                        let _ = tx.send(Message::Pong(p)).await;
+                        continue;
+                    }
+                    _ => continue,
+                };
+                let cmd: Value = match serde_json::from_str(&text) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                let Some(id) = cmd["id"].as_u64() else {
+                    continue;
+                };
+                let method = cmd["method"].as_str().unwrap_or("");
+                let session = cmd["sessionId"].as_str().unwrap_or("").to_string();
+                let respond = |result: Value| json!({ "id": id, "result": result }).to_string();
+
+                let reply = match method {
+                    "Target.getTargets" => Some(respond(json!({ "targetInfos": target_infos }))),
+                    "Target.attachToTarget" => {
+                        let target = cmd["params"]["targetId"].as_str().unwrap_or("");
+                        Some(respond(json!({ "sessionId": format!("S-{}", target) })))
+                    }
+                    "Target.activateTarget" => {
+                        activations_task.fetch_add(1, Ordering::SeqCst);
+                        if revive_on_activate {
+                            if let Some(t) = cmd["params"]["targetId"].as_str() {
+                                revived.insert(format!("S-{}", t));
+                            }
+                        }
+                        Some(respond(json!({})))
+                    }
+                    // A discarded session (not alive, not yet revived) never
+                    // answers any renderer-bound command.
+                    _ if !session.is_empty()
+                        && !alive_sessions.contains(&session)
+                        && !revived.contains(&session) =>
+                    {
+                        None
+                    }
+                    "Runtime.evaluate" => Some(respond(
+                        json!({ "result": { "type": "string", "value": "1" } }),
+                    )),
+                    _ => Some(respond(json!({}))),
+                };
+                if let Some(r) = reply {
+                    let _ = tx.send(Message::Text(r)).await;
+                }
+            }
+        });
+
+        (url, activations)
+    }
+
+    /// Regression test for #1036: connecting to a browser whose first target is
+    /// a discarded tab must not hang. `discover_and_attach_targets` used to
+    /// enable domains blindly on `pages[0]`; if that tab was discarded,
+    /// `Page.enable` never answered and connect wedged for minutes. The fix
+    /// probes for a live renderer and makes that tab active instead.
+    #[tokio::test]
+    async fn test_connect_skips_discarded_first_target() {
+        let (url, activations) =
+            start_mock_cdp_connect(vec![("DISCARDED", false), ("ALIVE", true)], false).await;
+
+        let mgr = tokio::time::timeout(Duration::from_secs(15), BrowserManager::connect_cdp(&url))
+            .await
+            .expect("connect must not hang on a discarded first target")
+            .expect("connect should succeed by selecting the live tab");
+
+        assert_eq!(mgr.pages.len(), 2, "all targets should still be listed");
+        assert_eq!(
+            mgr.active_page_index, 1,
+            "the live tab, not the discarded first one, must become active"
+        );
+        assert_eq!(
+            activations.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "with a live tab available, connect must not reactivate (reload/focus) any tab"
+        );
+    }
+
+    /// Regression test for #1036: connecting to a browser with many live tabs
+    /// must stay fast. It was never a raw tab-count problem; the hang came from
+    /// enabling domains on a discarded tab. The common all-live case probes the
+    /// conventional active tab once and is done.
+    #[tokio::test]
+    async fn test_connect_many_live_tabs_stays_fast() {
+        let ids: Vec<&'static str> = vec![
+            "t00", "t01", "t02", "t03", "t04", "t05", "t06", "t07", "t08", "t09", "t10", "t11",
+            "t12", "t13", "t14", "t15", "t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23",
+            "t24", "t25", "t26", "t27", "t28", "t29",
+        ];
+        let targets: Vec<(&'static str, bool)> = ids.iter().map(|id| (*id, true)).collect();
+        let (url, activations) = start_mock_cdp_connect(targets, false).await;
+
+        let mgr = tokio::time::timeout(Duration::from_secs(5), BrowserManager::connect_cdp(&url))
+            .await
+            .expect("connect with many live tabs must stay fast")
+            .expect("connect should succeed");
+
+        assert_eq!(mgr.pages.len(), 30);
+        assert_eq!(
+            mgr.active_page_index, 0,
+            "with the first tab live, it stays the active tab"
+        );
+        assert_eq!(
+            activations.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "an all-live browser must never be reactivated"
+        );
+    }
+
+    /// When every tab is discarded there is no live tab to fall back to, so
+    /// connect must revive the first tab (browser-level `Target.activateTarget`,
+    /// bounded) rather than hang, and succeed (#1036).
+    #[tokio::test]
+    async fn test_connect_all_discarded_revives_first_tab() {
+        let (url, activations) = start_mock_cdp_connect(vec![("ONLY", false)], true).await;
+
+        let mgr = tokio::time::timeout(Duration::from_secs(20), BrowserManager::connect_cdp(&url))
+            .await
+            .expect("connect must not hang when all tabs are discarded")
+            .expect("connect should succeed after reviving the only tab");
+
+        assert_eq!(mgr.active_page_index, 0);
+        assert!(
+            activations.load(std::sync::atomic::Ordering::SeqCst) >= 1,
+            "the only (discarded) tab must be revived when there is no live fallback"
+        );
+    }
+
+    /// The restore path re-selects a persisted tab that Memory Saver may have
+    /// discarded; enabling domains on it directly hangs on `Page.enable`, so
+    /// it must revive first, like tab switch and close. Force-red: swap the
+    /// revive for a bare `enable_domains` and this times out.
+    #[tokio::test]
+    async fn test_revive_and_enable_active_revives_discarded_bound_tab() {
+        let (url, activations) =
+            start_mock_cdp_connect(vec![("LIVE", true), ("BOUND", false)], true).await;
+        let mut mgr = BrowserManager::connect_cdp(&url)
+            .await
+            .expect("connect should select the live tab");
+        let activations_after_connect = activations.load(std::sync::atomic::Ordering::SeqCst);
+
+        // Re-select the discarded tab the way the restore path does.
+        assert!(mgr.restore_target_binding("BOUND", "https://bound.example"));
+
+        tokio::time::timeout(Duration::from_secs(20), mgr.revive_and_enable_active())
+            .await
+            .expect("restoring onto a discarded tab must not hang on Page.enable")
+            .expect("domains should enable once the tab is revived");
+
+        assert!(
+            activations.load(std::sync::atomic::Ordering::SeqCst) > activations_after_connect,
+            "the discarded bound tab must be reactivated before domains are enabled"
+        );
+    }
+
+    /// If every tab is discarded and cannot be revived, connect must fail fast
+    /// with a clear error instead of hanging (#1036).
+    #[tokio::test]
+    async fn test_connect_all_discarded_unrevivable_fails_fast() {
+        let (url, _activations) = start_mock_cdp_connect(vec![("ONLY", false)], false).await;
+
+        let result =
+            tokio::time::timeout(Duration::from_secs(30), BrowserManager::connect_cdp(&url))
+                .await
+                .expect("connect must not hang on an unrevivable discarded tab");
+
+        match result {
+            Ok(_) => panic!("connect should fail when no tab can be made live"),
+            Err(e) => assert!(e.contains("not responding"), "unexpected error: {}", e),
+        }
+    }
+
+    /// Adversarial regression for the #1528 failure mode, on the connect path:
+    /// the connect-time selection fires liveness probes concurrently (via
+    /// `join_all`), and each probe to a discarded tab times out with no reply.
+    /// Every one of those cancelled `Runtime.evaluate` requests must be cleaned
+    /// out of the pending map by the send_command drop guard; otherwise
+    /// discarded tabs would silently accumulate orphaned pending requests on
+    /// every connect. Two discarded tabs precede the live one so both the
+    /// fast-path probe and the concurrent join_all probes are exercised.
+    #[tokio::test]
+    async fn test_connect_probes_leave_no_pending_requests() {
+        let (url, _activations) = start_mock_cdp_connect(
+            vec![("DEAD1", false), ("DEAD2", false), ("ALIVE", true)],
+            false,
+        )
+        .await;
+
+        let mgr = tokio::time::timeout(Duration::from_secs(15), BrowserManager::connect_cdp(&url))
+            .await
+            .expect("connect must not hang")
+            .expect("connect should select the live tab");
+        assert_eq!(
+            mgr.active_page_index, 2,
+            "the live tab (index 2), after two discarded ones, must become active"
+        );
+
+        // Drop-guard cleanup runs on a spawned task; let it settle.
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert_eq!(
+            mgr.client.pending_len().await,
+            0,
+            "cancelled connect-time probes left orphaned CDP requests in the pending map"
+        );
+    }
+}

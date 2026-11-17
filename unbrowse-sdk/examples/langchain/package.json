@@ -1,0 +1,12 @@
+{
+  "name": "unbrowse-example-langchain",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node index.mjs", "stub": "UNBROWSE_STUB_MODEL=1 node index.mjs" },
+  "dependencies": {
+    "@langchain/core": "1.2.18",
+    "@langchain/openai": "1.6.2",
+    "langchain": "1.5.18",
+    "unbrowse": "file:../../typescript"
+  }
+}

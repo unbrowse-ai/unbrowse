@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How each route is wired</title>
+<style>
+:root{--bg:#f7f6f2;--ink:#1c1b19;--mute:#6b675f;--pl:#ffffff;--ple:#cfcabd;--req:#fff6e6;--card:#fff;--holein:#e9e6dd;
+--caller:#1d7a4f;--answer:#1f5fbf;--session:#0d7f8c;--storage:#8a6d1f;--clock:#b05a00;--script:#6b3fb5;--page:#5b6470;--person:#c2410c;--unknown:#d4007a;
+--fixed:#8a857a;--bad:#c0262d;--warn:#b26b00;--hi:#ffcc00;--diff:#e08a00}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#141412;--ink:#eceae4;--mute:#9a968c;--pl:#211f1b;--ple:#45423a;--req:#2e2515;--card:#1e1d1a;--holein:#0c0c0b;
+--caller:#6fd3a0;--answer:#7fb0ff;--session:#5fd0dc;--storage:#e0c060;--clock:#f0a860;--script:#b99cf0;--page:#aab4c0;--person:#ff9a5c;--unknown:#ff5fc0;--fixed:#a8a399;--bad:#ff6b6b;--warn:#f0b040;--hi:#ffd84a;--diff:#ffb040}}
+:root[data-theme=dark]{--bg:#141412;--ink:#eceae4;--mute:#9a968c;--pl:#211f1b;--ple:#45423a;--req:#2e2515;--card:#1e1d1a;--holein:#0c0c0b;
+--caller:#6fd3a0;--answer:#7fb0ff;--session:#5fd0dc;--storage:#e0c060;--clock:#f0a860;--script:#b99cf0;--page:#aab4c0;--person:#ff9a5c;--unknown:#ff5fc0;--fixed:#a8a399;--bad:#ff6b6b;--warn:#f0b040;--hi:#ffd84a;--diff:#ffb040}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--ple);padding:10px 18px 8px}
+h1{font-size:18px;margin:0 6px 0 0;display:inline}h2{font-size:15px;margin:18px 0 6px}
+.bar{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:6px}
+button,select,input{font:inherit;font-size:13px;color:var(--ink);background:var(--card);border:1px solid var(--ple);border-radius:7px;padding:3px 9px}
+button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+button:focus-visible,select:focus-visible,input:focus-visible,.hole:focus-visible,.rlab:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
+.flag{display:inline-flex;gap:5px;align-items:center}.flag b{font-variant-numeric:tabular-nums}
+.mark{display:inline-block;min-width:16px;height:16px;border-radius:4px;font-size:11px;font-weight:700;line-height:16px;text-align:center;color:#fff}
+.lv{display:inline-block;font-size:10.5px;font-weight:700;border-radius:9px;padding:0 6px;border:1px solid}.lv-break{color:var(--bad);border-color:var(--bad)}.lv-risk{color:var(--warn);border-color:var(--warn)}.lv-note{color:var(--mute);border-color:var(--mute)}
+.fd{cursor:pointer}.fd:hover{text-decoration:underline}.strip{display:inline-flex;gap:2px;vertical-align:middle}.strip i{display:inline-block;width:9px;height:12px;border-radius:2px;font-style:normal;font-size:8px;line-height:12px;text-align:center;color:#fff}
+.rrow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:3px 6px;border-bottom:1px solid var(--ple);font-size:13px}.rrow.on{background:var(--card)}.rrow .tog{padding:0 6px}
+.rname{font-weight:600;min-width:150px;color:var(--ink);text-decoration:none}.rsite{min-width:180px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbar{display:inline-block;width:90px;height:8px;border-radius:4px;vertical-align:middle}.steps{display:inline-flex;gap:2px}.st1{font-size:10.5px;min-width:15px;text-align:center;border:1.5px solid var(--ple);border-radius:4px;padding:0 2px}
+.rdraw{padding:4px 0 10px 24px;border-bottom:1px solid var(--ple)}
+.fn{font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.fn .who{color:var(--mute)}.gone{color:var(--bad)}
+.m-fell{background:var(--bad)}.m-open{background:var(--bad)}.m-frozen{background:var(--storage)}.m-ceiling{background:var(--warn)}.m-browser{background:var(--page)}.m-under{background:var(--clock)}.m-unknown{background:var(--unknown)}
+.m-refused-differs{background:var(--bad)}.m-refused-same{background:var(--warn)}.m-walked-session{background:var(--session)}
+.wire3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.wire3>div{border:1px solid var(--ple);border-radius:7px;padding:6px 8px;font-size:12px;overflow-wrap:anywhere}.wire3 b{font-size:11.5px}
+.wd{display:inline-block;font-size:10.5px;border-radius:9px;padding:0 6px;border:1px solid var(--bad);color:var(--bad);margin-right:4px;cursor:pointer}.wd.k-walked,.wd.k-reply{border-color:var(--warn);color:var(--warn)}
+.nm{display:inline-block;margin:1px 3px 1px 0;padding:0 4px;border-radius:4px;background:var(--ple)}.nm.off{outline:1px solid var(--bad)}
+main{padding:10px 18px 40px}
+.sub{color:var(--mute);margin:2px 0 6px;max-width:1100px}
+.leg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--mute);margin:6px 0}
+.sw{display:inline-block;width:22px;height:3px;vertical-align:middle;margin-right:5px;border-radius:2px}
+.scroll{overflow-x:auto}
+svg{display:block}svg text{font-family:inherit}
+.pl{fill:var(--pl);stroke:var(--ple);stroke-width:1.1;fill-opacity:.85}.req{fill:var(--req);stroke-width:1.6}
+.ln{font-weight:600;font-size:13px;fill:var(--ink)}.ls{font-size:10.5px;fill:var(--mute)}.dl{font-size:10px;fill:var(--mute)}.hl{font-size:10.5px;fill:var(--ink)}
+.rl{font-size:11.5px;font-weight:600;fill:var(--ink)}.rr{font-size:10.5px;fill:var(--mute)}.ok{fill:var(--caller)}.no{fill:var(--bad)}
+.bracket{stroke:var(--ple);stroke-width:1.3}.stepdiv{stroke:var(--ple);stroke-dasharray:3 3}
+.st{fill:none;stroke-width:2;stroke-linecap:round;opacity:.85}.sib{stroke:var(--script);stroke-dasharray:2 4;stroke-width:1.8;fill:none}
+.hole{cursor:pointer}.hole ellipse.ring{fill:var(--holein);stroke-width:2.2}.hole.fixed ellipse.ring{fill:var(--fixed);stroke:var(--fixed)}
+.hole.open ellipse.ring{stroke:var(--bad);stroke-dasharray:3 2}.hole.sel ellipse.ring{stroke-width:4}
+.hole.changed ellipse.ring{animation:flash 1s ease-in-out 4}.hole.changed .halo{opacity:1}
+.halo{fill:none;stroke:var(--hi);stroke-width:5;opacity:0;transition:opacity .4s}
+.hole.diff .dring{opacity:1}.dring{fill:none;stroke:var(--diff);stroke-width:2.5;stroke-dasharray:4 2;opacity:0}
+@keyframes flash{50%{fill:var(--hi)}}
+.fchip{cursor:pointer}.fchip rect{fill:var(--card);stroke:var(--fixed);stroke-dasharray:2 2}.fchip text{font-size:10px;fill:var(--mute)}
+.badge text{font-size:10px;font-weight:700;fill:#fff}
+#drawer{position:fixed;top:0;right:0;width:min(560px,100%);height:100vh;overflow:auto;background:var(--card);border-left:1px solid var(--ple);box-shadow:-8px 0 24px rgba(0,0,0,.15);padding:14px 16px 40px;z-index:10;transform:translateX(105%);transition:transform .18s}
+#drawer.on{transform:none}#drawer h3{margin:0 0 4px;font-size:15px}
+pre,code{font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}pre{background:var(--bg);border:1px solid var(--ple);border-radius:6px;padding:7px 9px;white-space:pre-wrap;word-break:break-word;margin:4px 0}
+table{border-collapse:collapse;font-size:12.5px;background:var(--card);border:1px solid var(--ple)}th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--ple);vertical-align:top}th{color:var(--mute);font-weight:600}
+tr.differs td{background:color-mix(in srgb,var(--diff) 16%,transparent)}
+.card{background:var(--card);border:1px solid var(--ple);border-radius:9px;padding:9px 12px;margin:8px 0}
+.step h3{font-size:13.5px;margin:0 0 4px}.tag{display:inline-block;font-size:10.5px;padding:0 6px;border-radius:9px;border:1px solid var(--ple);color:var(--mute);margin-left:4px}
+.chip{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.mute{color:var(--mute)}.small{font-size:12px}
+details summary{cursor:pointer;color:var(--mute)}
+.empty{border:1px dashed var(--ple);border-radius:9px;padding:12px;color:var(--mute)}
+#status{font-size:12px;color:var(--mute)}
+</style></head>
+<body>
+<header>
+  <h1>How each route is wired</h1><span id="status"></span>
+  <div class="bar" role="toolbar" aria-label="View">
+    <button data-view="all" aria-pressed="true" title="1">All routes</button>
+    <button data-view="one" aria-pressed="false" title="2">One route</button>
+    <button data-view="side" aria-pressed="false" title="3">Side by side</button>
+    <label>group <select id="group" aria-label="Group of routes"></select></label>
+    <label id="routeL">route <select id="route" aria-label="Route"></select></label>
+    <span id="sideCtl"></span>
+    <input id="filter" placeholder="filter: site, route, row…" aria-label="Filter routes" size="18">
+    <button id="theme" title="light or dark">◐</button>
+  </div>
+  <div class="bar" id="flags" aria-label="Flags and findings"></div>
+</header>
+<main>
+  <div id="legend"></div>
+  <div id="view"></div>
+  <h2>The pick <span class="mute small">which call of each walk was taken as the answer, from the node's log</span></h2>
+  <div id="pick"></div>
+</main>
+<aside id="drawer" aria-label="The hole" tabindex="-1"><button id="close" style="float:right">close (Esc)</button><div id="dbody"></div></aside>
+<script>
+"use strict";
+const LIVE = /*LIVE*/false;
+let S = /*STATE*/null;
+const UI = {view: 'all', group: null, route: null, sideMode: 'graph', sideA: null, sideB: null, filter: '', only: null, open: new Set(), sel: null, page: 0, expanded: new Set(), show: new Map()};
+// The page opens on the overview (one summary a route, the totals, the pick) and fetches a route's holes only when the
+// route is opened, and again only when that route's own `sig` moved. A poll asks /version and nothing else when
+// nothing changed.
+const D = new Map(), DSIG = new Map();   // route key -> its detail, and the sig it was fetched at
+let ENG = {tips: {}, kinds: {}, why: {}, wire: {}};
+const PAGE = 40, STEPS = 12;
+const PREV = new Map(), CHANGED = new Map();
+const E = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const $ = id => document.getElementById(id);
+const COL = l => 'var(--' + l + ')';
+const FLAGMARK = {open: '?', frozen: '❄', ceiling: '▲', browser: 'B', fell: '⤓', under: '↓', unknown: '!', 'refused-differs': '≠', 'refused-same': '=', 'walked-session': '◐'};
+const LVCOL = {break: 'var(--bad)', risk: 'var(--warn)', note: 'var(--mute)'};
+const RUNGCOL = r => r == null ? 'var(--fixed)' : ['var(--caller)', 'var(--answer)', 'var(--script)', 'var(--page)', 'var(--page)', 'var(--bad)'][Math.min(5, Math.max(0, r))];
+const worstOf = fs => { for (const lv of ['break', 'risk', 'note']) if ((fs || []).some(f => f.level === lv)) return lv; return null; };
+const callOf = c => Array.isArray(c) ? {ok: c[0], rung: c[1], browser: c[2], ms: c[3]} : c;
+function strip(r) {
+  const cs = (r.calls || []).map(callOf); if (!cs.length) return '<span class="mute small">never called</span>';
+  return '<span class="strip" title="its last ' + cs.length + ' call(s), oldest first: rung, ✗ failed, B a browser ran">' + cs.map(c => `<i style="background:${c.browser ? 'var(--page)' : RUNGCOL(c.rung)};${c.ok ? '' : 'outline:2px solid var(--bad);outline-offset:-2px'}" title="${E((c.ok ? 'answered' : 'failed') + ' at rung ' + c.rung + (c.browser ? ', a browser ran' : '') + ', ' + c.ms + ' ms' + (c.steps ? '; steps at ' + c.steps.map(x => 'r' + x).join(' ') : ''))}">${c.browser ? 'B' : c.ok ? '' : '✗'}</i>`).join('') + '</span>';
+}
+const cut = (s, n) => (s = String(s || '')).length > n ? s.slice(0, n - 1) + '…' : s;
+
+function routesOf(g) { return (S && S.summaries && S.summaries[g]) || []; }
+function allRoutes() { return [...D.values()]; }
+function routeByKey(k) { return D.get(k); }
+function summaryOf(k) { for (const g in S.summaries) { const x = S.summaries[g].find(r => r.key === k); if (x) return x; } return null; }
+let fetching = new Set();
+// Fetch the details of these routes that are missing or stale (their summary's sig moved); then draw again.
+async function need(keys) {
+  if (!LIVE) return false;
+  const todo = keys.filter(k => k && !fetching.has(k) && (!D.has(k) || ((summaryOf(k) || {}).sig && DSIG.get(k) !== summaryOf(k).sig)));
+  if (!todo.length) return false;
+  todo.forEach(k => fetching.add(k));
+  try {
+    await Promise.all(todo.map(async k => {
+      const d = await (await fetch('/route?key=' + encodeURIComponent(k))).json();
+      if (!d.route) return;
+      D.set(k, d.route); DSIG.set(k, (summaryOf(k) || {}).sig);
+      if (d.engine) { ENG.tips = d.engine.tips; Object.assign(ENG.kinds, d.engine.kinds); Object.assign(ENG.why, d.engine.why); Object.assign(ENG.wire, d.engine.wire || {}); }
+    }));
+  } finally { todo.forEach(k => fetching.delete(k)); }
+  return true;
+}
+// The routes whose holes the current view draws.
+function wanted() {
+  const rs = visible(routesOf(UI.group));
+  if (UI.view === 'one') return [UI.route && summaryOf(UI.route) ? UI.route : (rs[0] || {}).key];
+  if (UI.view === 'side' && UI.sideMode === 'graph') { const r = rs.filter(x => x.graph); return [(r.find(x => x.key === UI.route) || r[0] || {}).key]; }
+  if (UI.view === 'side') return sidePairs().slice(UI.page * 8, UI.page * 8 + 8).flat().map(r => r.key);
+  return worstFirst(rs).slice(UI.page * PAGE, UI.page * PAGE + PAGE).filter(r => UI.expanded.has(r.key)).map(r => r.key);
+}
+function label(r) { return r.row || cut(r.what || r.id, 26); }
+function visible(rs) {
+  const f = UI.filter.toLowerCase();
+  return rs.filter(r => (!f || [r.row, r.id, r.site, r.what, r.file].join(' ').toLowerCase().includes(f)) && (!UI.only || (r.counts && r.counts[UI.only]) || (r.found && r.found[UI.only])));
+}
+function holeKey(r, si, h) { return r.key + '|' + r.by + '|' + si + '|' + h.place; }
+function holeSig(h) { return JSON.stringify([h.ways.map(w => [w.rung, w.line]), h.layers.map(l => l.layer), h.flags.map(f => f.kind), (h.findings || []).map(f => f.id)]); }
+
+// What changed since the last draw: a hole whose way or rung is new is lit for a few seconds.
+function noteChanges(first) {
+  const now = Date.now();
+  for (const r of allRoutes()) (r.steps || []).forEach((s, si) => s.holes.forEach(h => {
+    const k = holeKey(r, si, h), sg = holeSig(h);
+    if (!first && PREV.get(k) !== sg) CHANGED.set(k, now);
+    PREV.set(k, sg);
+  }));
+  for (const [k, t] of CHANGED) if (now - t > 6000) CHANGED.delete(k);
+}
+
+// ---------------------------------------------------------------------------------------------- the drawing
+const CAP = 40;
+const FOLDWORD = {sightings: "the route's sightings (Kind::Browsers)", walk: "the walk: sent on what the document loads by itself", address: 'fixed address pieces', rule: 'the name list'};
+const G = {HW: 34, SG: 12, RG: 30, X0: 236, SK: 38, LH: 34, LS: 50, TOP: 14, RH: 46};
+function layersUsed(rs) {
+  const used = new Set(S.layers.map(l => l[0]).filter(l => l !== 'unknown'));
+  for (const r of rs) for (const s of r.steps || []) for (const h of s.holes) for (const l of h.layers) used.add(l.layer);
+  return S.layers.filter(l => used.has(l[0]));
+}
+// One route as the items of its segment: holes, and a chip per step for the browser's own headers, folded.
+function segment(r) {
+  const items = [];
+  const shown_ = UI.show.get(r.key) || STEPS;
+  (r.steps || []).forEach((s, si) => {
+    if (si >= shown_) return;
+    const openK = r.key + '|' + r.by + '|' + si, open = UI.open.has(openK);
+    const folded = s.holes.filter(h => h.fold && !h.flags.length && !(h.findings || []).length);
+    let shown = s.holes.map((h, hi) => ({h, hi})).filter(x => folded.indexOf(x.h) < 0);
+    // In the overview a step's run of fixed text (no string to draw) and a step past CAP holes fold into chips too.
+    let fixedN = 0, moreN = 0;
+    const marked = h => h.flags.length || (h.findings || []).length;
+    const fx = shown.filter(x => x.h.fixed && !marked(x.h));
+    if (fx.length > 8) { shown = shown.filter(x => !(x.h.fixed && !marked(x.h))); fixedN = fx.length; }
+    // Past CAP, what is folded is never a hole with a flag or a finding: what is counted at the top is drawn.
+    if (shown.length > CAP) { const keep = shown.filter(x => marked(x.h)), rest = shown.filter(x => !marked(x.h)); const room = Math.max(0, CAP - keep.length); moreN = rest.length - Math.min(room, rest.length); shown = shown.filter(x => marked(x.h) || rest.indexOf(x) < room); }
+    if (open) shown = s.holes.map((h, hi) => ({h, hi}));
+    for (const {h, hi} of shown) items.push({kind: 'hole', r, s, si, h, hi});
+    const how = folded.reduce((a, h) => (a[h.fold] = (a[h.fold] || 0) + 1, a), {});
+    if (folded.length || fixedN || moreN) items.push({kind: 'fold', r, s, si, n: folded.length + fixedN + moreN, openK, open, how, fixedN, moreN, browserN: folded.length});
+    items.push({kind: 'gap'});
+  });
+  if (items.length && items[items.length - 1].kind === 'gap') items.pop();
+  return items;
+}
+function draw(rs, opts) {
+  opts = opts || {};
+  const sc = opts.scale || 1, HW = G.HW * sc, layers = layersUsed(rs);
+  const LY = {}; let y = G.TOP;
+  for (const [k] of layers) { LY[k] = y; y += G.LS; }
+  const REQY = y + 10, HY = REQY + 28, LABY = REQY + G.RH + 10;
+  const width = opts.width || Math.max(900, (document.querySelector('main') || {clientWidth: 1200}).clientWidth - 10);
+  // Segments, wrapped into bands that fit the width.
+  const segs = rs.map(r => {
+    const items = segment(r);
+    let w = 0; for (const it of items) w += it.kind === 'gap' ? G.SG : HW;
+    const lw = Math.max(label(r).length, 9) * 6.6 + 8;
+    return {r, items, w: Math.max(w, Math.min(lw, 140), HW)};
+  });
+  const bands = []; let cur = [], x = G.X0 + G.SK;
+  for (const sg of segs) {
+    if (cur.length && x + sg.w + G.RG > width) { bands.push(cur); cur = []; x = G.X0 + G.SK; }
+    sg.x = x; cur.push(sg); x += sg.w + G.RG;
+  }
+  if (cur.length) bands.push(cur);
+  if (!bands.length) return `<p class="empty">No route to draw here.${S.pick && S.pick.some(l => !l.kept) ? ' This node kept no route from a learn: the pick, below, says why.' : ''}</p>`;
+  let html = '';
+  for (const band of bands) {
+    const last = band[band.length - 1], W = Math.max(width, last.x + last.w + 60);
+    const out = [], strings = [], arcs = [], holes = [], dots = [], labels = [];
+    const sheet = (yt, cls, h) => `<polygon class="pl ${cls || ''}" points="${G.X0 + G.SK},${yt} ${W - 10},${yt} ${W - 10 - G.SK},${yt + (h || G.LH)} ${G.X0},${yt + (h || G.LH)}"/>`;
+    for (const [k, name, sub] of layers) {
+      out.push(sheet(LY[k]));
+      out.push(`<text class="ln" x="${G.X0 - 10}" y="${LY[k] + 16}" text-anchor="end" style="fill:${COL(k)}">${E(name)}</text><text class="ls" x="${G.X0 - 10}" y="${LY[k] + 29}" text-anchor="end">${E(sub)}</text>`);
+    }
+    out.push(sheet(REQY, 'req', G.RH));
+    out.push(`<text class="ln" x="${G.X0 - 10}" y="${REQY + 16}" text-anchor="end">The requests</text><text class="ls" x="${G.X0 - 10}" y="${REQY + 29}" text-anchor="end">every value sent is a hole</text>`);
+    const levels = [[], [], []], lastWord = {};
+    let maxLab = 0;
+    for (const sg of band) {
+      const r = sg.r; let hx = sg.x + HW / 2, first = null, lastX = null, prevStep = null;
+      const pos = new Map();
+      for (const it of sg.items) {
+        if (it.kind === 'gap') { hx += G.SG; continue; }
+        if (prevStep !== null && it.si !== prevStep) out.push(`<line class="stepdiv" x1="${hx - HW / 2 - G.SG / 2}" y1="${REQY + 4}" x2="${hx - HW / 2 - G.SG / 2}" y2="${REQY + G.RH - 4}"/>`);
+        if (it.si !== prevStep) {
+          const sw = worstOf(it.s.findings);
+          out.push(`<text class="dl" x="${hx - HW / 2 + 2}" y="${REQY + 11}" style="${it.s.ran != null ? 'fill:' + RUNGCOL(it.s.ran) + ';font-weight:700' : ''}"><title>step ${it.s.n}: ${E(it.s.method + ' ' + it.s.path)}${it.s.answer ? ', the answer' : ''}${it.s.ran != null ? '; the last call ran it at rung ' + it.s.ran : ''}${(it.s.findings || []).map(f => '; [' + f.level + '] ' + f.title).join('')}</title>step ${it.s.n}${it.s.answer ? ' ★' : ''}${it.s.ran != null ? ' r' + it.s.ran : ''}</text>`);
+          if (sw) out.push(`<g class="fd" data-stepf="${E(r.key + '|' + r.by + '|' + it.si)}"><title>${E((it.s.findings || []).map(f => '[' + f.level + '] ' + f.title).join('; '))}</title><circle cx="${hx - HW / 2 + 52}" cy="${REQY + 7}" r="5" style="fill:${LVCOL[sw]}"/></g>`);
+        }
+        prevStep = it.si;
+        if (first === null) first = hx; lastX = hx;
+        if (it.kind === 'fold') {
+          const on = it.open, parts = [];
+          if (it.browserN) parts.push(it.browserN + " of the browser's own headers (" + Object.entries(it.how).map(([k, v]) => v + ' by ' + FOLDWORD[k]).join(', ') + ')');
+          if (it.fixedN) parts.push(it.fixedN + ' values sent as fixed text');
+          if (it.moreN) parts.push(it.moreN + ' more holes past the first ' + CAP);
+          const what = on ? 'fold' : 'show';
+          holes.push(`<g class="fchip" tabindex="0" role="button" data-fold="${E(it.openK)}" aria-label="${what} ${it.n} folded holes of step ${it.s.n}"><title>Step ${it.s.n}: ${E(on ? 'unfolded. Click to fold.' : parts.join('; ') + '. Click to show.')}</title><rect x="${hx - 15}" y="${HY - 8}" width="30" height="16" rx="5"/><text x="${hx}" y="${HY + 4}" text-anchor="middle">${on ? '−' : '+' + it.n}</text></g>`);
+          labels.push(`<text class="hl mute" transform="translate(${hx - 3},${LABY}) rotate(52)">${on ? 'fold' : it.browserN && !it.fixedN && !it.moreN ? "browser's own" : 'folded'}</text>`);
+          hx += HW; continue;
+        }
+        const h = it.h, k = holeKey(r, it.si, h);
+        pos.set(it.si + '|' + h.place.toLowerCase(), hx);
+        const main = h.layers.length ? h.layers[0].layer : (h.open ? 'bad' : 'fixed');
+        const worst = worstOf(h.findings);
+        const cls = ['hole', h.fixed ? 'fixed' : '', h.open ? 'open' : '', CHANGED.has(k) ? 'changed' : '', UI.sel === k ? 'sel' : '', (opts.diff && opts.diff.has(k)) ? 'diff' : ''].join(' ');
+        const tip = `${label(r)} · step ${it.s.n} · ${h.place}: ${h.ways.length ? h.ways.map(w => 'r' + w.rung + ' ' + w.line).join('  |  ') : 'no way'}${h.flags.length ? '  ⚑ ' + h.flags.map(f => f.why).join('; ') : ''}${(h.findings || []).map(f => '  [' + f.level + '] ' + f.title).join('')}`;
+        holes.push(`<g class="${cls}" tabindex="0" role="button" data-hole="${E(k)}" data-route="${E(r.key)}" data-by="${r.by}" data-si="${it.si}" data-hi="${it.hi}" aria-label="${E(tip)}"><title>${E(tip)}</title>` +
+          `<ellipse class="halo" cx="${hx}" cy="${HY}" rx="${15 * sc}" ry="${10 * sc}"/><ellipse class="dring" cx="${hx}" cy="${HY}" rx="${16 * sc}" ry="${11 * sc}"/>` +
+          (worst ? `<ellipse cx="${hx}" cy="${HY}" rx="${14 * sc}" ry="${9.5 * sc}" style="fill:none;stroke:${LVCOL[worst]};stroke-width:${worst === 'break' ? 3.2 : 2}"/>` : '') +
+          `<ellipse class="ring" cx="${hx}" cy="${HY}" rx="${11 * sc}" ry="${7 * sc}" style="stroke:${COL(main)}"/>` + (h.ways.length > 1 ? `<text class="dl" x="${hx}" y="${HY + 3.5}" text-anchor="middle">${h.ways.length}</text>` : '') + '</g>');
+        h.flags.forEach((f, i) => holes.push(`<g class="badge"><title>${E(f.why)}</title><rect x="${hx - 7 + i * 15}" y="${REQY - 11}" width="14" height="13" rx="3" class="m-${f.kind}" style="fill:${f.kind === 'open' ? 'var(--bad)' : f.kind === 'frozen' ? 'var(--storage)' : 'var(--unknown)'}"/><text x="${hx + i * 15}" y="${REQY - 1}" text-anchor="middle">${FLAGMARK[f.kind]}</text></g>`));
+        if (worst) holes.push(`<g class="badge"><title>${E(h.findings.map(f => '[' + f.level + '] ' + f.title).join('; '))}</title><rect x="${hx - 7 + h.flags.length * 15}" y="${REQY - 11}" width="14" height="13" rx="7" style="fill:${LVCOL[worst]}"/><text x="${hx + h.flags.length * 15}" y="${REQY - 1}" text-anchor="middle">${h.findings.length}</text></g>`);
+        labels.push(`<text class="hl" transform="translate(${hx - 3},${LABY}) rotate(52)">${E(cut(h.place, 20))}${h.rung ? ' · r' + h.rung : ''}</text>`);
+        h.layers.forEach((l, i) => {
+          const ly = LY[l.layer]; if (ly === undefined) return;
+          const sx = hx + G.SK * (0.55 - i * 0.18), sy = ly + G.LH / 2;
+          const m = (sy + HY) / 2;
+          strings.push(`<path class="st" style="stroke:${COL(l.layer)}" d="M${sx},${sy} C${sx},${m} ${hx},${m} ${hx},${HY - 7 * sc}"/>`);
+          dots.push(`<circle cx="${sx}" cy="${sy}" r="4.5" style="fill:${COL(l.layer)}"/>`);
+          dots.push(`<circle cx="${sx}" cy="${sy}" r="7" style="fill:transparent"><title>${E(l.layer + ': ' + l.why)}</title></circle>`);
+          const t = cut(l.why, sc > 1 ? 40 : 18), tw = t.length * 5.6 + 10;
+          // A dot's words only where they do not run into the last ones on the same layer.
+          if ((sc > 1 || l.layer === 'answer' || l.layer === 'unknown') && sx >= (lastWord[l.layer] || -1e9)) { dots.push(`<text class="dl" x="${sx + 7}" y="${sy - 6}">${E(t)}</text>`); lastWord[l.layer] = sx + tw; }
+        });
+        if (h.open && !h.layers.length) {
+          strings.push(`<path class="st" style="stroke:var(--bad);stroke-dasharray:5 4" d="M${hx},${HY - 8} L${hx},${HY - 34}"/><text class="dl" x="${hx + 4}" y="${HY - 30}" style="fill:var(--bad)">?</text>`);
+        }
+        it.hx = hx; hx += HW;
+      }
+      // Arcs under the sheet: a hole made from another hole of the same request (`sent`).
+      for (const it of sg.items) if (it.kind === 'hole') for (const w of it.h.sent || []) {
+        const x2 = pos.get(it.si + '|' + String(w).toLowerCase());
+        if (x2 === undefined || x2 === it.hx) continue;
+        const d = 14 + Math.abs(it.hx - x2) * 0.3;
+        arcs.push(`<path class="sib" d="M${x2},${HY + 7} C${x2},${HY + 7 + d} ${it.hx},${HY + 7 + d} ${it.hx},${HY + 7}"><title>${E(it.h.place)} reads ${E(w)} of the same request</title></path>`);
+      }
+      // The route's label, staggered so no two overlap.
+      const cx = first === null ? sg.x + sg.w / 2 : (first + lastX) / 2;
+      const text = label(r), tw = Math.max(text.length * 6.8, 60) + 10;
+      let lv = 0; while (lv < 2 && levels[lv].some(([a, b]) => cx - tw / 2 < b && cx + tw / 2 > a)) lv++;
+      levels[lv].push([cx - tw / 2, cx + tw / 2]);
+      const ly = LABY + 124 + lv * 34; maxLab = Math.max(maxLab, ly);
+      const m = r.made, verdict = m ? `<tspan class="${m.ok ? 'ok' : 'no'}">${m.ok ? '✓' : '✗'} r${m.rung}</tspan>${m.browser ? ' · browser' : ''}` : 'never called';
+      const fsum = r.found ? ['break', 'risk', 'note'].filter(lv => r.found[lv]).map(lv => `<tspan style="fill:${LVCOL[lv]}">${r.found[lv]} ${lv}</tspan>`).join(' ') : '';
+      const ceil = r.ceiling && r.ceiling.value != null ? ` · ceiling r${r.ceiling.value}` : '';
+      labels.push(`<line x1="${(first === null ? sg.x : first) - 12}" y1="${LABY + 108}" x2="${(lastX === null ? sg.x + sg.w : lastX) + 12}" y2="${LABY + 108}" class="bracket"/>`);
+      labels.push(`<g class="rlab" tabindex="0" role="button" data-one="${E(r.key)}" style="cursor:pointer"><title>${E((r.site || '') + ' · ' + (r.what || '') + ' · ' + r.file + ' · drawn from its ' + r.by)}. Open it large.</title><text class="rl" x="${cx}" y="${ly}" text-anchor="middle">${E(text)}${r.by === 'graph' ? ' ◇' : ''}</text>` +
+        `<text class="rr" x="${cx}" y="${ly + 14}" text-anchor="middle">${verdict}${ceil}</text>` + (fsum ? `<text class="rr" x="${cx}" y="${ly + 27}" text-anchor="middle">${fsum}</text>` : '') + '</g>');
+      const cs = (r.calls || []).slice(-12).map(callOf), sx0 = cx - cs.length * 5.5;
+      cs.forEach((c, i) => labels.push(`<rect x="${sx0 + i * 11}" y="${ly + 31}" width="9" height="9" rx="2" style="fill:${c.browser ? 'var(--page)' : RUNGCOL(c.rung)};${c.ok ? '' : 'stroke:var(--bad);stroke-width:2'}"><title>${E((c.ok ? 'answered' : 'failed') + ' at rung ' + c.rung + (c.browser ? ', a browser ran' : '') + ', ' + c.ms + ' ms')}</title></rect>`));
+      maxLab = Math.max(maxLab, ly + 30);
+      (r.flags || []).filter(f => f.on === 'route').forEach((f, i) => labels.push(`<g class="badge"><title>${E(f.why)}</title><rect x="${cx + tw / 2 - 4 + i * 15}" y="${ly - 11}" width="14" height="13" rx="3" style="fill:${f.kind === 'ceiling' ? 'var(--warn)' : f.kind === 'browser' ? 'var(--page)' : 'var(--clock)'}"/><text x="${cx + tw / 2 + 3 + i * 15}" y="${ly - 1}" text-anchor="middle">${FLAGMARK[f.kind]}</text></g>`));
+    }
+    const H = maxLab + 24;
+    html += `<div class="scroll"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="group" aria-label="Holes of ${band.length} route(s), each strung to the layer its value comes from">${out.join('')}${strings.join('')}${arcs.join('')}${holes.join('')}${dots.join('')}${labels.join('')}</svg></div>`;
+  }
+  return html;
+}
+
+// ---------------------------------------------------------------------------------------------- views
+function pager(n, per) {
+  const pages = Math.ceil(n / per); if (pages <= 1) return '';
+  UI.page = Math.min(UI.page, pages - 1);
+  return `<div class="bar">page ${[...Array(pages).keys()].map(i => `<button data-page="${i}" aria-pressed="${i === UI.page}">${i + 1}</button>`).join('')} <span class="mute small">${per} a page</span></div>`;
+}
+function layerBar(r) {
+  const L = r.layers || {}, tot = Object.values(L).reduce((a, b) => a + b, 0) || 1; let at = 0;
+  const stops = Object.entries(L).filter(([, v]) => v).map(([k, v]) => { const a = at; at += v / tot * 100; return `${k === 'open' ? 'var(--bad)' : COL(k)} ${a.toFixed(1)}% ${at.toFixed(1)}%`; });
+  return `<span class="lbar" title="${E(Object.entries(L).filter(([, v]) => v).map(([k, v]) => v + ' ' + k).join(', '))} (by each hole's first string; the browser's own folded)" style="background:linear-gradient(90deg,${stops.join(',') || 'var(--fixed) 0 100%'})"></span>`;
+}
+function rowHtml(r) {
+  const open = UI.expanded.has(r.key), m = r.made ? callOf(r.made) : null;
+  const flags = S.flags.filter(([k]) => (r.counts || {})[k]).map(([k, n]) => `<span class="mark m-${k}" title="${E(n)}: ${(r.counts || {})[k]}">${FLAGMARK[k]}</span>${(r.counts || {})[k] > 1 ? '<span class="small">' + r.counts[k] + '</span>' : ''}`).join(' ');
+  const found = ['break', 'risk', 'note'].filter(lv => (r.found || {})[lv]).map(lv => `<span class="lv lv-${lv}">${r.found[lv]} ${lv}</span>`).join(' ');
+  const steps = (r.steps || []).slice(0, 14).map(([n, mth, path, ran, worst, flagged]) => `<span class="st1" title="${E(n + '. ' + mth + ' ' + path + (ran != null ? ' · ran at rung ' + ran : '') + (worst ? ' · worst finding: ' + worst : '') + (flagged ? ' · ' + flagged + ' flagged hole(s)' : ''))}" style="${ran != null ? 'color:' + RUNGCOL(ran) + ';font-weight:700;' : ''}${worst ? 'border-color:' + LVCOL[worst] : ''}">${n}</span>`).join('') + ((r.steps || []).length > 14 ? `<span class="small mute"> +${r.steps.length - 14}</span>` : '');
+  let html = `<div class="rrow${open ? ' on' : ''}"><button class="tog" data-expand="${E(r.key)}" aria-expanded="${open}" title="${open ? 'fold' : 'draw its wiring'}">${open ? '▾' : '▸'}</button>` +
+    `<a href="#" data-one="${E(r.key)}" class="rname">${E(label(r))}${r.by === 'graph' ? ' ◇' : ''}</a><span class="mute small rsite">${E(r.row ? r.site || '' : (r.site || '') + ' · ' + (r.what || ''))}</span>` +
+    `<span class="small">${m ? `<span style="color:${m.ok ? 'var(--caller)' : 'var(--bad)'}">${m.ok ? '✓' : '✗'} r${m.rung}</span>` : '<span class="mute">never called</span>'}</span> ${(r.calls || []).length ? strip(r) : ''} ${layerBar(r)} ${r.ms_median != null ? `<span class="small mute" title="median time of its recent calls">${r.ms_median} ms</span> ` : ''}<span class="small mute">${r.holes || 0} holes</span> <span class="steps">${steps}</span> ${flags} ${found}</div>`;
+  if (open) {
+    const d = D.get(r.key);
+    html += `<div class="rdraw">${d ? draw([d]) + moreSteps(d) : '<p class="mute small">reading its holes…</p>'}</div>`;
+  }
+  return html;
+}
+function moreSteps(r) {
+  const n = UI.show.get(r.key) || STEPS;
+  return r.steps.length > n ? `<p class="small mute">${n} of ${r.steps.length} steps drawn. <button data-more="${E(r.key)}">draw ${Math.min(STEPS, r.steps.length - n)} more</button></p>` : '';
+}
+// Worst first: breaks, then flagged holes and route flags, then risks; the order the files are in after that.
+const weight = r => [(r.found || {}).break || 0, Object.values(r.counts || {}).reduce((a, b) => a + b, 0), (r.found || {}).risk || 0];
+function worstFirst(rs) { return rs.map((r, i) => [r, i]).sort((x, y) => { const a = weight(x[0]), b = weight(y[0]); for (let k = 0; k < 3; k++) if (a[k] !== b[k]) return b[k] - a[k]; return x[1] - y[1]; }).map(x => x[0]); }
+function viewAll() {
+  const rs = worstFirst(visible(routesOf(UI.group)));
+  const page = rs.slice(UI.page * PAGE, UI.page * PAGE + PAGE);
+  return `<p class="sub">${rs.length} route(s) of <b>${E(groupTitle(UI.group))}</b>, worst first (breaks, then flags, then risks), a line each: its last call, its calls (oldest first), its holes by where their values come from, its steps (coloured by the rung the last call ran each at, edged by the worst finding), its flags and findings. ▸ draws a route's wiring; its name opens it large. The counts at the top are of every route listed, drawn or not.</p>` +
+    pager(rs.length, PAGE) + (page.length ? page.map(rowHtml).join('') : '<p class="empty">No route here.</p>') + pager(rs.length, PAGE);
+}
+function fillOrder(s) {
+  // A hole that reads another of the same request is filled after it.
+  const done = [], left = s.holes.map((h, hi) => ({h, hi}));
+  let guard = 0;
+  while (left.length && guard++ < 999) {
+    const i = left.findIndex(x => (x.h.sent || []).every(w => !left.some(y => y !== x && y.h.place.toLowerCase() === String(w).toLowerCase())));
+    done.push(...left.splice(i < 0 ? 0 : i, 1));
+  }
+  return done;
+}
+function viewOne() {
+  const sm = summaryOf(UI.route) || visible(routesOf(UI.group))[0];
+  if (!sm) return '<p class="empty">No route.</p>';
+  UI.route = sm.key;
+  const r = routeByKey(sm.key);
+  if (!r) return `<p class="sub"><b>${E(label(sm))}</b> · reading its holes…</p>`;
+  let html = `<p class="sub"><b>${E(label(r))}</b> · ${E(r.site || '')} · ${E(r.what || '')} · <span class="mute">${E(r.file)}, drawn from its ${r.by}</span>` +
+    (r.made ? ` · last call ${r.made.ok ? 'answered' : 'failed'} at rung ${r.made.rung}${r.made.browser ? ', a browser ran' : ''}, ${r.made.ms} ms` : ' · never called') +
+    (r.ceiling ? ` · row ceiling ${r.ceiling.value == null ? 'unknown (' + E(r.ceiling.from) + ')' : 'r' + r.ceiling.value}` : '') + ` · the body fills at rung ${r.floor} or above</p>`;
+  for (const f of r.flags || []) html += `<p class="sub"><span class="mark m-${f.kind}">${FLAGMARK[f.kind]}</span> ${E(f.why)}</p>`;
+  html += `<p class="sub">Its calls (made.jsonl, oldest first): ${strip(r)}${r.walk ? ` · learned on walk <code>${E(r.walk)}</code>${r.capture ? ', its capture read' : ', no capture of it found'}` : ''}</p>`;
+  const allF = findingsOf(r);
+  if (allF.length) html += `<div class="card"><b>Findings</b> <span class="mute small">route-xray.py's catalogue, laid on what each is about. Click one for the engine's functions that decide it.</span><table>${allF.map(x => findingRow(r, x.f, x.where, x.key)).join('')}</table></div>`;
+  if (r.wire) html += wireHtml(r);
+  if (r.slots && r.slots.length) html += `<p class="sub">Slots: ${r.slots.map(s => E(s.name) + (s.secret ? ' (secret)' : s.example ? ' = ' + E(s.example) : '')).join(', ')}</p>`;
+  if (r.plan) html += `<p class="sub">Plan: ${E(r.plan.goal || '')} on ${E(r.plan.page || '')}; asked ${r.plan.asked.map(a => E(a.slot) + ' by ' + E(a.by)).join(', ')}</p>`;
+  if (r.answer && r.answer.decode) html += `<p class="sub">The answer is decoded by a program (${r.answer.decode.bytes} bytes): ${E(r.answer.decode.evidence.join('; '))} ${srcButton(r, 'decode', 0, 0, 0)}</p>`;
+  html += draw([r], {scale: 1.5}) + moreSteps(r);
+  html += '<h2>Step by step, in fill order</h2>';
+  r.steps.forEach((s, si) => {
+    if (si >= (UI.show.get(r.key) || STEPS)) return;
+    const tags = [s.answer ? 'the answer' : '', s.page ? 'needs the page' : '', s.writes ? 'writes' : '', s.on_load ? 'on load' : '', s.sets_cookie ? 'sets a cookie' : '', s.body ? 'body ' + s.body : '', s.script ? 'sent by a script of ' + s.script : '', s.walks ? s.walks + ' walk(s) seen' : '', s.over_scripts ? 'checked against ' + s.over_scripts + ' script hash(es)' : ''].filter(Boolean);
+    if (s.ran != null) tags.push('the last call ran it at rung ' + s.ran);
+    html += `<div class="card step"><h3><span style="color:${s.ran != null ? RUNGCOL(s.ran) : 'inherit'}">${s.n}.</span> ${E(s.method)} ${E(s.host)}${E(s.path)} ${tags.map(t => `<span class="tag">${E(t)}</span>`).join('')}</h3>` +
+      ((s.findings || []).length ? `<p class="small">${s.findings.map((f, fi) => `<span class="lv lv-${f.level}">${f.level}</span> <a href="#" class="fd" data-finding="${E(r.key + '|' + r.by + '|' + si + '|s|' + fi)}">${E(f.title)}</a>${f.more ? ' <span class="mute">(' + E(f.more) + ')</span>' : ''}`).join('<br>')}</p>` : '') +
+      `<table><tr><th></th><th>place</th><th>rung</th><th>its way (first of the ways)</th><th>flags and findings</th></tr>`;
+    const folded = [];
+    for (const {h, hi} of fillOrder(s)) {
+      if (h.fold && !h.flags.length && !(h.findings || []).length) { folded.push(h); continue; }
+      html += holeRow(r, si, h, hi);
+    }
+    html += '</table>';
+    if (folded.length) html += `<details><summary>${folded.length} of the browser's own headers, sent as walked (${Object.entries(folded.reduce((a, h) => (a[h.fold] = (a[h.fold] || 0) + 1, a), {})).map(([k, v]) => v + ' by ' + FOLDWORD[k]).join(', ')})</summary><table>${folded.map(h => holeRow(r, si, h, s.holes.indexOf(h))).join('')}</table></details>`;
+    html += '</div>';
+  });
+  return html;
+}
+// Route to transport: per step of the last call, what the walk's browser sent, what the route says, what the call sent.
+function wireHtml(r) {
+  const w = r.wire, K = S.wire_kinds || {};
+  const names = (xs, other, lens) => (xs || []).map(n => `<span class="nm${other && !other.includes(n) ? ' off' : ''}" title="${lens && lens[n] != null ? lens[n] + ' chars' : ''}">${E(n)}</span>`).join('') || '<span class="mute">none</span>';
+  let html = `<div class="card"><b>Route to transport</b> <span class="mute small">the last call${w.last ? ' (' + (w.last.ok ? 'answered' : 'failed') + ', rung ' + w.last.rung + (w.last.browser ? ', a browser ran' : '') + ')' : ' (never called)'}, step by step: what the walk's browser sent, what the route says to send, what the call sent. Names and lengths only; an edged name is one the other side lacks. Click a difference for the engine's functions that build that part.</span>`;
+  for (const n of w.not_recorded || []) html += `<p class="small mute">Not recorded: ${E(n)}</p>`;
+  const b = w.build || {};
+  html += `<p class="small mute">Transport: ${b.emulation ? E(b.emulation) + ' emulation' : 'emulation not read'}${b.ech_grease ? ', ECH GREASE' : ''}${b.alps ? ', ALPS' : ''}${b.sigalgs ? ', the minting Chrome\'s signature algorithms' : ''}; ClientHello ${b.measured ? 'measured once against the minting Chrome (' + E(b.measured) + ')' : 'not measured in this source'}, its patch ${b.vendored ? 'vendored into this build' : 'not vendored here'}; per call: not recorded${(w.tls || []).length ? '. The log: ' + w.tls.map(E).join('; ') : ''}.${w.block && w.block.overlap ? ' Another call ran beside it: its log lines are matched by address.' : ''}${w.block && w.block.failed ? ' The call said: <code>' + E(w.block.failed) + '</code>' : ''}</p>`;
+  for (const st of w.steps || []) {
+    const B = st.browser, C = st.call, R = st.route;
+    html += `<div class="card step"><h3>${E(st.n)}. ${E(st.method)} ${E(st.host)}${E(st.path)}${st.off_route ? ' <span class="tag">refused, not a step of the route as it stands</span>' : ''}${st.reply ? ` <span class="tag" style="${st.reply.reads === 'answered' ? '' : 'color:var(--bad);border-color:var(--bad)'}">${E(st.reply.status)} ${E(st.reply.words)}</span>` : ''}</h3>` +
+      (st.diffs.length ? '<p class="small">' + st.diffs.map(d => `<span class="wd k-${E(d.kind)}" data-wire="${E(d.kind)}" title="${E(d.why)}">${E(K[d.kind] || d.kind)}${d.name ? ': ' + E(d.name) : ''}</span>`).join('') + '</p>' : '<p class="small mute">No difference in what is recorded.</p>') +
+      `<div class="wire3"><div><b>the walk's browser</b>${B ? `<br><span class="mute">${B.from === 'wire' ? "Chrome's wire headers" : "the page's request"}, ${E(B.proto || 'protocol not recorded')}, ${B.order === false ? 'order not kept by the capture' : 'in order'}${B.status != null ? ', answered ' + B.status : ''}</span><br>${names(B.names, C ? C.names : null, B.lens)}<br><span class="mute">cookies:</span> ${names(B.cookies, C && C.cookies)}` : '<br><span class="mute">not in the capture</span>'}</div>` +
+      `<div><b>the route says</b><br>${(R.headers.length + R.cookies.length) ? R.headers.concat(R.cookies).map(h => `<span class="nm" title="${E(h.source)}">${E(h.name)}</span><span class="small mute">${E(h.source)}</span>`).join('<br>') : '<span class="mute">no header or cookie hole</span>'}</div>` +
+      `<div><b>what the call sent</b>${C ? `<br><span class="mute">${E(C.from)}${C.note ? ': ' + E(C.note) : ''}${C.proto ? ', ' + E(C.proto) : ''}${C.status != null ? ', answered ' + C.status : ''}</span><br>${names(C.names, B ? B.names : null, C.lens)}<br><span class="mute">cookies:</span> ${C.cookies ? names(C.cookies, B && B.cookies) : '<span class="mute">not recorded</span>'}` : '<br><span class="mute">not recorded</span>'}</div></div></div>`;
+  }
+  return html + '</div>';
+}
+function openWire(kind) {
+  const fs = (ENG.wire || {})[kind], K = S.wire_kinds || {};
+  $('dbody').innerHTML = `<h3>${E(K[kind] || kind)}</h3><p class="small">The engine's functions that build this part of a request${Object.keys(ENG.tips || {}).length ? ' (' + Object.entries(ENG.tips).map(([k, v]) => E(k) + ' at ' + E(v)).join(' · ') + ')' : ''}. Read these before naming a cause; the fix goes in one of them, never in the route.</p>` +
+    (fs ? `<div class="card">${fnList(fs, 12)}</div>` : '<p class="small mute">The engine was not read (wiring.py --no-engine), or the server is older than this page.</p>');
+  $('drawer').classList.add('on'); $('drawer').focus();
+}
+function holeRow(r, si, h, hi) {
+  const main = h.layers.length ? h.layers[0].layer : (h.open ? 'bad' : 'fixed');
+  return `<tr><td><span class="chip" style="background:${COL(main)}"></span></td><td><a href="#" data-hole="${E(holeKey(r, si, h))}" data-route="${E(r.key)}" data-by="${r.by}" data-si="${si}" data-hi="${hi}"><code>${E(h.place)}</code></a></td><td>${h.rung == null ? '—' : 'r' + h.rung}</td><td><code>${E(h.ways.length ? h.ways[0].line : 'no way')}</code>${h.ways.length > 1 ? ` <span class="mute">+${h.ways.length - 1} more</span>` : ''}</td><td>${h.flags.map(f => `<span class="mark m-${f.kind}" title="${E(f.why)}">${FLAGMARK[f.kind]}</span>`).join(' ')} ${(h.findings || []).map(f => `<span class="lv lv-${f.level}" title="${E(f.title + (f.more ? ' (' + f.more + ')' : ''))}">${E(f.id)}</span>`).join(' ')}</td></tr>`;
+}
+// Holes of two readings of a route, matched by step (method, host, path) and place.
+function pairHoles(a, b) {
+  // A step is matched by its method and path, a templated piece of the path (`{path[1]}`) matching any piece.
+  const segs = s => String(s.path || '').split('/');
+  const fits = (x, y) => String(x.method).toUpperCase() === String(y.method).toUpperCase() && segs(x).length === segs(y).length && segs(x).every((p, i) => p === segs(y)[i] || p.includes('{') || segs(y)[i].includes('{'));
+  const m = new Map(), stepsA = a ? a.steps : [];
+  const keyOf = (s, h, other) => { const twin = other ? other.find(x => fits(x, s)) : s; return [String((twin || s).method).toUpperCase(), (twin || s).path, h.place.toLowerCase()].join(' '); };
+  if (a) a.steps.forEach((s, si) => s.holes.forEach(h => { if (h.fold) return; const k = keyOf(s, h); if (!m.has(k)) m.set(k, {k, s}); m.get(k).a = {r: a, si, h}; }));
+  if (b) b.steps.forEach((s, si) => s.holes.forEach(h => { if (h.fold) return; const k = keyOf(s, h, stepsA); if (!m.has(k)) m.set(k, {k, s}); m.get(k).b = {r: b, si, h}; }));
+  const same = (x, y) => x && y && JSON.stringify(x.h.layers.map(l => l.layer).sort()) === JSON.stringify(y.h.layers.map(l => l.layer).sort()) && x.h.rung === y.h.rung && x.h.fixed === y.h.fixed && x.h.open === y.h.open;
+  const rows = [...m.values()]; for (const row of rows) row.differs = !same(row.a, row.b);
+  return rows;
+}
+function sideTable(rows, an, bn) {
+  const cell = x => x ? `<code>${E(x.h.ways.length ? 'r' + x.h.rung + ' ' + x.h.ways[0].line : 'no way')}</code>` : '<span class="mute">not sent</span>';
+  return `<table><tr><th>step · place</th><th>${E(an)}</th><th>${E(bn)}</th></tr>${rows.map(x => `<tr class="${x.differs ? 'differs' : ''}"><td>${x.differs ? '≠ ' : ''}${E(x.s.n + ' ' + x.s.method + ' ' + x.s.path)} · <code>${E(x.k.split(' ').slice(2).join(' '))}</code></td><td>${cell(x.a)}</td><td>${cell(x.b)}</td></tr>`).join('')}</table>`;
+}
+function sidePairs() {
+  const A = visible(routesOf(UI.sideA)), B = visible(routesOf(UI.sideB)), id = r => r.row || [r.site, r.what].join(' · '), out = [];
+  for (const a of A) { const b = B.find(x => id(x) === id(a)); if (b) out.push([a, b]); }
+  return out;
+}
+function viewSide() {
+  let html = '';
+  if (UI.sideMode === 'graph') {
+    const withBoth = visible(routesOf(UI.group)).filter(r => r.graph);
+    const sm = withBoth.find(x => x.key === UI.route) || withBoth[0];
+    if (!sm) return '<p class="empty">No route of this group has both a body and a graph. Choose "two groups" to set a classifier run beside a by-example run.</p>';
+    UI.route = sm.key;
+    const r = routeByKey(sm.key);
+    if (!r) return '<p class="mute">reading its holes…</p>';
+    const g = Object.assign({}, r.graph, {key: r.key, file: r.file, row: (r.row || label(r)) + ' · classifier', what: r.what, made: null, flags: [], ceiling: null});
+    const b = Object.assign({}, r, {row: (r.row || label(r)) + ' · by example'});
+    const rows = pairHoles(g, b), diff = new Set();
+    for (const x of rows) if (x.differs) for (const side of [x.a, x.b]) if (side) diff.add(holeKey(side.r, side.si, side.h));
+    html += `<p class="sub"><b>${E(label(r))}</b>: its graph (the classifier's) beside its body (by example). ${rows.filter(x => x.differs).length} hole(s) differ, ringed dashed amber.</p>`;
+    html += draw([g, b], {diff}) + sideTable(rows, 'the classifier (graph)', 'by example (body)');
+    return html;
+  }
+  const all = sidePairs();
+  if (!routesOf(UI.sideA).length || !routesOf(UI.sideB).length) return '<p class="empty">Choose two groups (the side-by-side selectors above). Loading if just chosen…</p>';
+  const id = r => r.row || [r.site, r.what].join(' · ');
+  html += `<p class="sub">${all.length} route(s) in both <b>${E(groupTitle(UI.sideA))}</b> and <b>${E(groupTitle(UI.sideB))}</b>, matched by matrix row, or by site and what it does. Holes that differ are ringed dashed amber.</p>` + pager(all.length, 8);
+  for (const [sa, sb] of all.slice(UI.page * 8, UI.page * 8 + 8)) {
+    const a = D.get(sa.key), b = D.get(sb.key);
+    if (!a || !b) { html += `<h2>${E(id(sa))}</h2><p class="mute">reading its holes…</p>`; continue; }
+    const rows = pairHoles(a, b), diff = new Set();
+    for (const x of rows) if (x.differs) for (const side of [x.a, x.b]) if (side) diff.add(holeKey(side.r, side.si, side.h));
+    const ta = Object.assign({}, a, {row: id(a) + ' · A (' + a.by + ')'}), tb = Object.assign({}, b, {row: id(b) + ' · B (' + b.by + ')'});
+    html += `<h2>${E(id(a))} <span class="mute small">${rows.filter(x => x.differs).length} differ</span></h2>` + draw([ta, tb], {diff}) + `<details><summary>hole by hole</summary>${sideTable(rows, 'A ' + a.by, 'B ' + b.by)}</details>`;
+  }
+  return html;
+}
+
+// ---------------------------------------------------------------------------------------------- the hole, opened
+function srcButton(r, step, hole, way, n) {
+  if (S.with_source) return '';
+  if (!LIVE) return '<span class="mute">(source: run serve, local only)</span>';
+  return `<details data-src="${E(JSON.stringify({route: r.key, step, hole, way, n}))}"><summary>source (local only)</summary><pre>…</pre></details>`;
+}
+// ---------------------------------------------------------------------------------------------- findings, and the engine
+function findingsOf(r) {
+  const out = [];
+  (r.findings || []).forEach((f, fi) => out.push({f, where: 'the route', key: r.key + '|' + r.by + '|-|r|' + fi}));
+  (r.steps || []).forEach((s, si) => {
+    (s.findings || []).forEach((f, fi) => out.push({f, where: 'step ' + s.n, key: r.key + '|' + r.by + '|' + si + '|s|' + fi}));
+    s.holes.forEach((h, hi) => (h.findings || []).forEach((f, fi) => out.push({f, where: 'step ' + s.n + ' · ' + h.place, key: r.key + '|' + r.by + '|' + si + '|h' + hi + '|' + fi})));
+  });
+  const lv = {break: 0, risk: 1, note: 2};
+  return out.sort((a, b) => lv[a.f.level] - lv[b.f.level]);
+}
+function findingRow(r, f, where, key) {
+  return `<tr><td><span class="lv lv-${f.level}">${f.level}</span></td><td><a href="#" class="fd" data-finding="${E(key)}">${E(f.title)}</a>${f.more ? ' <span class="mute">(' + E(f.more) + ')</span>' : ''}${f.also ? '<br><span class="small mute">also the ' + E(f.also) + '</span>' : ''}</td><td class="mute small">${E(where)}</td></tr>`;
+}
+function fnList(fs, most) {
+  if (!fs || !fs.length) return '<span class="mute">none</span>';
+  return fs.slice(0, most || 8).map(f => f.gone ? `<div class="fn gone">${E(f.gone)} (gone from the source)</div>` :
+    `<div class="fn">${E(f.file)}:${f.line} <b>${E(f.name)}</b> <span class="who">${f.lines} lines${Array.isArray(f.callers) ? ', called by ' + (f.callers.length ? E(f.callers.join(', ')) + (f.ncallers > f.callers.length ? ' +' + (f.ncallers - f.callers.length) : '') : 'nothing traced') : f.callers != null ? ', ' + f.callers + ' caller(s)' : ''}</span></div>`).join('') + (fs.length > (most || 8) ? `<div class="mute small">+${fs.length - (most || 8)} more</div>` : '');
+}
+function engineWhy(f) {
+  const E_ = ENG; if (!Object.keys(E_.tips || {}).length) return '<p class="small mute">The engine was not read (wiring.py --no-engine), or this route is still being read.</p>';
+  const w = E_.why[f.id + '|' + (f.classes || []).join(',')] || E_.why[f.id + '|'];
+  if (!w) return '<p class="small mute">WHY names nothing for this finding.</p>';
+  const rows = [['wrote it this way', w.wrote], ['would have strung it', w.missed], ['decides this seam', w.seam], ['the rebuild', w.rebuild]].filter(x => x[1] && x[1].length);
+  return `<p class="small">In the engine (${Object.entries(E_.tips).map(([k, v]) => E(k) + ' at ' + E(v)).join(' · ')}). Read these before naming a cause; the fix goes in one of them, never in the route.</p>` +
+    rows.map(([n, fs]) => `<div class="card"><b>${E(n)}</b>${fnList(fs)}</div>`).join('') +
+    `<p class="small"><b>The tree:</b> ${w.tree != null ? '<code>' + E(w.tree) + '</code>' : 'cannot say it yet'}${w.gap ? '<br><span class="mute">' + E(w.gap) + '</span>' : ''}</p>`;
+}
+function engineKinds(kinds) {
+  const E_ = ENG; if (!kinds || !kinds.length) return '';
+  return '<h3 style="margin-top:10px">Its kind, in the engine</h3>' + kinds.map(k => {
+    const row = E_.kinds[k] || {};
+    const per = Object.entries(row).map(([eng, x]) => `<p class="small"><b>${E(eng)}</b>: written by ${x.writes_n}, branched on by ${x.reads_n}</p><div class="card"><b>writes ${E(k)}</b>${fnList(x.writes, 6)}</div><div class="card"><b>branches on ${E(k)}</b>${fnList(x.reads, 6)}</div>`).join('');
+    return `<details open><summary><code>${E(k)}</code></summary>${per || '<p class="small mute">No function of the engine read names this kind (the checkout may not carry its crate; give xray.sh a rebuild map).</p>'}</details>`;
+  }).join('');
+}
+function openFinding(key) {
+  const [rk, by, si, where, fi] = key.split('|');
+  const r = routeByKey(rk); if (!r) return;
+  const m = by === 'graph' && r.by === 'body' ? r.graph : r;
+  let f, h = null, s = null;
+  if (where === 'r') f = m.findings[+fi];
+  else { s = m.steps[+si]; if (where === 's') f = s.findings[+fi]; else { h = s.holes[+where.slice(1)]; f = h.findings[+fi]; } }
+  if (!f) return;
+  let html = `<h3><span class="lv lv-${f.level}">${f.level}</span> ${E(f.title)}</h3><p class="sub">${E(label(r))} · ${E(f.where)}${f.more ? ' · ' + E(f.more) : ''}</p><p class="small">${E(f.points)}</p>`;
+  if (f.also) html += `<p class="small">Also the ${E(f.also)}</p>`;
+  html += engineWhy(f);
+  if (h) html += engineKinds(h.kinds);
+  $('dbody').innerHTML = html; $('drawer').classList.add('on'); $('drawer').focus();
+}
+function openHole(el) {
+  const r = routeByKey(el.dataset.route); if (!r) return;
+  const m = el.dataset.by === 'graph' && r.by === 'body' ? r.graph : r;
+  const si = +el.dataset.si, hi = +el.dataset.hi, s = m.steps[si], h = s.holes[hi];
+  UI.sel = el.dataset.hole;
+  let html = `<h3><code>${E(h.place)}</code></h3><p class="sub">Step ${s.n} of ${E(label(r))} (${E(m.by)}): ${E(s.method)} ${E(s.host)}${E(s.path)}${s.answer ? ', the answer' : ''}. ${h.fold ? "One of the browser's own headers (" + (h.fold === 'sightings' ? "the route's sightings say so" : h.fold === 'address' ? 'a fixed piece of the address' : 'by the rule') + ').' : ''}</p>`;
+  for (const f of h.flags) html += `<p><span class="mark m-${f.kind}">${FLAGMARK[f.kind]}</span> ${E(f.why)}</p>`;
+  (h.findings || []).forEach((f, fi) => { html += `<div class="card"><span class="lv lv-${f.level}">${f.level}</span> <a href="#" class="fd" data-finding="${E(r.key + '|' + el.dataset.by + '|' + si + '|h' + hi + '|' + fi)}"><b>${E(f.title)}</b></a>${f.more ? ' <span class="mute">(' + E(f.more) + ')</span>' : ''}${f.also ? '<br><span class="small mute">also the ' + E(f.also) + '</span>' : ''}<p class="small mute">${E(f.points)}</p>${engineWhy(f)}</div>`; });
+  if (!h.ways.length) html += '<p class="empty">No way: nothing makes this value.</p>';
+  h.ways.forEach((w, wi) => {
+    html += `<div class="card"><b>way ${wi + 1}: rung ${w.rung}</b> <span class="mute">${E(S.rungs[w.rung] || '')}</span>${w.class ? ' <span class="tag">class ' + E(w.class) + '</span>' : ''}<pre>${E(w.tree || w.line)}</pre>`;
+    (w.programs || []).forEach((p, pi) => {
+      html += `<p class="small">${E(p.op)}: ${p.bytes} bytes of source</p><ul class="small">${p.evidence.map(e => '<li>' + E(e) + '</li>').join('') || '<li>no evidence recorded</li>'}</ul>`;
+      if (S.with_source && w._sources) html += `<details><summary>source (local only)</summary><pre>${E(w._sources[pi])}</pre></details>`;
+      else html += srcButton(r, si, hi, wi, pi);
+    });
+    html += '</div>';
+  });
+  if (h.layers.length) html += `<p class="small">Strung to: ${h.layers.map(l => `<span class="chip" style="background:${COL(l.layer)}"></span>${E(l.layer)} (${E(l.why)})`).join(', ')}</p>`;
+  if (h.sent && h.sent.length) html += `<p class="small">Reads, of the same request: ${h.sent.map(E).join(', ')}</p>`;
+  if (h.reads && h.reads.length) html += `<p class="small">Reads, of an earlier answer: ${h.reads.map(x => 'step ' + E(x.n || x.step) + ' ' + E(x.what)).join(', ')}</p>`;
+  if (h.sightings && h.sightings.length) html += `<h3 style="margin-top:10px">Sightings (tests)</h3><table><tr><th>walk</th><th>from</th><th>shape</th></tr>${h.sightings.map(x => `<tr><td>${x.walk}</td><td>${E(x.from)}</td><td>${E(x.shape)}</td></tr>`).join('')}</table>`;
+  else if (m.by === 'body') html += '<p class="small mute">No sighting of this place in the route\'s tests.</p>';
+  html += engineKinds(h.kinds);
+  $('dbody').innerHTML = html;
+  $('drawer').classList.add('on');
+  $('drawer').focus();
+  document.querySelectorAll('.hole.sel').forEach(x => x.classList.remove('sel'));
+  document.querySelectorAll(`.hole[data-hole="${CSS.escape(UI.sel)}"]`).forEach(x => x.classList.add('sel'));
+}
+document.addEventListener('toggle', ev => {
+  const d = ev.target; if (!d.dataset || !d.dataset.src || !d.open || d.dataset.loaded) return;
+  const q = JSON.parse(d.dataset.src); d.dataset.loaded = 1;
+  fetch('/source?' + new URLSearchParams(q)).then(r => r.text()).then(t => d.querySelector('pre').textContent = t);
+}, true);
+
+// ---------------------------------------------------------------------------------------------- the frame
+function groupTitle(k) { const g = S.groups.find(g => g.key === k); return g ? g.title : k; }
+function counts() {
+  const rs = UI.view === 'side' && UI.sideMode === 'two' ? visible(routesOf(UI.sideA)).concat(visible(routesOf(UI.sideB))) : UI.view === 'one' ? [summaryOf(UI.route)].filter(Boolean) : visible(routesOf(UI.group));
+  const c = {}; for (const [k] of S.flags) c[k] = 0;
+  for (const lv of S.levels || []) c[lv] = 0;
+  for (const r of rs) { for (const k in r.counts || {}) c[k] = (c[k] || 0) + r.counts[k]; for (const k in r.found || {}) c[k] = (c[k] || 0) + r.found[k]; }
+  return c;
+}
+function LEG() { return (S.legends && S.legends[UI.group]) || S.legend || {}; }
+function frame() {
+  const c = counts();
+  $('flags').innerHTML = '<span class="mute small">findings</span>' + (S.levels || []).map(lv => `<button class="flag" data-only="${lv}" aria-pressed="${UI.only === lv}" title="route-xray.py's findings at ${lv}. Click: only routes with one."><span class="lv lv-${lv}">${lv}</span> <b>${c[lv] || 0}</b></button>`).join('') +
+    '<span class="mute small">flags</span>' + S.flags.map(([k, name, why]) => `<button class="flag" data-only="${k}" aria-pressed="${UI.only === k}" title="${E(why)}. Click: only routes with it."><span class="mark m-${k}">${FLAGMARK[k]}</span>${E(name)} <b>${c[k] || 0}</b></button>`).join('');
+  // The cost strip: what each home of the group cost, against its budgets (docs/PERFORMANCE.md); a field over budget is red.
+  const cost = (S.cost && S.cost[UI.group]) || [];
+  $('flags').innerHTML += '<span class="mute small">cost</span>' + cost.map(k => { const over = new Set((k.over || []).map(o => o.field)); const f = (n, v, t) => `<span class="small" style="${over.has(n) ? 'color:var(--bad);font-weight:700' : ''}" title="${E(t + ((k.over || []).find(o => o.field === n) ? ' — over its budget of ' + k.over.find(o => o.field === n).budget : ''))}">${v}</span>`;
+    return `<span class="flag" title="${E(k.label || '')}">${f('walks', k.walks + ' loads', 'walks of a page')} ${f('launches_per_walk', k.launches + ' launches', 'browsers launched; per walk ' + k.launches_per_walk)} ${f('sent_per_call', k.calls + ' calls / ' + k.sent + ' sent', 'requests sent to sites, per call ' + k.sent_per_call)} ${f('reply_bytes_max', 'reply ≤' + k.reply_bytes_max + ' B', 'largest reply; median ' + k.reply_bytes_median)} ${f('browsers_left', k.browsers_left + ' left', 'browsers a stopped node left running')}</span>`; }).join('');
+  const gsel = $('group');
+  gsel.innerHTML = S.groups.map(g => `<option value="${E(g.key)}" ${g.key === UI.group ? 'selected' : ''}>${E(g.title)}</option>`).join('');
+  const rs = visible(routesOf(UI.group));
+  $('route').innerHTML = rs.map(r => `<option value="${E(r.key)}" ${r.key === UI.route ? 'selected' : ''}>${E(label(r))} · ${E(r.file)}</option>`).join('');
+  $('routeL').style.display = UI.view === 'all' ? 'none' : '';
+  $('sideCtl').innerHTML = UI.view !== 'side' ? '' : `<label>compare <select id="sideMode"><option value="graph" ${UI.sideMode === 'graph' ? 'selected' : ''}>graph against body of one route</option><option value="two" ${UI.sideMode === 'two' ? 'selected' : ''}>two groups</option></select></label>` +
+    (UI.sideMode === 'two' ? ` A <select id="sideA">${S.groups.map(g => `<option value="${E(g.key)}" ${g.key === UI.sideA ? 'selected' : ''}>${E(g.title)}</option>`).join('')}</select> B <select id="sideB">${S.groups.map(g => `<option value="${E(g.key)}" ${g.key === UI.sideB ? 'selected' : ''}>${E(g.title)}</option>`).join('')}</select>` : '');
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', b.dataset.view === UI.view));
+  const legOpen = !!$('legend').firstElementChild && $('legend').firstElementChild.open;
+  $('legend').innerHTML = `<details ${legOpen ? 'open' : ''}><summary>legend</summary>` + '<div class="leg">' + S.layers.map(([k, n]) => `<span><span class="sw" style="background:${COL(k)}"></span>${E(n)}</span>`).join('') +
+    `<span><span class="chip" style="background:var(--fixed)"></span>sent as fixed text (no string)</span><span><span class="sw" style="background:var(--script);height:2px"></span>dotted arc: reads another hole of the same request</span>` +
+    `<span>a number in a hole: how many ways it has; r<i>n</i>: its cheapest way's rung (0 walk values · 1 a standard operation · 2 the site's own function · 3 bundle · 4 kept page · 5 browser)</span>` +
+    `<span>yellow halo: its way or rung changed since the last draw</span></div>` +
+    `<div class="leg"><span><b>The browser's own headers are folded</b> (+<i>n</i> chips), read in this order: a fixed-text hole whose sightings in the route's <code>tests</code> all say <code>browser</code> (<code>Kind::Browsers</code>); with the walk's capture in hand, a header the browser sent on what the document loads by itself, where no page code sets one (<code>slots::BrowsersOwn</code>'s property); only where neither says, the Fetch standard's browser-set names (${S.rule.map(E).join(', ')}); and a graph's fixed path pieces. A hole with a flag or a finding is never folded. Here: ${Object.entries(LEG().folds || {}).map(([k, v]) => v + ' by ' + E(FOLDWORD[k])).join(', ') || 'none folded'}.</span></div>` +
+    `<div class="leg"><span><b>A person</b>: ${LEG().person ? (LEG().person + ' hole(s) a route marks with a <code>person</code> or <code>door</code> field, or a sighting from one') : 'no route read here marks a person (<code>person</code> or <code>door</code> on a hole, or a sighting from one), so the layer stays empty'}.</span></div>` +
+    `<div class="leg"><span><b>Findings</b> are route-xray.py's catalogue (break, risk, note), laid on the hole, step or route each is about; a ring round a hole is its worst. Where a finding and a flag say the same thing (open; a time of the walk sent as walked) the finding is kept and says the flag's evidence. A step's number takes the colour of the rung the last call ran it at (made.jsonl <code>steps</code>); the squares under a route are its last calls, oldest first (B a browser ran, a red edge a failure).</span></div>` +
+    `<div class="leg"><span>Flags: ${S.flags.map(([k, n, w]) => `<span class="mark m-${k}">${FLAGMARK[k]}</span> ${E(n)}: ${E(w)}`).join(' · ')}. Ops known: ${S.known_ops.length} (${E(S.known_ops.join(', '))}).</span></div><div class="leg"><span>In a drawing a step's run of more than 8 fixed-text holes, and its holes past the first ${CAP}, fold into the same chip; a route is drawn ${STEPS} steps at a time.</span></div></details>`;
+}
+function pickHtml() {
+  if (!S.pick) return `<div class="empty">Why a call was or was not picked as the answer comes before any route exists, and lives in the pick log (the node's own log), not in a route file. Serve a scratch node (<code>xray.sh</code> with <code>UB_DIR</code>, or <code>--ub-dir</code>) or give its log with <code>--log &lt;node.log&gt;</code> (a node started with <code>SIGN_DEBUG=1</code>): each walk's candidates, the pick and its reasons show here, read by <code>xray_log.py</code>. A learn that kept no route shows here too.</div>`;
+  if (!S.pick.length) return `<div class="empty">The log (${E(S.log)}) holds no learn.</div>`;
+  return S.pick.slice().reverse().map((l, i) => {
+    const bad = !l.kept;
+    const rows = l.candidates.map(c => `<tr style="${c.picked ? 'font-weight:600;background:color-mix(in srgb,var(--answer) 14%,transparent)' : ''}"><td>${c.picked ? 'picked' : c.noise ? 'noise' : ''}</td><td style="text-align:right">${c.score.toFixed(1)}</td><td><code>${E(c.call)}</code></td><td class="small">${E(c.holds.join(', '))}</td><td class="small mute">${E(c.held)}</td></tr>`).join('');
+    return `<details class="card" ${i === 0 ? 'open' : ''}><summary><b>${E(l.goal)}</b> <span class="mute">${E(l.site)}${E(l.page)} · walk ${E(l.walk)}</span> <span class="tag" style="${bad ? 'color:var(--bad);border-color:var(--bad)' : ''}">${E(l.outcome)}</span> ${l.findings.map(f => `<span class="lv lv-${f.level}" title="${E(f.title + (f.more ? ' (' + f.more + ')' : ''))}">${E(f.id)}</span>`).join(' ')}</summary>` +
+      (l.failed ? `<p style="color:var(--bad)">The learn kept no route: ${E(l.failed)}</p>` : '') +
+      (l.set_aside ? `<p class="small">Why this learn began: ${E(l.set_aside)}</p>` : '') +
+      `<p class="small">The walk: ${l.seen} call(s) seen (${Object.entries(l.sorts).map(([k, v]) => v + ' ' + E(k)).join(', ') || 'none'}); ${l.candidates.length} candidate(s) scored.${l.early ? ' <b>Workers and frames:</b> ' + E(l.early) + '.' : ''}</p>` +
+      (rows ? `<table><tr><th></th><th>score</th><th>call</th><th>holds</th><th>why it was held back</th></tr>${rows}</table>` : '<p class="empty">No candidate at all: no call of the walk was scored as an answer.</p>') +
+      (l.picked ? `<p class="small">Picked by <b>${E(l.picked.by)}</b>: ${E(l.picked.reasons.join('; '))}</p>` : '') +
+      l.findings.map(f => `<p class="small"><span class="lv lv-${f.level}">${f.level}</span> <a href="#" class="fd" data-pickf="${E(f.id)}">${E(f.title)}</a>${f.more ? ' <span class="mute">(' + E(f.more) + ')</span>' : ''}</p>`).join('') +
+      `<details><summary>every line the log holds for it</summary><pre>${E(l.text.join('\n'))}</pre></details></details>`;
+  }).join('');
+}
+function render() {
+  if (!S) return;
+  if (!UI.group || !S.groups.some(g => g.key === UI.group)) UI.group = S.groups.length ? S.groups[0].key : null;
+  if (!UI.sideA) UI.sideA = UI.group;
+  if (!UI.sideB) UI.sideB = (S.groups[1] || S.groups[0] || {}).key;
+  const sx = window.scrollX, sy = window.scrollY;
+  const body = UI.view === 'one' ? viewOne() : UI.view === 'side' ? viewSide() : viewAll();
+  frame();  // after the view has chosen its route, so the counts at the top are those of what is drawn
+  $('view').innerHTML = body;
+  window.scrollTo(sx, sy);
+  $('pick').innerHTML = pickHtml();
+  if (S.groups.length) toHash();
+  $('filter').value = UI.filter;
+  $('status').textContent = (LIVE ? ' · live, ' : ' · snapshot, ') + 'read ' + new Date(S.now * 1000).toLocaleTimeString();
+}
+
+// ---------------------------------------------------------------------------------------------- live
+let VERS = {};
+async function loadGroup(k) {
+  const ov = await (await fetch('/overview?group=' + encodeURIComponent(k))).json();
+  if (ov.error) { $('status').textContent = ' · ' + ov.error; return; }
+  const keep = S || {};
+  S = Object.assign(ov, {summaries: Object.assign({}, keep.summaries || {}, ov.summaries), totals: Object.assign({}, keep.totals || {}, ov.totals), legends: Object.assign({}, keep.legends || {}, {[ov.group]: ov.legend})});
+  if (ov.engine) { ENG.tips = ov.engine.tips; Object.assign(ENG.why, ov.engine.why); }
+}
+function needed() { return [...new Set([UI.group, ...(UI.view === 'side' && UI.sideMode === 'two' ? [UI.sideA, UI.sideB] : [])].filter(Boolean))]; }
+async function poll() {
+  try {
+    const v = await (await fetch('/version')).json();
+    const changed = needed().filter(k => !S.summaries[k] || VERS[k] !== v[k]);
+    const groupsMoved = Object.keys(v).length !== S.groups.length;
+    if (changed.length || groupsMoved) {
+      for (const k of (changed.length ? changed : [UI.group])) await loadGroup(k);
+      for (const k of needed()) VERS[k] = v[k];
+      await need(wanted());  // only the open routes whose own sig moved are read again
+      noteChanges(false); render();
+    }
+  } catch (e) { $('status').textContent = ' · not reaching the server (' + e.message + ')'; }
+  setTimeout(poll, 1200);
+}
+setInterval(() => { // let a lit hole go dark again
+  const now = Date.now(); let any = false;
+  for (const [k, t] of CHANGED) if (now - t > 5000) { CHANGED.delete(k); any = true; }
+  if (any) document.querySelectorAll('.hole.changed').forEach(el => { if (!CHANGED.has(el.dataset.hole)) el.classList.remove('changed'); });
+}, 1000);
+
+// ---------------------------------------------------------------------------------------------- input
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('[data-view],[data-hole],[data-fold],[data-one],[data-only],[data-finding],[data-stepf],[data-pickf],[data-page],[data-expand],[data-more],[data-wire],#close,#theme');
+  if (!t) return;
+  if (t.dataset.wire) { ev.preventDefault(); return openWire(t.dataset.wire); }
+  if (t.dataset.hole !== undefined) { ev.preventDefault(); return openHole(t); }
+  if (t.dataset.finding) { ev.preventDefault(); return openFinding(t.dataset.finding); }
+  if (t.dataset.stepf) { ev.preventDefault(); const [rk, by, si] = t.dataset.stepf.split('|'); return openFinding([rk, by, si, 's', 0].join('|')); }
+  if (t.dataset.pickf) { ev.preventDefault(); const f = {id: t.dataset.pickf, classes: []}; const l = (S.pick || []).flatMap(x => x.findings).find(x => x.id === f.id) || {}; $('dbody').innerHTML = `<h3><span class="lv lv-${l.level}">${E(l.level)}</span> ${E(l.title)}</h3>` + engineWhy(f); $('drawer').classList.add('on'); return; }
+  if (t.dataset.view) { UI.view = t.dataset.view; UI.page = 0; return go(); }
+  if (t.dataset.page) { UI.page = +t.dataset.page; return go(); }
+  if (t.dataset.expand) { ev.preventDefault(); UI.expanded.has(t.dataset.expand) ? UI.expanded.delete(t.dataset.expand) : UI.expanded.add(t.dataset.expand); return go(); }
+  if (t.dataset.more) { UI.show.set(t.dataset.more, (UI.show.get(t.dataset.more) || STEPS) + STEPS); return render(); }
+  if (t.dataset.fold) { UI.open.has(t.dataset.fold) ? UI.open.delete(t.dataset.fold) : UI.open.add(t.dataset.fold); return render(); }
+  if (t.dataset.one) { ev.preventDefault(); UI.view = 'one'; UI.route = t.dataset.one; return go(); }
+  if (t.dataset.only) { UI.only = UI.only === t.dataset.only ? null : t.dataset.only; UI.page = 0; return go(); }
+  if (t.id === 'close') { $('drawer').classList.remove('on'); return; }
+  if (t.id === 'theme') { const r = document.documentElement, dark = matchMedia('(prefers-color-scheme: dark)').matches; const now = r.dataset.theme || (dark ? 'dark' : 'light'); r.dataset.theme = now === 'dark' ? 'light' : 'dark'; }
+});
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape') { $('drawer').classList.remove('on'); return; }
+  if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.closest && ev.target.closest('[data-hole],[data-fold],[data-one]')) { ev.preventDefault(); ev.target.closest('[data-hole],[data-fold],[data-one]').dispatchEvent(new MouseEvent('click', {bubbles: true})); return; }
+  if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT') return;
+  if (ev.key === '1' || ev.key === '2' || ev.key === '3') { UI.view = ['all', 'one', 'side'][+ev.key - 1]; go(); }
+});
+document.addEventListener('change', ev => {
+  const id = ev.target.id;
+  if (id === 'group') { UI.group = ev.target.value; UI.route = null; UI.page = 0; }
+  else if (id === 'route') UI.route = ev.target.value;
+  else if (id === 'sideMode') UI.sideMode = ev.target.value;
+  else if (id === 'sideA') UI.sideA = ev.target.value;
+  else if (id === 'sideB') UI.sideB = ev.target.value;
+  else return;
+  go();
+});
+$('filter').addEventListener('input', ev => { UI.filter = ev.target.value; UI.page = 0; go(); });
+let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(render, 200); });
+async function go() {
+  render();
+  if (!LIVE) return;
+  const miss = needed().filter(k => !S.summaries[k]);
+  for (const k of miss) await loadGroup(k);
+  if (miss.length) render();
+  if (await need(wanted())) { noteChanges(true); render(); }
+}
+function fromHash() {
+  const q = new URLSearchParams(location.hash.slice(1));
+  for (const k of ['view', 'group', 'route', 'sideMode', 'sideA', 'sideB', 'filter', 'only', 'hole']) if (q.get(k)) UI[k] = q.get(k);
+}
+function toHash() {
+  const q = new URLSearchParams(); for (const k of ['view', 'group', 'route', 'sideMode', 'sideA', 'sideB', 'filter', 'only']) if (UI[k]) q.set(k, UI[k]);
+  history.replaceState(null, '', '#' + q);
+}
+(async () => {
+  fromHash();
+  if (LIVE) {
+    try { await loadGroup(UI.group || ''); VERS = await (await fetch('/version')).json(); }
+    catch (e) { document.body.insertAdjacentHTML('afterbegin', '<p class="empty">Cannot read /overview: ' + E(e.message) + '</p>'); return; }
+    if (!UI.group || !S.summaries[UI.group]) UI.group = S.group;
+    render(); setTimeout(poll, 1200);
+    if (await need(wanted())) { noteChanges(true); render(); }
+  } else {
+    for (const k in S.details || {}) D.set(k, S.details[k]);
+    if (S.engine) ENG = Object.assign({tips: {}, kinds: {}, why: {}, wire: {}}, S.engine);
+    noteChanges(true); render();
+  }
+  if (UI.hole) { const el = [...document.querySelectorAll('[data-hole]')].find(x => x.dataset.hole === UI.hole); if (el) openHole(el); }
+})();
+</script>
+</body></html>

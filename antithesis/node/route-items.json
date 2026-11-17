@@ -1,0 +1,61 @@
+{
+ "id": "route-items",
+ "site": "shop.example.com",
+ "what": "Search items",
+ "method": "GET",
+ "path": "/api/items",
+ "root": "https://shop.example.com/?q=lamps",
+ "inputs": [
+  {
+   "name": "q",
+   "secret": false,
+   "default": "lamps"
+  }
+ ],
+ "steps": 1,
+ "browser_assisted": false,
+ "write": false,
+ "provisional": false,
+ "learned_at": 1,
+ "graph": {
+  "provisional": false,
+  "steps": [
+   {
+    "exchange": 0,
+    "method": "GET",
+    "status": 200,
+    "url": "https://shop.example.com/api/items?q={q}",
+    "needs_browser": false,
+    "response_shape": {
+     "items": [
+      {
+       "id": "number",
+       "name": "string"
+      }
+     ]
+    },
+    "fields": [
+     {
+      "loc": {
+       "in": "query",
+       "key": "q"
+      },
+      "class": "input",
+      "name": "q",
+      "secret": false,
+      "default": "lamps"
+     },
+     {
+      "loc": {
+       "in": "cookie",
+       "key": "sid"
+      },
+      "class": "minted",
+      "name": "sid"
+     }
+    ]
+   }
+  ]
+ },
+ "local": false
+}

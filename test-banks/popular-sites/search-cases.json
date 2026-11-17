@@ -1,0 +1,850 @@
+{
+ "schema_version": 1,
+ "note": "One public search per site, for run_bank.py. url_source says how far the URL can be trusted: known is the tester's memory of the site, unverified until a run reads the answer; previous_run was used by the run named; scouted was found with unbrowse_browse. Values are in the site's market language.",
+ "cases": [
+  {
+   "site": "amazon.co.jp",
+   "goal": "search Amazon Japan products",
+   "url": "https://www.amazon.co.jp/s?k={q}",
+   "values": [
+    "水筒",
+    "傘",
+    "折りたたみ 椅子"
+   ],
+   "category": "commerce_marketplace",
+   "market": "JP",
+   "url_source": "known"
+  },
+  {
+   "site": "asos.com",
+   "goal": "search ASOS products",
+   "url": "https://www.asos.com/search/?q={q}",
+   "values": [
+    "dress",
+    "jacket",
+    "waterproof walking boots"
+   ],
+   "category": "commerce_marketplace",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "ebay.de",
+   "goal": "search eBay Germany listings",
+   "url": "https://www.ebay.de/sch/i.html?_nkw={q}",
+   "values": [
+    "fahrrad",
+    "kaffeemaschine",
+    "antike wanduhr"
+   ],
+   "category": "commerce_marketplace",
+   "market": "DE",
+   "url_source": "known"
+  },
+  {
+   "site": "vivo.com.cn",
+   "goal": "search vivo products",
+   "url": "https://www.vivo.com.cn/search/result?keyword={q}&searchResultFrom=0",
+   "values": [
+    "手机",
+    "耳机",
+    "折叠屏 保护壳"
+   ],
+   "category": "consumer_technology",
+   "market": "CN",
+   "url_source": "known",
+   "url_note": "this URL is a 404 page; no search URL observed"
+  },
+  {
+   "site": "huawei.com",
+   "goal": "search Huawei site",
+   "url": "https://www.huawei.com/en/searchresult?pageIndex=1&keywords={q}",
+   "values": [
+    "5G",
+    "router",
+    "solar inverter maintenance"
+   ],
+   "category": "consumer_technology",
+   "market": "GLOBAL",
+   "url_source": "scouted"
+  },
+  {
+   "site": "mi.com",
+   "goal": "search Xiaomi products",
+   "url": "https://www.mi.com/global/search/{q}?tab=product",
+   "values": [
+    "phone",
+    "vacuum",
+    "smart air purifier filter"
+   ],
+   "category": "consumer_technology",
+   "market": "GLOBAL",
+   "url_source": "scouted"
+  },
+  {
+   "site": "postgresql.org",
+   "goal": "search PostgreSQL docs and site",
+   "url": "https://www.postgresql.org/search/?q={q}",
+   "values": [
+    "vacuum",
+    "index",
+    "logical replication slots"
+   ],
+   "category": "developer_technical",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "mysql.com",
+   "goal": "search MySQL site",
+   "url": "https://search.oracle.com/mysql?app=mysql&q={q}",
+   "values": [
+    "innodb",
+    "replication",
+    "full text stopwords"
+   ],
+   "category": "developer_technical",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "kubernetes.io",
+   "goal": "search Kubernetes docs",
+   "url": "https://kubernetes.io/search/?q={q}",
+   "values": [
+    "pod",
+    "ingress",
+    "persistent volume claim"
+   ],
+   "category": "developer_technical",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "britannica.com",
+   "goal": "search Britannica articles",
+   "url": "https://www.britannica.com/search?query={q}",
+   "values": [
+    "volcano",
+    "photosynthesis",
+    "roman road network"
+   ],
+   "category": "education_research",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "nasa.gov",
+   "goal": "search NASA site",
+   "url": "https://www.nasa.gov/?search={q}",
+   "values": [
+    "mars",
+    "artemis",
+    "solar sail propulsion"
+   ],
+   "category": "education_research",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "ieee.org",
+   "goal": "search IEEE Xplore papers",
+   "url": "https://ieeexplore.ieee.org/search/searchresult.jsp?queryText={q}",
+   "values": [
+    "antenna",
+    "robotics",
+    "low power sensor networks"
+   ],
+   "category": "education_research",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "sberbank.ru",
+   "goal": "search Sberbank site",
+   "url": "https://www.sberbank.ru/ru/search?query={q}",
+   "values": [
+    "вклад",
+    "ипотека",
+    "кредитная карта для студентов"
+   ],
+   "category": "finance_payments",
+   "market": "RU",
+   "url_source": "known"
+  },
+  {
+   "site": "chase.com",
+   "goal": "search Chase site",
+   "url": "https://www.chase.com/digital/resources/search-results.html?q={q}",
+   "values": [
+    "mortgage",
+    "savings",
+    "student checking account"
+   ],
+   "category": "finance_payments",
+   "market": "GLOBAL",
+   "url_source": "known",
+   "url_note": "this URL is a 404 page; no search URL observed"
+  },
+  {
+   "site": "vanguard.com",
+   "goal": "search Vanguard site",
+   "url": "https://investor.vanguard.com/search#q={q}",
+   "values": [
+    "dividend",
+    "retirement",
+    "index fund expense ratio"
+   ],
+   "category": "finance_payments",
+   "market": "GLOBAL",
+   "url_source": "scouted"
+  },
+  {
+   "site": "roblox.com",
+   "goal": "search Roblox games",
+   "url": "https://www.roblox.com/discover/?Keyword={q}",
+   "values": [
+    "adopt",
+    "tycoon",
+    "obstacle course parkour"
+   ],
+   "category": "gaming",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "minecraft.net",
+   "goal": "search Minecraft site",
+   "url": "https://www.minecraft.net/en-us/search?q={q}",
+   "values": [
+    "creeper",
+    "redstone",
+    "snapshot release notes"
+   ],
+   "category": "gaming",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "itch.io",
+   "goal": "search itch.io games",
+   "url": "https://itch.io/search?q={q}",
+   "values": [
+    "platformer",
+    "roguelike",
+    "farming simulator pixel"
+   ],
+   "category": "gaming",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "service.gov.uk",
+   "goal": "search GOV.UK services",
+   "url": "https://www.gov.uk/search/all?keywords={q}",
+   "values": [
+    "passport",
+    "visa",
+    "driving licence renewal"
+   ],
+   "category": "government_health",
+   "market": "UK",
+   "url_source": "known"
+  },
+  {
+   "site": "loc.gov",
+   "goal": "search Library of Congress",
+   "url": "https://www.loc.gov/search/?q={q}",
+   "values": [
+    "lincoln",
+    "jazz",
+    "civil war maps"
+   ],
+   "category": "government_health",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "mayoclinic.org",
+   "goal": "search Mayo Clinic health information",
+   "url": "https://www.mayoclinic.org/search/search-results?q={q}",
+   "values": [
+    "asthma",
+    "migraine",
+    "vitamin d deficiency"
+   ],
+   "category": "government_health",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "bild.de",
+   "goal": "search Bild articles",
+   "url": "https://www.bild.de/suche.bild.html",
+   "values": [
+    "bundesliga",
+    "wetter",
+    "energiepreise heizung"
+   ],
+   "category": "news_media",
+   "market": "DE",
+   "url_source": "scouted",
+   "url_note": "the search box hands the query to an AI chat on hey.bild.de; no classic search"
+  },
+  {
+   "site": "usatoday.com",
+   "goal": "search USA Today articles",
+   "url": "https://www.usatoday.com/search/?q={q}",
+   "values": [
+    "election",
+    "hurricane",
+    "college football rankings"
+   ],
+   "category": "news_media",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "aljazeera.com",
+   "goal": "search Al Jazeera articles",
+   "url": "https://www.aljazeera.com/search/{q}",
+   "values": [
+    "climate",
+    "election",
+    "solar energy subsidies"
+   ],
+   "category": "news_media",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "canva.com",
+   "goal": "search Canva templates",
+   "url": "https://www.canva.com/templates/?query={q}",
+   "values": [
+    "poster",
+    "resume",
+    "wedding invitation floral"
+   ],
+   "category": "productivity_saas",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "substack.com",
+   "goal": "search Substack posts",
+   "url": "https://substack.com/search/{q}?searching=all_posts",
+   "values": [
+    "climate",
+    "startups",
+    "rural broadband policy"
+   ],
+   "category": "productivity_saas",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "wordpress.com",
+   "goal": "search WordPress.com support",
+   "url": "https://wordpress.com/support/?s={q}",
+   "values": [
+    "domain",
+    "theme",
+    "custom css mobile menu"
+   ],
+   "category": "productivity_saas",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "foodnetwork.com",
+   "goal": "search Food Network recipes",
+   "url": "https://www.foodnetwork.com/search/{q}-",
+   "values": [
+    "chicken",
+    "pasta",
+    "gluten free pancakes"
+   ],
+   "category": "reference_lifestyle",
+   "market": "GLOBAL",
+   "url_source": "measured",
+   "space": "-"
+  },
+  {
+   "site": "accuweather.com",
+   "goal": "search AccuWeather locations",
+   "url": "https://www.accuweather.com/en/search-locations?query={q}",
+   "values": [
+    "london",
+    "tokyo",
+    "santa cruz de tenerife"
+   ],
+   "category": "reference_lifestyle",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "pexels.com",
+   "goal": "search Pexels photos",
+   "url": "https://www.pexels.com/search/{q}/",
+   "values": [
+    "mountains",
+    "ocean",
+    "old typewriter"
+   ],
+   "category": "reference_lifestyle",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "wp.pl",
+   "goal": "search WP Poland",
+   "url": "https://szukaj.wp.pl/szukaj.html?q={q}",
+   "values": [
+    "pogoda",
+    "piłka",
+    "ceny mieszkań w krakowie"
+   ],
+   "category": "search_portals",
+   "market": "PL",
+   "url_source": "known"
+  },
+  {
+   "site": "sogou.com",
+   "goal": "search Sogou web",
+   "url": "https://www.sogou.com/web?query={q}",
+   "values": [
+    "天气",
+    "音乐",
+    "太阳能 电池板 效率"
+   ],
+   "category": "search_portals",
+   "market": "CN",
+   "url_source": "known"
+  },
+  {
+   "site": "google.co.jp",
+   "goal": "search Google Japan",
+   "url": "https://www.google.co.jp/search?q={q}",
+   "values": [
+    "天気",
+    "地図",
+    "折りたたみ 自転車 比較"
+   ],
+   "category": "search_portals",
+   "market": "JP",
+   "url_source": "known"
+  },
+  {
+   "site": "discord.com",
+   "goal": "search Discord public servers",
+   "url": "https://discord.com/servers?query={q}",
+   "values": [
+    "minecraft",
+    "anime",
+    "open source hardware"
+   ],
+   "category": "social_community",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "pinterest.com",
+   "goal": "search Pinterest pins",
+   "url": "https://www.pinterest.com/search/pins/?q={q}",
+   "values": [
+    "kitchen",
+    "garden",
+    "tiny house loft"
+   ],
+   "category": "social_community",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "mastodon.social",
+   "goal": "search Mastodon posts and people",
+   "url": "https://mastodon.social/search?q={q}",
+   "values": [
+    "linux",
+    "fediverse",
+    "open source gardening"
+   ],
+   "category": "social_community",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "makemytrip.com",
+   "goal": "search MakeMyTrip hotels",
+   "url": "https://www.makemytrip.com/hotels/hotel-listing/?city={q}",
+   "values": [
+    "goa",
+    "jaipur",
+    "hill stations near delhi"
+   ],
+   "category": "travel_transport",
+   "market": "IN",
+   "url_source": "known"
+  },
+  {
+   "site": "hilton.com",
+   "goal": "search Hilton hotels",
+   "url": "https://www.hilton.com/en/search/?query={q}",
+   "values": [
+    "paris",
+    "tokyo",
+    "beach resort maldives"
+   ],
+   "category": "travel_transport",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "marriott.com",
+   "goal": "search Marriott hotels",
+   "url": "https://www.marriott.com/search/findHotels.mi?destinationAddress.destination={q}",
+   "values": [
+    "paris",
+    "tokyo",
+    "beach resort maldives"
+   ],
+   "category": "travel_transport",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "hbo.com",
+   "goal": "search HBO shows",
+   "url": "https://www.hbo.com/search?q={q}",
+   "values": [
+    "succession",
+    "westworld",
+    "historical drama miniseries"
+   ],
+   "category": "video_music",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "dailymotion.com",
+   "goal": "search Dailymotion videos",
+   "url": "https://www.dailymotion.com/search/{q}/videos",
+   "values": [
+    "football",
+    "cooking",
+    "vintage train documentary"
+   ],
+   "category": "video_music",
+   "market": "GLOBAL",
+   "url_source": "known"
+  },
+  {
+   "site": "target.com",
+   "goal": "search Target products",
+   "url": "https://www.target.com/s?searchTerm={q}",
+   "values": [
+    "water bottle",
+    "towels",
+    "lego"
+   ],
+   "category": "commerce_marketplace",
+   "market": "GLOBAL",
+   "url_source": "previous_run",
+   "retest": true,
+   "classification_2026_11_02": "fail_then_pass_after_fix"
+  },
+  {
+   "site": "archive.org",
+   "goal": "search Internet Archive items",
+   "url": "https://archive.org/search?query={q}",
+   "values": [
+    "apollo 11",
+    "jazz",
+    "public domain films"
+   ],
+   "category": "education_research",
+   "market": "GLOBAL",
+   "url_source": "previous_run",
+   "retest": true,
+   "classification_2026_11_02": "fail_then_pass_after_fix"
+  },
+  {
+   "site": "allrecipes.com",
+   "goal": "search Allrecipes recipes",
+   "url": "https://www.allrecipes.com/search?q={q}",
+   "values": [
+    "banana bread",
+    "lasagna",
+    "vegan curry"
+   ],
+   "category": "reference_lifestyle",
+   "market": "GLOBAL",
+   "url_source": "previous_run",
+   "retest": true,
+   "classification_2026_11_02": "pass_false_failure"
+  },
+  {
+   "site": "pypi.org",
+   "goal": "search PyPI packages",
+   "url": "https://pypi.org/search/?q={q}",
+   "values": [
+    "requests",
+    "flask",
+    "geospatial raster"
+   ],
+   "category": "developer_technical",
+   "market": "GLOBAL",
+   "url_source": "previous_run",
+   "retest": true,
+   "classification_2026_11_02": "pass_after_retry"
+  },
+  {
+   "site": "etsy.com",
+   "goal": "search Etsy listings",
+   "url": "https://www.etsy.com/search?q={q}",
+   "values": [
+    "ceramic mug",
+    "wool scarf",
+    "wedding invitation"
+   ],
+   "category": "commerce_marketplace",
+   "market": "GLOBAL",
+   "url_source": "previous_run",
+   "retest": true,
+   "classification_2026_11_02": "pass_after_retry"
+  },
+  {
+   "site": "bestbuy.com",
+   "goal": "search Best Buy products",
+   "url": "https://www.bestbuy.com/site/searchpage.jsp?st={q}",
+   "values": [
+    "headphones",
+    "monitor",
+    "air fryer"
+   ],
+   "category": "commerce_marketplace",
+   "market": "GLOBAL",
+   "url_source": "previous_run",
+   "retest": true,
+   "classification_2026_11_02": "blocked_region_gate"
+  },
+  {
+   "site": "ebay.com",
+   "goal": "search eBay listings",
+   "url": "https://www.ebay.com/sch/i.html?_nkw={q}",
+   "values": [
+    "desk lamp",
+    "office chair",
+    "vinyl record"
+   ],
+   "category": "commerce_marketplace",
+   "market": "GLOBAL",
+   "url_source": "previous_run",
+   "retest": true,
+   "classification_2026_11_02": "pass_after_judge",
+   "expect": [
+    "price"
+   ]
+  },
+  {
+   "site": "booking.com",
+   "goal": "search Booking.com stays",
+   "url": "https://www.booking.com/searchresults.html?ss={q}&group_adults=2",
+   "values": [
+    "paris",
+    "osaka",
+    "lisbon"
+   ],
+   "category": "travel_transport",
+   "market": "GLOBAL",
+   "url_source": "known",
+   "vary": {
+    "group_adults": "1"
+   },
+   "url_note": "route shape from the Eden report of 2026-11-06; group_adults varies on the replay ask, which a route that wrote the one-digit value in as a constant cannot answer (that report's finding 4)",
+   "expect": [
+    "price"
+   ]
+  },
+  {
+   "site": "airbnb.com",
+   "goal": "search Airbnb homes",
+   "url": "https://www.airbnb.com/s/{q}/homes?adults=2",
+   "values": [
+    "bangkok",
+    "lisbon",
+    "seoul"
+   ],
+   "category": "travel_transport",
+   "market": "GLOBAL",
+   "url_source": "known",
+   "vary": {
+    "adults": "1"
+   },
+   "url_note": "route shape from the Eden report of 2026-11-06; adults varies on the replay ask for the same reason as booking.com's group_adults",
+   "expect": [
+    "price"
+   ]
+  },
+  {
+   "site": "google.com",
+   "goal": "search Google Maps places",
+   "url": "https://www.google.com/maps/search/{q}",
+   "values": [
+    "ramen tokyo",
+    "bookstore taipei",
+    "hiking trail"
+   ],
+   "category": "search_portals",
+   "market": "GLOBAL",
+   "url_source": "known",
+   "url_note": "the Eden report of 2026-11-06 stored this route three times with inputs: [], so every query learned again; a bound input is what this case checks"
+  },
+  {
+   "site": "trip.com",
+   "goal": "search Trip.com flights from a city",
+   "url": "https://www.trip.com/flights/showfarefirst?dcity={q}&acity=sin&ddate=2027-06-01",
+   "values": [
+    "bjs",
+    "sha",
+    "can"
+   ],
+   "category": "travel_transport",
+   "market": "GLOBAL",
+   "url_source": "known",
+   "url_note": "route shape from the Eden report of 2026-11-06: its flight list arrives as text/event-stream, which the candidate filter left out, so the answers here must hold flights and not the page's state; values are IATA city codes and ddate is fixed, refresh it when it passes",
+   "expect": [
+    "price"
+   ],
+   "value_not_shown": true,
+   "aliases": {
+    "bjs": [
+     "beijing"
+    ],
+    "sha": [
+     "shanghai"
+    ],
+    "can": [
+     "guangzhou",
+     "canton"
+    ]
+   }
+  },
+  {
+   "site": "lazada.com",
+   "goal": "search Lazada products",
+   "url": "https://www.lazada.com/tag/{q}/?q={q}",
+   "values": [
+    "airpods",
+    "rice cooker",
+    "running shoes"
+   ],
+   "category": "commerce_marketplace",
+   "market": "SG",
+   "url_source": "known",
+   "url_note": "the walked page of the Eden report of 2026-11-06: the model picked its ajax call but the stored route lost that parameter and answered with the page's header and footer; the answers here must hold products for every value",
+   "expect": [
+    "price"
+   ]
+  },
+  {
+   "site": "lazada.sg",
+   "goal": "search Lazada products",
+   "url": "https://www.lazada.sg/tag/{q}/?q={q}",
+   "values": [
+    "airpods",
+    "rice cooker",
+    "running shoes"
+   ],
+   "category": "commerce_marketplace",
+   "market": "SG",
+   "url_source": "known",
+   "expect": [
+    "price"
+   ],
+   "url_note": "from the Eden report of 2026-11-06, on the host its Singapore traffic reached: the model picked the ajax call but the stored route lost that parameter and answered with the page's header and footer; www.lazada.com/tag/ answered 404 on 2026-11-07; its tag addresses join words with a hyphen (canonical /tag/rice-cooker/, 200, 2026-11-09), and /tag/rice%20cooker/ answers 404",
+   "space": "-"
+  },
+  {
+   "site": "www.google.com",
+   "goal": "find flights and fares from the search",
+   "url": "https://www.google.com/travel/flights?q={q}",
+   "values": [
+    "Flights from SIN to BKK on 2027-03-10 one way",
+    "Flights from SIN to TYO on 2027-03-10 one way",
+    "Flights from SIN to KUL on 2027-03-10 one way"
+   ],
+   "category": "travel_transport",
+   "market": "SG",
+   "url_source": "previous_run",
+   "url_note": "from the Eden report of 2026-11-06, rerun 2026-11-07: the q value is a sentence the site breaks into parts, so the page's text never says it back whole; its server-rendered text holds the fares",
+   "expect": [
+    "price"
+   ],
+   "registrable": "google.com"
+  },
+  {
+   "site": "carousell.sg",
+   "goal": "search listings with titles and prices",
+   "url": "https://www.carousell.sg/search/{q}/",
+   "values": [
+    "iphone 15",
+    "macbook air",
+    "ipad mini"
+   ],
+   "category": "commerce_marketplace",
+   "market": "SG",
+   "url_source": "previous_run",
+   "url_note": "from the Eden report of 2026-11-06, rerun 2026-11-07: the walk's only search POST was the next-page call, and its cursor carried the first search into every later one with ok:true",
+   "expect": [
+    "price"
+   ]
+  },
+  {
+   "site": "amazon.com",
+   "goal": "search products with names and prices",
+   "url": "https://www.amazon.com/s?k={q}",
+   "values": [
+    "airpods",
+    "kindle paperwhite",
+    "logitech mouse"
+   ],
+   "category": "commerce_marketplace",
+   "market": "GLOBAL",
+   "url_source": "previous_run",
+   "url_note": "from the Eden report of 2026-11-06, rerun 2026-11-07: two GET /s candidates with one key; one answered only its own search parameters with ok:true",
+   "expect": [
+    "price"
+   ]
+  },
+  {
+   "site": "opentable.sg",
+   "goal": "find restaurants with names",
+   "url": "https://www.opentable.sg/s?term={q}",
+   "values": [
+    "italian singapore",
+    "sushi singapore",
+    "steak singapore"
+   ],
+   "category": "travel_transport",
+   "market": "SG",
+   "url_source": "previous_run",
+   "url_note": "from the Eden report of 2026-11-06, rerun 2026-11-07: Akamai refuses the headless walk and the plain request (403): an honest refusal is the passing answer"
+  },
+  {
+   "site": "opentable.com",
+   "goal": "search OpenTable restaurants",
+   "url": "https://www.opentable.com/s?term={q}",
+   "values": [
+    "sushi",
+    "steakhouse",
+    "italian"
+   ],
+   "category": "travel_transport",
+   "market": "GLOBAL",
+   "url_source": "known",
+   "url_note": "from the Eden report of 2026-11-06, one of its ten sites; all three of its values fell back to browse"
+  }
+ ]
+}

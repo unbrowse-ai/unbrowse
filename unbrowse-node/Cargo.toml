@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/files", "crates/route", "crates/learn", "crates/net", "crates/detector", "app"]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+version = "0.1.0"
+
+# What `cargo clippy --workspace --all-targets -- -D warnings` (CI's node job) holds every crate to: clippy's defaults,
+# less the lints below, each of which asks for a shape this code chooses against.
+[workspace.lints.clippy]
+# Errors are sentences for the owner or an agent, carried as they are; boxing the big ones would buy nothing anyone sees.
+result_large_err = "allow"
+large_enum_variant = "allow"
+# A signature spells out what a function takes and gives; an alias would hide it one file away.
+type_complexity = "allow"
+too_many_arguments = "allow"
+# Index loops over arrays read side by side (a grid's two masses, lines and their proofs) read as the rule they follow.
+needless_range_loop = "allow"
+# `!(x > 0.0)` refuses NaN with the non-positive amounts; `partial_cmp` would spell the same thing longer.
+neg_cmp_op_on_partial_ord = "allow"
+
+[patch.crates-io]
+btls-sys = { path = "vendor/btls-sys" }
+
+# A key backup's scrypt (`unbrowse_core::backup`) at its real cost takes seconds unoptimised; tests open one.
+[profile.dev.package.scrypt]
+opt-level = 3
+[profile.dev.package.salsa20]
+opt-level = 3

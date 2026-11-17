@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "runner": "local_chrome_cdp",
+  "domain": "booking.com",
+  "auth_requested": false,
+  "results": [
+    {
+      "scenario": "public.home",
+      "requested_url": "https://booking.com/",
+      "requested_url_fingerprint": "2b36aaa51dc30727",
+      "final_url": "https://www.booking.com/",
+      "final_url_fingerprint": "10e1acb075d17e4d",
+      "status": 202,
+      "classification": "nonstandard_2xx",
+      "redirect_count": 1,
+      "blocked_requests": {},
+      "assertion_passed": false
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "runner": "unbrowse_mcp",
+  "date": "2026-10-28",
+  "sites": [
+    {
+      "domain": "wikipedia.org",
+      "fixture": "browser-fixtures/wikipedia.json",
+      "goal": "search Wikipedia articles",
+      "checks": [
+        {"query": "planet", "how": "learned", "route_id": "bc6c42c23d187540", "route_site": "en.wikipedia.org", "result_ok": true, "semantic_outcome": "invalid_fixed_route"},
+        {"query": "moon", "how": "called", "route_id": "bc6c42c23d187540", "route_site": "en.wikipedia.org", "result_ok": true, "semantic_outcome": "fail_input_ignored"}
+      ]
+    },
+    {
+      "domain": "www.gov.uk",
+      "fixture": "browser-fixtures/govuk.json",
+      "goal": "search GOV.UK guidance",
+      "checks": [
+        {"query": "passport", "how": "learned", "route_id": "5e748cac13e93bfd", "route_site": "www.gov.uk", "result_ok": true},
+        {"query": "driving licence", "how": "called", "route_id": "5e748cac13e93bfd", "route_site": "www.gov.uk", "result_ok": true}
+      ]
+    }
+  ],
+  "note": "Four public read calls through the local node's MCP endpoint; no login or writes. Review of the stored Wikipedia route found GET /wiki/Planet with zero inputs, so the moon replay could not search for moon despite result.ok. GOV.UK has a bound keywords input, but the original report did not retain a content-level assertion. These are two sites, not a 400-site MCP pass."
+}

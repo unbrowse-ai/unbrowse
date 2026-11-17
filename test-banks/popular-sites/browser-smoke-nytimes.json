@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "runner": "local_chrome_cdp",
+  "domain": "nytimes.com",
+  "auth_requested": false,
+  "results": [
+    {
+      "scenario": "public.home",
+      "requested_url": "https://nytimes.com/",
+      "requested_url_fingerprint": "2de1001f1c3868ad",
+      "final_url": "https://www.nytimes.com/",
+      "final_url_fingerprint": "10b6b18f32d34529",
+      "status": 403,
+      "classification": "challenge_or_denial",
+      "redirect_count": 1,
+      "blocked_requests": {
+        "out_of_scope_document": 1
+      },
+      "assertion_passed": false
+    }
+  ]
+}

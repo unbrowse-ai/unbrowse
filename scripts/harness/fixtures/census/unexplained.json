@@ -1,0 +1,3 @@
+{"calls": 3, "answered": 3, "browserless_answered": 2, "by_rung": {"0": 2, "5": 1},
+ "browser_calls": [{"case": "a.example", "rung": 5}],
+ "model_calls": 0}

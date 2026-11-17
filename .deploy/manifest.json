@@ -1,0 +1,110 @@
+{
+  "account": "a1f3367ed0ac5a77ba388cf23800b5fb",
+  "subdomain": "lewistham9x",
+  "branches": {
+    "staging": "staging",
+    "release": "release/",
+    "main": "main"
+  },
+  "workers": [
+    {
+      "name": "unbrowse-telemetry",
+      "envs": {
+        "staging": {
+          "config": "unbrowse-telemetry/wrangler.staging.jsonc"
+        },
+        "production": {
+          "config": "unbrowse-telemetry/wrangler.jsonc"
+        }
+      },
+      "soak": {
+        "minRequests": 50,
+        "why": "No node sends to staging; its traffic is the gate's rounds (about 10 requests every 25 minutes, so ~140 in 6 hours)."
+      }
+    }
+  ],
+  "checks": [
+    {
+      "layer": "unit",
+      "name": "telemetry worker tests, on the D1-shaped stand-in and through the Durable Object client",
+      "cmd": "cd unbrowse-telemetry && npm test"
+    },
+    {
+      "layer": "static",
+      "name": "telemetry worker bundles for staging and production",
+      "cmd": "cd unbrowse-telemetry && npx --yes wrangler deploy --dry-run -c wrangler.staging.jsonc --outdir .wrangler/dry && npx --yes wrangler deploy --dry-run -c wrangler.jsonc --outdir .wrangler/dry"
+    }
+  ],
+  "gates": {
+    "staging": [
+      {
+        "name": "deployed telemetry worker: keeps a node's batch, refuses bad ones, stats door needs the token",
+        "cmd": "node unbrowse-telemetry/gate.mjs https://unbrowse-telemetry-staging.lewistham9x.workers.dev",
+        "marker": "TELEMETRY_GATE_OK",
+        "timeout_s": 180
+      }
+    ],
+    "production": [
+      {
+        "name": "deployed telemetry worker at telemetry.unbrowse.ai: keeps a node's batch, refuses bad ones, stats door needs the token",
+        "cmd": "node unbrowse-telemetry/gate.mjs https://telemetry.unbrowse.ai",
+        "marker": "TELEMETRY_GATE_OK",
+        "timeout_s": 300
+      }
+    ]
+  },
+  "watch": {
+    "production": {
+      "afterMinutes": 75,
+      "run": [
+        {
+          "name": "release nodes are sending to telemetry.unbrowse.ai, an hour on",
+          "cmd": "node unbrowse-telemetry/gate.mjs https://telemetry.unbrowse.ai --real-installs",
+          "marker": "TELEMETRY_GATE_OK",
+          "timeout_s": 300
+        }
+      ]
+    }
+  },
+  "soak": {
+    "hours": 6,
+    "minRequests": 50,
+    "maxErrorRate": 0.01,
+    "probe": {
+      "staging": "https://unbrowse-telemetry-staging.lewistham9x.workers.dev/healthz"
+    },
+    "traffic": {
+      "everyMinutes": 25,
+      "run": [
+        {
+          "name": "a node's batch through the deployed staging worker, and the stats door",
+          "cmd": "node unbrowse-telemetry/gate.mjs https://unbrowse-telemetry-staging.lewistham9x.workers.dev",
+          "marker": "TELEMETRY_GATE_OK",
+          "timeout_s": 180
+        }
+      ]
+    }
+  },
+  "surfaces": [
+    {
+      "name": "telemetry",
+      "kind": [
+        "http",
+        "durable-object"
+      ],
+      "what": "telemetry.unbrowse.ai: POST /v1/events from nodes, POST /v1/reports (bug reports to GitHub issues), GET /v1/stats/<name> for the team, and the TelemetryStore Durable Object behind them",
+      "unit": [
+        "telemetry worker tests, on the D1-shaped stand-in and through the Durable Object client"
+      ],
+      "e2e": [
+        "deployed telemetry worker: keeps a node's batch, refuses bad ones, stats door needs the token"
+      ],
+      "waive": {
+        "user": "Its only users are nodes, and a node sends only once it is on the network, so a throwaway node can't be a reliable gate. The production watch an hour on stands in: it needs real release nodes' installs in the counts."
+      }
+    }
+  ],
+  "doctor": {
+    "secrets": []
+  }
+}

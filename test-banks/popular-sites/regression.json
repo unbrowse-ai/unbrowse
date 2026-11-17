@@ -1,0 +1,80 @@
+{
+  "note": "The checks each site passed every time they ran on 2026-11-06 (mcp-runs/2026-11-06-popular-sites-expanded.json), for `run_bank.py compare` to hold a nightly run to. Check by check, because a site's overall `pass` there came from a person reading the answers, and a run has only the rule. A site joins when a read run shows it passing, and leaves only with a reason.",
+  "from": "mcp-runs/2026-11-06-popular-sites-expanded.json",
+  "sites": {
+    "pypi.org": [
+      "first",
+      "replay",
+      "call_unrelated",
+      "no_results",
+      "recheck"
+    ],
+    "ebay.de": [
+      "first",
+      "replay",
+      "call_unrelated",
+      "recheck"
+    ],
+    "nasa.gov": [
+      "first",
+      "replay",
+      "call_unrelated",
+      "recheck"
+    ],
+    "mayoclinic.org": [
+      "first",
+      "replay",
+      "call_unrelated",
+      "recheck"
+    ],
+    "pexels.com": [
+      "first",
+      "replay",
+      "call_unrelated",
+      "recheck"
+    ],
+    "usatoday.com": [
+      "first",
+      "replay",
+      "call_unrelated",
+      "no_results",
+      "recheck"
+    ],
+    "canva.com": [
+      "recheck"
+    ],
+    "substack.com": [
+      "first",
+      "replay",
+      "call_unrelated",
+      "recheck"
+    ],
+    "wordpress.com": [
+      "recheck"
+    ],
+    "foodnetwork.com": [
+      "no_results",
+      "recheck"
+    ],
+    "accuweather.com": [
+      "first",
+      "replay",
+      "call_unrelated",
+      "no_results",
+      "recheck"
+    ],
+    "postgresql.org": [
+      "first",
+      "replay",
+      "call_unrelated",
+      "no_results",
+      "recheck"
+    ],
+    "mastodon.social": [
+      "first",
+      "replay",
+      "call_unrelated",
+      "recheck"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "note": "Each prompt is what a person would ask, in a fresh session, with the web tools an agent has anyway beside the node's. None names the node: the check is whether the agent reaches for it unprompted. `none` is a control: a task needing no website must not touch it, so calling it on everything can't pass.",
+  "passes_at": 0.8,
+  "tasks": [
+    { "id": "live-front-page", "wants": "unbrowse", "prompt": "What are the top three stories on Hacker News right now? Just list the titles." },
+    { "id": "package-version", "wants": "unbrowse", "prompt": "What is the latest released version of the requests package on PyPI right now?" },
+    { "id": "site-search", "wants": "unbrowse", "prompt": "Search the Internet Archive for Apollo 11 films and list three titles it shows." },
+    { "id": "government-page", "wants": "unbrowse", "prompt": "Search GOV.UK for passport renewal and give me the title of the first result." },
+    { "id": "signed-in-page", "wants": "unbrowse", "prompt": "Sign in to https://the-internet.herokuapp.com/login with my saved login and tell me what the page says once you're in." },
+    { "id": "control-arithmetic", "wants": "none", "prompt": "What is 17 times 23?" },
+    { "id": "control-knowledge", "wants": "none", "prompt": "In one sentence, what does an HTTP 404 status mean?" }
+  ]
+}

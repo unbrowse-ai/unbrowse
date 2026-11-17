@@ -1,0 +1,23 @@
+{
+  "about": "Which rows of the matrix passed when the_matrix_baseline_is_written last ran.",
+  "passed": 15,
+  "rows": {
+    "plain": "pass",
+    "html-token": "pass",
+    "storage-token": "pass",
+    "packed-json": "pass",
+    "packed-base64": "pass",
+    "lookup": "pass",
+    "signed-standard": "fail: the call failed: a request did not complete",
+    "signed-own": "fail: the call failed: a request did not complete",
+    "wrapped-state": "pass",
+    "post-json": "pass",
+    "events": "pass",
+    "base64-answer": "pass",
+    "json-lines": "pass",
+    "session-cookie": "pass",
+    "frame": "pass",
+    "worker": "pass",
+    "person-check": "pass"
+  }
+}

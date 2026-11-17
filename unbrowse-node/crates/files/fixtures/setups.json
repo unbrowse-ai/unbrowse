@@ -1,0 +1,1 @@
+[{"kind": "choice", "page": "https://shop.example/", "asks": "Choose your country", "steps": [{"do": "click", "at": "#us"}]}]

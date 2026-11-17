@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "runner": "unbrowse_mcp",
+  "date": "2026-10-28",
+  "node_version": "0.1.0",
+  "node_revision": "504a916 with local uncommitted route fixes",
+  "scope": "public read-only Wikipedia search",
+  "site": "en.wikipedia.org",
+  "goal": "search Wikipedia articles",
+  "route_id": "bc6c42c23d187540",
+  "route_path": "/wiki/{path[1]}",
+  "route_inputs": ["search"],
+  "checks": [
+    {"phase": "fresh_after_fixed_route_bypass", "query": "planet", "how": "learned", "result_ok": true, "query_bound": true},
+    {"phase": "replay", "query": "moon", "how": "called", "same_route": true, "result_ok": true, "query_bound": true},
+    {"phase": "direct_call", "query": "planet", "result_ok": true, "article_title_matches_query": true},
+    {"phase": "direct_call", "query": "moon", "result_ok": true, "article_title_matches_query": true}
+  ],
+  "outcome": "pass",
+  "excluded": "No credentials, cookies, response bodies, or challenge solving."
+}

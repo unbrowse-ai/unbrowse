@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "unbrowse"
+version = "0.1.0"
+description = "Unbrowse on your machine: the window, the node, its browser, the agent skill and the Python client. Search, learn and call website routes, and drive the node's browser by hand."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.9"
+dependencies = []
+
+# The framework adapters' own dependencies, installed only when asked for: `pip install "unbrowse[langchain]"`.
+[project.optional-dependencies]
+langchain = ["langchain-core>=1.0,<2"]
+openai-agents = ["openai-agents>=0.10,<1"]
+
+[project.scripts]
+unbrowse = "unbrowse.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/unbrowse"]
+# The release puts the app and the skill here before building; they aren't committed.
+artifacts = ["src/unbrowse/Unbrowse.app/**", "src/unbrowse/bin/**", "src/unbrowse/skill/**", "src/unbrowse/app-team"]
+
+# A wheel carrying the programs is for the machine they were built for (hatch_build.py).
+[tool.hatch.build.targets.wheel.hooks.custom]
