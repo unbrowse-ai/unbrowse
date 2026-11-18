@@ -22,7 +22,7 @@ answer comes back in about 67 ms.
 You need Node 20.3 or newer, on macOS, Linux or Windows.
 
 ```bash
-npm i -g unbrowse@next
+npm i -g unbrowse
 unbrowse connect
 ```
 
@@ -134,7 +134,7 @@ left at `target/release/` — `unbrowse-node <command>` and `unb <command>`. Eac
 
 ## Connect an agent
 
-On a fresh machine, `npm i -g unbrowse@next && unbrowse connect` is enough for Claude Code: `connect` starts the node if
+On a fresh machine, `npm i -g unbrowse && unbrowse connect` is enough for Claude Code: `connect` starts the node if
 it isn't running and registers the agent the node made on its first run. For another agent, make a key (in the
 window: Money, Add agent; or `unbrowse agent new <name>`), then point an MCP client at the node with the key's
 token:

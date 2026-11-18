@@ -8,11 +8,10 @@ Unbrowse on your machine. No key or token goes in your agent's settings.
 You need Node 20.3 or newer, on macOS, Linux or Windows.
 
 ```bash
-npm i -g unbrowse@next
+npm i -g unbrowse
 ```
 
-Version 13 is on npm under the tag `next` for now: a plain `npm i -g unbrowse` still installs 12.5.0, the hosted client
-that has closed. Or download the app for your machine from [Releases](https://github.com/unbrowse-ai/unbrowse/releases).
+Or download the app for your machine from [Releases](https://github.com/unbrowse-ai/unbrowse/releases).
 
 ## 2. Connect your agent
 
