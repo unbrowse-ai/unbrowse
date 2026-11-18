@@ -70,7 +70,7 @@ the browser and learns the route again. The network degrades to slow, never to b
 
 **Built.**
 
-- **Route coins are built.** The contracts are in [`unbrowse-settlement/src/coins/`](../../unbrowse-settlement/src/coins/README.md) (the coin, its curve, staking, the fetch path and bounties), Settlement pays the 65 / 30 / 5 split and calls them on every claimed line, and the node trades, stakes, claims and ranks through them (`unbrowse-node/app/src/chain/coins.rs`, `rank/coin.rs`). The earlier economy (entry bond, route pool, fraud court, HTTP domain witnesses) is removed. Nothing is deployed yet: Arc mainnet has no deployment, and the earlier Arc testnet contracts are no longer supported.
+- **Route coins are built.** The contracts are in `unbrowse-settlement/src/coins/` (private repository; the coin, its curve, staking, the fetch path and bounties), Settlement pays the 65 / 30 / 5 split and calls them on every claimed line, and the node trades, stakes, claims and ranks through them (`unbrowse-node/app/src/chain/coins.rs`, `rank/coin.rs`). The earlier economy (entry bond, route pool, fraud court, HTTP domain witnesses) is removed. Nothing is deployed yet: Arc mainnet has no deployment, and the earlier Arc testnet contracts are no longer supported.
 - Learning a route from one walk and replaying it without a browser: the pipeline in
   [ARCHITECTURE.md §3](../ARCHITECTURE.md#3-the-pipeline-browse-once-call-forever), `unbrowse-node/crates/learn`
   (`build`, `RouteClient`) and `unbrowse-node/app/src/learn.rs`.
