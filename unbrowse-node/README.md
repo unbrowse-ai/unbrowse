@@ -307,7 +307,7 @@ unbrowse-node network [on|off|light|full]
 
 The detail: [MONEY.md](../docs/MONEY.md) (every cost, the split, decimals), [ONBOARDING.md](../docs/ONBOARDING.md) (the
 sign-in and paying its own way), [SHARING.md](../docs/SHARING.md) (what is shared and how) and [NETWORK.md](../docs/NETWORK.md) (the
-peer network). The contracts are [`unbrowse-settlement`](../unbrowse-settlement).
+peer network). The contracts are `unbrowse-settlement` (private repository).
 
 ## Usage telemetry
 
