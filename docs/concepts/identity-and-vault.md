@@ -49,7 +49,7 @@ also serves other nodes and joins a peer network should not hold every account y
 
 **Built.**
 
-- **Route coins are built.** The contracts are in [`unbrowse-settlement/src/coins/`](../../unbrowse-settlement/src/coins/README.md) (the coin, its curve, staking, the fetch path and bounties), Settlement pays the 65 / 30 / 5 split and calls them on every claimed line, and the node trades, stakes, claims and ranks through them (`unbrowse-node/app/src/chain/coins.rs`, `rank/coin.rs`). The earlier economy (entry bond, route pool, fraud court, HTTP domain witnesses) is removed. Nothing is deployed yet: Arc mainnet has no deployment, and the earlier Arc testnet contracts are no longer supported.
+- **Route coins are built.** The contracts are in `unbrowse-settlement/src/coins/` (private repository; the coin, its curve, staking, the fetch path and bounties), Settlement pays the 65 / 30 / 5 split and calls them on every claimed line, and the node trades, stakes, claims and ranks through them (`unbrowse-node/app/src/chain/coins.rs`, `rank/coin.rs`). The earlier economy (entry bond, route pool, fraud court, HTTP domain witnesses) is removed. Nothing is deployed yet: Arc mainnet has no deployment, and the earlier Arc testnet contracts are no longer supported.
 - The root key and everything derived from it: `unbrowse-node/crates/core/src/derive.rs` (`RootKey::agent`,
   `vault_key`, `password`), the keystore and the file fallback in `keystore.rs`, a new node's 12 seed words in
   `seed.rs`, and the recovery phrase in `recovery.rs`: 12 seed words, which open the node's wallet in any wallet app,
