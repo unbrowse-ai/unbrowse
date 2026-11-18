@@ -159,7 +159,7 @@ Nothing here is an offer of any token or a promise of any price or return.
   the snipe tax (`RouteCoin`, `RouteCoins`); staking in lots, each with its own exit delay, checks, and USDC paid from
   a running sum (`CoinStakes`); the fetch that pays earlier stake and buys and stakes for the payer, held and completed
   later when a buy can't run safely (`CoinFetch`); bounties as limit orders with release by use (`CoinBounties`). The
-  reference is [`unbrowse-settlement/src/coins/README.md`](../../unbrowse-settlement/src/coins/README.md).
+  reference is `unbrowse-settlement/src/coins/README.md` (private repository).
 - **Failed lines.** Free whatever their share: a claim marks a failed line spent and pays nobody from it.
 - **Website escrow.** A domain claims with a DNSSEC proof (`Domains`); there are no HTTP witnesses.
 - **The node.** It launches its listing's coin with a first buy of 1% of the wallet's UNB by default, shows what each
@@ -167,7 +167,7 @@ Nothing here is an offer of any token or a promise of any price or return.
   posts and confirms bounties, and ranks entries from chain reads
   ([CLI.md](../CLI.md), [MONEY.md](../MONEY.md)).
 - **The model.** The rules were written first as an executable model and the contracts are replayed against its traces
-  step by step ([`unbrowse-settlement/spec/coins/`](../../unbrowse-settlement/spec/coins/README.md)).
+  step by step (`unbrowse-settlement/spec/coins/` (private repository)).
 
 **Differs from the design.**
 
