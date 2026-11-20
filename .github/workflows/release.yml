@@ -360,7 +360,7 @@ jobs:
     name: Sign the manifest
     needs: [version, platforms]
     if: needs.version.outputs.version != ''
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -457,7 +457,7 @@ jobs:
     name: Sign package hashes
     needs: [version, sdks]
     if: needs.version.outputs.version != ''
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -491,7 +491,7 @@ jobs:
     needs: [version, sdks, sign-artifacts, platforms]
     # A staging build goes to npm's `staging` tag alone: no node updates to it.
     if: needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: release
     outputs:
       targets_changed: ${{ steps.sign.outputs.targets_changed }}
@@ -562,7 +562,7 @@ jobs:
     name: Co-sign changed targets
     needs: [version, sign-updates, sdks, sign-artifacts]
     if: needs.sign-updates.outputs.cosign_required == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: targets-cosign
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -606,7 +606,7 @@ jobs:
     outputs:
       updates: ${{ steps.updates.outputs.updates }}
     if: always() && needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging' && needs.sdks.result == 'success' && needs.sign-updates.result == 'success' && (needs.cosign-updates.result == 'success' || needs.cosign-updates.result == 'skipped')
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

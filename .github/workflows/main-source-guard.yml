@@ -14,7 +14,7 @@ jobs:
   guard:
     name: Only release branches may merge into main
     if: github.base_ref == 'main'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - env:
           HEAD: ${{ github.head_ref }}
@@ -27,7 +27,7 @@ jobs:
   fixes-only:
     name: A release branch takes fixes alone
     if: startsWith(github.base_ref, 'release/')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - env:
           TITLE: ${{ github.event.pull_request.title }}
