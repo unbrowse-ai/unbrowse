@@ -10,6 +10,7 @@ On a site it has learned, Unbrowse is up to 100× faster than driving a browser.
 950 ms on average, against 3,404 ms for a browser agent ([research paper](https://arxiv.org/abs/2604.00694)). A cached
 answer comes back in about 67 ms.
 
+[Download](#install) ·
 [Releases](https://github.com/unbrowse-ai/unbrowse/releases) ·
 [Install the MCP](docs/install-mcp.md) ·
 [Moving from the hosted version](docs/upgrade.md) ·
@@ -19,34 +20,51 @@ answer comes back in about 67 ms.
 
 ## Install
 
+Download the app for your computer:
+
+| Your computer | Download |
+|---|---|
+| Mac with Apple silicon | [Unbrowse-13.21.0-installers.3-macos-arm64.dmg](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-macos-arm64.dmg) |
+| Mac with Intel | [Unbrowse-13.21.0-installers.3-macos-x64.dmg](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-macos-x64.dmg) |
+| Windows (x64) | [Unbrowse-13.21.0-installers.3-windows-x64-setup.exe](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-windows-x64-setup.exe) |
+| Linux, Debian or Ubuntu (x64) | [unbrowse_13.21.0-installers.3_amd64.deb](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_amd64.deb) |
+| Linux, Debian or Ubuntu (ARM) | [unbrowse_13.21.0-installers.3_arm64.deb](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_arm64.deb) |
+
+Every file with its SHA-256 is on [the release](https://github.com/unbrowse-ai/unbrowse/releases/tag/v13.21.0-installers.3); the step-by-step guide is at [unbrowse.ai/#install](https://unbrowse.ai/#install).
+
+Open the app. The Unbrowse window starts the node on your computer (its MCP server is `http://127.0.0.1:7788/mcp`),
+then its Connect screen adds Unbrowse to the agents it finds (Claude Code, Claude Desktop, Cursor, Codex) and gives you
+a remote MCP address for an agent on another machine. No terminal, Node or npm.
+
+- **Mac:** open the disk image and drag Unbrowse onto Applications. It is signed ad hoc, not notarized, so open it the
+  first time by hand: right-click it and choose Open, or on macOS 15 and later, after the warning, System Settings >
+  Privacy & Security > Open Anyway.
+- **Windows:** run the setup. It installs for your user alone, with no administrator prompt, and opens Unbrowse when it
+  finishes. It is not code-signed, so SmartScreen asks once: More info, then Run anyway.
+- **Linux:** `sudo apt install ./unbrowse_13.21.0-installers.3_amd64.deb`, then open Unbrowse from your apps menu. The window needs GTK 4.
+
+These installers do not update themselves yet: download the newer one when it ships.
+
+### Or with npm
+
 You need Node 20.3 or newer, on macOS, Linux or Windows.
 
 ```bash
-npm i -g unbrowse@next
+npm i -g unbrowse
 unbrowse connect
 ```
 
 `unbrowse connect` starts Unbrowse on your machine and adds it to Claude Code. Restart Claude Code and ask it to get
-something from a website. `unbrowse app` opens the window; `unbrowse start` runs the node without it.
+something from a website. `unbrowse app` opens the window; `unbrowse start` runs the node without it. For Codex,
+Cursor, VS Code, Gemini, Zed and other agents, see [Install the Unbrowse MCP](docs/install-mcp.md).
 
-Version 13 is on npm under the tag `next` for now: a plain `npm i -g unbrowse` still installs 12.5.0, the hosted client
-that has closed. For Codex, Cursor, VS Code, Gemini, Zed and other agents, see [Install the Unbrowse MCP](docs/install-mcp.md).
-
-Prefer not to use npm?
-
-- **macOS:** download the disk image from [Releases](https://github.com/unbrowse-ai/unbrowse/releases), open it and drag
-  Unbrowse onto Applications. It is signed ad hoc, not notarized, so open it the first time by hand: right-click it and
-  choose Open, or on macOS 15 and later, after the warning, System Settings > Privacy & Security > Open Anyway.
-- **Linux or Windows:** download `unbrowse-<version>-linux-<arch>.tar.gz` or `unbrowse-<version>-windows-x64.zip`. It holds
-  the node, `unb`, the browser and the window in one folder, with a README that says how to start them. Check the
-  download against the release's `SHA256SUMS`.
-
-A release keeps itself up to date and runs on Arc testnet. npm fetches the programs for the machine it installs on:
-macOS (Apple silicon and Intel), Linux (x64 and arm64, glibc 2.35 or later) and Windows (x64). That brings the app, the
-node, `unb`, the agent skill and the client, and no browser: the node fetches its browser the first time a goal needs
-one (or `unbrowse browser install` fetches it now; [docs/guides/the-browser.md](docs/guides/the-browser.md)).
-Foundry's Anvil (`foundryup`) is needed only for test mode, the local devnet: the default of a build from source, or a
-node whose `chain` setting is `devnet`.
+npm fetches the programs for the machine it installs on: macOS (Apple silicon and Intel), Linux (x64 and arm64, glibc
+2.35 or later) and Windows (x64). That brings the app, the node, `unb`, the agent skill and the client, and no browser:
+the node fetches its browser the first time a goal needs one (or `unbrowse browser install` fetches it now;
+[docs/guides/the-browser.md](docs/guides/the-browser.md)). A full release, from npm or the
+`unbrowse-<version>-linux-<arch>.tar.gz` and `unbrowse-<version>-windows-x64.zip` archives on
+[Releases](https://github.com/unbrowse-ai/unbrowse/releases), keeps itself up to date and runs on Arc testnet. Foundry's Anvil (`foundryup`) is needed only for
+test mode, the local devnet: the default of a build from source, or a node whose `chain` setting is `devnet`.
 
 ## Used the hosted version?
 
