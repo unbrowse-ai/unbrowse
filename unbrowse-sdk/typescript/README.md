@@ -11,6 +11,13 @@ script talks to it.
 > This is the client for the **local node** (`http://127.0.0.1:7788`). For the hosted API at unbrowse.ai, use
 > [`@unbrowse/sdk`](https://www.npmjs.com/package/@unbrowse/sdk).
 
+**Install the app** (no Node or npm needed): [Mac](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-macos-arm64.dmg) · [Intel Mac](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-macos-x64.dmg) · [Windows](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-windows-x64-setup.exe) ·
+[Linux](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_amd64.deb) · [Linux ARM](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_arm64.deb). Every file with its SHA-256 is on [the release](https://github.com/unbrowse-ai/unbrowse/releases/tag/v13.21.0-installers.3); the guide is at
+[unbrowse.ai/#install](https://unbrowse.ai/#install). The window starts the node (MCP at `http://127.0.0.1:7788/mcp`) and connects your
+agents and a remote MCP address.
+
+**Or with npm** (Node 20.3+):
+
 ```bash
 npm install -g unbrowse
 unbrowse app          # opens the window, which starts the node
