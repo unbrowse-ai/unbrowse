@@ -1,4 +1,4 @@
-# The programs for every machine (the Mac app on Apple silicon and Intel, Linux on x64 and arm64, Windows on x64) and
+# The programs for every machine (the Mac app on Apple silicon, Linux on x64 and arm64, Windows on x64) and
 # `unbrowse` for npm and PyPI, for each of the three places a commit goes (CONTRIBUTING.md, "Branches and releases"); the
 # version is the ref's (.github/scripts/release-version.sh):
 #
@@ -105,9 +105,6 @@ jobs:
       matrix:
         include:
           - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-latest }
-          # Blacksmith has no Intel Macs, so the x64 Mac build stays on GitHub's (billed); moving it means cross-building
-          # on Apple silicon (cargo --target x86_64-apple-darwin, the window's Zig target, package-macos.sh's arch).
-          - { platform: darwin-x64, runner: macos-15-intel }
           # Ubuntu 22.04's glibc (2.35) is the oldest a Linux machine needs; the wheels are tagged for it.
           - { platform: linux-x64, runner: blacksmith-4vcpu-ubuntu-2204 }
           - { platform: linux-arm64, runner: blacksmith-4vcpu-ubuntu-2204-arm }
@@ -223,7 +220,6 @@ jobs:
       matrix:
         include:
           - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-latest }
-          - { platform: darwin-x64, runner: macos-15-intel }
     runs-on: ${{ matrix.runner }}
     environment: release
     steps:
@@ -335,7 +331,7 @@ jobs:
         run: |
           sh .github/scripts/pack-platforms.sh "$VERSION" programs dist
           # Every machine made it into the packages, and each has its browser add-on apart from them.
-          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+          for p in darwin-arm64 linux-x64 linux-arm64 win32-x64; do
             test -f "dist/unbrowse-$p-$VERSION.tgz"
             test -f "dist/unbrowse-browser-$p-$VERSION.tgz"
             if tar -tzf "dist/unbrowse-$p-$VERSION.tgz" | grep -q 'agent-browser'; then echo "::error::@unbrowse/$p carries the browser"; exit 1; fi
@@ -351,7 +347,7 @@ jobs:
 
   # The release key signs the manifest here and nowhere else. The job installs nothing and runs nothing a package
   # registry gave it: the checkout of the signing script and the node's trusted key, the manifest, and the runner's own
-  # Node with its built-in crypto. Its runner is GitHub's, fresh for this job, so no earlier step of another job can
+  # Node with its built-in crypto. Its runner is a fresh Blacksmith VM for this job, so no earlier step of another job can
   # be waiting on it to read the key. The key is a secret of the `release` environment, and the job refuses any ref but
   # the three that release.
   sign-manifest:
@@ -360,7 +356,7 @@ jobs:
     name: Sign the manifest
     needs: [version, platforms]
     if: needs.version.outputs.version != ''
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -457,7 +453,7 @@ jobs:
     name: Sign package hashes
     needs: [version, sdks]
     if: needs.version.outputs.version != ''
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -491,7 +487,7 @@ jobs:
     needs: [version, sdks, sign-artifacts, platforms]
     # A staging build goes to npm's `staging` tag alone: no node updates to it.
     if: needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: release
     outputs:
       targets_changed: ${{ steps.sign.outputs.targets_changed }}
@@ -562,7 +558,7 @@ jobs:
     name: Co-sign changed targets
     needs: [version, sign-updates, sdks, sign-artifacts]
     if: needs.sign-updates.outputs.cosign_required == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: targets-cosign
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -606,7 +602,7 @@ jobs:
     outputs:
       updates: ${{ steps.updates.outputs.updates }}
     if: always() && needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging' && needs.sdks.result == 'success' && needs.sign-updates.result == 'success' && (needs.cosign-updates.result == 'success' || needs.cosign-updates.result == 'skipped')
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -712,22 +708,21 @@ jobs:
           fi
           cd dist
           # The newest Mac app at a name that stays: releases/latest/download/Unbrowse-macos-<arch>.dmg.
-          for arch in arm64 x64; do cp "Unbrowse-$VERSION-macos-$arch.dmg" "Unbrowse-macos-$arch.dmg"; done
+          cp "Unbrowse-$VERSION-macos-arm64.dmg" "Unbrowse-macos-arm64.dmg"
           sha256sum -- * > SHA256SUMS
           # The browser's npm postinstall installs a machine's browser only when its hash is listed here.
-          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64.exe; do
+          for p in darwin-arm64 linux-x64 linux-arm64 win32-x64.exe; do
             grep -q "  agent-browser-$p\$" SHA256SUMS || { echo "::error::SHA256SUMS lists no agent-browser-$p"; exit 1; }
           done
           cat > "$RUNNER_TEMP/notes.md" <<EOF
           **On a Mac, download the disk image:** [\`Unbrowse-macos-arm64.dmg\`](https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/Unbrowse-macos-arm64.dmg)
-          for Apple silicon, [\`Unbrowse-macos-x64.dmg\`](https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/Unbrowse-macos-x64.dmg)
-          for Intel. Open it and drag Unbrowse onto Applications: the app holds the window, the node, \`unb\` and the
+          for Apple silicon (there is no Intel Mac build). Open it and drag Unbrowse onto Applications: the app holds the window, the node, \`unb\` and the
           browser program the node fetches when a goal first needs it. $MAC_TRUST
 
           **\`unbrowse\`**, the app, the node, the agent skill and the client in one package:
           \`npm install -g unbrowse\` (or \`pip install unbrowse-$VERSION-py3-none-<your machine>.whl\` from below), then
           \`unbrowse app\` opens the window and \`unbrowse start\` runs the node without it. npm fetches the programs for
-          the machine it installs on: macOS (Apple silicon and Intel), Linux (x64 and arm64, glibc 2.35 or later) and
+          the machine it installs on: macOS (Apple silicon), Linux (x64 and arm64, glibc 2.35 or later) and
           Windows (x64). \`unbrowse-$VERSION-py3-none-any.whl\` is the client alone, for any other machine. No install
           brings a browser or downloads Chrome: the node runs without one, and fetches its browser program
           (\`@unbrowse/browser-<machine>\`, checked against this release's signature) and, when there's no Chromium,
