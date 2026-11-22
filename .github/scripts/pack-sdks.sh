@@ -19,7 +19,6 @@ trap 'rm -rf "$stage"' EXIT
 
 # platform  wheel tag. Linux is built on Ubuntu 22.04, whose glibc is 2.35.
 tags="darwin-arm64 macosx_11_0_arm64
-darwin-x64 macosx_11_0_x86_64
 linux-x64 manylinux_2_35_x86_64
 linux-arm64 manylinux_2_35_aarch64
 win32-x64 win_amd64"

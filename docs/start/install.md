@@ -64,7 +64,7 @@ Chromium. Safari and Firefox open links but carry no Chromium, so the node can't
 
 | Machine | Release | Window |
 |---|---|---|
-| macOS, Apple silicon and Intel | npm, wheel, disk image, zip, `.tar.gz` without the window | native |
+| macOS, Apple silicon (no Intel Mac build) | npm, wheel, disk image, zip, `.tar.gz` without the window | native |
 | Linux x64 and arm64, glibc 2.35 or later | npm, wheel, `.tar.gz` | native (GTK) |
 | Windows x64 | npm, wheel, `.zip` | native |
 

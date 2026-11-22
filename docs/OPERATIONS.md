@@ -134,7 +134,7 @@ the folder is absent.
 | Job | Runner | Does |
 |---|---|---|
 | `version` | `blacksmith-2vcpu-ubuntu-2404` | the ref's version and channel, and that npm has every package a release publishes and not yet this version (`npm-preflight.mjs`), so a missing package or a spent version stops the run before anything is built |
-| `programs` | darwin-arm64 `blacksmith-6vcpu-macos-latest`; darwin-x64 `macos-15-intel` (GitHub's, Blacksmith has no Intel Macs); linux-x64 `blacksmith-4vcpu-ubuntu-2204`; linux-arm64 `blacksmith-4vcpu-ubuntu-2204-arm`; win32-x64 `blacksmith-4vcpu-windows-2025` | `UNBROWSE_RELEASE=1 cargo build --release --locked --bin unbrowse-node --bin unb`, the UI (`bun run build`), the window (`zig build`), the Mac app and dmg, a smoke test |
+| `programs` | darwin-arm64 `blacksmith-6vcpu-macos-latest` (there is no Intel Mac build since 22 November 2026, UNB-224); linux-x64 `blacksmith-4vcpu-ubuntu-2204`; linux-arm64 `blacksmith-4vcpu-ubuntu-2204-arm`; win32-x64 `blacksmith-4vcpu-windows-2025` | `UNBROWSE_RELEASE=1 cargo build --release --locked --bin unbrowse-node --bin unb`, the UI (`bun run build`), the window (`zig build`), the Mac app and dmg, a smoke test |
 | `sdks` | `blacksmith-2vcpu-ubuntu-2404` | signs `manifest.json` (checked against `update.rs`'s key), packs the npm packages and Python wheels (a prerelease's in PEP 440's form, `13.19.0rc7`, `13.20.0.dev9`), and but for staging writes and signs the update metadata (`updates.mjs release`), checked against the root nodes trust |
 | `npm` | `ubuntu-24.04` (trusted publishing needs GitHub's own runners), environment `release` | each `@unbrowse/<platform>`, then `unbrowse`, under the ref's dist-tag, then `@unbrowse/updates` (`npm-publish.sh`); a version npm has with the same bytes is skipped, so a rerun finishes the job, and one it has with other bytes fails the run |
 | `release` | `blacksmith-2vcpu-ubuntu-2404` | a tag's alone, last, once npm has everything: `gh release create v$VERSION --verify-tag --latest`, with `SHA256SUMS` and stable-named dmgs (`releases/latest/download/Unbrowse-macos-<arch>.dmg`) |
@@ -595,9 +595,9 @@ jobs that can't.
 What each CI job tests is in [TESTING.md](TESTING.md).
 
 **Blacksmith.** CI moved to Blacksmith on 28 October 2026 (`c30bea4a`). On 30 October the Windows builds and Claude
-Code moved too, after GitHub's October bill went $63 over the included minutes (`1feff34c`, #62). Two jobs stay on
-GitHub's runners on purpose: the darwin-x64 build (`macos-15-intel`; Blacksmith has no Intel Macs) and the npm publish
-(`ubuntu-24.04`; trusted publishing needs GitHub's own).
+Code moved too, after GitHub's October bill went $63 over the included minutes (`1feff34c`, #62). On 22 November
+(UNB-224) every release and update job moved to Blacksmith too, and the Intel Mac build was dropped. Only the npm
+publishing jobs stay on GitHub's runners (`ubuntu-24.04`): npm's trusted publishing works from cloud-hosted runners only.
 
 **The startup failures.** On 30 October 2026, between 05:30 and 12:13 UTC, 88 runs ended `startup_failure`: every push
 and pull request, on every branch, each with no jobs. The workflow files weren't the cause: a CI run dispatched by
@@ -790,8 +790,8 @@ Read from the live services on 30 October 2026.
   (`npm-preflight.mjs`, in the `version` job). **So no release runs past `version`, and no tag or GitHub release is made,
   until these are done.** Read on 6 November 2026, npm has `unbrowse` and none of the other eleven. What the owner does,
   once, as a member of the npm org `unbrowse`:
-  1. Publish each of `@unbrowse/darwin-arm64`, `@unbrowse/darwin-x64`, `@unbrowse/linux-x64`, `@unbrowse/linux-arm64`,
-     `@unbrowse/win32-x64`, their browser add-ons `@unbrowse/browser-darwin-arm64`, `@unbrowse/browser-darwin-x64`,
+  1. Publish each of `@unbrowse/darwin-arm64`, `@unbrowse/linux-x64`, `@unbrowse/linux-arm64`,
+     `@unbrowse/win32-x64`, their browser add-ons `@unbrowse/browser-darwin-arm64`,
      `@unbrowse/browser-linux-x64`, `@unbrowse/browser-linux-arm64`, `@unbrowse/browser-win32-x64`, and
      `@unbrowse/updates` once by hand (`npm publish --access public` of a placeholder `0.0.0` with only a
      `package.json`; nodes read exact versions, and `@unbrowse/updates`' first real version is `1.0.1`).
