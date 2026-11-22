@@ -12,15 +12,12 @@ undo it.
 Open a terminal and run:
 
 ```bash
-npm i -g unbrowse@next
+npm i -g unbrowse
 unbrowse connect
 ```
 
 `unbrowse connect` shows you what it found and what it plans to change, and asks before it changes anything. When it is
 done, restart your agent (Claude Code, Codex, Cursor or whichever you use).
-
-Version 13 is on npm under the tag `next` for now. A plain `npm i -g unbrowse` still installs 12.5.0, the hosted
-client, which no longer has a service to talk to.
 
 You need Node 20.3 or newer. The new Unbrowse runs on macOS, Linux and Windows.
 
