@@ -1,4 +1,4 @@
-"""The signing keys sit in jobs of their own (release-check.yml runs this; external security review round 3,
+"""The signing keys sit in jobs of their own (ci.yml's `papers` job runs this; external security review round 3,
 2026-11-04).
 
 - release.yml has no trigger a pull request can fire.
@@ -10,6 +10,8 @@
   names are compared case-folded. The Mac signing and notary secrets are signing keys too.
 - In release.yml and updates.yml, every secret a job reads makes it a signing job: a secret added there under a new
   name is held to the same rules without this list growing.
+
+- Every job that can mint an OIDC token (`id-token: write`, its own or the workflow's) carries a ref check in its `if`.
 
     python3 .github/scripts/test/check_signing_jobs.py [workflows folder]
 """
@@ -31,6 +33,9 @@ BUILDS = re.compile(r"\b(cargo\s+(build|run|test|check|clippy)|zig\s+build|(npm|
 ALLOWED_ACTIONS = ("actions/checkout@", "actions/download-artifact@", "actions/upload-artifact@")
 INSTALLS = re.compile(r"\b(npm\s+(install|ci|i|exec)\b|npx\b|bunx\b|bun\s+(install|x)\b|pnpm\s+(install|dlx)\b|yarn(\s+install)?\b|pip3?\s+install|pipx\b|uvx?\b|python3?\s+-m\s+pip|cargo\s+install|apt(-get)?\s+install|brew\s+install|make\b|curl\b|wget\b)")
 SIGNERS = {"release.yml", "updates.yml"}
+# A ref check: the job's `if` names the ref the run is for, or reads the version job's verdict on it (release-version.sh
+# refuses any ref that doesn't release).
+REF_CHECK = re.compile(r"\bgithub\s*\.\s*ref(_name)?\b|\bneeds\s*\.\s*version\s*\.\s*outputs\s*\.\s*(version|channel|sha)\b")
 # A signing job runs the signing scripts, which use Node's built-in crypto and the system's tar, and nothing else from
 # the repository: a packing script runs package managers.
 # The interpreter is a word of its own: `unbrowse-node <path>` names a file, not `node` running one.
@@ -64,6 +69,22 @@ def signing_secrets(text: str, workflow: str) -> set[str]:
     return names if workflow in SIGNERS else names & SIGNING
 
 
+def can_mint_oidc(job: dict, workflow_permissions) -> bool:
+    """Whether the job can ask GitHub for an OIDC token (npm's trusted publishing): its own permissions, else the workflow's."""
+    permissions = job["permissions"] if "permissions" in job else workflow_permissions
+    if permissions == "write-all":
+        return True
+    return isinstance(permissions, dict) and permissions.get("id-token") == "write"
+
+
+def has_ref_check(job: dict) -> bool:
+    """Every way the job's `if` can be true (each side of an `||`) names the ref, or the version job's verdict on it."""
+    condition = job.get("if")
+    if not isinstance(condition, str):
+        return False
+    return all(REF_CHECK.search(alternative) for alternative in condition.split("||"))
+
+
 def names_a_key(text: str) -> bool:
     upper = text.upper()
     return any(k in upper for k in SIGNING)
@@ -85,6 +106,10 @@ def problems(folder: pathlib.Path) -> list[str]:
         if signing_secrets(workflow_env, wf.name) or names_a_key(workflow_env):
             bad.append(f"{wf.name} names a signing key in the workflow's env, which every job reads")
         for name, job in (doc.get("jobs") or {}).items():
+            # A job that can publish by OIDC publishes as this workflow, as a signing job signs as it: a run for a
+            # ref that doesn't release must never reach it (the `release` environment's branch rule is a second lock).
+            if can_mint_oidc(job, doc.get("permissions")) and not has_ref_check(job):
+                bad.append(f"{wf.name}: job {name} can publish by OIDC with no ref check: its `if` must name the ref or read the version job's verdict on it")
             text = yaml.safe_dump(job)
             held = signing_secrets(text, wf.name)
             if not held and not names_a_key(text):

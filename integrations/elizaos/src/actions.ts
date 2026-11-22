@@ -75,7 +75,7 @@ const EXAMPLES: Partial<Record<ToolName, ActionExample[][]>> = {
 function action(short: ToolName, spec: ToolSpec): Action {
   const name = actionName(spec.name);
   const description = asActions(spec.description);
-  const params: Param[] = paramsOf(spec.inputSchema);
+  const params: Param[] = paramsOf(spec.inputSchema, spec.needsOneOf ?? []);
   return {
     name,
     similes: SIMILES[short] ?? [],
@@ -95,7 +95,7 @@ function action(short: ToolName, spec: ToolSpec): Action {
         await say(error);
         return { success: false, text: error, error };
       }
-      const absent = missing(params, values);
+      const absent = missing(params, values, spec.needsOneOf ?? []);
       if (absent.length) {
         const error = `${name} needs ${absent.join(" and ")}.`;
         await say(error);

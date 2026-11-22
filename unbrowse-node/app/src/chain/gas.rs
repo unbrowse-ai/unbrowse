@@ -257,7 +257,8 @@ pub(crate) async fn window_logs(url: &crate::proof::Url, filter: &alloy::rpc::ty
 }
 
 /// Every log `filter` matches from block `from` to `to` (the head when `None`), read from the node's own RPC in windows
-/// it accepts, each answer bounded (`window_logs`) and the read in all held to `MAX_LOGS_PER_READ` (R11-CHAIN-2).
+/// it accepts, each answer bounded (`window_logs`) and the read in all held to `MAX_LOGS_PER_READ` (R11-CHAIN-2). On a
+/// live network a history read before is asked again only from where it was read to (`held_logs`).
 pub(crate) async fn logs(
     p: &impl Provider,
     filter: alloy::rpc::types::Filter,
@@ -268,7 +269,53 @@ pub(crate) async fn logs(
         Some(t) => t,
         None => p.get_block_number().await.map_err(|e| e.to_string())?,
     };
-    logs_at(&crate::chain::url(), &filter, from, to).await
+    held_logs(&crate::chain::url(), live().map(|l| l.net.chain_id), &filter, from, to).await
+}
+
+/// How many blocks below the head a held history stops at, so they are read again on the next read: an RPC behind a
+/// load balancer can answer from a node a block or two behind, and a chain whose blocks become final later could still
+/// drop them. Arc's are final as they are committed; this is `anchor::HEAD_SKEW`, under one window to read again.
+pub(crate) const LOGS_REREAD: u64 = 64;
+/// How many histories are held at once, at most: each is one filter from one block (a handful per node, each the
+/// owner's own events, so few logs). Past it they are all let go and read afresh.
+const LOGS_HELD: usize = 256;
+
+/// A history of one filter's logs read from block `from` to block `to`.
+struct Held {
+    to: u64,
+    logs: Vec<alloy::rpc::types::Log>,
+}
+
+/// The histories read on the live network, by chain, start block and filter.
+static HELD_LOGS: std::sync::LazyLock<Mutex<std::collections::HashMap<String, Held>>> = std::sync::LazyLock::new(Default::default);
+
+/// `logs_at`, holding what was read on the chain `held_on` (a live network's; `None`, the devnet, holds nothing) so the
+/// same history read again asks the RPC only for the blocks past it. Each claim pass reads the coins' and Settlement's
+/// events from the deployment's block five times or more (`send_own_held`, `complete_own_buys`, `coins_held`), and each
+/// read was every window since the deployment: 54 requests each three days after Arc testnet's, and 17 more each day.
+/// A held history is kept to `LOGS_REREAD` below the block read to, and those blocks are read again each time.
+pub(crate) async fn held_logs(url: &crate::proof::Url, held_on: Option<u64>, filter: &alloy::rpc::types::Filter, from: u64, to: u64) -> Result<Vec<alloy::rpc::types::Log>, String> {
+    let Some(chain_id) = held_on else { return logs_at(url, filter, from, to).await };
+    let key = format!("{chain_id}/{from}/{}", serde_json::to_string(filter).map_err(|e| e.to_string())?);
+    let below = |logs: &[alloy::rpc::types::Log], last: u64| logs.iter().filter(|l| l.block_number.is_some_and(|b| b <= last)).cloned().collect::<Vec<_>>();
+    let (start, mut out) = match HELD_LOGS.locked().get(&key) {
+        Some(h) if h.to >= to => return Ok(below(&h.logs, to)),
+        Some(h) => (h.to + 1, h.logs.clone()),
+        None => (from, Vec::new()),
+    };
+    out.extend(logs_at(url, filter, start, to).await?);
+    if out.len() > MAX_LOGS_PER_READ {
+        return Err(format!("{LOGS_OVER_CAP}: over {MAX_LOGS_PER_READ} logs in one read"));
+    }
+    let keep_to = to.saturating_sub(LOGS_REREAD);
+    if keep_to >= from {
+        let mut held = HELD_LOGS.locked();
+        if held.len() >= LOGS_HELD && !held.contains_key(&key) {
+            held.clear();
+        }
+        held.insert(key, Held { to: keep_to, logs: below(&out, keep_to) });
+    }
+    Ok(out)
 }
 
 /// `logs` asked of the RPC at `url`.

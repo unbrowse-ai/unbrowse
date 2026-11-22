@@ -62,8 +62,8 @@ code is what runs, and these docs describe the code.
 |---|---|
 | [papers/](../papers/README.md) | The design: the whitepaper, the economy, selection, the protocol specification, and the measured paper, as Markdown and PDF |
 | [README.md](../README.md) | What Unbrowse is, installing, running from source, connecting an agent, the repository map |
-| [AGENTS.md](../AGENTS.md) | The strategy and the pattern: how a walk becomes a route, the door, the network's rules, the anti-patterns |
-| [CLAUDE.md](../CLAUDE.md) | The one rule on top: fixes are general, never a site's name |
+| [AGENTS.md](../AGENTS.md) | The strategy and the pattern: how a walk becomes a route, the door, the network's rules, fixes that are general, pushing and watching CI, the anti-patterns |
+| [CLAUDE.md](../CLAUDE.md) | The same file as AGENTS.md, byte for byte (CI runs `cmp`) |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | How to contribute, to the code, the papers and the docs |
 | [SECURITY.md](../SECURITY.md) | How the node keeps secrets, the threat model, updates, what isn't defended, and reporting a vulnerability |
 | [PRIVACY.md](../PRIVACY.md), [TERMS.md](../TERMS.md), [TRADEMARKS.md](../TRADEMARKS.md) | What leaves the machine and who sees it; the terms; the marks |

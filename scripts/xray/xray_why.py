@@ -31,6 +31,8 @@ WHY = {
                              rebuild=[('Expr', 'Stamp'), 'lab/synth.rs::stamp_form']),
     'dangling': dict(wrote=[('Class', 'Derived')], seam=['learn.rs::the_least_chain', 'learn/links.rs::applied'], tree='read(step, at); a body that reads a step it lacks is refused whole',
                      rebuild=['route/src/body.rs::refused', 'lab/compile.rs::route']),
+    'bad-origin': dict(wrote=[('Class', 'Derived')], seam=['provenance.rs::find_origin_on', 'learn/links.rs::applied'], tree='read(step, at); a read with no step or place is refused whole',
+                       rebuild=['route/src/body.rs::refused', 'lab/compile.rs::route']),
     'backwards': dict(wrote=[('Class', 'Derived')], seam=['learn.rs::the_least_chain'], tree='read(step, at); a read of a later step is refused whole', rebuild=['route/src/body.rs::refused', 'lab/compile.rs::route']),
     'deaf': dict(seam=['learn/links.rs::borne_out', 'learn/trial.rs::with_another_word'], tree='a slot the answer does not change with is not a slot', rebuild=['lab/answer.rs::told', 'lab/answer.rs::settle_of_two']),
     'failing': dict(seam=['client.rs::call_with_ledger', 'replay.rs::replay_ledgered'], tree=None, rebuild=['lab/call.rs::call', 'lab/call.rs::not_the_answer'],
@@ -54,6 +56,11 @@ WHY = {
     'header-tie': dict(wrote=[('Class', 'Derived')], seam=['provenance.rs::find_origin_on'], tree='read(step, header)', rebuild=['lab/synth.rs::holes']),
     'place-name': dict(seam=['learn/trial.rs::the_address_left', 'learn.rs::path_inputs', 'learn.rs::note_address'], tree=None, rebuild=['lab/sighting.rs::asked_again', 'lab/kept.rs::asked'],
                        gap='A slot has a name, an example and choices. Nothing says what kind of value it is or what the page calls it, so an unnamed piece keeps its place for a name.'),
+    # A page read at the address the walk landed on: the landing is told apart from the asking (learn::landed), a plain
+    # page read asks at the page's own address and follows the redirect (learn::learn_plain), and the classifier makes
+    # an address piece the caller's only where a caller's value sits (graph::classify, learn::address_ids).
+    'redirected-piece': dict(wrote='hole', missed=[('Class', 'Input')], seam=['learn.rs::landed', 'learn.rs::learn_plain', 'graph.rs::classify', 'learn.rs::address_ids'],
+                             tree='slot(name), or the page asked at its own address with the redirect followed', rebuild=['lab/sighting.rs::asked_again']),
     'off-site-step': dict(seam=['learn.rs::the_least_chain'], tree='a step of another site is a step like any other', rebuild=['lab/compile.rs::route']),
     'post-in-read': dict(seam=['ledger.rs::writes'], tree='step.writes: never sent to try, never sent twice', rebuild=['lab/compile.rs::writes']),
     'no-shape': dict(seam=['learn.rs::route_of'], tree='step.shape of the answer', rebuild=['lab/compile.rs::step']),
@@ -61,9 +68,18 @@ WHY = {
     'unheard': dict(seam=['learn/trial.rs::with_another_word', 'learn/links.rs::borne_out'], tree='an answer two walks settle', rebuild=['lab/answer.rs::settle', 'lab/answer.rs::settle_of_two']),
     'no-fields': dict(seam=['fields.rs::defaults_on', 'learn/links.rs::with_proposed_fields'], tree=None, rebuild=['lab/answer.rs::said_lines'],
                       gap='The answer names a step and whether it is a page. It names no fields, so which fields are the result is worked out again at each call.'),
+    # The pick is held to the goal's fields; that its answer names the item the page is about is asked of a goal for one
+    # thing only, so a list beside the item (related, similar) passes for the page's answer.
+    'related-list': dict(seam=['learn.rs::fails_goal', 'learn.rs::pick_and_keep', 'learn.rs::holding_of', 'learn.rs::address_ids'], tree='answer.step, settled by two walks or not written',
+                         rebuild=['lab/answer.rs::own_lines_back', 'lab/answer.rs::settle_of_two']),
     'no-page': dict(seam=['learn.rs::route_of'], tree=None, rebuild=[], gap='A body keeps no page to learn it again from.'),
     'never-called': dict(seam=[], tree='', rebuild=[]),
     'long-chain': dict(seam=['learn.rs::the_least_chain'], tree='the steps the answer\'s reads need, and no other', rebuild=['lab/compile.rs::route']),
+    # A cookie in the step as text: the readers that make a cookie the jar's (a value the walk's browser held, a value a
+    # call set) did not claim it, and nothing between them and the store refuses a cookie kept as a constant.
+    'fixed-cookie': dict(wrote='hole', missed=[('Class', 'Minted'), ('Class', 'Derived')],
+                         seam=['graph.rs::held_under', 'graph.rs::minted_or_computed', 'graph.rs::walked_cookies', 'client.rs::with_session_cookies'], tree='cookie(name)',
+                         rebuild=[('Kind', 'Session')]),
     'walked-header': dict(wrote='hole', seam=['graph.rs::held_in_text'], tree='swap, or text where the site does not read it', rebuild=['lab/synth.rs::holding']),
     # What the node's log of the learn says (xray_log).
     'picked-without-fields': dict(seam=['learn.rs::pick_and_keep', 'learn.rs::verify_learned'], tree='answer.step, settled by two walks or not written', rebuild=['lab/answer.rs::settle_of_two', 'lab/answer.rs::own_lines_back'],

@@ -206,12 +206,24 @@ impl Plan {
         for u in &self.unread {
             t.push_str(&format!("  Couldn't read: {u}\n"));
         }
+        // What going ahead adds, said even when nothing was found: a dry run on a fresh machine said only "Found: no
+        // Unbrowse entry", never what it would register (Claude QA check 24). The program and its words, no token.
+        let ready = self.found.iter().any(|f| f.host == Host::ClaudeCode && f.scope == Scope::User && f.name == "unbrowse" && self.action(f) == Action::Already);
+        if !ready {
+            let words: Vec<&str> = self.entry["args"].as_array().into_iter().flatten().filter_map(|a| a.as_str()).collect();
+            t.push_str(&format!(
+                "\nWill add: Claude Code  unbrowse  → {} {}, your node at {}\n",
+                self.entry["command"].as_str().unwrap_or("unb"),
+                words.join(" "),
+                self.entry["env"]["UNBROWSE_NODE"].as_str().unwrap_or("")
+            ));
+        }
         let kept: Vec<String> = self.found.iter().filter(|f| f.host == Host::Files).map(legacy::describe).collect();
         t.push_str(&format!(
             "\nKept as is: {}your hosted account and saved logins.\n",
             kept.iter().map(|k| format!("{k}, ")).collect::<String>()
         ));
-        t.push_str(&format!("Backup: {}/\n", self.backup.display()));
+        t.push_str(&format!("Backup (made only when it goes ahead): {}/\n", self.backup.display()));
         t
     }
 }
@@ -823,6 +835,18 @@ mod tests {
         assert!(out.contains(&stamp(1_763_284_323)), "{out}");
     }
 
+    /// A machine with no Unbrowse entry still hears what connect would add (Claude QA check 24), with no token; one
+    /// already set up does not.
+    #[test]
+    fn the_plan_says_what_it_would_add_even_when_nothing_was_found() {
+        let h = home("nothing-found");
+        let m = machine(&h);
+        let text = plan_for(&h, &m).text();
+        assert!(text.contains("Found: no Unbrowse entry in any agent's settings."), "{text}");
+        assert!(text.contains("Will add: Claude Code  unbrowse  → /opt/unb mcp --agent first, your node at http://127.0.0.1:7788"), "{text}");
+        assert!(!text.contains("unb_") && !text.contains("Bearer"), "{text}");
+    }
+
     /// The plan names the right command for a plugin that isn't ours: Claude removes plugins with `plugin
     /// uninstall`, not `mcp remove`.
     #[test]
@@ -962,5 +986,142 @@ mod tests {
         assert_eq!(stamp(0), "1970-01-01T00-00-00Z");
         assert_eq!(stamp(1_763_284_323), "2025-11-16T09-12-03Z");
         assert_eq!(stamp(1_709_164_800), "2024-02-29T00-00-00Z");
+    }
+
+    /// An `unbrowse-next` an earlier run left (this node's own) is taken out and made again; one that isn't this node's
+    /// is in the way, and the run stops before it changes anything.
+    #[test]
+    fn an_earlier_runs_temporary_entry_is_replaced_and_one_not_ours_stops_the_run_before_it_changes_anything() {
+        let leave = |name: &str, entry: Value| {
+            let (h, m, _) = old_machine(name);
+            let mut cfg = Fake::new(&m).read();
+            cfg["mcpServers"]["unbrowse-next"] = entry;
+            std::fs::write(m.claude_json(), cfg.to_string()).unwrap();
+            (h, m)
+        };
+        let (h, m) = leave("leftover-next", json!({ "type": "stdio", "command": "/opt/unb", "args": ["mcp", "--agent", "first"] }));
+        let mut fake = Fake::new(&m);
+        apply(&plan_for(&h, &m), &mut fake, &mut Vec::new()).unwrap();
+        let at = |words: &[&str]| fake.lines.iter().position(|l| l.iter().map(String::as_str).eq(words.iter().copied()));
+        let (removed, added) = (at(&["mcp", "remove", "--scope", "user", "unbrowse-next"]), at(&["mcp", "add", "--scope", "user", "unbrowse-next", "--env", "UNBROWSE_NODE=http://127.0.0.1:7788", "--", "/opt/unb", "mcp", "--agent", "first"]));
+        assert!(removed.is_some() && added.is_some() && removed < added, "the earlier one is removed first, then the new one added: {:?}", fake.lines);
+        let cfg = fake.read();
+        assert!(cfg["mcpServers"].get("unbrowse").is_some() && cfg["mcpServers"].get("unbrowse-next").is_none(), "{cfg}");
+        let (h, m) = leave("foreign-next", json!({ "command": "/opt/fork/serve" }));
+        let mut fake = Fake::new(&m);
+        let e = apply(&plan_for(&h, &m), &mut fake, &mut Vec::new()).unwrap_err();
+        assert!(e.contains("isn't Unbrowse's is in the way") && e.contains("Nothing was changed"), "{e}");
+        assert!(fake.lines.is_empty(), "claude was asked for nothing: {:?}", fake.lines);
+    }
+
+    /// An old entry Claude Code won't remove, and a project whose folder is gone, are named with the command that does it
+    /// and are no reason to lose the new entry: it stays under its temporary name, the old stays, and the run says it
+    /// isn't finished.
+    #[test]
+    fn an_old_entry_that_wont_go_leaves_the_new_one_under_its_temporary_name() {
+        let (h, m, proj) = old_machine("remove-fails");
+        std::fs::remove_dir_all(&proj).unwrap();
+        let mut fake = Fake::new(&m);
+        fake.fail = vec!["unbrowse".into()];
+        let mut out = Vec::new();
+        let e = apply(&plan_for(&h, &m), &mut fake, &mut out).unwrap_err();
+        assert!(e.contains("Some old entries are still there"), "{e}");
+        let said = String::from_utf8(out).unwrap();
+        assert!(said.contains("couldn't remove \"unbrowse\"") && said.contains("claude mcp remove --scope user unbrowse"), "{said}");
+        assert!(said.contains("the folder is gone") && said.contains("claude mcp remove --scope local unbrowse"), "{said}");
+        assert!(said.contains("set up as \"unbrowse-next\": the name unbrowse is still taken") && said.contains("unbrowse-next → your node"), "{said}");
+        let cfg = fake.read();
+        assert_eq!(cfg["mcpServers"]["unbrowse"]["url"], json!("https://unbrowse.ai/mcp"), "the old entry is still there");
+        assert!(cfg["mcpServers"].get("unbrowse-next").is_some(), "{cfg}");
+    }
+
+    /// An old entry in a host connect doesn't change (Codex, Cursor) is shown with the edit to make and left byte for
+    /// byte as it was; the run still succeeds, and says each at its end.
+    #[test]
+    fn an_old_entry_in_a_host_connect_doesnt_change_is_left_for_the_owner_to_edit() {
+        let (h, m, _) = old_machine("you-edit");
+        let put = |rel: &str, text: &str| {
+            let path = h.0.join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, text).unwrap();
+            path
+        };
+        let codex = put(".codex/config.toml", "[mcp_servers.unbrowse]\ncommand = \"npx\"\nargs = [\"-y\", \"unbrowse\", \"mcp\"]\n");
+        let cursor = put(".cursor/mcp.json", &json!({ "mcpServers": { "unbrowse": { "url": "https://unbrowse.ai/mcp" } } }).to_string());
+        let before = (sha(&codex), sha(&cursor));
+        let plan = plan_for(&h, &m);
+        let edit = |host: Host| match plan.found.iter().find(|f| f.host == host).map(|f| plan.action(f)) {
+            Some(Action::YouEdit(e)) => e,
+            other => panic!("{host:?}: {other:?}"),
+        };
+        let (c, u) = (edit(Host::Codex), edit(Host::Cursor));
+        assert!(c.contains("[mcp_servers.unbrowse]") && c.contains("config.toml") && c.contains("args = [\"mcp\", \"--agent\", \"first\"]"), "{c}");
+        assert!(u.contains("replace \"unbrowse\" in") && u.contains("mcp.json") && u.contains("\"command\":\"unbrowse\"") && u.contains("\"first\""), "{u}");
+        assert!(plan.text().contains("you edit: replace [mcp_servers.unbrowse]"));
+        let mut out = Vec::new();
+        apply(&plan, &mut Fake::new(&m), &mut out).expect("hosts to edit by hand aren't a failure");
+        let said = String::from_utf8(out).unwrap();
+        assert!(said.contains("! Codex: replace [mcp_servers.unbrowse]") && said.contains("! Cursor: replace \"unbrowse\""), "{said}");
+        assert_eq!((sha(&codex), sha(&cursor)), before, "neither file was touched");
+    }
+
+    /// A program written for the test (see `unb.rs`'s own): run as the machine's `claude`, or as an entry's program.
+    #[cfg(unix)]
+    fn script(dir: &Path, name: &str, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::create_dir_all(dir).unwrap();
+        let path = dir.join(name);
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // A program just written can't be run while another thread's fork still holds it open for writing.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        path
+    }
+
+    /// The machine's own `claude` is run with the words it is given, in the folder it is given, and what it says when it
+    /// fails is its last line of complaint; one that can't be run is said as that.
+    #[cfg(unix)]
+    #[test]
+    fn the_real_claude_is_run_as_told_and_says_its_last_complaint() {
+        let dir = std::env::temp_dir().join(format!("unb-claude-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let words = |w: &[&str]| w.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let record = script(&dir, "record", "echo \"$@\" > \"$0.args\"; pwd > \"$0.cwd\"");
+        let elsewhere = dir.join("project");
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        Real { claude: record.clone() }.claude(&words(&["mcp", "remove", "--scope", "user", "unbrowse"]), Some(&elsewhere)).unwrap();
+        assert_eq!(std::fs::read_to_string(dir.join("record.args")).unwrap().trim(), "mcp remove --scope user unbrowse");
+        assert_eq!(std::fs::canonicalize(std::fs::read_to_string(dir.join("record.cwd")).unwrap().trim()).unwrap(), std::fs::canonicalize(&elsewhere).unwrap());
+        let complains = script(&dir, "complains", "echo 'warming up' >&2; echo 'no server named x' >&2; echo >&2; exit 1");
+        assert_eq!(Real { claude: complains }.claude(&words(&["mcp", "remove", "x"]), None), Err("no server named x".into()));
+        let silent = script(&dir, "silent", "exit 4");
+        assert!(Real { claude: silent }.claude(&[], None).unwrap_err().starts_with("claude exited"));
+        assert!(Real { claude: dir.join("nowhere") }.claude(&[], None).unwrap_err().contains("couldn't run"));
+        let named = std::env::var_os("UNBROWSE_CLAUDE").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("claude"));
+        assert_eq!(Real::here().claude, named);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// An entry is checked by starting it and asking it for its tools: it passes only when it answers `initialize` and lists
+    /// some; what it says when it doesn't (its error, its silence, its last line of complaint) is what the owner is told,
+    /// and the entry's own environment is the one it runs in.
+    #[cfg(unix)]
+    #[test]
+    fn a_new_entry_passes_only_when_it_answers_and_lists_tools() {
+        let dir = std::env::temp_dir().join(format!("unb-verify-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let entry = |program: &Path| json!({ "type": "stdio", "command": program.display().to_string(), "args": [], "env": { "MODE": "seven" } });
+        let init = r#"echo 'not json'; echo '{"jsonrpc":"2.0","id":7,"result":{}}'; echo '{"jsonrpc":"2.0","id":1,"result":{}}'"#;
+        let good = script(&dir, "good", &format!("read a; {init}; read b; read c; echo '{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{{\"tools\":[{{\"name\":\"a\"}},{{\"name\":\"b\"}}]}}}}'; sleep 30"));
+        assert_eq!(Real { claude: PathBuf::new() }.verify(&entry(&good)), Ok(2), "lines that aren't answers to it are read past");
+        let none = script(&dir, "none", &format!("read a; {init}; read b; read c; echo '{{\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{{\"tools\":[]}}}}'; sleep 30"));
+        assert_eq!(Real { claude: PathBuf::new() }.verify(&entry(&none)), Err("it listed no tools".into()));
+        let refuses = script(&dir, "refuses", "read a; echo \"{\\\"jsonrpc\\\":\\\"2.0\\\",\\\"id\\\":1,\\\"error\\\":{\\\"message\\\":\\\"mode=$MODE\\\"}}\"; sleep 30");
+        assert_eq!(Real { claude: PathBuf::new() }.verify(&entry(&refuses)), Err("mode=seven".into()), "its error, from the environment the entry names");
+        let dies = script(&dir, "dies", "read a; echo 'boom on start' >&2; exit 1");
+        assert_eq!(Real { claude: PathBuf::new() }.verify(&entry(&dies)), Err("it stopped before answering: boom on start".into()));
+        assert!(Real { claude: PathBuf::new() }.verify(&json!({ "args": [] })).unwrap_err().contains("runs no program"));
+        assert!(Real { claude: PathBuf::new() }.verify(&entry(&dir.join("nowhere"))).unwrap_err().contains("couldn't start"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

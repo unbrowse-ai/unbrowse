@@ -377,6 +377,17 @@ pub(crate) struct Published {
     addrs: Vec<String>,
 }
 
+/// Where another machine dials this node, each with its peer ID, from what it published last: what `unb mcp --peer`
+/// takes as `--addr` (`gateway.direct`). Empty until the node has joined the network and published.
+pub(crate) fn dial_addresses() -> (Option<String>, Vec<String>) {
+    let saved: Published = store::read_json(&store::home().join("peer-published.json"), &unbrowse_files::PEER_PUBLISHED);
+    if saved.peer_id.is_empty() {
+        return (None, vec![]);
+    }
+    let with_peer = |a: &String| if a.contains("/p2p/") { a.clone() } else { format!("{a}/p2p/{}", saved.peer_id) };
+    (Some(saved.peer_id.clone()), saved.addrs.iter().map(with_peer).collect())
+}
+
 /// The addresses to publish, given what was published last and what the node finds now. Until the node has run
 /// `SETTLE`, an address published before and not seen yet is kept: peers haven't had time to confirm it again, and
 /// dropping it now to add it back a minute later is two writes for nothing. The same addresses in another order are
@@ -466,6 +477,8 @@ pub async fn start_serving<B: unbrowse_net::Bodies>(node: Arc<Node>, bodies: Arc
     cfg.min_peer_version = crate::update::network_minimum();
     let bits = cfg.rules.position_bits;
     let key = tokio::task::spawn_blocking(move || key_for(&identity, anchor, bits)).await.map_err(|e| e.to_string())??;
+    // A client that signs its requests reaches this node's MCP over the network, with no gateway (`gateway.direct`).
+    cfg.mcp = unbrowse_net::McpDoor(Some(Arc::new(crate::api::Direct::new(node.clone(), &key.public().to_peer_id()))));
     let net = Net::start_with(key, cfg, Arc::new(registry), Arc::new(ServedListings(node.clone())), bodies, Arc::new(crate::watchtower::Watch(node.clone()))).await?;
     // Change notices from the nodes on the topics it watches make it read the chain again for their entries.
     crate::share::hear_changes(node.clone(), &net);
@@ -723,7 +736,7 @@ fn median(mut xs: Vec<f64>) -> Option<f64> {
 /// enough distinct identities answered to catch one leaving listings out.
 pub async fn find_signed(node: &Node, query: &str) -> Option<(Vec<listing::Verified>, bool)> {
     let net = node.net.get()?;
-    let site = query.split_whitespace().find_map(|w| unbrowse_net::site_of(w.trim_matches(|c: char| ",;()\"'".contains(c))).filter(|_| w.contains('.')))?;
+    let site = looked_up_site(query)?;
     let found = net.find(&site).await.ok()?;
     let me = chain::owner_address(node.keys.as_ref()).ok();
     // The wallet this node lists under (`listing::lister`): its own, since a granted key signs no listing (issue #184).
@@ -741,6 +754,12 @@ pub async fn find_signed(node: &Node, query: &str) -> Option<(Vec<listing::Verif
         }
     }
     Some((out, found.checked))
+}
+
+/// The site a lookup asks the peer network for: the first word of `query` that names one. What is asked goes to
+/// strangers, so it is only ever a site anyone can look up (audit 1118 M17).
+fn looked_up_site(query: &str) -> Option<String> {
+    query.split_whitespace().find_map(|w| unbrowse_net::public_site_of(w.trim_matches(|c: char| ",;()\"'".contains(c))).filter(|_| w.contains('.')))
 }
 
 /// The same listings as routes an agent is shown: the description stays the contributor's words, quoted (R2.25).
@@ -764,6 +783,18 @@ pub async fn find(node: &Node, query: &str) -> Option<(Vec<network::NetworkRoute
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Audit 1118 M17: a lookup tells peer-network strangers the site it asks about, so a page under a name no public
+    /// registry hands out (an intranet's, a home network's, a reserved one) is never asked of them; a public site is.
+    #[test]
+    fn a_private_name_is_never_asked_of_strangers() {
+        for private in ["https://wiki.corp.internal/runbooks", "read http://nas.lan/share", "printer.local", "https://jira.intranet/browse/X-1", "https://app.example/"] {
+            assert_eq!(looked_up_site(private), None, "{private}: asked of the peer network");
+        }
+        for (public, site) in [("search flights on https://example.com/", "example.com"), ("https://www.example.co.uk/flights?from=SIN", "example.co.uk"), ("search items on localtest.me", "localtest.me")] {
+            assert_eq!(looked_up_site(public).as_deref(), Some(site), "{public}");
+        }
+    }
 
     #[test]
     fn the_peer_port_stays_the_same_across_starts() {

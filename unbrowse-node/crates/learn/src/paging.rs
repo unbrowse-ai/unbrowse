@@ -34,6 +34,15 @@ impl Paging {
         }
     }
 
+    /// Whether the input this reads on with is a secret one of `graph`'s fields takes (`Class::Input { secret }`): a
+    /// password, a code, a PIN, a card number the vault fills. The next page is worked out from what was sent, so a
+    /// count over it would hand back the secret plus one, and a token in its place is the secret's own text. A call
+    /// reads on over a secret never: the call is refused (the app's `api::call`), and no next page is said
+    /// (`run::next_page`).
+    pub fn over_secret(&self, graph: &crate::graph::Graph) -> bool {
+        graph.steps.iter().flat_map(|s| &s.fields).any(|f| matches!(&f.class, Class::Input { name, secret: true, .. } if name == self.input()))
+    }
+
     /// The value that reads on from `answer`, which `sent` asked for (None: the first page, asked for by leaving the
     /// input out). None when the answer says the list has ended: it hands over no token, or holds no records.
     pub fn next(&self, sent: Option<&str>, answer: &Value) -> Option<String> {

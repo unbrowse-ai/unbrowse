@@ -93,7 +93,7 @@ pub fn view(a: *App, c: *ui.Context) void {
     if (look.ghost(c, "Already have USDC?", .{})) a.money_own = !a.money_own;
     if (a.money_own) {
         const me = if (a.store.get(.identity)) |i| i.address else "";
-        look.small(c, "Send USDC on Arc to your node's address. It counts in your balance as soon as it lands, and the node keeps a little of it for network fees.");
+        look.small(c, "Send only USDC, and only on the Arc network, to your node's address: USDC sent on another network doesn't reach this balance. It counts as soon as it lands, and the node keeps a little of it for network fees.");
         const r = ui.div(c).row().gap(8).itemsCenter();
         defer r.end();
         look.mono(c, if (me.len > 0) me else "Reading the address…", null);
@@ -101,6 +101,7 @@ pub fn view(a: *App, c: *ui.Context) void {
     }
     // Above the fold: past that date agents quietly pay from this node's own balance instead.
     renewBanner(a, c);
+    signBanner(a, c);
     agentsSummary(a, c, m);
     earningsSummary(a, c, w);
     advancedFold(a, c);
@@ -150,7 +151,9 @@ fn earningsSummary(a: *App, c: *ui.Context, w: types.Wallet) void {
     const coins = (a.store.get(.coin_holdings) orelse types.Holdings{}).coins;
     var worth: f64 = 0;
     for (coins) |h| worth += h.value_unb;
-    const p = look.panel(c, "Earnings", "From your routes and your route coins");
+    // Route coins show here only once the owner holds some; before that, earnings are their routes' share alone.
+    const has_coins = coins.len > 0;
+    const p = look.panel(c, "Earnings", if (has_coins) "From other agents using your routes, and your route coins" else "From other agents using your routes");
     defer p.end();
     look.panelBody(c);
     const b = look.pad(c);
@@ -158,13 +161,13 @@ fn earningsSummary(a: *App, c: *ui.Context, w: types.Wallet) void {
     {
         const r = ui.div(c).row().wFull().gap(20).itemsStart();
         defer r.end();
-        look.stat(c, "Ready to take", dollars(c, cents(fa, ready)), "", "What your route coins earned and what you are owed as a contributor, paid whole: nothing is on hold", false);
-        look.stat(c, "Route coins", fmt.unb(fa, worth), "UNB", c.print("{s}, staked or not, at today's prices{s}. Their value can change", .{ fmt.plural(fa, @floatFromInt(coins.len), "route coin"), aboutUsd(c, coins) }), false);
+        look.stat(c, "Ready to cash out", dollars(c, cents(fa, ready)), "", if (has_coins) "Your routes' share of paid calls, and what your route coins earned. Nothing is on hold" else "Your routes' share of other agents' paid calls. Nothing is on hold", false);
+        if (has_coins) look.stat(c, "Route coins", fmt.unb(fa, worth), "UNB", c.print("{s}, staked or not, at today's prices{s}. Their value can change", .{ fmt.plural(fa, @floatFromInt(coins.len), "route coin"), aboutUsd(c, coins) }), false);
     }
     const r = ui.div(c).row().gap(12).itemsCenter();
     defer r.end();
     if (look.primary(c, "Cash out", .{ .disabled = ready <= 0, .loading = a.store.isBusy("collect") })) a.store.act(.cash_out, "collect", "collect_earnings", "{}");
-    look.small(c, "Cash out takes all of it to this node's wallet.");
+    look.small(c, "Cash out adds all of it to your balance.");
 }
 
 /// Advanced: where the balance sits, in USDC on Arc, and the chain's day.
@@ -341,10 +344,10 @@ const earn_cols = [_]look.Col{
     .{ .name = "Where from" },
     .{ .name = "Earned", .w = 96, .end = true },
     .{ .name = "Taken", .w = 96, .end = true },
-    .{ .name = "Ready to take", .w = 110, .end = true },
+    .{ .name = "Ready", .w = 110, .end = true },
 };
 
-pub const earnings_note = "In USDC, paid whole: nothing is on hold and nothing vests. Cash out, above, takes everything ready to take to this node's wallet.";
+pub const earnings_note = "In USDC, paid whole: nothing is on hold and nothing vests. Cash out, above, adds everything ready to your balance.";
 
 /// Earnings by where they came from (`earnings`): staking route coins and as a contributor, each apart, with what was
 /// taken and what is ready to take; and what the owner's entries sent to their coins.
@@ -352,7 +355,7 @@ fn earnings(a: *App, c: *ui.Context) void {
     const fa = c.alloc();
     const e = a.store.get(.earnings) orelse types.Earnings{};
     const lines = [_]types.EarningsLine{ e.staking, e.contributor };
-    const t = look.tableHead(c, "Earnings by where they came from", c.print("{s} USDC ready to take", .{fmt.usdcd(fa, e.to_claim, 4)}), &earn_cols);
+    const t = look.tableHead(c, "Earnings by where they came from", c.print("{s} USDC ready to cash out", .{fmt.usdcd(fa, e.to_claim, 4)}), &earn_cols);
     defer t.end();
     for (sources, lines, 0..) |src, l, i| {
         const tr = look.tableRow(c, c.print("earn-{d}", .{i}), false);
@@ -389,6 +392,22 @@ fn renewBanner(a: *App, c: *ui.Context) void {
     if (look.primary(c, "Renew", .{ .loading = a.store.isBusy("renew") })) a.store.act(.generic, "renew", "wallet_renew", "{}");
 }
 
+/// The listings this node keeps for the owner's wallet to sign (`listings_to_sign`): it lists under the wallet's
+/// identity and doesn't hold its key, and no agent key signs for it, so the wallet signs each one on the sign-in page,
+/// as it sends its grants. Each is said as the node words it, and nothing spreads before it is signed.
+fn signBanner(a: *App, c: *ui.Context) void {
+    const all = a.store.get(.listings_to_sign) orelse return;
+    if (all.len == 0) return;
+    const p = look.panel(c, if (all.len == 1) "A listing to approve" else c.print("{d} listings to approve", .{all.len}), "Only you can approve them; no agent key can");
+    defer p.end();
+    look.panelBody(c);
+    const b = look.pad(c);
+    defer b.end();
+    for (all) |l| look.small(c, l.what);
+    look.small(c, "You approve each one in your browser, with the account you signed in with. It sends nothing and costs nothing. Until you approve them, nobody else can find these routes.");
+    if (look.primary(c, "Approve in my browser", .{ .loading = a.store.isBusy("sign_listings") })) a.store.act(.generic, "sign_listings", "listings_sign", "{}");
+}
+
 /// The node's own address (the key that signs its writes and pays their gas) and the owner's wallet linked to it,
 /// read from `identity` and `link_status` rather than the chain's wallet reply, so both show while Settlement isn't
 /// deployed: when the owner needs the address to fund it. Settlement's address, once there is one.
@@ -397,7 +416,7 @@ fn identity(a: *App, c: *ui.Context, meta: []const u8, settlement: []const u8) v
     defer p.end();
     look.panelBody(c);
     {
-        const it = look.item(c, "node-address", "This node's wallet", "An Arc wallet made from this node's own key. The node joins the network with it, signs its listings with it, pays its network fees and earns into it, with no sign-in. USDC sent here counts in your balance.");
+        const it = look.item(c, "node-address", "This node's wallet", "An Arc wallet made from this node's own key. The node joins the network with it and pays its network fees from it, with no sign-in. With no wallet of yours linked, it also signs its listings and earns into it; once you link one, it lists and earns under your wallet, which signs each listing. USDC sent here counts in your balance.");
         defer it.end();
         const me = if (a.store.get(.identity)) |i| i.address else "";
         look.mono(c, if (me.len > 0) me else "Reading the key", null);
@@ -411,7 +430,7 @@ fn identity(a: *App, c: *ui.Context, meta: []const u8, settlement: []const u8) v
         const it = look.item(c, "owner-wallet", "Linked wallet", if (owner.len > 0) "Withdrawals from the deposit go here" else if (l.waiting) "" else none_linked);
         defer it.end();
         if (owner.len > 0) look.mono(c, owner, null) else {
-            if (l.waiting) look.status(c, .running, waiting_said);
+            if (l.waiting) look.status(c, .running, waiting_said) else look.small(c, LINK_HOLDS_LISTINGS);
             if (l.@"error") |e| look.failText(c, e);
         }
         it.right();
@@ -432,6 +451,10 @@ fn identity(a: *App, c: *ui.Context, meta: []const u8, settlement: []const u8) v
 const none_linked = "None, and none is needed: your node uses its own wallet";
 const waiting_said = "Waiting for you to finish in your browser…";
 
+/// What linking a wallet does to listing, said before the owner links one and while one is linked: the node lists
+/// under the wallet's identity, and only the wallet signs a listing, so each one waits for the owner (R1.12, #184).
+pub const LINK_HOLDS_LISTINGS = "Once you sign in, your node lists and earns under your account, and every listing waits for you to approve it under Money, in your browser: nothing is shared until you do.";
+
 /// Linking a wallet, which is optional: the node is on the network with its own wallet (spec §86). One row: not linked,
 /// or waiting on the website's sign-in in the owner's browser (`link_start`), with the button that starts it or starts
 /// it again; why the last one failed under it. The node says when the link lands (its `identity` event), and the window
@@ -445,16 +468,17 @@ pub fn signIn(a: *App, c: *ui.Context) void {
     {
         const r = ui.div(c).row().wFull().gap(8).itemsCenter();
         defer r.end();
-        if (l.waiting) look.status(c, .running, waiting_said) else look.label(c, "Not linked");
+        if (l.waiting) look.status(c, .running, waiting_said) else look.label(c, "Not signed in");
         ui.spacer(c);
         linkButton(a, c, l.waiting);
     }
+    if (!l.waiting) look.small(c, LINK_HOLDS_LISTINGS);
     if (l.@"error") |e| look.failText(c, e);
 }
 
 /// Link a wallet, or Start again while the browser's sign-in is open: both open it anew.
 fn linkButton(a: *App, c: *ui.Context, waiting: bool) void {
-    if (look.secondary(c, if (waiting) "Start again" else "Link a wallet", .{ .loading = a.store.isBusy("link_start") })) a.store.act(.generic, "link_start", "link_start", "{}");
+    if (look.secondary(c, if (waiting) "Start again" else "Sign in", .{ .loading = a.store.isBusy("link_start") })) a.store.act(.generic, "link_start", "link_start", "{}");
 }
 
 /// A copy button labelled `label` for `value`, when there is one: it goes to the clipboard and a toast says so.

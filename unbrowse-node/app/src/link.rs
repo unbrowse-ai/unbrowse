@@ -137,6 +137,19 @@ pub struct Link {
     /// which the owner never confirmed, has none, and its wallet gets no withdrawal until the owner confirms it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub seal: Option<String>,
+    /// The site's visitor id for the browser the owner signed in with (`ub_vid`, `v_` and 32 hex), when the site's
+    /// consent rule let it keep one there and it handed it back with the signature (UNB-179). The node sends it back
+    /// on its events to the site (`signed`), so the site can join that visit to this node; the site checks it against
+    /// its own record of the sign-in, so a node can't name another visitor. None for a link made with the owner's own
+    /// wallet (`link_wallet`), or a site that kept no id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vid: Option<String>,
+}
+
+/// Whether `v` is a visitor id as the site makes them (`v_` and 32 lower-case hex): anything else a relay sends is
+/// dropped, so nothing but that id is ever kept or sent back.
+fn is_vid(v: &str) -> bool {
+    v.len() == 34 && v.starts_with("v_") && v[2..].bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 /// What a link's seal is over: the node, the wallet and the wallet's signature.
@@ -487,6 +500,75 @@ pub async fn renew(node: St<'_>) -> Result<Value, String> {
     Ok(json!({ "url": url, "opened": opened, "calls": calls }))
 }
 
+/// The most listings one signing page asks the owner's wallet for: the page's address carries them all.
+const SIGN_AT_ONCE: usize = 8;
+
+/// The sign-in page in its signing mode (`unbrowse-landing` `src/link/sign.ts`): for each listing, the relay's nonce
+/// its signature comes back under, its site, what signing it does and the typed data the wallet signs, as JSON in the
+/// fragment, so none of it reaches a server's log. `wallet` is the one that must sign: the page refuses another.
+pub fn sign_page(site: &str, node: &str, wallet: &str, items: &[(String, crate::listing::ToSign)]) -> String {
+    let list: Vec<Value> = items.iter().map(|(nonce, t)| json!({ "nonce": nonce, "site": t.site, "what": t.what, "typed_data": t.typed_data })).collect();
+    let text = serde_json::to_string(&list).unwrap_or_default();
+    let sign = percent_encoding::utf8_percent_encode(&text, percent_encoding::NON_ALPHANUMERIC);
+    format!("{site}/link/#node={}&wallet={}&sign={sign}", node.to_lowercase(), wallet.to_lowercase())
+}
+
+/// `listings_sign`: has the owner's wallet sign the listings this node keeps for it (`listings_to_sign`), the way it
+/// sends its grants (`renew`): the sign-in page opens in the owner's browser in its signing mode, the wallet's provider
+/// signs each listing there, and each signature comes back through the site's relay under a nonce of its own. The node
+/// takes only the wallet's own signature (`listing::sign_waiting`), so the page, or whoever serves it, can't sign for
+/// the wallet. A wallet of the owner's own signs the typed data `listings_to_sign` gives and hands it to `listing_sign`.
+pub async fn sign_listings(node: St<'_>) -> Result<Value, String> {
+    let me = crate::identity(node)?.address;
+    let waiting = crate::owner_nodes::to_sign(node).await?;
+    let Some(wallet) = waiting.first().map(|t| t.wallet.clone()) else {
+        return Ok(json!({ "url": null, "opened": false, "asked": 0 }));
+    };
+    let mut items = Vec::new();
+    for t in waiting.into_iter().take(SIGN_AT_ONCE) {
+        items.push((nonce()?, t));
+    }
+    let site = reachable_site().await;
+    let url = sign_page(&site, &me, &wallet, &items);
+    let opened = open(&url).is_ok();
+    let asked = items.len();
+    let n = node.clone();
+    let wanted: Vec<(String, String)> = items.into_iter().map(|(nonce, t)| (nonce, t.id)).collect();
+    tokio::spawn(async move { collect_signatures(&n, &site, wanted, WAIT).await });
+    Ok(json!({ "url": url, "opened": opened, "asked": asked }))
+}
+
+/// Asks the site's relay for each listing's signature, `(nonce, listing id)`, until every one is in or `wait` runs
+/// out, and hands each to the node (`owner_nodes::sign_listing`), which takes only the wallet's own. A relay answer
+/// that isn't one is said, and that listing keeps waiting for the owner.
+async fn collect_signatures(node: St<'_>, site: &str, mut wanted: Vec<(String, String)>, wait: Duration) {
+    let client = reqwest::Client::new();
+    let started = Instant::now();
+    while !wanted.is_empty() && started.elapsed() < wait {
+        let mut left = Vec::new();
+        for (nonce, id) in wanted {
+            let got = client.get(format!("{site}/relay/{nonce}")).timeout(Duration::from_secs(10)).send().await;
+            let signed = match got.ok().filter(|r| r.status().is_success()) {
+                Some(r) => r.json::<Signed>().await.ok(),
+                None => None,
+            };
+            match signed {
+                Some(s) => {
+                    if let Err(e) = crate::owner_nodes::sign_listing(node, &id, &s.signature).await {
+                        eprintln!("listing: the signature the sign-in page handed back for {id} wasn't taken: {e}");
+                    }
+                }
+                None => left.push((nonce, id)),
+            }
+        }
+        wanted = left;
+        if !wanted.is_empty() {
+            tokio::time::sleep(Duration::from_secs(2).min(wait)).await;
+        }
+    }
+    node.events.emit("activity", ());
+}
+
 /// What follows a link, by the site or by the owner's own wallet: the node is on the network from now on, if it wasn't (R1.35).
 /// It tells the site (with telemetry on), says once what signing in does, and wakes what waited on it: joining the peer
 /// network, which registers the identity; the agents' spending keys, granted on the chain; and listing.
@@ -527,7 +609,7 @@ fn short(a: &str) -> String {
 pub fn signed_in_note(mode: store::ShareMode) -> String {
     let listing = match mode {
         store::ShareMode::Off => "Sharing is off, so nothing is listed until you turn it on.".to_string(),
-        _ => "Withdrawals now go to the linked wallet. Joining needed no link: the node is on the network with its own wallet, and lists the routes it learns there by default once they have proved themselves; they earn USDC when other agents use them, and routes learned while the node was off the network stay on it. Before the first listing the node shows which routes it will share (`unbrowse-node share`), and you can keep any of them private.".to_string(),
+        _ => "Withdrawals now go to your account, and the node lists and earns under it: every listing waits for you to approve it (Money in the window, or `listings_to_sign`), and nothing is shared until you do. Joining needed no sign-in: the node is on the network by itself, and lists the routes it learns there by default once they have proved themselves; they earn USDC when other agents use them, and routes learned while the node was off the network stay on it. Before the first listing the node shows which routes it will share (`unbrowse-node share`), and you can keep any of them private.".to_string(),
     };
     format!("{listing} {}", crate::autolist::EARNING_NOTE)
 }
@@ -555,7 +637,7 @@ pub fn link_wallet(node: St, owner: &str, nonce: &str, signature: &str) -> Resul
     }
     verify(&me, &owner.to_checksum(None), nonce, signature)?;
     // `owner()` ran this only on the owner's yes to this wallet (`commands::asks_the_owner`), so the node seals it.
-    let link = seal(node.key()?, Link { owner: owner.to_checksum(None), nonce: nonce.into(), signature: signature.into(), linked: store::now(), seal: None })?;
+    let link = seal(node.key()?, Link { owner: owner.to_checksum(None), nonce: nonce.into(), signature: signature.into(), linked: store::now(), seal: None, vid: None })?;
     store::write_json(&path(), &unbrowse_files::LINK, &link)?;
     waiting().wallet = None;
     linked(node, &link);
@@ -582,13 +664,15 @@ fn may_tell(telemetry: bool, on_network: Option<u64>) -> bool {
 /// Tells the site an event of a linked owner's node (`node_started`, `owner_linked`, `owner_unlinked`), signed by the
 /// node's key and carrying the owner's link, so the site counts only what a node really sent and reads whose it is.
 /// Only for a node whose owner linked it, since the owner told the site who they are by signing in, and only while
-/// the node is on the network with its telemetry on (`may_tell`; `telemetry.rs`, whose own events stay anonymous). Never a site, route or input. Sent in
-/// the background: nothing waits on it and nothing fails because of it.
+/// the node is on the network with its telemetry on (`may_tell`). Each event also carries this install's telemetry id
+/// (`telemetry::install_id`) and the visitor id the sign-in handed back (`Link::vid`), so the site can join the visit,
+/// the wallet, the node and the install's usage counts (UNB-179); the telemetry events themselves carry no wallet.
+/// Never a site, route or input. Sent in the background: nothing waits on it and nothing fails because of it.
 pub fn tell(node: St, ev: &str) {
     if !may_tell(crate::telemetry::on(), on_network(node)) {
         return;
     }
-    let body = match signed(node, ev) {
+    let body = match signed(node, ev, &crate::telemetry::install_id()) {
         Ok(Some(b)) => b,
         Ok(None) => return,
         Err(e) => return eprintln!("link: {e}"),
@@ -604,12 +688,17 @@ pub fn tell(node: St, ev: &str) {
     });
 }
 
-/// The event as the site reads it, `e` the exact text the node's key signed; `None` for a node no owner linked.
-fn signed(node: St, ev: &str) -> Result<Option<Value>, String> {
+/// The event as the site reads it, `e` the exact text the node's key signed; `None` for a node no owner linked. `e`
+/// names `install`, this install's telemetry id, and `vid`, the visitor id the sign-in handed back, when there is one.
+fn signed(node: St, ev: &str, install: &str) -> Result<Option<Value>, String> {
     use alloy::signers::SignerSync;
     let me = crate::identity(node)?.address;
     let Some(l) = load(&me) else { return Ok(None) };
-    let e = json!({ "ev": ev, "node": me.to_lowercase(), "ts": store::now(), "v": node.info.version, "os": std::env::consts::OS, "p": {} }).to_string();
+    let mut e = json!({ "ev": ev, "node": me.to_lowercase(), "ts": store::now(), "v": node.info.version, "os": std::env::consts::OS, "p": {}, "install": install });
+    if let Some(vid) = l.vid.as_deref().filter(|v| is_vid(v)) {
+        e["vid"] = json!(vid);
+    }
+    let e = e.to_string();
     let sig = crate::chain::owner_signer(node.key()?)?.sign_message_sync(e.as_bytes()).map_err(|e| e.to_string())?;
     let link = json!({ "owner": l.owner.to_lowercase(), "nonce": l.nonce, "sig": l.signature });
     Ok(Some(json!({ "e": e, "sig": format!("0x{}", hex::encode(sig.as_bytes())), "link": link })))
@@ -619,6 +708,9 @@ fn signed(node: St, ev: &str) -> Result<Option<Value>, String> {
 struct Signed {
     owner: String,
     signature: String,
+    /// The visitor id the site kept for the browser that signed, when its consent rule let it (UNB-179).
+    #[serde(default)]
+    vid: Option<String>,
 }
 
 /// Asks the site for what the owner signed under `nonce` until it's there, the wait runs out, or a newer sign-in
@@ -653,7 +745,8 @@ async fn collect_for(site: &str, me: &str, nonce: &str, wait: Duration) -> Resul
 /// The link a relay's answer makes, when what it carries is `me`'s link under `nonce`.
 fn relayed(me: &str, nonce: &str, s: Signed) -> Result<Link, String> {
     verify(me, &s.owner, nonce, &s.signature)?;
-    Ok(Link { owner: address(&s.owner)?.to_checksum(None), nonce: nonce.into(), signature: s.signature, linked: store::now(), seal: None })
+    let vid = s.vid.filter(|v| is_vid(v));
+    Ok(Link { owner: address(&s.owner)?.to_checksum(None), nonce: nonce.into(), signature: s.signature, linked: store::now(), seal: None, vid })
 }
 
 /// Keeps the link a sign-in page answered with, once the owner confirmed the wallet it names in a dialog the node opens
@@ -730,6 +823,35 @@ mod tests {
 
     use super::SIGN_IN_TESTS as RELAY_TESTS;
 
+    /// The signing page carries each listing with a nonce of its own, the typed data its wallet signs whole, and the
+    /// wallet that must sign, all in the fragment, which no server logs.
+    #[test]
+    fn the_signing_page_carries_each_listing_under_a_nonce_of_its_own() {
+        let item = |id: &str| crate::listing::ToSign {
+            id: id.into(),
+            route_id: "r1".into(),
+            site: "shop.example".into(),
+            description: "Search & find: \"items\"".into(),
+            version: 1,
+            price_usdc: None,
+            wallet: "0xFEED".into(),
+            what: "Share your route".into(),
+            typed_data: json!({ "primaryType": "Listing", "message": { "version": "4294967297" } }),
+        };
+        let items = vec![(nonce().unwrap(), item("0x01")), (nonce().unwrap(), item("0x02"))];
+        let url = sign_page("https://unbrowse.ai", "0xABC", "0xFEED", &items);
+        let (page, fragment) = url.split_once('#').unwrap();
+        assert_eq!(page, "https://unbrowse.ai/link/");
+        let field = |k: &str| fragment.split('&').find_map(|p| p.strip_prefix(&format!("{k}="))).unwrap().to_string();
+        assert_eq!((field("node"), field("wallet")), ("0xabc".to_string(), "0xfeed".to_string()));
+        let sign: Vec<Value> = serde_json::from_str(&percent_encoding::percent_decode_str(&field("sign")).decode_utf8().unwrap()).unwrap();
+        assert_eq!(sign.len(), 2);
+        assert_ne!(sign[0]["nonce"], sign[1]["nonce"], "one nonce each: the relay keeps one answer under each");
+        assert_eq!(sign[0]["typed_data"], items[0].1.typed_data);
+        assert_eq!(sign[0]["nonce"], items[0].0.as_str());
+        assert!(!fragment.contains('"') && !fragment.contains(' '), "nothing in it that a browser reads otherwise");
+    }
+
     fn signed(owner: &PrivateKeySigner, node: &str, nonce: &str) -> String {
         let sig = owner.sign_message_sync(message(node, &owner.address().to_string(), nonce).as_bytes()).unwrap();
         format!("0x{}", hex::encode(sig.as_bytes()))
@@ -803,7 +925,7 @@ mod tests {
         // What the relay answers: the thief's own wallet, signed over this node and the nonce the page showed it.
         let signature = signed(&thief, &node, nonce);
         verify(&node, &thief.address().to_string(), nonce, &signature).expect("the site's own signature checks: the dialog is what stops it");
-        let link = Link { owner: thief.address().to_checksum(None), nonce: nonce.into(), signature, linked: store::now(), seal: None };
+        let link = Link { owner: thief.address().to_checksum(None), nonce: nonce.into(), signature, linked: store::now(), seal: None, vid: None };
         for answer in [None, Some(false)] {
             crate::owner_dialog::answer_in_test(answer);
             let refused = rt.block_on(keep_once_confirmed(None, link.clone())).unwrap_err();
@@ -831,7 +953,7 @@ mod tests {
         let wallet = PrivateKeySigner::random();
         let node = PrivateKeySigner::random().address().to_string();
         let nonce = "00112233445566778899aabbccddeeff";
-        let link = Link { owner: wallet.address().to_checksum(None), nonce: nonce.into(), signature: signed(&wallet, &node, nonce), linked: store::now(), seal: None };
+        let link = Link { owner: wallet.address().to_checksum(None), nonce: nonce.into(), signature: signed(&wallet, &node, nonce), linked: store::now(), seal: None, vid: None };
         for passphrase in [None, Some(owners)] {
             let l = link.clone();
             let task = rt.spawn(async move { keep_once_confirmed(Some(keys), l).await });
@@ -870,7 +992,7 @@ mod tests {
         let node = crate::testchain::node("link-sealed");
         let me = crate::identity(&node).unwrap().address;
         let thief = PrivateKeySigner::random();
-        let forged = Link { owner: thief.address().to_checksum(None), nonce: "n-1".into(), signature: signed(&thief, &me, "n-1"), linked: store::now(), seal: None };
+        let forged = Link { owner: thief.address().to_checksum(None), nonce: "n-1".into(), signature: signed(&thief, &me, "n-1"), linked: store::now(), seal: None, vid: None };
         store::write_json(&path(), &unbrowse_files::LINK, &forged).unwrap();
         assert!(signed_in(&node).is_some(), "the wallet's own signature checks out: only the node's seal tells it apart");
         let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
@@ -996,7 +1118,7 @@ mod tests {
     fn unlinking_never_moves_the_day_a_node_joined() {
         store::scratch_home("unlink-keeps-the-day");
         let (owner, node) = (PrivateKeySigner::random(), PrivateKeySigner::random().address().to_string());
-        let link = Link { owner: owner.address().to_string(), nonce: "ab12".into(), signature: signed(&owner, &node, "ab12"), linked: 1000, seal: None };
+        let link = Link { owner: owner.address().to_string(), nonce: "ab12".into(), signature: signed(&owner, &node, "ab12"), linked: 1000, seal: None, vid: None };
         store::write_json(&path(), &unbrowse_files::LINK, &link).unwrap();
         store::save_settings(&crate::terms::acknowledged(store::Settings::default(), false)).unwrap();
         assert_eq!(on_network_since(&node), Some(1000), "joined when it linked");
@@ -1005,13 +1127,60 @@ mod tests {
         assert_eq!(on_network_since(&node), Some(1000));
     }
 
+    /// UNB-179: the sign-in page's relay hands back the site's visitor id with the signature. The node keeps one only in
+    /// the site's shape, and its signed events to the site name it and this install's telemetry id inside the text its
+    /// key signed, so the site can join the visit to the node and the install; a link with no visitor id names none.
+    #[test]
+    fn a_signed_event_names_the_install_and_the_visitor_the_sign_in_handed_back() {
+        use std::str::FromStr;
+        let home = store::scratch_home("link-vid");
+        let node = crate::testchain::node("vid");
+        let me = crate::identity(&node).unwrap().address;
+        set_node(&me);
+        let owner = PrivateKeySigner::random();
+        let nonce = "00112233445566778899aabbccddeeff";
+        let vid = format!("v_{}", "0123456789abcdef".repeat(2));
+        let relay = |v: Option<&str>| Signed { owner: owner.address().to_string(), signature: signed(&owner, &me, nonce), vid: v.map(String::from) };
+        // Anything but the site's shape is dropped: never kept, never sent back.
+        for bad in ["v_0123", "V_0123456789abcdef0123456789abcdef", &format!("v_{}", "0123456789ABCDEF".repeat(2)), &format!("{vid}0"), "https://example.com/?v_0123456789abcdef0123456789abcdef"] {
+            assert_eq!(relayed(&me, nonce, relay(Some(bad))).unwrap().vid, None, "{bad}");
+        }
+        assert_eq!(relayed(&me, nonce, relay(None)).unwrap().vid, None, "a site that kept no id hands back none");
+        let link = relayed(&me, nonce, relay(Some(&vid))).unwrap();
+        assert_eq!(link.vid.as_deref(), Some(vid.as_str()));
+        store::write_json(&path(), &unbrowse_files::LINK, &link).unwrap();
+        assert_eq!(load(&me).unwrap().vid.as_deref(), Some(vid.as_str()), "kept with the link");
+
+        let install = "ab".repeat(16);
+        let body = super::signed(&node, "owner_linked", &install).unwrap().expect("a linked node's event");
+        let text = body["e"].as_str().unwrap();
+        let e: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(e["ev"], "owner_linked");
+        assert_eq!(e["install"], install.as_str(), "the install's telemetry id");
+        assert_eq!(e["vid"], vid.as_str(), "the visitor id the sign-in handed back");
+        let by = Signature::from_str(body["sig"].as_str().unwrap()).unwrap().recover_address_from_msg(text.as_bytes()).unwrap();
+        assert_eq!(by.to_checksum(None).to_lowercase(), me.to_lowercase(), "both inside what the node's key signed");
+        assert_eq!(body["link"]["nonce"], nonce, "with the owner's link, by which the site finds its record of the sign-in");
+
+        // A link file another program wrote with a visitor id off the site's shape: it isn't sent.
+        store::write_json(&path(), &unbrowse_files::LINK, &Link { vid: Some("v_not-the-sites".into()), ..link.clone() }).unwrap();
+        let e: Value = serde_json::from_str(super::signed(&node, "node_started", &install).unwrap().unwrap()["e"].as_str().unwrap()).unwrap();
+        assert!(e.get("vid").is_none(), "{e}");
+        // A link made without the site (the owner's own wallet) names no visitor; an old link file reads the same.
+        store::write_json(&path(), &unbrowse_files::LINK, &Link { vid: None, ..link }).unwrap();
+        let e: Value = serde_json::from_str(super::signed(&node, "node_started", &install).unwrap().unwrap()["e"].as_str().unwrap()).unwrap();
+        assert!(e.get("vid").is_none(), "{e}");
+        assert_eq!(e["install"], install.as_str());
+        let _ = std::fs::remove_dir_all(home);
+    }
+
     #[test]
     fn only_a_link_the_node_sealed_is_a_confirmed_wallet() {
         store::scratch_home("confirmed-wallet");
         let keys = unbrowse_core::MemoryStore::default();
         let me = unbrowse_core::load_or_create(&keys).unwrap().address.to_checksum();
         let attacker = PrivateKeySigner::random();
-        let link = Link { owner: attacker.address().to_string(), nonce: "ab12".into(), signature: signed(&attacker, &me, "ab12"), linked: 1, seal: None };
+        let link = Link { owner: attacker.address().to_string(), nonce: "ab12".into(), signature: signed(&attacker, &me, "ab12"), linked: 1, seal: None, vid: None };
         store::write_json(&path(), &unbrowse_files::LINK, &link).unwrap();
         assert!(load(&me).is_some(), "the wallet's own signature checks");
         assert_eq!(confirmed(&keys), None, "and that is no confirmation");

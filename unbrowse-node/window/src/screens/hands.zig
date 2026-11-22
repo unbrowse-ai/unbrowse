@@ -60,6 +60,7 @@ fn askCard(a: *App, c: *ui.Context, k: types.HandsAsk) void {
     const card = ui.div(c).column().wFull().p(16).gap(10).rounded(12).bg(x.run.alpha(0.08)).border(x.run.alpha(0.35));
     defer card.end();
     if (k.pay) |p| return payCard(a, c, k, p, left);
+    if (k.login) |l| return loginCard(a, c, k, l, left);
     ui.text(c, c.print("{s} asks you to {s}", .{ k.agent, k.why }), .{ .size = 14, .weight = .semibold, .wrap = true });
     look.small(c, c.print("Do it on the page below, then give it back. The agent waits {d}:{d:0>2} more; what you type stays on this machine and is never shown to it.", .{ @as(u64, @intFromFloat(@divFloor(left, 60))), @as(u64, @intFromFloat(@mod(left, 60))) }));
     const r = ui.div(c).row().gap(8);
@@ -74,8 +75,8 @@ fn payCard(a: *App, c: *ui.Context, k: types.HandsAsk, p: types.HandsPay, left: 
     const m: u64 = @intFromFloat(@divFloor(left, 60));
     const s: u64 = @intFromFloat(@mod(left, 60));
     ui.text(c, c.print("{s} wants to pay with {s} on {s}", .{ k.agent, p.card, p.merchant }), .{ .size = 14, .weight = .semibold, .wrap = true });
-    if (p.route) |r| {
-        look.small(c, c.print("The call: {s}", .{r}));
+    if (p.route.len > 0) {
+        look.small(c, c.print("The call: {s}", .{p.route}));
         for (p.inputs) |i| look.small(c, i);
         look.small(c, c.print("The node can't read what this call costs: approve only if these values are what you mean to buy. This approval is for this one call. The agent waits {d}:{d:0>2} more and never sees the card.", .{ m, s }));
     } else {
@@ -85,6 +86,19 @@ fn payCard(a: *App, c: *ui.Context, k: types.HandsAsk, p: types.HandsPay, left: 
     defer r.end();
     if (look.primary(c, "Approve payment", .{ .size = .md })) a.giveBack(k.site, true);
     if (look.secondary(c, "Decline", .{ .size = .md })) a.giveBack(k.site, false);
+}
+
+/// A login an agent asked for (`vault:ask:`): the vault's own Add login form takes the password, on this machine, and
+/// the node types it into the page. The agent goes on once the vault holds it, holding only its reference.
+fn loginCard(a: *App, c: *ui.Context, k: types.HandsAsk, l: types.HandsLogin, left: f64) void {
+    const m: u64 = @intFromFloat(@divFloor(left, 60));
+    const s: u64 = @intFromFloat(@mod(left, 60));
+    ui.text(c, c.print("{s} needs your login for {s} on {s}", .{ k.agent, l.account, l.site }), .{ .size = 14, .weight = .semibold, .wrap = true });
+    look.small(c, c.print("Type its password in the vault, not in the agent's chat. It stays on this machine; the node types it into the page below, and the agent only ever gets vault:{s}:{s}. The agent waits {d}:{d:0>2} more.", .{ l.site, l.account, m, s }));
+    const r = ui.div(c).row().gap(8);
+    defer r.end();
+    if (look.primary(c, "Enter password", .{ .size = .md })) a.askedLogin(l.site, l.account);
+    if (look.secondary(c, "Can't do it", .{ .size = .md })) a.giveBack(k.site, false);
 }
 
 fn offer(a: *App, c: *ui.Context) void {
@@ -102,9 +116,11 @@ fn offer(a: *App, c: *ui.Context) void {
 
 fn tabs(a: *App, c: *ui.Context, browsers: []const types.HandsBrowser) void {
     const x = look.x(c);
-    const r = ui.div(c).row().wFull().gap(6);
+    const r = ui.div(c).row().wFull().gap(6).itemsCenter();
     defer r.end();
-    for (browsers) |b| {
+    // Eight to a page: one browser per site agents use, which can be many.
+    const shown = look.pageRowsBy(&a.browsers_page, browsers.len, browsers_per_page);
+    for (browsers[shown.from..shown.to]) |b| {
         const on = std.mem.eql(u8, b.site, a.hands_site.get());
         ui.key(c, b.site);
         var chip = ui.div(c).row().px(10).h(28).gap(6).itemsCenter().rounded(7).control();
@@ -114,7 +130,15 @@ fn tabs(a: *App, c: *ui.Context, browsers: []const types.HandsBrowser) void {
         ui.text(c, b.site, .{ .size = 12.5, .weight = if (on) .semibold else .medium });
         if (b.held) look.chip(c, "yours", false);
     }
+    if (look.pagesBy(browsers.len, browsers_per_page) > 1) {
+        ui.spacer(c);
+        ui.key(c, "browsers-pages");
+        _ = nanoui.kit.pagination(c, &a.browsers_page, look.pagesBy(browsers.len, browsers_per_page));
+    }
 }
+
+/// The browser tabs a row shows at a time.
+const browsers_per_page = 8;
 
 fn page(a: *App, c: *ui.Context, site: []const u8, b: types.HandsBrowser) void {
     const x = look.x(c);

@@ -25,10 +25,11 @@ pub const BODY: &str = "body";
 pub const TOWER: &str = "tower";
 pub const LEAVING: &str = "leaving";
 pub const CHANGES: &str = "changes";
+pub const MCP: &str = "mcp";
 
 /// What this release speaks of each protocol, newest first. A change puts its new version in front of the old one
 /// here, and the release after takes the old one out.
-pub const THIS_RELEASE: &[(&str, &[u32])] = &[(HELLO, &[1]), (LISTINGS, &[1]), (BODY, &[1]), (TOWER, &[1]), (LEAVING, &[1]), (CHANGES, &[1])];
+pub const THIS_RELEASE: &[(&str, &[u32])] = &[(HELLO, &[1]), (LISTINGS, &[1]), (BODY, &[1]), (TOWER, &[1]), (LEAVING, &[1]), (CHANGES, &[1]), (MCP, &[1])];
 
 /// The versions of each protocol a node speaks, newest first.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -94,7 +95,7 @@ mod tests {
     fn this_releases_names_are_the_networks_own() {
         let s = Speaks::default();
         assert!(s.check().is_ok());
-        for (name, was) in [(BODY, crate::BODY_PROTOCOL), (TOWER, crate::TOWER_PROTOCOL), (HELLO, "/unbrowse/hello/1"), (LISTINGS, "/unbrowse/listings/1"), (LEAVING, "/unbrowse/leaving/1")] {
+        for (name, was) in [(BODY, crate::BODY_PROTOCOL), (TOWER, crate::TOWER_PROTOCOL), (HELLO, "/unbrowse/hello/1"), (LISTINGS, "/unbrowse/listings/1"), (LEAVING, "/unbrowse/leaving/1"), (MCP, crate::MCP_PROTOCOL)] {
             assert_eq!(s.protocols(name).iter().map(|(p, _)| p.to_string()).collect::<Vec<_>>(), [was]);
         }
         assert_eq!(version_of(&protocol(BODY, 7)), Some(7));

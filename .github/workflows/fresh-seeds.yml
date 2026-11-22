@@ -1,0 +1,65 @@
+# Runners (UNB-166): Blacksmith, as ci.yml's settlement job (plain jobs on Blacksmith, #787).
+# The contracts' fuzz and invariant tests draw their cases from a seed, a new one each run. ci.yml runs them when a
+# file they read changes and leaves them out when those very files already passed (.github/scripts/ci-scope.py,
+# READS), so a push that touched no contract no longer draws a seed. This draws one every night instead, on staging as
+# it stands, with four times the cases of a ci.yml run, and prints it: a failure here is rerun with
+# `forge test --fuzz-seed <seed>` and the two FOUNDRY_ variables below.
+# The route-coin spec needs no such run: spec/coins/check.sh uses fixed seeds, so the same files give the same lines.
+name: Fresh seeds
+
+on:
+  schedule:
+    # 01:23 in Singapore.
+    - cron: "23 17 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: fresh-seeds
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  contracts:
+    # The contracts' sources are private (`.github/public-tree-exclude`): the public unbrowse-ai/unbrowse carries none.
+    permissions:
+      contents: read
+    name: Settlement contracts, fresh seed
+    if: github.repository == 'unbrowse-ai/unbrowse-core'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 150
+    env:
+      FOUNDRY_VERSION: v1.8.5
+      # ci.yml's run uses foundry.toml's 512 fuzz runs and forge's 256 invariant runs.
+      FOUNDRY_FUZZ_RUNS: "2048"
+      FOUNDRY_INVARIANT_RUNS: "1024"
+    defaults:
+      run:
+        working-directory: unbrowse-settlement
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: foundry-rs/foundry-toolchain@82dee4ba654bd2146511f85f0d013af94670c4de # v1.4.0
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      # The build ci.yml's settlement job kept for exactly these files, if it has one: the tests then compile nothing.
+      - name: Key of the files forge reads
+        id: forge-key
+        working-directory: .
+        run: |
+          key=$(git ls-tree -r HEAD unbrowse-settlement/foundry.toml unbrowse-settlement/src unbrowse-settlement/test \
+            unbrowse-settlement/script unbrowse-settlement/lib | sha256sum | cut -c1-64)
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            unbrowse-settlement/out
+            unbrowse-settlement/cache
+          key: forge-${{ runner.os }}-${{ env.FOUNDRY_VERSION }}-${{ steps.forge-key.outputs.key }}
+      - name: forge test, with a seed drawn now
+        run: |
+          seed=0x$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+          echo "fuzz seed: $seed"
+          { echo "### Fresh seed"; echo; echo "\`forge test --fuzz-seed $seed\` with FOUNDRY_FUZZ_RUNS=$FOUNDRY_FUZZ_RUNS and FOUNDRY_INVARIANT_RUNS=$FOUNDRY_INVARIANT_RUNS, on \`${GITHUB_SHA::8}\`."; } >> "$GITHUB_STEP_SUMMARY"
+          forge test --fuzz-seed "$seed"

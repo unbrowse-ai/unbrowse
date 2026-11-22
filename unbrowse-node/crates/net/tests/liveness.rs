@@ -79,6 +79,16 @@ fn config(id: &str, version: &str) -> Config {
     cfg
 }
 
+/// `config` with the two waits a peer "not listed yet" sits out at a tenth of the protocol's scale: it is asked again
+/// after half a second, doubling, where the protocol waits three, and the registry's word on an identity stands a
+/// second, where the protocol keeps it ten. What the tests below check is the order of events, which is the same.
+fn brisk(id: &str) -> Config {
+    let mut cfg = config(id, "1.0.0");
+    cfg.unlisted_retry = Duration::from_millis(500);
+    cfg.registry_fresh = Duration::from_secs(1);
+    cfg
+}
+
 async fn node(reg: &Arc<Reg>, id: &str, register: bool, own: Vec<Listing>) -> (Net, Vec<Multiaddr>) {
     node_with(reg, id, register, own, config(id, "1.0.0")).await
 }
@@ -313,12 +323,12 @@ async fn listings_answer_fits_its_bound() {
 async fn a_site_listed_by_nodes_booting_together_is_found() {
     let reg = Arc::new(Reg::default());
     reg.seeds_on.store(true, Ordering::SeqCst);
-    let (b, _) = node(&reg, "0xb", true, vec![]).await;
-    let (c, _) = node(&reg, "0xc", true, vec![]).await;
+    let (b, _) = node_with(&reg, "0xb", true, vec![], brisk("0xb")).await;
+    let (c, _) = node_with(&reg, "0xc", true, vec![], brisk("0xc")).await;
     for n in [&b, &c] {
         until(|| async { (!n.table().await.is_empty()).then_some(()) }).await;
     }
-    let (a, a_addrs) = node(&reg, "0xa", false, vec![listing(ENTRY_A, "0xa")]).await;
+    let (a, a_addrs) = node_with(&reg, "0xa", false, vec![listing(ENTRY_A, "0xa")], brisk("0xa")).await;
     until(|| async { (b.admit(a.peer_id()).await == Standing::Refused && c.admit(a.peer_id()).await == Standing::Refused).then_some(()) }).await;
     register_node(&reg, "0xa", &a, &a_addrs);
     a.provide(SITE).await.unwrap();
@@ -337,7 +347,7 @@ async fn what_a_node_announced_before_it_was_listed_is_found_once_it_is() {
     let reg = Arc::new(Reg::default());
     reg.seeds_on.store(true, Ordering::SeqCst);
     let short = |id: &str| {
-        let mut cfg = config(id, "1.0.0");
+        let mut cfg = brisk(id);
         cfg.refusal_ttl = Duration::from_secs(5);
         cfg.probe = Duration::from_secs(3600);
         cfg
@@ -364,7 +374,7 @@ async fn a_peer_refused_after_it_counted_leaves_no_provider_record() {
     let reg = Arc::new(Reg::default());
     reg.seeds_on.store(true, Ordering::SeqCst);
     let short = |id: &str| {
-        let mut cfg = config(id, "1.0.0");
+        let mut cfg = brisk(id);
         cfg.admission_ttl = Duration::from_secs(4);
         cfg
     };

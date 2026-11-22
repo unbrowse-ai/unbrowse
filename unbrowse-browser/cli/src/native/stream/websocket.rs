@@ -305,19 +305,10 @@ async fn handle_ws_client(
                 .get("origin")
                 .and_then(|v| v.to_str().ok())
                 .map(|s| s.to_string());
-            // The stream carries the page and takes input into it, so the
-            // client must hold this daemon's stream secret; Origin only narrows
-            // which browser pages may use it.
-            let authorization = req
-                .headers()
-                .get("authorization")
-                .and_then(|v| v.to_str().ok());
-            let has_token =
-                super::presents_token(authorization, req.uri().query(), super::stream_token());
-            if !has_token || !is_allowed_origin(origin.as_deref()) {
+            if !is_allowed_origin(origin.as_deref()) {
                 let mut reject =
                     tokio_tungstenite::tungstenite::handshake::server::ErrorResponse::new(Some(
-                        "Origin not allowed or stream token missing".to_string(),
+                        "Origin not allowed".to_string(),
                     ));
                 *reject.status_mut() = tokio_tungstenite::tungstenite::http::StatusCode::FORBIDDEN;
                 return Err(reject);

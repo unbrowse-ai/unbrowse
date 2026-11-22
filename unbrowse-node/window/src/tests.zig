@@ -6,6 +6,7 @@ const nanoui = @import("nanoui");
 const ui = nanoui.ui;
 const App = @import("app.zig").App;
 const shell = @import("shell.zig");
+const look = @import("look.zig");
 
 test {
     _ = @import("types.zig");
@@ -20,6 +21,7 @@ test {
     _ = @import("hands.zig");
     _ = @import("screens/lanes.zig");
     _ = @import("screens/access.zig");
+    _ = @import("screens/move_to_apps.zig");
 }
 
 const canned = .{
@@ -121,6 +123,113 @@ test "an owner already off the network stays off when asked about new terms" {
     try std.testing.expectEqualStrings("accept_terms {\"keep_off\":true}", a.store.lastLog());
 }
 
+const settings_new = "{\"map_while_browsing\":true,\"hold_routes\":false,\"signed_in_calls\":false,\"paused\":false,\"api_port\":7788,\"storage_gb\":5,\"excluded\":[],\"share_routes\":\"used\",\"share_notice_seen\":true,\"terms_accepted\":null,\"peer_network\":true}";
+const unlinked = "{\"owner\":null,\"waiting\":false,\"error\":null}";
+
+/// A new node, its terms answered on the first-run screen: what stands in front of the window next.
+fn answeredNew(a: *App, t: *ui.Tester, height: f32) !void {
+    load(a);
+    a.store.put(.settings, settings_new);
+    a.store.put(.terms_text, terms_text);
+    a.store.put(.link_status, unlinked);
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = height });
+    t.settle(1);
+    try t.clickText("Open my node");
+    try std.testing.expectEqualStrings("accept_terms {\"keep_off\":false}", a.store.lastLog());
+    a.store.put(.settings, canned[1][1]);
+    t.settle(1);
+}
+
+test "a new node's owner is asked to sign in once the terms are answered, and signing in lets them through" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    var t: ui.Tester = undefined;
+    try answeredNew(a, &t, 780);
+    defer t.deinit();
+    try std.testing.expect(!t.hasText("Before your node joins the network"));
+    try std.testing.expect(t.hasText("Sign in"));
+    try std.testing.expect(t.hasText("Skip for now"));
+    // Nothing behind it yet: no sidebar, no node card.
+    try std.testing.expect(!t.hasText("Online"));
+    try std.testing.expect(!t.hasText("My routes"));
+    snap(&t, "test-sign-in");
+    // Seeing it sends nothing; Sign in opens the page through the node, as Money's Link a wallet does.
+    try std.testing.expectEqualStrings("accept_terms {\"keep_off\":false}", a.store.lastLog());
+    try t.clickText("Continue in your browser");
+    try std.testing.expectEqualStrings("link_start {}", a.store.lastLog());
+    // The node couldn't open the browser: the page is there to copy, while the node waits on it.
+    var arena = scratch();
+    defer arena.deinit();
+    a.done(.{ .tag = .link_start, .label = "link_start", .ok = true, .text = "{\"url\":\"https://unbrowse.ai/link?nonce=n1\",\"opened\":false}", .arena = arena.allocator() });
+    a.store.put(.link_status, "{\"owner\":null,\"waiting\":true,\"error\":null}");
+    t.settle(1);
+    try std.testing.expect(t.hasText("Waiting for you to finish in your browser…"));
+    try std.testing.expect(t.hasText("https://unbrowse.ai/link?nonce=n1"));
+    try std.testing.expect(t.hasText("Start again"));
+    // Why the last one failed shows where it was asked for.
+    a.store.put(.link_status, "{\"owner\":null,\"waiting\":false,\"error\":\"the sign-in wasn't finished in 15 minutes; start it again\"}");
+    t.settle(1);
+    try std.testing.expect(t.hasText("the sign-in wasn't finished in 15 minutes; start it again"));
+    try std.testing.expect(!t.hasText("https://unbrowse.ai/link?nonce=n1"));
+    // The wallet lands (the node's identity event reads link_status again): the window, signed in.
+    a.store.put(.link_status, "{\"owner\":\"0xfeedfacefeedfacefeedfacefeedfacefeedface\",\"waiting\":false,\"error\":null}");
+    t.settle(2);
+    try std.testing.expect(!t.hasText("Skip for now"));
+    try std.testing.expect(t.hasText("Online"));
+    try std.testing.expect(t.hasText("Signed in"));
+    try std.testing.expect(a.screen == .access);
+    // It doesn't come back, linked or not.
+    a.store.put(.link_status, unlinked);
+    t.settle(1);
+    try std.testing.expect(!t.hasText("Skip for now"));
+}
+
+test "skipping the first-run sign-in lands on the window with no wallet linked, and Money still links one" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    var t: ui.Tester = undefined;
+    try answeredNew(a, &t, 3200);
+    defer t.deinit();
+    try t.clickText("Skip for now");
+    t.settle(1);
+    // Skipping asks the node for nothing: it is as it was, on its own wallet.
+    try std.testing.expectEqualStrings("accept_terms {\"keep_off\":false}", a.store.lastLog());
+    try std.testing.expect(!t.hasText("Skip for now"));
+    try std.testing.expect(t.hasText("Online"));
+    try std.testing.expect(t.hasText("My routes"));
+    try std.testing.expect(a.screen == .access);
+    try std.testing.expect(!a.signInDue());
+    a.go(.wallet);
+    a.money_advanced = true;
+    t.settle(1);
+    try std.testing.expect(t.hasText("None, and none is needed: your node uses its own wallet"));
+    try t.clickText("Sign in");
+    try std.testing.expectEqualStrings("link_start {}", a.store.lastLog());
+}
+
+test "only a new node is asked to sign in: newer terms, or a wallet already linked, go straight to the window" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    a.store.put(.link_status, unlinked);
+    a.store.put(.settings, settings_due);
+    a.acceptTerms();
+    a.store.put(.settings, canned[1][1]);
+    try std.testing.expect(!a.signInDue());
+    // A new node whose wallet was linked before the window got there (the node's own `onboard`).
+    a.store.put(.settings, settings_new);
+    a.acceptTerms();
+    a.store.put(.settings, canned[1][1]);
+    a.store.put(.link_status, "{\"owner\":\"0xfeedfacefeedfacefeedfacefeedfacefeedface\",\"waiting\":false,\"error\":null}");
+    try std.testing.expect(!a.signInDue());
+}
+
 test "a node older than the question asks nothing of the owner" {
     const a = try std.testing.allocator.create(App);
     defer std.testing.allocator.destroy(a);
@@ -141,6 +250,7 @@ test "overview shows the node, its routes and what needs a look" {
     var t: ui.Tester = undefined;
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
     defer t.deinit();
+    a.go(.node);
     t.settle(1);
     try std.testing.expect(t.hasText("studio-mac"));
     try std.testing.expect(t.containsText("2 routes learned."));
@@ -317,6 +427,7 @@ test "a walk under way when the line drops stops saying Walking, until it is hea
     var t: ui.Tester = undefined;
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 900 });
     defer t.deinit();
+    a.go(.node);
     a.event("eye", "{\"kind\":\"started\",\"walk\":\"w1\",\"url\":\"https://shop.example/\",\"goal\":\"Search\",\"agent\":\"Claude Code\"}", s);
     t.settle(1);
     try std.testing.expect(t.hasText("Walking"));
@@ -457,6 +568,7 @@ test "the agent's eye follows a walk and the calls" {
     var t: ui.Tester = undefined;
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 900 });
     defer t.deinit();
+    a.go(.node);
     a.event("eye", "{\"kind\":\"started\",\"walk\":\"w1\",\"url\":\"https://hn.algolia.com/?q=rust\",\"goal\":\"Search Hacker News stories\",\"agent\":\"Claude Code\"}", s);
     a.event("eye", "{\"kind\":\"seen\",\"walk\":\"w1\",\"n\":1,\"method\":\"GET\",\"host\":\"hn.algolia.com\",\"path\":\"/\",\"status\":200,\"bytes\":30000,\"sort\":\"page\"}", s);
     a.event("eye", "{\"kind\":\"seen\",\"walk\":\"w1\",\"n\":2,\"method\":\"POST\",\"host\":\"uj5wyc0l7x-dsn.algolia.net\",\"path\":\"/1/indexes/Item_dev/query\",\"status\":200,\"bytes\":48000,\"sort\":\"data\"}", s);
@@ -498,7 +610,7 @@ test "nothing waits on the owner: an older node's approval event brings no sheet
     try std.testing.expect(t.hasText("Online"));
     a.go(.access);
     t.settle(1);
-    try std.testing.expect(t.containsText("never wait for you"));
+    try std.testing.expect(t.containsText("never waits for you"));
     try std.testing.expect(t.containsText("up to $0.05 a fetch"));
     try std.testing.expect(!t.containsText("Waiting on you"));
 }
@@ -924,6 +1036,38 @@ test "an agent's ask brings the owner to the page: clicks and keys on its pictur
     try std.testing.expectEqualStrings("hands_stop {}", a.store.lastLog());
 }
 
+test "an agent's ask for a login opens the vault's own form, never the agent's chat" {
+    var t: ui.Tester = undefined;
+    const a = try liveApp(1180, 860, &t);
+    defer freeApp(a);
+    defer t.deinit();
+    var arena = scratch();
+    defer arena.deinit();
+    const s = arena.allocator();
+    a.now = 1000;
+    const ask = "{\"id\":\"ask-2\",\"site\":\"ticketing.example\",\"why\":\"add the login for me@example.com on ticketing.example to the vault\",\"agent\":\"Claude Code\",\"asked_at\":990,\"expires_at\":1290,\"login\":{\"site\":\"ticketing.example\",\"account\":\"me@example.com\"}}";
+    a.store.put(.hands, "{\"browsers\":[{\"site\":\"ticketing.example\",\"url\":\"https://ticketing.example/login\",\"held\":false,\"walk\":\"hands:ticketing.example\"}],\"asks\":[" ++ ask ++ "],\"watching\":null}");
+    a.event("hands", "{\"kind\":\"ask\",\"site\":\"ticketing.example\",\"ask\":" ++ ask ++ "}", s);
+    t.settle(1);
+    try t.clickText("Claude Code needs you on ticketing.example");
+    t.settle(1);
+    try std.testing.expect(t.hasText("Claude Code needs your login for me@example.com on ticketing.example"));
+    snap(&t, "hands-ask-login");
+    try t.clickText("Enter password");
+    t.settle(0.5);
+    // The vault's Add login form, the password the owner's to type: a stored login for that site and account.
+    try std.testing.expect(a.dialog == .add_login and a.dialog_open);
+    try std.testing.expectEqualStrings("ticketing.example", a.fields[0].text());
+    try std.testing.expectEqualStrings("me@example.com", a.fields[1].text());
+    try std.testing.expect(a.login_kind == 1);
+    a.close();
+    t.settle(0.5);
+    // Can't do it tells the agent no.
+    try t.clickText("Can't do it");
+    t.settle(0.5);
+    try std.testing.expectEqualStrings("hands_give_back {\"site\":\"ticketing.example\",\"done\":false}", a.store.lastLog());
+}
+
 test "Browser with no browser open says how one opens" {
     var t: ui.Tester = undefined;
     const a = try liveApp(1180, 860, &t);
@@ -1096,6 +1240,47 @@ fn manyRoutes(gpa: std.mem.Allocator, n: usize) ![]u8 {
 
 const search_hint = "Search by what a route does, its site, path or inputs";
 
+test "a list pages at its own size: a page past the end becomes the last, and none is none" {
+    var page: usize = 0;
+    try std.testing.expectEqual(@as(usize, 3), look.pagesBy(11, 5));
+    try std.testing.expectEqual(@as(usize, 0), look.pagesBy(0, 5));
+    try std.testing.expectEqual(look.Rows{ .from = 0, .to = 5 }, look.pageRowsBy(&page, 11, 5));
+    page = 2;
+    try std.testing.expectEqual(look.Rows{ .from = 10, .to = 11 }, look.pageRowsBy(&page, 11, 5));
+    page = 9;
+    try std.testing.expectEqual(look.Rows{ .from = 50, .to = 55 }, look.pageRowsBy(&page, 55, 50));
+    try std.testing.expectEqual(@as(usize, 1), page);
+    page = 4;
+    try std.testing.expectEqual(look.Rows{ .from = 0, .to = 0 }, look.pageRowsBy(&page, 0, 8));
+    try std.testing.expectEqual(look.pageRows(&page, 30), look.pageRowsBy(&page, 30, look.per_page));
+}
+
+test "Needs a look shows five failed routes to a page, its asks above them" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    const many = try manyRoutes(std.testing.allocator, 12);
+    defer std.testing.allocator.free(many);
+    const failed = try std.mem.replaceOwned(u8, std.testing.allocator, many, "\"last_error\":null", "\"last_error\":\"the site answered 500\"");
+    defer std.testing.allocator.free(failed);
+    a.store.put(.routes, failed);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1400, .height = 2600 });
+    defer t.deinit();
+    a.go(.node);
+    t.settle(1);
+    try std.testing.expect(t.hasText("route 00 failed its last call") and t.hasText("route 04 failed its last call"));
+    try std.testing.expect(!t.hasText("route 05 failed its last call"));
+    try std.testing.expect(t.hasText("Showing 1\u{2013}5 of 12"));
+    try t.clickText("3");
+    t.settle(1);
+    try std.testing.expect(!t.hasText("route 00 failed its last call"));
+    try std.testing.expect(t.hasText("route 10 failed its last call") and t.hasText("route 11 failed its last call"));
+    try std.testing.expect(t.hasText("Showing 11\u{2013}12 of 12"));
+}
+
 test "My routes shows 25 to a page, and the pager moves through the rest" {
     const a = try std.testing.allocator.create(App);
     defer std.testing.allocator.destroy(a);
@@ -1202,6 +1387,7 @@ test "a node that can't start yet says the one amount that starts it; sharing is
     var t: ui.Tester = undefined;
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1280, .height = 1400 });
     defer t.deinit();
+    a.go(.node);
     t.settle(1);
     try std.testing.expect(t.hasText("Sharing is on"));
     try std.testing.expect(t.hasText("Add $0.80 to start"));
@@ -1231,6 +1417,7 @@ test "the node's address shows and copies with no Settlement deployed, from Mone
     var t: ui.Tester = undefined;
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1280, .height = 1400 });
     defer t.deinit();
+    a.go(.node);
     t.settle(1);
     // "Already have USDC?" on the overview's start step names the address to send it to, and the sidebar shows it
     // shortened.
@@ -1403,7 +1590,11 @@ test "Add card sends the card to the node once and wipes its fields; the securit
     a.store.running_n = 0;
     t.settle(1);
     try std.testing.expect(!a.dialog_open);
-    for (a.fields) |f| try std.testing.expect(f.len == 0 and std.mem.allEqual(u8, f.buf[0..32], 0));
+    // Nothing the owner typed is left in a field: the bytes past what was typed were never written, so only what was is read.
+    for (a.fields) |f| {
+        try std.testing.expect(f.len == 0);
+        for ([_][]const u8{ "4242", "01/30", "Ada", "visa" }) |typed| try std.testing.expect(std.mem.indexOf(u8, &f.buf, typed) == null);
+    }
 
     // Kept codes on: the dialog asks for the code, masked, and sends it.
     a.store.put(.settings, "{\"terms_accepted\":\"2026-11-01\",\"map_while_browsing\":true,\"paused\":false,\"api_port\":7788,\"excluded\":[],\"share_routes\":\"used\",\"share_notice_seen\":true,\"keep_card_codes\":true}");
@@ -1521,14 +1712,16 @@ test "a node with no linked wallet says it is on the network with its own, and o
     t.settle(1);
     // No sign-in step on the overview: the node joins on its own wallet (spec §86).
     try std.testing.expect(!t.hasText("Sign in with email or Google"));
-    try std.testing.expect(!t.hasText("Link a wallet"));
+    try std.testing.expect(!t.hasText("Sign in"));
     // Money's Advanced names the node's own wallet, says no link is needed, and offers one.
     a.go(.wallet);
     a.money_advanced = true;
     t.settle(1);
     try std.testing.expect(t.hasText("This node's wallet"));
     try std.testing.expect(t.hasText("None, and none is needed: your node uses its own wallet"));
-    try t.clickText("Link a wallet");
+    // Before linking, it says plainly that a linked wallet signs every listing, and nothing is shared until it does.
+    try std.testing.expect(t.containsText("every listing waits for you to approve it"));
+    try t.clickText("Sign in");
     try std.testing.expectEqualStrings("link_start {}", a.store.lastLog());
     // Waiting on the browser, with why the last one failed: the owner can start again.
     a.store.put(.link_status, "{\"owner\":null,\"waiting\":true,\"error\":\"the sign-in wasn't finished in 15 minutes; start it again\"}");
@@ -1540,11 +1733,11 @@ test "a node with no linked wallet says it is on the network with its own, and o
     // Linked: the wallet shows, with a way to unlink, on Settings too.
     a.store.put(.link_status, "{\"owner\":\"0xfeedfacefeedfacefeedfacefeedfacefeedface\",\"waiting\":false,\"error\":null}");
     t.settle(1);
-    try std.testing.expect(!t.hasText("Link a wallet"));
+    try std.testing.expect(!t.hasText("Sign in"));
     try std.testing.expect(t.hasText("0xfeedfacefeedfacefeedfacefeedfacefeedface"));
     a.go(.settings);
     t.settle(1);
-    try t.clickText("Unlink");
+    try t.clickText("Sign out");
     try std.testing.expectEqualStrings("unlink {}", a.store.lastLog());
 }
 
@@ -1633,9 +1826,13 @@ test "earnings show staking and contributing apart, paid whole, and Cash out tak
     a.go(.wallet);
     a.store.put(.earnings, earnings_some);
     t.settle(1);
-    // On the main path, without opening Advanced: what is ready to take, and nothing on hold.
+    // On the main path, without opening Advanced: what is ready to cash out, and nothing on hold.
     try std.testing.expect(!a.money_advanced);
-    try std.testing.expect(t.hasText("Ready to take"));
+    try std.testing.expect(t.hasText("Ready to cash out"));
+    // An owner who holds no route coins sees no coin and no UNB on the main path: earnings are their routes' share.
+    try std.testing.expect(!t.hasText("Route coins"));
+    try std.testing.expect(!t.containsText("UNB"));
+    try std.testing.expect(t.hasText("Cash out adds all of it to your balance."));
     try std.testing.expect(t.hasText("$0.02"));
     try std.testing.expect(!t.hasText("On hold"));
     try std.testing.expect(!t.hasText("Security hold"));
@@ -1747,6 +1944,28 @@ test "before the account's permission runs out, Money's Advanced asks to renew i
     a.store.put(.owner_nodes, "{\"wallet\":\"0xfeed\",\"deposit_usdc\":10,\"keys\":[],\"renew_by\":null}");
     t.settle(1);
     try std.testing.expect(!t.containsText("runs out on"));
+}
+
+test "Money shows the listings waiting for the owner's wallet, in plain words, and signs them only in the browser" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1280, .height = 2600 });
+    defer t.deinit();
+    a.go(.wallet);
+    a.store.put(.listings_to_sign, "[]");
+    t.settle(1);
+    try std.testing.expect(!t.containsText("A listing to approve"));
+    a.store.put(.listings_to_sign, "[{\"id\":\"0x01\",\"route_id\":\"r1\",\"site\":\"shop.example\",\"description\":\"Search items\",\"version\":1,\"price_usdc\":0.01,\"wallet\":\"0xfeed\",\"what\":\"Share your route on shop.example, \\\"Search items\\\", under your wallet's identity.\",\"typed_data\":{}}]");
+    t.settle(1);
+    try std.testing.expect(t.containsText("A listing to approve"));
+    try std.testing.expect(t.containsText("Share your route on shop.example"));
+    try std.testing.expect(t.containsText("no agent key can"));
+    try t.clickText("Approve in my browser");
+    try std.testing.expectEqualStrings("listings_sign {}", a.store.lastLog());
 }
 
 /// The node's own answers, when UNB_CANNED_DIR names a folder of them (`<resource>.json`), in place of the canned ones.
@@ -1864,7 +2083,7 @@ test "Command with a digit opens that screen, Command-F finds a route, and a dia
     defer t.deinit();
     const Screen = @import("app.zig").Screen;
     t.settle(1);
-    try std.testing.expect(t.shortcut(.{ .key = '5', .cmd = true }));
+    try std.testing.expect(t.shortcut(.{ .key = '6', .cmd = true }));
     try std.testing.expectEqual(Screen.wallet, a.screen);
     try std.testing.expect(t.shortcut(.{ .key = '0', .cmd = true }));
     try std.testing.expectEqual(Screen.settings, a.screen);
@@ -1929,9 +2148,9 @@ test "a screen arrives as the landing's do: rising into place, then still; with 
     t.ctx.reduced_motion = true;
     a.go(.access);
     t.frame();
-    const first = t.findText("How an agent connects").?.y;
+    const first = t.findText("On this Mac").?.y;
     t.settle(2);
-    try std.testing.expectEqual(first, t.findText("How an agent connects").?.y);
+    try std.testing.expectEqual(first, t.findText("On this Mac").?.y);
 }
 
 /// One sign-in state, drawn at `w` by `h` and snapped as `name` (with UNB_SNAP_DIR), light or dark.
@@ -2058,11 +2277,11 @@ test "the sign-in screens in every state, at the window's size (snapped with UNB
     try signInShotAt("money-addresses", false, W, H, S.moneyAdvanced, "Addresses");
     // The whole of Money's Advanced at once, so counts compare the same content.
     try signInShot("money-advanced-full", false, W, 3600, S.moneyAdvanced);
-    try signInShotAt("settings-link", false, W, H, S.settingsLink, "Linked wallet");
-    try signInShotAt("settings-link", true, W, H, S.settingsLink, "Linked wallet");
-    try signInShotAt("settings-link-waiting", false, W, H, S.settingsWaiting, "Linked wallet");
-    try signInShotAt("settings-link-failed", false, W, H, S.settingsFailed, "Linked wallet");
-    try signInShotAt("settings-linked", false, W, H, S.settingsLinked, "Linked wallet");
+    try signInShotAt("settings-link", false, W, H, S.settingsLink, "Your account");
+    try signInShotAt("settings-link", true, W, H, S.settingsLink, "Your account");
+    try signInShotAt("settings-link-waiting", false, W, H, S.settingsWaiting, "Your account");
+    try signInShotAt("settings-link-failed", false, W, H, S.settingsFailed, "Your account");
+    try signInShotAt("settings-linked", false, W, H, S.settingsLinked, "Your account");
 }
 
 /// `n` logins as the node lists them: "site-00.example" on, the even ones for "ann", the odd ones for "bob".
@@ -2189,4 +2408,532 @@ test "the vault's live sessions show 25 to a page" {
     t.settle(1);
     try std.testing.expectEqual(@as(usize, 1), a.sessions_page);
     try std.testing.expect(t.hasText("host-25.example") and !t.hasText("host-00.example"));
+}
+
+/// The window's narrowest: main.zig's min_width.
+const narrowest: f32 = 860;
+
+/// Every screen's wide tables with rows in them: contributors and the network's routes on the Leaderboard, logins,
+/// cards with their limits and sessions in the Vault, and each route's sharing on My routes.
+fn loadTables(a: *App) void {
+    load(a);
+    a.store.put(.board, "[{\"contributor\":\"0xabcdef0123456789abcdef0123456789abcdef01\",\"entries\":3,\"lines\":1200,\"earned\":12.5,\"sites\":2}," ++
+        "{\"contributor\":\"0x1111111111111111111111111111111111111111\",\"entries\":1,\"lines\":40,\"earned\":0.4,\"sites\":1}]");
+    a.store.put(.entries, "[{\"site\":\"crates.io\",\"what\":\"search Rust crates\",\"default\":\"e1\",\"entries\":[" ++
+        "{\"id\":\"0xe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1\",\"contributor\":\"0xabcdef0123456789abcdef0123456789abcdef01\",\"fee\":0.002,\"yours\":true,\"default\":true,\"unverified\":false,\"counted_uses\":42,\"pass_rate\":0.97}," ++
+        "{\"id\":\"0xe2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2\",\"contributor\":\"0x1111111111111111111111111111111111111111\",\"fee\":0.001,\"unverified\":true,\"unavailable\":true,\"counted_uses\":3,\"pass_rate\":0.5}]}]");
+    a.store.put(.vault_list, "[{\"site\":\"github.com\",\"account\":\"ada.lovelace@example.com\",\"kind\":\"stored\",\"counter\":0,\"created\":1,\"code\":true}," ++
+        "{\"site\":\"shop.example\",\"account\":\"me\",\"kind\":\"derived\",\"counter\":2,\"created\":1}]");
+    a.store.put(.vault_cards, cards_two);
+    a.store.put(.card_limits, "[{\"card\":\"visa\",\"site\":\"shop.example\",\"per_payment\":20,\"per_day\":50,\"day\":1,\"spent\":12.5}]");
+    a.store.put(.sessions, "[{\"host\":\"github.com\",\"cookies\":12,\"updated\":1}]");
+    a.store.put(.share_status, "{\"mode\":\"used\",\"per_day\":5,\"listed_today\":1,\"blocked\":null,\"routes\":[" ++
+        "{\"id\":\"r1\",\"why\":\"listed\"},{\"id\":\"r2\",\"why\":\"below_threshold\",\"days\":1,\"runs\":1,\"days_needed\":3,\"runs_needed\":5}]}");
+}
+
+/// The furthest right anything in the last frame reaches, and what it is when it is text.
+fn reach(t: *ui.Tester) struct { x: f32, what: []const u8 } {
+    var worst: f32 = 0;
+    var what: []const u8 = "";
+    for (t.ctx.nodes.items) |n| if (n.rect.x + n.rect.w > worst) {
+        worst = n.rect.x + n.rect.w;
+        what = switch (n.content) {
+            .text => |tx| tx.str,
+            else => "",
+        };
+    };
+    return .{ .x = worst, .what = what };
+}
+
+/// Nothing in the last frame reaches past the window's right edge, and each of `shown` is on screen whole.
+fn fits(t: *ui.Tester, w: f32, name: []const u8, shown: []const []const u8) !void {
+    const r = reach(t);
+    if (r.x > w + 0.5) std.debug.print("{s} at {d}: reaches {d} (\"{s}\")\n", .{ name, w, r.x, r.what });
+    try std.testing.expect(r.x <= w + 0.5);
+    for (shown) |s| {
+        const at = t.findText(s) orelse {
+            std.debug.print("{s} at {d}: \"{s}\" isn't drawn\n", .{ name, w, s });
+            return error.TestUnexpectedResult;
+        };
+        try std.testing.expect(at.w > 0 and at.x >= 0 and at.x + at.w <= w + 0.5);
+    }
+}
+
+test "My routes fits the window at every width, the route's name always readable" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    loadTables(a);
+    for ([_]f32{ narrowest, 1000, 1180, 1700 }) |w| {
+        var t: ui.Tester = undefined;
+        try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = w, .height = 1400 });
+        defer t.deinit();
+        a.go(.routes);
+        t.settle(2);
+        // The route's own name keeps its room: never squeezed to a sliver beside the other columns.
+        try std.testing.expect(t.findText("search Rust crates").?.w > 100);
+        try fits(&t, w, "My routes", &.{ "search Rust crates", "Calls", "State", "Try it", "Delete", "Shared", "Not yet" });
+        // The last call and the sharing are still said at every width, under the calls and the state when narrow.
+        try std.testing.expect(t.containsText("ms,") or t.hasText("Last call"));
+        try std.testing.expect(t.containsText("1 day, 1 run so far"));
+        var buf: [64]u8 = undefined;
+        snap(&t, std.fmt.bufPrint(&buf, "routes-{d}", .{@as(u32, @intFromFloat(w))}) catch unreachable);
+    }
+}
+
+/// The widths a screen is checked at: the narrowest, either side of where a table changes its columns, and wide.
+const widths = [_]f32{ narrowest, 1000, 1180, 1280, 1700 };
+
+test "the Leaderboard fits the window at every width: narrow, rank, contributor, paid fetches and earned; each entry under its route" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    loadTables(a);
+    for (widths) |w| {
+        var t: ui.Tester = undefined;
+        try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = w, .height = 1400 });
+        defer t.deinit();
+        a.go(.board);
+        t.settle(2);
+        try fits(&t, w, "Leaderboard", &.{ "Rank", "Contributor", "Paid fetches", "Earned", "$12.500", "search Rust crates", "Counted uses", "Fee", "Default", "Unavailable" });
+        if (w == narrowest) {
+            // Entries listed and sites drop out; the pass rate is still said, under the counted uses.
+            try std.testing.expect(!t.hasText("Entries listed") and !t.hasText("Pass rate"));
+            try std.testing.expect(t.hasText("97% passed"));
+            snap(&t, "board-narrow");
+        }
+        if (w == 1700) try std.testing.expect(t.hasText("Entries listed") and t.hasText("Sites") and t.hasText("Pass rate") and t.hasText("97%"));
+    }
+}
+
+test "the Vault fits the window at every width: each login, card and session with its buttons on screen" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    loadTables(a);
+    for (widths) |w| {
+        var t: ui.Tester = undefined;
+        try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = w, .height = 1800 });
+        defer t.deinit();
+        a.go(.vault);
+        t.settle(2);
+        try fits(&t, w, "Vault", &.{
+            "github.com",                   "ada.lovelace@example.com",              "Stored in Keychain",     "Derived, version 3", "Two-step code: kept",
+            "Hidden",                       "Show",                                  "Replace code key",       "Rotate",             "Remove",
+            "visa",                         "\u{2022}\u{2022}\u{2022}\u{2022} 4242", "Kept",                   "Not kept",           "Set limit",
+            "None: every payment asks you", "Remove limit",                          "Sign out of github.com",
+        });
+        try std.testing.expect(t.containsText("20 a payment, 50 a day, 12.5 today"));
+        if (w == narrowest) {
+            // A login in one column, a card with its ending and code in one column.
+            try std.testing.expect(t.hasText("Login") and !t.hasText("Account") and !t.hasText("Ending"));
+            snap(&t, "vault-narrow");
+        }
+        if (w == 1700) try std.testing.expect(t.hasText("Account") and t.hasText("Kind") and t.hasText("Ending") and t.hasText("Security code"));
+    }
+}
+
+test "Settings fits the window at every width: narrow, each section's words above its controls" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    loadTables(a);
+    for (widths) |w| {
+        var t: ui.Tester = undefined;
+        try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = w, .height = 4000 });
+        defer t.deinit();
+        a.go(.settings);
+        t.settle(2);
+        try fits(&t, w, "Settings", &.{ "Agents and the network", "Paused", "Share routes I learn", "Delist every route", "Exclude" });
+        // Narrow, a section's title is above its controls; wide, beside them.
+        const title = t.findText("Agents and the network").?;
+        const control = t.findText("Paused").?;
+        if (w == narrowest) {
+            try std.testing.expect(control.y > title.y + title.h);
+            snap(&t, "settings-narrow");
+        }
+        if (w == 1700) try std.testing.expect(control.x > title.x + title.w);
+    }
+}
+
+test "no screen reaches past the narrowest window" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    loadTables(a);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = narrowest, .height = 900 });
+    defer t.deinit();
+    var over: usize = 0;
+    for (std.enums.values(@import("app.zig").Screen)) |s| {
+        a.go(s);
+        t.settle(2);
+        const r = reach(&t);
+        if (r.x > narrowest + 0.5) {
+            std.debug.print("{s} reaches {d} (\"{s}\")\n", .{ @tagName(s), r.x, r.what });
+            over += 1;
+        }
+        var buf: [64]u8 = undefined;
+        snap(&t, std.fmt.bufPrint(&buf, "narrow-{s}", .{@tagName(s)}) catch unreachable);
+    }
+    try std.testing.expectEqual(@as(usize, 0), over);
+}
+
+test "My routes shows only routes the node sent: none before it answers or when it has none, and each one it sends" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    // The node's facts but its routes: the window has nothing of its own to show in their place.
+    inline for (canned) |entry| if (entry[0] != .routes) a.store.put(entry[0], entry[1]);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1400, .height = 1400 });
+    defer t.deinit();
+    a.go(.routes);
+    t.settle(1);
+    try std.testing.expect(t.containsText("No routes yet."));
+    try std.testing.expect(t.hasText("Nothing learned yet."));
+    try std.testing.expect(!t.containsText("route learned") and !t.containsText("routes learned"));
+    // The node answers none: the same.
+    a.store.put(.routes, "[]");
+    t.settle(1);
+    try std.testing.expect(t.containsText("No routes yet.") and t.hasText("Nothing learned yet."));
+    // The node answers one: that one, by what the node named it, and no other.
+    a.store.put(.routes, "[{\"id\":\"w01\",\"site\":\"w01.example\",\"what\":\"a route only the node named\",\"method\":\"GET\",\"path\":\"/w01\",\"root\":\"w01.example\",\"inputs\":[],\"steps\":1,\"browser_assisted\":false,\"write\":false,\"provisional\":false,\"learned_at\":1,\"stats\":{\"calls\":0,\"passed\":0,\"last_ms\":null,\"last_at\":null,\"last_error\":null},\"listing\":null}]");
+    t.settle(1);
+    try std.testing.expect(t.containsText("a route only the node named"));
+    try std.testing.expect(t.containsText("1 route learned"));
+    try std.testing.expect(!t.containsText("No routes yet.") and !t.hasText("Nothing learned yet."));
+    try std.testing.expect(!t.containsText("search Rust crates") and !t.containsText("search npm packages"));
+}
+
+// ---------------------------------------------------------------- Connect your agents, and the move to Applications
+
+const clients_found = "{\"clients\":[" ++
+    "{\"id\":\"claude_code\",\"name\":\"Claude Code\",\"found\":true,\"connected\":false,\"path\":\"/Users/x/.claude.json\"}," ++
+    "{\"id\":\"claude_desktop\",\"name\":\"Claude Desktop\",\"found\":true,\"connected\":false,\"path\":\"/Users/x/Library/Application Support/Claude/claude_desktop_config.json\",\"note\":null}," ++
+    "{\"id\":\"cursor\",\"name\":\"Cursor\",\"found\":true,\"connected\":false,\"path\":\"/Users/x/.cursor/mcp.json\",\"note\":\"An unbrowse entry that is not ours is there.\"}," ++
+    "{\"id\":\"codex\",\"name\":\"Codex\",\"found\":false,\"connected\":false,\"path\":\"\"}]}";
+const clients_none = "{\"clients\":[{\"id\":\"codex\",\"name\":\"Codex\",\"found\":false,\"connected\":false,\"path\":\"\"}]}";
+const clients_one_connected = "{\"clients\":[{\"id\":\"cursor\",\"name\":\"Cursor\",\"found\":true,\"connected\":true,\"path\":\"/Users/x/.cursor/mcp.json\"}]}";
+
+/// An answer of the node to a command the window sent, taken in as the store would hand it over.
+fn answer(a: *App, tag: @import("store.zig").Tag, ok: bool, text: []const u8, arena: std.mem.Allocator) void {
+    a.done(.{ .tag = tag, .label = @tagName(tag), .ok = ok, .text = text, .arena = arena });
+}
+
+/// The node's answer to `agent_clients`, taken in.
+fn putClients(a: *App, json: []const u8) void {
+    var arena = scratch();
+    defer arena.deinit();
+    answer(a, .agent_clients, true, json, arena.allocator());
+}
+
+test "the connect screen lists the clients found, each ticked, and sends the ticked ones" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    putClients(a, clients_found);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    t.settle(1);
+    try std.testing.expect(t.hasText("Connect your agents"));
+    try std.testing.expect(t.hasText("Claude Code"));
+    try std.testing.expect(t.hasText("Claude Desktop"));
+    try std.testing.expect(t.hasText("Cursor"));
+    try std.testing.expect(t.hasText("An unbrowse entry that is not ours is there."));
+    // Codex wasn't found on this Mac: no row for it.
+    try std.testing.expect(!t.hasText("Codex"));
+    try std.testing.expect(!t.hasText("Online"));
+    // Each is ticked until the owner unticks it.
+    try std.testing.expect(a.connectTicked(0) and a.connectTicked(1) and a.connectTicked(2));
+    try t.clickText("Claude Code");
+    t.settle(1);
+    try std.testing.expect(!a.connectTicked(0));
+    snap(&t, "test-connect");
+    try t.clickText("Connect");
+    try std.testing.expectEqualStrings("agent_connect {\"clients\":[\"claude_desktop\",\"cursor\"]}", a.store.lastLog());
+}
+
+test "after the node answers, each row says what happened in plain words" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    putClients(a, clients_found);
+    var arena = scratch();
+    defer arena.deinit();
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    t.settle(1);
+    answer(a, .agent_connect, true,
+        \\{"results":[{"id":"claude_code","name":"Claude Code","ok":true,"restart_needed":false,"error":null},
+        \\{"id":"claude_desktop","name":"Claude Desktop","ok":true,"restart_needed":true,"error":null},
+        \\{"id":"cursor","name":"Cursor","ok":false,"restart_needed":false,"error":"Cursor's config file isn't valid JSON, so nothing was changed."}]}
+    , arena.allocator());
+    // The node now says Claude Code is connected: the screen stays for the owner to read the rows.
+    putClients(a, "{\"clients\":[{\"id\":\"claude_code\",\"name\":\"Claude Code\",\"found\":true,\"connected\":true,\"path\":\"p\"},{\"id\":\"claude_desktop\",\"name\":\"Claude Desktop\",\"found\":true,\"connected\":true,\"path\":\"q\"},{\"id\":\"cursor\",\"name\":\"Cursor\",\"found\":true,\"connected\":false,\"path\":\"r\"}]}");
+    t.settle(1);
+    try std.testing.expect(t.hasText("Connect your agents"));
+    try std.testing.expect(t.hasText("Connected"));
+    try std.testing.expect(t.hasText("Connected: quit and reopen Claude Desktop"));
+    try std.testing.expect(t.hasText("Cursor's config file isn't valid JSON, so nothing was changed."));
+    snap(&t, "test-connect-results");
+    // Something connected: Next goes on to ChatGPT and Claude on the web, Not now leaves, and the screen doesn't come
+    // back.
+    try t.clickText("Next");
+    t.settle(1);
+    try std.testing.expect(t.hasText("Use ChatGPT or Claude on the web?"));
+    try std.testing.expect(!t.hasText("Connect your agents"));
+    try t.clickText("Not now");
+    t.settle(1);
+    try std.testing.expect(!t.hasText("Use ChatGPT or Claude on the web?"));
+    try std.testing.expect(t.hasText("Online"));
+    try std.testing.expect(!a.connectDue());
+}
+
+test "a connect the node refuses shows its words on the screen and leaves the rows to try again" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    putClients(a, clients_found);
+    var arena = scratch();
+    defer arena.deinit();
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    t.settle(1);
+    answer(a, .agent_connect, false, "You said no to changing your agents' files.", arena.allocator());
+    t.settle(1);
+    try std.testing.expect(t.hasText("You said no to changing your agents' files."));
+    try std.testing.expect(t.hasText("Connect your agents"));
+    // Still there to press again.
+    try t.clickText("Connect");
+    try std.testing.expectEqualStrings("agent_connect {\"clients\":[\"claude_code\",\"claude_desktop\",\"cursor\"]}", a.store.lastLog());
+}
+
+test "with no agent found the connect screen says so in a line and goes on to ChatGPT and Claude on the web" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    putClients(a, clients_none);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    t.settle(1);
+    try std.testing.expect(t.hasText("No agent found on this Mac yet."));
+    try std.testing.expect(!t.hasText("Connect"));
+    try t.clickText("Next");
+    t.settle(1);
+    try std.testing.expect(t.hasText("Use ChatGPT or Claude on the web?"));
+    try t.clickText("Not now");
+    t.settle(1);
+    try std.testing.expect(!t.hasText("Connect your agents") and !t.hasText("Use ChatGPT or Claude on the web?"));
+    try std.testing.expect(t.hasText("Online"));
+}
+
+test "an agent set up per project is named with how, never ticked or sent" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    putClients(a, "{\"clients\":[{\"id\":\"hermes\",\"name\":\"Hermes Agent\",\"found\":true,\"connected\":false,\"path\":\"/Users/x/.hermes/config.yaml\"}," ++
+        "{\"id\":\"elizaos\",\"name\":\"ElizaOS\",\"found\":true,\"connected\":false,\"path\":\"\",\"manual\":true,\"note\":\"set up in each project: add @unbrowse/plugin-unbrowse to your character's plugins (integrations/elizaos)\"}]}");
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    t.settle(1);
+    try std.testing.expect(t.hasText("Hermes Agent") and t.hasText("ElizaOS"));
+    try std.testing.expect(t.containsText("add @unbrowse/plugin-unbrowse to your character's plugins"));
+    try std.testing.expect(!a.connectable(a.client_list[1]));
+    snap(&t, "test-connect-manual");
+    try t.clickText("Connect");
+    try std.testing.expectEqualStrings("agent_connect {\"clients\":[\"hermes\"]}", a.store.lastLog());
+}
+
+const remote_off = "{\"on\":false,\"public\":false,\"gateway\":\"https://unbrowse.ai\",\"url\":\"https://unbrowse.ai/p/12D3KooWExampleNodePeer/mcp\",\"peer\":\"12D3KooWExampleNodePeer\",\"keys\":[]}";
+const remote_on = "{\"on\":true,\"public\":false,\"gateway\":\"https://unbrowse.ai\",\"url\":\"https://unbrowse.ai/p/12D3KooWExampleNodePeer/mcp\",\"peer\":\"12D3KooWExampleNodePeer\",\"keys\":[]}";
+
+test "the first run's web step turns the address on, then gives it with Claude's and ChatGPT's steps" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    putClients(a, clients_found);
+    a.store.put(.remote_status, remote_off);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 900 });
+    defer t.deinit();
+    t.settle(1);
+    // Skipping the agents on this Mac goes on to the web, not out.
+    try t.clickText("Skip");
+    t.settle(1);
+    try std.testing.expect(t.hasText("Use ChatGPT or Claude on the web?"));
+    try std.testing.expect(t.containsText("If you chat with ChatGPT or Claude in a browser or on your phone"));
+    // Off: one button, and the address isn't shown until it is on.
+    try std.testing.expect(!t.containsText("12D3KooWExampleNodePeer"));
+    snap(&t, "test-connect-web-off");
+    try t.clickText("Turn on the address");
+    try std.testing.expectEqualStrings("remote_set {\"on\":true}", a.store.lastLog());
+    a.store.put(.remote_status, remote_on);
+    t.settle(1);
+    try std.testing.expect(t.hasText("https://unbrowse.ai/p/12D3KooWExampleNodePeer/mcp"));
+    try std.testing.expect(t.hasText("Copy address"));
+    // Claude's steps first, then ChatGPT's, each with what its plan allows.
+    try std.testing.expect(t.hasText("Click +, then Add custom connector."));
+    try std.testing.expect(t.containsText("A free plan can add one custom connector."));
+    snap(&t, "test-connect-web-claude");
+    try t.clickText("ChatGPT");
+    t.settle(1);
+    try std.testing.expect(t.hasText("Click +, then Add custom MCP server."));
+    try std.testing.expect(t.hasText("In a new chat, type @ and pick Unbrowse."));
+    try std.testing.expect(t.containsText("Business, Enterprise and Edu"));
+    try std.testing.expect(!t.hasText("Click +, then Add custom connector."));
+    snap(&t, "test-connect-web-chatgpt");
+    // A sign-in can be let ask again, for an owner who comes back to it later.
+    try t.clickText("Adding it now? Let a sign-in ask");
+    try std.testing.expectEqualStrings("remote_set {\"on\":true}", a.store.lastLog());
+    try t.clickText("Done");
+    t.settle(1);
+    try std.testing.expect(!a.connectDue());
+    // Done lands on the home screen, Agents, which holds the same panel.
+    try std.testing.expectEqual(@import("app.zig").Screen.access, a.screen);
+    try std.testing.expect(t.hasText("ChatGPT and Claude on the web"));
+    try std.testing.expect(t.hasText("Address on"));
+}
+
+test "the window opens on Agents: the agents on this Mac, ChatGPT and Claude on the web, then the keys" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    putClients(a, clients_one_connected);
+    a.store.put(.remote_status, remote_off);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1280, .height = 1400 });
+    defer t.deinit();
+    t.settle(1);
+    try std.testing.expectEqual(@import("app.zig").Screen.access, a.screen);
+    try std.testing.expect(t.hasText("Agents"));
+    try std.testing.expect(t.hasText("On this Mac"));
+    try std.testing.expect(t.hasText("1 agent found"));
+    try std.testing.expect(t.hasText("ChatGPT and Claude on the web"));
+    try std.testing.expect(t.hasText("Address off"));
+    try std.testing.expect(t.hasText("Turn on the address"));
+    try std.testing.expect(t.hasText("Any other agent"));
+    // The panels come in that order, top to bottom.
+    const mac = t.findText("On this Mac").?.y;
+    const web = t.findText("ChatGPT and Claude on the web").?.y;
+    const other = t.findText("Any other agent").?.y;
+    try std.testing.expect(mac < web and web < other);
+    snap(&t, "test-home-agents");
+    // Command-1 is Agents, Command-2 the Node screen.
+    try std.testing.expect(t.shortcut(.{ .key = '2', .cmd = true }));
+    try std.testing.expectEqual(@import("app.zig").Screen.node, a.screen);
+    try std.testing.expect(t.shortcut(.{ .key = '1', .cmd = true }));
+    try std.testing.expectEqual(@import("app.zig").Screen.access, a.screen);
+}
+
+test "the window stands the move, the terms, signing in and Connect in that order, then the normal screens" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    const Front = shell.Front;
+    // Nothing is known of the agents yet: no Connect screen to flash.
+    try std.testing.expectEqual(Front.none, shell.front(a));
+    putClients(a, clients_found);
+    try std.testing.expectEqual(Front.connect, shell.front(a));
+    a.store.put(.settings, settings_due);
+    try std.testing.expectEqual(Front.terms, shell.front(a));
+    // Run from the disk image on a Mac: the move comes before the terms.
+    a.mac = true;
+    a.exe_dir = "/Volumes/Unbrowse/Unbrowse.app/Contents/MacOS";
+    try std.testing.expectEqual(Front.move, shell.front(a));
+    // The same path on any other system is nothing to move.
+    a.mac = false;
+    try std.testing.expectEqual(Front.terms, shell.front(a));
+    a.mac = true;
+    a.exe_dir = "/Applications/Unbrowse.app/Contents/MacOS";
+    try std.testing.expectEqual(Front.terms, shell.front(a));
+    a.store.put(.settings, canned[1][1]);
+    try std.testing.expectEqual(Front.connect, shell.front(a));
+    // A new node, its terms answered for the first time: signing in stands before Connect; skipped, Connect follows.
+    a.store.put(.link_status, unlinked);
+    a.store.put(.settings, settings_new);
+    a.acceptTerms();
+    a.store.put(.settings, canned[1][1]);
+    try std.testing.expectEqual(Front.sign_in, shell.front(a));
+    a.skipSignIn();
+    try std.testing.expectEqual(Front.connect, shell.front(a));
+    // An agent already connected means nothing is asked.
+    putClients(a, clients_one_connected);
+    try std.testing.expectEqual(Front.none, shell.front(a));
+    // Dismissed: not again, however the node's list changes.
+    putClients(a, clients_found);
+    try std.testing.expectEqual(Front.connect, shell.front(a));
+    a.dismissConnect();
+    try std.testing.expectEqual(Front.none, shell.front(a));
+}
+
+test "the move screen has one line and one button, and nothing else of the window" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    a.mac = true;
+    a.exe_dir = "/private/var/folders/x/AppTranslocation/y/d/Unbrowse.app/Contents/MacOS";
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    t.settle(1);
+    try std.testing.expect(t.containsText("has to live in your Applications folder"));
+    try std.testing.expect(t.hasText("Move to Applications"));
+    try std.testing.expect(!t.hasText("Online"));
+    snap(&t, "test-move-to-apps");
+}
+
+test "the agent access screen lists the same clients with Connect and Undo, and no copy-paste claude line" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    putClients(a, clients_one_connected);
+    var arena = scratch();
+    defer arena.deinit();
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    a.go(.access);
+    t.settle(1);
+    try std.testing.expect(t.hasText("Cursor"));
+    try std.testing.expect(t.hasText("Connected"));
+    try std.testing.expect(t.hasText("Undo"));
+    try std.testing.expect(t.hasText("Copy example requests"));
+    try std.testing.expect(!t.containsText("claude mcp add"));
+    try t.clickText("Undo");
+    try std.testing.expectEqualStrings("agent_connect_undo {}", a.store.lastLog());
+    answer(a, .agent_undo, true, "{\"restored\":[{\"id\":\"cursor\",\"name\":\"Cursor\",\"path\":\"/Users/x/.cursor/mcp.json\"}]}", arena.allocator());
+    t.settle(1);
+    try std.testing.expect(t.hasText("Put back Cursor."));
 }

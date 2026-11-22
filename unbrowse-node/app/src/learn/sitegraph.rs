@@ -502,4 +502,76 @@ mod tests {
         let drafted = of_two_walks("search the shop", ("https://shop.example/s?q=brass", &a), ("https://shop.example/s?q=glass", &b), Some("GET shop.example/api/search")).to_string();
         assert!(!drafted.contains("tok9f3aQ77zLm21xP") && !drafted.contains("tok5c8dR02yKn64wS"), "{drafted}");
     }
+
+    /// Where a value a call sent was first seen in an answer before it, nearest first; a value too short to tell from
+    /// chance is seen nowhere; and a body that is a form is read by its fields.
+    #[test]
+    fn a_value_is_traced_to_the_answers_before_the_call_that_sent_it() {
+        let ex = |url: &str, sent: Option<&str>, answer: &str| Exchange {
+            method: "POST".into(),
+            url: url::Url::parse(url).unwrap(),
+            request_headers: Vec::new(),
+            request_body: sent.map(String::from),
+            status: 200,
+            response_headers: Vec::new(),
+            response_body: Some(answer.into()),
+            response_mime: "application/json".into(),
+            resource_type: Some("XHR".into()),
+            main_frame: Some(true),
+        };
+        let trace = Trace {
+            exchanges: vec![
+                ex("https://shop.example/api/a", None, r#"{"conf":{"region":"eu-west-2b"}}"#),
+                ex("https://shop.example/api/b", None, r#"{"zone":"eu-west-2b","n":"7"}"#),
+                ex("https://shop.example/api/c", Some("region=eu-west-2b&page=7"), "{}"),
+            ],
+            inputs: Vec::new(),
+        };
+        assert_eq!(seen_before(&trace, 2, "eu-west-2b"), vec![(1, "/zone".to_string()), (0, "/conf/region".to_string())], "nearest first");
+        assert_eq!(seen_before(&trace, 1, "eu-west-2b"), vec![(0, "/conf/region".to_string())], "only what came before");
+        assert!(seen_before(&trace, 2, "7").is_empty(), "too short to tell from chance");
+        let sent = parts(&trace.exchanges[2]);
+        assert_eq!(sent[..2], [("path 0".to_string(), "api".to_string()), ("path 1".to_string(), "c".to_string())]);
+        assert_eq!(sent[2..], [("form region".to_string(), "eu-west-2b".to_string()), ("form page".to_string(), "7".to_string())]);
+        assert_eq!(address_shown("https://shop.example/a/b#top", &[], &[]), "https://shop.example/a/b", "no query, no fragment");
+    }
+
+    /// The session, by name: each cookie a walk sent, where the site set it, and whether the other walk sent another
+    /// value; a value the earlier answer gave the second call is traced to that answer's place on both walks.
+    #[test]
+    fn the_graph_names_the_cookies_a_walk_sent_and_where_each_value_was_first_seen() {
+        let ex = |method: &str, url: &str, headers: &[(&str, &str)], response_headers: &[(&str, &str)], answer: &str, doc: bool| Exchange {
+            method: method.into(),
+            url: url::Url::parse(url).unwrap(),
+            request_headers: headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            request_body: None,
+            status: 200,
+            response_headers: response_headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            response_body: Some(answer.into()),
+            response_mime: if doc { "text/html".into() } else { "application/json".into() },
+            resource_type: Some(if doc { "Document" } else { "XHR" }.into()),
+            main_frame: Some(true),
+        };
+        let walk = |word: &str, sid: &str, region: &str| {
+            let results = (0..6).map(|n| format!(r#"{{"title":"{word} number {n}"}}"#)).collect::<Vec<_>>().join(",");
+            Trace {
+                exchanges: vec![
+                    ex("GET", &format!("https://shop.example/s?q={word}"), &[], &[], "<html><body>results</body></html>", true),
+                    ex("GET", "https://shop.example/api/boot", &[], &[("set-cookie", &format!("sid={sid}; Path=/"))], &format!(r#"{{"conf":{{"region":"{region}"}}}}"#), false),
+                    ex("GET", &format!("https://shop.example/api/search?q={word}&region={region}"), &[("cookie", &format!("sid={sid}; theme=dark"))], &[], &format!(r#"{{"results":[{results}]}}"#), false),
+                ],
+                inputs: Vec::new(),
+            }
+        };
+        let (a, b) = (walk("brass", "s-aaaa1111", "eu-west-2b"), walk("glass", "s-bbbb2222", "us-east-1c"));
+        let graph = of_two_walks("search the shop", ("https://shop.example/s?q=brass", &a), ("https://shop.example/s?q=glass", &b), Some("GET shop.example/api/search"));
+        let session = graph["walks"][0]["session"].as_array().unwrap();
+        let sid = session.iter().find(|c| c["cookie"] == "sid").expect("the cookie the walk sent");
+        assert_eq!((sid["set_by"].as_str(), sid["differs_on_the_other_walk"].as_bool()), (Some("GET shop.example/api/boot"), Some(true)));
+        let theme = session.iter().find(|c| c["cookie"] == "theme").unwrap();
+        assert_eq!((theme["set_by"].as_str(), theme["differs_on_the_other_walk"].as_bool()), (Some("before the walk, or by the page's code"), Some(false)));
+        let region = graph["differs_between_the_walks_in_the_drafted_call"].as_array().unwrap().iter().find(|d| d["at"] == "query region").expect("the part that differs");
+        assert_eq!(region["comes_from"], json!({ "call": "GET shop.example/api/boot", "pointer": "/conf/region" }));
+        assert!(for_a_proposer(graph)["walks"][0].get("session").is_none(), "a proposer is not told the session");
+    }
 }

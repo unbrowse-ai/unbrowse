@@ -1,19 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAtom, useAtomValue, useSetAtom } from "jotai/react";
+import { useAtomValue, useSetAtom } from "jotai/react";
 import { ArrowLeft, ArrowRight, Camera, Circle, FileCode, Maximize, Moon, RotateCw, Smartphone, Square, Sun, Wifi, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { execCommand, sessionArgs } from "@/lib/exec";
-import {
-  type ColorScheme,
-  type SessionSettings,
-  confirmSetting,
-  settingsFor,
-  settingsKey,
-  withSetting,
-} from "@/lib/session-settings";
-import { sessionSettingsAtom } from "@/store/session-settings";
 import { getSessionStreamUrl } from "@/lib/dashboard-routes";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -44,14 +35,12 @@ import {
   viewportWidthAtom,
   viewportHeightAtom,
   browserConnectedAtom,
-  streamConnectedAtom,
   screencastingAtom,
   recordingAtom,
   streamEngineAtom,
   activeUrlAtom,
   sendInputAtom,
 } from "@/store/stream";
-import { viewportNotice } from "@/lib/stream-link";
 import { activeSessionNameAtom, activePortAtom } from "@/store/sessions";
 
 const SCREENCAST_ENGINES = new Set(["chrome"]);
@@ -81,6 +70,29 @@ const KEY_INFO: Record<string, { text?: string; keyCode: number }> = {
   PageDown: { keyCode: 34 },
 };
 
+function printableKeyCode(key: string): number {
+  if (key.length !== 1) return 0;
+  const code = key.charCodeAt(0);
+  if (code >= 65 && code <= 90) return code;
+  if (code >= 97 && code <= 122) return code - 32;
+  if (code >= 48 && code <= 57) return code;
+  switch (key) {
+    case " ": return 32;
+    case ";": case ":": return 186;
+    case "=": case "+": return 187;
+    case ",": case "<": return 188;
+    case "-": case "_": return 189;
+    case ".": case ">": return 190;
+    case "/": case "?": return 191;
+    case "`": case "~": return 192;
+    case "[": case "{": return 219;
+    case "\\": case "|": return 220;
+    case "]": case "}": return 221;
+    case "'": case "\"": return 222;
+    default: return 0;
+  }
+}
+
 function cdpButton(btn: number): string {
   switch (btn) {
     case 0: return "left";
@@ -109,6 +121,7 @@ const DEVICE_PRESETS = [
   { label: "Galaxy S25", value: "Galaxy S25" },
 ];
 
+type ColorScheme = "light" | "dark" | "no-preference";
 
 function computePresetSize(
   ratio: [number, number],
@@ -136,7 +149,6 @@ export function Viewport() {
   const viewportWidth = useAtomValue(viewportWidthAtom);
   const viewportHeight = useAtomValue(viewportHeightAtom);
   const browserConnected = useAtomValue(browserConnectedAtom);
-  const streamOpen = useAtomValue(streamConnectedAtom);
   const screencasting = useAtomValue(screencastingAtom);
   const recording = useAtomValue(recordingAtom);
   const engine = useAtomValue(streamEngineAtom);
@@ -158,10 +170,9 @@ export function Viewport() {
   const [recordDialogOpen, setRecordDialogOpen] = useState(false);
   const [recordPath, setRecordPath] = useState("recording.webm");
   const recordInputRef = useRef<HTMLInputElement>(null);
-  const [settingsBook, setSettingsBook] = useAtom(sessionSettingsAtom);
-  const settingKey = settingsKey(sessionName, streamPort);
-  const { device: activeDevice, colorScheme, offline } = settingsFor(settingsBook, settingKey);
-  const [settingError, setSettingError] = useState("");
+  const [activeDevice, setActiveDevice] = useState<string | null>(null);
+  const [colorScheme, setColorScheme] = useState<ColorScheme>("no-preference");
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     if (customDialogOpen) {
@@ -180,21 +191,10 @@ export function Viewport() {
   }, [url]);
 
   useEffect(() => {
-    setSettingError("");
-  }, [settingKey]);
-
-  const applySetting = useCallback(
-    async (args: string[], change: Partial<SessionSettings>) => {
-      const key = settingKey;
-      setSettingError(
-        await confirmSetting(
-          () => execCommand(args),
-          () => setSettingsBook((book) => withSetting(book, key, change)),
-        ),
-      );
-    },
-    [settingKey, setSettingsBook],
-  );
+    setActiveDevice(null);
+    setColorScheme("no-preference");
+    setOffline(false);
+  }, [sessionName]);
 
   useEffect(() => {
     const el = canvasAreaRef.current;
@@ -302,35 +302,32 @@ export function Viewport() {
     await execCommand(sessionArgs(sessionName, "record", "stop"));
   }, [sessionName]);
 
-  const handleSetDevice = useCallback(
-    (device: string) => applySetting(sessionArgs(sessionName, "set", "device", device), { device }),
-    [applySetting, sessionName],
-  );
+  const handleSetDevice = useCallback(async (device: string) => {
+    setActiveDevice(device);
+    await execCommand(sessionArgs(sessionName, "set", "device", device));
+  }, [sessionName]);
 
   const handleResetDevice = useCallback(async () => {
+    setActiveDevice(null);
     if (canvasArea.width > 0 && canvasArea.height > 0) {
-      await applySetting(
-        sessionArgs(sessionName, "set", "viewport", String(canvasArea.width), String(canvasArea.height)),
-        { device: null },
-      );
+      await runCmd("set", "viewport", String(canvasArea.width), String(canvasArea.height));
     }
-  }, [canvasArea.width, canvasArea.height, applySetting, sessionName]);
+  }, [canvasArea.width, canvasArea.height, runCmd]);
 
-  const handleSetColorScheme = useCallback(
-    (scheme: ColorScheme) => {
-      const args = sessionArgs(sessionName, "set", "media");
-      if (scheme !== "no-preference") args.push(scheme);
-      return applySetting(args, { colorScheme: scheme });
-    },
-    [applySetting, sessionName],
-  );
+  const handleSetColorScheme = useCallback(async (scheme: ColorScheme) => {
+    setColorScheme(scheme);
+    const args = sessionArgs(sessionName, "set", "media");
+    if (scheme !== "no-preference") args.push(scheme);
+    await execCommand(args);
+  }, [sessionName]);
 
-  const handleToggleOffline = useCallback(() => {
+  const handleToggleOffline = useCallback(async () => {
     const next = !offline;
+    setOffline(next);
     const args = sessionArgs(sessionName, "set", "offline");
     if (!next) args.push("off");
-    return applySetting(args, { offline: next });
-  }, [offline, applySetting, sessionName]);
+    await execCommand(args);
+  }, [offline, sessionName]);
 
   const toViewport = useCallback(
     (e: React.MouseEvent): { x: number; y: number } | null => {
@@ -387,9 +384,9 @@ export function Viewport() {
     (e: KeyboardEvent, eventType: string) => {
       const info = KEY_INFO[e.key];
       const text = eventType === "keyDown"
-        ? (info?.text ?? (e.key.length === 1 ? e.key : undefined))
+        ? (info?.text ?? (Array.from(e.key).length === 1 ? e.key : undefined))
         : undefined;
-      const keyCode = info?.keyCode ?? (e.key.length === 1 ? e.key.charCodeAt(0) : 0);
+      const keyCode = info?.keyCode ?? printableKeyCode(e.key);
       let m = 0;
       if (e.altKey) m |= 1;
       if (e.ctrlKey) m |= 2;
@@ -473,7 +470,7 @@ export function Viewport() {
                 value={addressValue}
                 onChange={(e) => setAddressValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                     e.preventDefault();
                     handleNavigate();
                   }
@@ -551,12 +548,11 @@ export function Viewport() {
           />
         ) : (
           <div className="text-center text-sm text-muted-foreground">
-            {viewportNotice({
-              streamOpen: streamOpen || streamPort <= 0,
-              browserConnected,
-              canCast: SCREENCAST_ENGINES.has(engine),
-              engine,
-            })}
+            {browserConnected
+              ? SCREENCAST_ENGINES.has(engine)
+                ? "Waiting for frames..."
+                : `Screencast not available for ${engine}`
+              : "No browser connected"}
           </div>
         )}
       </div>
@@ -579,11 +575,6 @@ export function Viewport() {
         {browserConnected && (
           <span className="text-xs text-muted-foreground/60 font-mono">
             {getSessionStreamUrl(streamPort)}
-          </span>
-        )}
-        {settingError && (
-          <span className="min-w-0 truncate text-xs text-destructive" title={settingError}>
-            {settingError}
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
@@ -707,7 +698,7 @@ export function Viewport() {
             value={customValue}
             onChange={(e) => setCustomValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                 e.preventDefault();
                 submitCustomDimensions();
               }
@@ -737,7 +728,7 @@ export function Viewport() {
             value={recordPath}
             onChange={(e) => setRecordPath(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                 e.preventDefault();
                 handleRecordStart();
               }

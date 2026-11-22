@@ -1026,28 +1026,112 @@ pub const TABLE_ROWS: usize = 5000;
 /// [`literals`] reads its strings): each array of two records or more whose fields are all fixed values, and each map
 /// of fixed values, as records of `key` and `value`. The site's data, shipped to everyone: a page may turn the caller's
 /// word into the site's code by one of them with no call made. Nothing of the script runs. Empty when no runtime is on
-/// the machine, or the script does not parse.
+/// the machine, the script does not parse, or the ask this thread works for has stopped.
+///
+/// A script's tables are a property of its body alone, so each body is parsed once ([`shipped_tables`]): every
+/// question asked of it after the first (each candidate value of each call a learn weighs, a second learn of the same
+/// page) is answered from that one reading and starts no child process.
 pub fn tables(body: &str) -> Vec<Vec<serde_json::Value>> {
-    let Some(runtime) = crate::sandbox::runtime() else { return Vec::new() };
+    shipped_tables(body).as_ref().clone()
+}
+
+type Tables = std::sync::Arc<Vec<Vec<serde_json::Value>>>;
+
+/// How many distinct script bodies' tables are kept. A walk's page runs a few hundred scripts at most; past this the
+/// readings are let go and read again when asked.
+const TABLES_KEPT: usize = 2048;
+
+thread_local! {
+    /// How many times this thread started the tables parser ([`tables_children`]).
+    static TABLE_CHILDREN: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many times this thread has started a child process to read a script's tables: one per script body read for the
+/// first time, none for a body already read or once the ask has stopped.
+pub fn tables_children() -> usize {
+    TABLE_CHILDREN.with(|n| n.get())
+}
+
+/// The tables `body` ships, read once per body (by its SHA-256) and shared by every caller after that. A reading that
+/// did not finish (no runtime, the ask stopped) is not kept, so a later ask reads the body again.
+fn shipped_tables(body: &str) -> Tables {
+    static READ: std::sync::Mutex<Option<std::collections::HashMap<String, std::sync::Arc<std::sync::Mutex<Option<Tables>>>>>> = std::sync::Mutex::new(None);
+    if crate::mint::asked_to_stop() {
+        return Tables::default();
+    }
+    let key = crate::blobs::sha256_hex(body.as_bytes());
+    let cell = {
+        let mut read = READ.lock().unwrap_or_else(|e| e.into_inner());
+        let read = read.get_or_insert_with(std::collections::HashMap::new);
+        if read.len() >= TABLES_KEPT && !read.contains_key(&key) {
+            read.clear();
+        }
+        read.entry(key).or_default().clone()
+    };
+    // One reading of a body at a time: a second caller asking for the same body waits for the first's answer.
+    let mut held = cell.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(t) = held.as_ref() {
+        return t.clone();
+    }
+    match read_tables(body) {
+        Some(t) => {
+            let t: Tables = std::sync::Arc::new(t);
+            *held = Some(t.clone());
+            t
+        }
+        None => Tables::default(),
+    }
+}
+
+/// Parses `body` for its tables in a child of the node runtime. None where no runtime is on the machine or the ask
+/// stopped before the child answered (it is killed then: a stopped ask holds no process); Some (maybe empty) where the
+/// parser ran to its end, a script that does not parse included.
+fn read_tables(body: &str) -> Option<Vec<Vec<serde_json::Value>>> {
+    let runtime = crate::sandbox::runtime()?;
     static RUNS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!("unbrowse-tables-{}-{n}", std::process::id()));
     if std::fs::create_dir_all(&dir).is_err() {
-        return Vec::new();
+        return Some(Vec::new());
     }
-    let out = (|| -> Option<Vec<Vec<serde_json::Value>>> {
-        std::fs::write(dir.join("acorn.js"), ACORN).ok()?;
-        std::fs::write(dir.join("slice_tables.js"), TABLES_HELPER).ok()?;
-        std::fs::write(dir.join("spec.json"), serde_json::json!({ "body": body, "rows": TABLE_ROWS }).to_string()).ok()?;
-        let out = std::process::Command::new(&runtime).arg(dir.join("slice_tables.js")).arg(dir.join("spec.json")).current_dir(&dir).stdin(std::process::Stdio::null()).stderr(std::process::Stdio::null()).output().ok()?;
-        if !out.status.success() {
-            return None;
+    let out = (|| -> Result<Vec<Vec<serde_json::Value>>, bool> {
+        std::fs::write(dir.join("acorn.js"), ACORN).map_err(|_| false)?;
+        std::fs::write(dir.join("slice_tables.js"), TABLES_HELPER).map_err(|_| false)?;
+        std::fs::write(dir.join("spec.json"), serde_json::json!({ "body": body, "rows": TABLE_ROWS }).to_string()).map_err(|_| false)?;
+        let said = std::fs::File::create(dir.join("out.json")).map_err(|_| false)?;
+        TABLE_CHILDREN.with(|c| c.set(c.get() + 1));
+        let mut child = std::process::Command::new(&runtime)
+            .arg(dir.join("slice_tables.js"))
+            .arg(dir.join("spec.json"))
+            .current_dir(&dir)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::from(said))
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|_| false)?;
+        // Waited on with the ask's stop flag in view: an ask that gave up ends the parse rather than wait it out.
+        let status = loop {
+            if let Some(status) = child.try_wait().map_err(|_| false)? {
+                break status;
+            }
+            if crate::mint::asked_to_stop() {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(true);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        };
+        if !status.success() {
+            return Ok(Vec::new());
         }
-        let said: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-        Some(said.get("tables")?.as_array()?.iter().filter_map(|t| t.as_array().cloned()).collect())
+        let said: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join("out.json")).map_err(|_| false)?).map_err(|_| false)?;
+        Ok(said.get("tables").and_then(|t| t.as_array()).map(|a| a.iter().filter_map(|t| t.as_array().cloned()).collect()).unwrap_or_default())
     })();
     let _ = std::fs::remove_dir_all(&dir);
-    out.unwrap_or_default()
+    match out {
+        Ok(t) => Some(t),
+        Err(stopped) => (!stopped).then(Vec::new),
+    }
 }
 
 /// The code of each script a walk's pages ran: each script it fetched, and each inline script of its documents.
@@ -1088,7 +1172,7 @@ pub fn sent_by_a_shipped_table(trace: &crate::trace::Trace, e: &crate::trace::Ex
     }
     let lower = value.to_lowercase();
     scripts_of(trace).into_iter().filter(|code| code.to_lowercase().contains(&lower) && sent.iter().any(|v| code.contains(v.as_str()))).any(|code| {
-        tables(&code).iter().flatten().any(|row| {
+        shipped_tables(&code).iter().flatten().any(|row| {
             let leaves = crate::slots::json_leaves(row);
             leaves.iter().any(|(at, f)| f.to_lowercase() == lower && leaves.iter().any(|(other, g)| other != at && sent.contains(g)))
         })
@@ -1115,5 +1199,55 @@ mod table_tests {
         assert!(tables.contains(&vec![serde_json::json!({ "key": "metre", "value": "m" }), serde_json::json!({ "key": "litre", "value": "l" })]));
         assert!(!tables.iter().flatten().any(|r| r.get("code") == Some(&serde_json::json!("X"))), "a record with a value worked out is in no table");
         assert!(super::tables("this is { not a script").is_empty());
+    }
+
+    /// A made-up walk whose one script ships a table of fifty places, and a call that sends one place's code. Asked of
+    /// each of the fifty names (the candidate values a learn weighs), the reader parses the script once: one child
+    /// process, however many questions. A body never read before (`fresh`) keeps other tests' readings out of the count.
+    fn a_walk_shipping_fifty_places(fresh: &str) -> (crate::trace::Trace, crate::trace::Exchange, Vec<String>) {
+        let places: Vec<String> = (1..=50).map(|i| format!("{{ name: 'Place{i:02}', code: 'P{i:02}' }}")).collect();
+        let script = format!("// {fresh}\nconst PLACES = [{}];\nfunction go(q) {{ var p = PLACES.find(function (r) {{ return r.name === q; }}); fetch('/s?c=' + p.code); }}", places.join(", "));
+        let ex = |url: &str, kind: &str, mime: &str, body: &str| crate::trace::Exchange {
+            method: "GET".into(), url: url.parse().unwrap(), request_headers: vec![], request_body: None, status: 200,
+            response_headers: vec![], response_body: Some(body.into()), response_mime: mime.into(), resource_type: Some(kind.into()), main_frame: Some(true),
+        };
+        let call = ex("https://trip.example/s?c=P07", "Fetch", "application/json", r#"{"stays":[]}"#);
+        let trace = crate::trace::Trace { exchanges: vec![ex("https://trip.example/s/places.js", "Script", "application/javascript", &script), call.clone()], inputs: vec![] };
+        (trace, call, (1..=50).map(|i| format!("Place{i:02}")).collect())
+    }
+
+    fn fresh() -> String {
+        format!("{:?} {:?}", std::thread::current().id(), std::time::SystemTime::now())
+    }
+
+    #[test]
+    fn a_scripts_tables_are_read_once_however_many_values_are_asked_of_them() {
+        if crate::sandbox::runtime().is_none() {
+            return;
+        }
+        let (trace, call, values) = a_walk_shipping_fifty_places(&fresh());
+        let before = tables_children();
+        let sent: Vec<&String> = values.iter().filter(|v| sent_by_a_shipped_table(&trace, &call, v)).collect();
+        assert_eq!(sent, vec!["Place07"], "the table turns the one name into the code the call sends");
+        assert_eq!(tables_children() - before, 1, "one child read the script's tables for all fifty values");
+        // Any other caller of the reader is answered from the same reading.
+        assert_eq!(tables(trace.exchanges[0].response_body.as_deref().unwrap())[0].len(), 50);
+        assert_eq!(tables_children() - before, 1);
+    }
+
+    /// An ask that gave up starts no child to read a script's tables, and its empty reading is not kept: the next ask
+    /// reads the table as before.
+    #[test]
+    fn a_stopped_ask_starts_no_child_to_read_tables() {
+        if crate::sandbox::runtime().is_none() {
+            return;
+        }
+        let (trace, call, values) = a_walk_shipping_fifty_places(&fresh());
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let before = tables_children();
+        let sent = crate::mint::stops_with(stop, || values.iter().filter(|v| sent_by_a_shipped_table(&trace, &call, v)).count());
+        assert_eq!((sent, tables_children() - before), (0, 0), "a stopped ask reads no table and starts no child");
+        assert!(sent_by_a_shipped_table(&trace, &call, "Place07"), "the stopped ask's nothing was not kept as the reading");
+        assert_eq!(tables_children() - before, 1);
     }
 }

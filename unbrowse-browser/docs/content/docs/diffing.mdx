@@ -38,9 +38,7 @@ agent-browser diff snapshot --baseline before.txt
 agent-browser diff snapshot --selector "#main" --compact
 ```
 
-Without `--baseline`, the command automatically compares against the most recent snapshot of this page taken in the current session, a diff included, and takes its own the same way (`snapshot -i`, then `diff snapshot`, compares interactive trees). This is the primary use case for agents verifying that an action had the intended effect. With no snapshot yet, or with options of its own unlike the last snapshot's, it refuses and says so.
-
-A `--baseline` file must exist and sit inside the file root (`AGENT_BROWSER_FILE_ROOT`, or `~/.agent-browser/files`).
+Without `--baseline`, the command automatically compares against the most recent snapshot taken in the current session. This is the primary use case for agents verifying that an action had the intended effect.
 
 ### Options
 

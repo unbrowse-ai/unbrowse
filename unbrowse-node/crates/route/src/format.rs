@@ -404,4 +404,20 @@ mod tests {
         assert_eq!(serde_json::from_value::<Pattern>(said).unwrap(), money);
         assert!(serde_json::from_value::<Pattern>(serde_json::json!({ "as": "weekday" })).is_err(), "a kind this crate does not know does not read");
     }
+
+    fn number(point: &str, group: &str, places: Option<u8>) -> Pattern {
+        Pattern::Number { point: point.into(), group: group.into(), places }
+    }
+
+    /// A field a form names twice must say one thing both times; a number rounds half up and carries into a new digit,
+    /// is padded to the places asked, and a whole number needs no point.
+    #[test]
+    fn a_field_said_twice_agrees_and_a_number_rounds_and_carries() {
+        assert_eq!(reformat("2026-03/03", &time("{yyyy}-{mm}/{m}"), &time("{yyyy}.{mm}")).as_deref(), Some("2026.03"));
+        assert_eq!(reformat("2026-03/04", &time("{yyyy}-{mm}/{m}"), &time("{yyyy}.{mm}")), None, "one month cannot be two");
+        assert_eq!(reformat("9.96", &number(".", "", None), &number(".", "", Some(1))).as_deref(), Some("10.0"), "the carry makes a digit");
+        assert_eq!(reformat("1234", &number(",", ".", None), &number(".", ",", Some(2))).as_deref(), Some("1,234.00"), "a whole number, padded");
+        assert_eq!(reformat("1.234,5", &number(",", ".", None), &number(".", "", Some(0))).as_deref(), Some("1235"), "half rounds up");
+        assert_eq!(reformat("12", &time("{yyyy}"), &number(".", "", None)), None, "a date is not a number");
+    }
 }

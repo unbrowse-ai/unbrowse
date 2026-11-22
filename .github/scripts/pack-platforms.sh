@@ -27,7 +27,6 @@ trap 'rm -rf "$stage"' EXIT
 
 # platform  archive  npm os/cpu  the archive the browser program comes from (- for the same one)
 machines="darwin-arm64 Unbrowse-$version-macos-arm64.zip darwin arm64 unbrowse-$version-macos-arm64.tar.gz
-darwin-x64 Unbrowse-$version-macos-x64.zip darwin x64 unbrowse-$version-macos-x64.tar.gz
 linux-x64 unbrowse-$version-linux-x64.tar.gz linux x64 -
 linux-arm64 unbrowse-$version-linux-arm64.tar.gz linux arm64 -
 win32-x64 unbrowse-$version-windows-x64.zip win32 x64 -"

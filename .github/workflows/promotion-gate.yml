@@ -1,0 +1,72 @@
+# The promotion gate (UNB-208), checked without a model and without a secret, so it runs on every pull request.
+#
+#   harness   the gate and the bank's runner, tested with a stand-in model and made-up numbers; then the gate is run
+#             on staging as measured on 17 Nov 2026 (programme 887958 step 1) and must refuse it, naming each part
+#   release   a pull request into main ships a release: the gate's verdict on the release branch's tree, from the
+#             coverage and the whole task bank CI kept for it (the same check release.yml makes before a tag publishes)
+#
+# The task bank itself runs in gate-bank.yml, where the model's credential is; no pull request can start it.
+name: Promotion gate
+
+on:
+  pull_request:
+  push:
+    branches: [staging, "release/**"]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  harness:
+    permissions:
+      contents: read
+    name: Promotion gate, harness
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it.
+      # Skipped on hosted runners.
+      - name: Tools the local runner may lack
+        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        run: dpkg -s python3-yaml > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq python3-yaml > /dev/null; }
+      - run: python3 -m unittest discover -s test-banks/gate -p 'test_*.py' -v
+      - run: python3 -m unittest discover -s .github/scripts/test -p 'test_promotion_gate.py' -v
+      - run: python3 -I .github/scripts/test/test_behaviour_coverage.py -v
+      - name: The gate refuses staging as measured on 17 November 2026
+        run: |
+          f=test-banks/gate/fixtures/staging-2026-11-17
+          status=0
+          python3 -I .github/scripts/promotion_gate.py check --coverage "$f/coverage-summary.json" \
+            --bank-results "$f/results.jsonl" --md "$RUNNER_TEMP/verdict.md" || status=$?
+          { echo "### The promotion gate on staging 7071ae02, 17 Nov 2026 (dry run)"; cat "$RUNNER_TEMP/verdict.md"; } >> "$GITHUB_STEP_SUMMARY"
+          [ "$status" = 1 ] || { echo "::error::the gate did not refuse the 17 November baseline (exit $status)"; exit 1; }
+
+  release:
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name == 'pull_request' && github.base_ref == 'main') }}
+    permissions:
+      contents: read
+      actions: read
+    name: Promotion gate, release
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it.
+      # Skipped on hosted runners.
+      - name: Tools the local runner may lack
+        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        run: dpkg -s gh > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq gh > /dev/null; }
+      # The tree of the release branch, which is what the squash-merge into main ships and the tag releases.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$HEAD_SHA" --jq .tree.sha)
+          status=0
+          sh .github/scripts/promotion-gate.sh "$tree" "$RUNNER_TEMP/promotion" || status=$?
+          cat "$RUNNER_TEMP/promotion/verdict.md" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

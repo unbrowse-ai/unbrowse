@@ -594,6 +594,60 @@ pub async fn set_fetch_delay(chain: &Chain, keys: &(dyn KeyStore + Sync), delay:
     Ok(tx)
 }
 
+/// Whether a failed call on an entry clears its payer's latest-passed flag (`rank.counted-stake`): only while the flag
+/// is set and the payer has coins in the entry's coin staked and not asked back, the coins the flag lets count in `Q`.
+/// A payer with no such stake changes no rank by reporting, so it spends no gas on it.
+pub fn report_due(latest_passed: bool, staked: U256) -> bool {
+    latest_passed && !staked.is_zero()
+}
+
+/// The (entry, payer, epoch) reports this node has sent, so a route failing many times in an epoch is reported once.
+/// Only the current epoch's are kept.
+fn reported() -> std::sync::MutexGuard<'static, (u64, BTreeSet<(B256, Address)>)> {
+    static SENT: std::sync::OnceLock<std::sync::Mutex<(u64, BTreeSet<(B256, Address)>)>> = std::sync::OnceLock::new();
+    SENT.get_or_init(Default::default).lock().unwrap_or_else(|p| p.into_inner())
+}
+
+/// Whether `(entry, payer)` is still to be reported in `epoch`, marking it as reported if so.
+pub fn first_report(entry: B256, payer: Address, epoch: u64) -> bool {
+    let mut sent = reported();
+    if sent.0 != epoch {
+        *sent = (epoch, BTreeSet::new());
+    }
+    sent.1.insert((entry, payer))
+}
+
+/// After a failed call on `entry`, clears the owner wallet's latest-passed flag there (`CoinStakes.reportFailed`), so
+/// its stake stops counting in the entry's `Q` until its next passed paid call. A failed line pays nobody and is never
+/// claimed (`decide.failed-fetch-always-free`, `served::stale_failures`), so without this nothing on the chain ever
+/// clears the flag and a broken route keeps its rank. Reporting costs gas only: what stake earns follows `checked`, not
+/// the flag. `None` when there is nothing to clear: no coin, no flag set, or no counted stake.
+pub async fn report_failed(chain: &Chain, keys: &(dyn KeyStore + Sync), entry: B256) -> Result<Option<String>, String> {
+    let d = chain.deployed()?;
+    let c = coins_of(&d)?;
+    let p = as_signer(owner_signer(keys)?).await?;
+    let me = p.default_signer_address();
+    // An entry with no coin has no stake to count.
+    let Ok(v) = verify_coin(&p, &d, entry).await else { return Ok(None) };
+    let st = CoinStakes::new(c.coin_stakes, &p);
+    let latest = st.latestPassed(entry, me).call().await.map_err(|e| e.to_string())?;
+    let lots = st.lotsOf(v.coin, me).call().await.map_err(|e| e.to_string())?;
+    // Coins asked back already count for nothing (`rank::coin::counted_stake`).
+    let staked = lots.iter().fold(U256::ZERO, |a, l| a + l.earning + l.pending);
+    if !report_due(latest.passed, staked) {
+        return Ok(None);
+    }
+    let tx = send!(st.reportFailed(entry), "reporting a failed call on a route you hold stake in");
+    log(
+        "Reported a failed call on a route you hold stake in",
+        "coin",
+        None,
+        &tx,
+        Some(format!("Your stake in entry {entry:#x}'s coin stops counting in its rank until your next paid call there passes; it still earns")),
+    );
+    Ok(Some(tx))
+}
+
 /// The exit delay a fetch's stake for the owner uses now, in seconds.
 pub async fn fetch_delay(chain: &Chain, keys: &(dyn KeyStore + Sync)) -> Result<u64, String> {
     let d = chain.deployed()?;
@@ -1352,6 +1406,27 @@ mod tests {
         assert_eq!(usd_per_unb(f64::NAN), None);
         let value_unb = 1_000.0;
         assert_eq!(usd_per_unb(4.0).map(|usd| value_unb * usd), Some(250.0));
+    }
+
+    /// A failed call clears the flag only for a payer whose stake it lets count: the flag set and coins staked.
+    #[test]
+    fn a_failed_call_is_reported_only_where_stake_counts() {
+        assert!(report_due(true, U256::from(1)), "flag set, coins staked: the stake counts, so it is reported");
+        assert!(!report_due(true, U256::ZERO), "no stake: nothing in Q to take out");
+        assert!(!report_due(false, U256::from(1)), "flag already clear: the stake counts for nothing already");
+        assert!(!report_due(false, U256::ZERO), "neither");
+    }
+
+    /// A route failing many times in an epoch is reported once for each payer, and again in the next epoch.
+    #[test]
+    fn a_failed_call_is_reported_once_an_epoch_for_each_entry_and_payer() {
+        let (e1, e2) = (B256::repeat_byte(0xa1), B256::repeat_byte(0xa2));
+        let (p1, p2) = (Address::repeat_byte(0xb1), Address::repeat_byte(0xb2));
+        assert!(first_report(e1, p1, 7_000_001), "the first failure is reported");
+        assert!(!first_report(e1, p1, 7_000_001), "the second in the epoch isn't");
+        assert!(first_report(e2, p1, 7_000_001), "another entry is its own");
+        assert!(first_report(e1, p2, 7_000_001), "another payer is its own");
+        assert!(first_report(e1, p1, 7_000_002), "the next epoch reports again");
     }
 
     /// The clone check is OpenZeppelin's own layout: 77 bytes of runtime, its argument the entry id, and the address

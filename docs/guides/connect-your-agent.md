@@ -70,10 +70,91 @@ backs them up to `~/.unbrowse/migration/<time>/`, and replaces them only once th
 shell gets the plan and no change: run it in a terminal, or add `--yes`. `unbrowse connect --dry-run` shows the plan
 alone; `unbrowse connect --undo` puts the old entries back, and `--undo --purge` also deletes the backup.
 
+The other agents on the machine are written the same way, each in its own config file and the shape it reads, by the
+app's Connect button (the first run, or the Agents screen the window opens on) or by `unbrowse connect --client
+cursor,vscode,gemini-cli` (`all`: every client found here). The entry is started and asked for its tools before any file
+changes; each file is kept beside itself as `<file>.before-unbrowse-<time>`; an `unbrowse` server no Unbrowse wrote is
+left alone and named; a file with comments (JSONC) is left alone, since writing it back would drop them; and the
+window's Undo puts every file back (`app/src/connect.rs`, `scripts/install-e2e.sh`). Connecting from the window the
+first time asks the owner once, in the node's dialog, since it hands the client the first agent's grant.
+
+### Agents the app connects
+
+A client counts as installed by its program, never by a settings folder alone (a skills sync makes `~/.hermes/skills`
+on a machine with no Hermes): its app in `/Applications` or `~/Applications`, its command on the PATH or where
+installers put one (`~/.local/bin`, `~/.bun/bin`, nvm's, Homebrew's and the agents' own folders, since an app opened
+from the Dock has a short PATH), or, for Cline and Roo Code, their VS Code extension. Only an installed client is
+listed, and Connect writes nothing for one that isn't (`unbrowse connect --client <name>` says so). "Reopen" means it
+reads its config only as it starts: quit and reopen it after connecting. Paths are a Mac's; `~/.config` is
+`$XDG_CONFIG_HOME` when set.
+
+| Client | `--client` | File | Where in it | Reopen |
+|---|---|---|---|---|
+| Claude Code | `claude-code` | `claude mcp add --scope user`, else `~/.claude.json` | `mcpServers`, `"type": "stdio"` | no |
+| Claude Desktop | `claude-desktop` | `~/Library/Application Support/Claude/claude_desktop_config.json` | `mcpServers` | yes |
+| Cursor | `cursor` | `~/.cursor/mcp.json` | `mcpServers` | yes |
+| Codex | `codex` | `~/.codex/config.toml` (`$CODEX_HOME`) | `[mcp_servers.unbrowse]` | no |
+| VS Code (GitHub Copilot) | `vscode` | `~/Library/Application Support/Code/User/mcp.json` | `servers`, `"type": "stdio"` | yes |
+| Windsurf | `windsurf` | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` | yes |
+| Devin | `devin` | `~/.config/devin/mcp_config.json` | `mcpServers` | yes |
+| Gemini CLI | `gemini-cli` | `~/.gemini/settings.json` | `mcpServers` | no |
+| Antigravity | `antigravity` | `~/.gemini/config/mcp_config.json` | `mcpServers` | yes |
+| Qwen Code | `qwen-code` | `~/.qwen/settings.json` | `mcpServers` | no |
+| GitHub Copilot CLI | `copilot-cli` | `~/.copilot/mcp-config.json` | `mcpServers`, `"type": "local"`, `"tools": ["*"]` | no |
+| Factory Droid | `factory-droid` | `~/.factory/mcp.json` | `mcpServers` | no |
+| Kiro | `kiro` | `~/.kiro/settings/mcp.json` | `mcpServers` | no |
+| Warp | `warp` | `~/.warp/.mcp.json` | `mcpServers` | yes |
+| Amp | `amp` | `~/.config/amp/settings.json` | `amp.mcpServers` | no |
+| opencode | `opencode` | `~/.config/opencode/opencode.json` | `mcp.servers`, `{type: "local", command: [...], environment}` | no |
+| Kilo Code | `kilo-code` | `~/.config/kilo/kilo.json` | `mcp`, `{type: "local", command: [...], environment}` | no |
+| Augment | `augment` | `~/.augment/settings.json` | `mcpServers` | yes |
+| Junie | `junie` | `~/.junie/mcp/mcp.json` | `mcpServers` | yes |
+| Cline | `cline` | `<VS Code User>/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | `mcpServers` | yes |
+| Roo Code | `roo-code` | `<VS Code User>/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json` | `mcpServers` | yes |
+| LM Studio | `lm-studio` | `~/.lmstudio/mcp.json` | `mcpServers` | yes |
+| Hermes Agent | `hermes` | `~/.hermes/config.yaml` | `mcp_servers:` (YAML; a form it can't edit safely is left for you) | yes |
+| OpenClaw | `openclaw` | `~/.openclaw/openclaw.json` | `mcp.servers` | yes |
+
+ElizaOS is found by its `elizaos` command and listed, but it keeps its plugins in each project's character, so there is
+no file of the machine's to write: add `@unbrowse/plugin-unbrowse` to the character's plugins
+([integrations/elizaos](../../integrations/elizaos)).
+
+Each entry is `unb mcp --agent first` with `UNBROWSE_NODE` in its environment, written in the client's own shape.
+
+## ChatGPT and Claude on the web
+
+A chat in a browser or a phone can't start a program on this machine, so it reaches the node by a URL: the node's own
+remote MCP address, `https://unbrowse.ai/p/<this node's peer ID>/mcp` (`app/src/remote.rs`). The node dials out to the
+gateway, so no port opens here, and only an app the owner allows gets in: the app signs in by OAuth (PKCE, dynamic
+client registration), the node asks its owner in its own dialog, and a yes makes that app a remote key ($5 a day, 30
+days, revocable in Settings). A sign-in asks the owner only for 10 minutes after the address is turned on or "Adding it
+now? Let a sign-in ask" is pressed; any other time it is refused without a dialog.
+
+In the window: Agents, **ChatGPT and Claude on the web**, **Turn on the address**, **Copy address** (the first run
+offers the same as its second step). From a shell: `unbrowse-node remote on`, which prints the address.
+
+- **Claude** (claude.ai, Claude Desktop, the phone app): Customize, Connectors, **+**, **Add custom connector**; name it
+  Unbrowse, paste the address, Add; allow the sign-in when Unbrowse asks; turn it on in a chat's tools menu. A free plan
+  can add one custom connector; on Team or Enterprise an owner adds it under Organization settings. Once added it works
+  on the phone too.
+- **ChatGPT** (web): chatgpt.com/plugins, **+**, **Add custom MCP server**; name and address, OAuth, tick the box,
+  Create; allow the sign-in; in a new chat type `@` and pick Unbrowse. ChatGPT takes custom MCP servers on Business,
+  Enterprise and Edu workspaces, added by an admin; other plans may not show the option.
+- **Claude Code on another machine**: `claude mcp add --transport http unbrowse-remote <address>`.
+
+The steps follow each app's own help pages as of November 2026; their menus move, the address and the sign-in don't.
+
 Then give Claude Code the skill: a global npm install puts it in `~/.claude/skills/unbrowse`; otherwise
 `unbrowse skill` ([the-skill.md](../reference/the-skill.md)).
 
 ## Any other MCP client
+
+Clients the app doesn't write (Zed, whose settings are JSONC; Continue and Goose; Crush; JetBrains AI Assistant and
+Cherry Studio, set up in their own settings screens) take the same stdio server by hand:
+`unb mcp --agent first`, with `UNBROWSE_NODE=http://127.0.0.1:7788` in its environment. In Zed it goes under
+`context_servers`; in Goose under `extensions` as `{type: stdio, cmd, args, envs}`; in Continue under `mcpServers` in
+`~/.continue/config.yaml`. Hermes Agent and OpenClaw also have native plugins ([integrations/](../../integrations)), an
+alternative to the MCP entry Connect writes.
 
 Give it `unb mcp` (or `unbrowse mcp`) to start, with `UNBROWSE_AGENT_TOKEN` (and `UNBROWSE_NODE` for a node elsewhere)
 in its environment: it signs each message. Codex's plugin and `integrations/codex/install.sh` set it up that way. A
@@ -110,7 +191,7 @@ An entry an older Unbrowse (12.x) wrote, such as `npx -y unbrowse mcp` or `node 
 agent and carries no token. Run against this version it acts as the node's first agent, at `127.0.0.1:7788` unless
 `UNBROWSE_NODE` says otherwise, and its old flags are ignored. It never reads the hosted sign-in in `~/.config/unbrowse`
 and leaves it as it was, so going back to 12.5.0 still finds it. Until the owner lets the first agent in, the entry
-still starts: it lists one tool, `unbrowse_connect`, which says to run `unbrowse connect` once
+still starts: it lists one tool, `unbrowse_connect`, which says to click Connect in the app or run `unbrowse connect` once
 (`scripts/legacy-mcp-e2e.sh` checks both).
 
 What remains, by design: a grant is a file of this OS user's, 0600 in `~/.unbrowse/bridges`, so any program running as
@@ -130,8 +211,6 @@ What can still send a bearer token: an MCP config an earlier `unbrowse connect`,
 docs set up with an `Authorization` header, a script of the owner's that sends one, and this repository's own test
 harnesses (`test-banks/popular-sites/scratch-node.sh` and the Antithesis setup write the setting on for their scratch
 nodes).
-
-Not built: plugins that connect an agent for you (no `integrations/` directory in this repository).
 
 ## Limits on an agent
 

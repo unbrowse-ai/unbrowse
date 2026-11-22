@@ -1,5 +1,6 @@
 {
-  "fields": ["event", "version", "os", "install_id", "tool", "outcome", "duration_ms", "error_class"],
+  "fields": ["event", "version", "os", "install_id", "tool", "outcome", "duration_ms", "error_class", "from"],
+  "from": { "event": "node_start", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$", "max_chars": 40 },
   "required": ["event", "version", "os", "install_id", "outcome"],
   "events": ["node_start", "tool_call", "route_failed", "fetch_failed"],
   "tools": [

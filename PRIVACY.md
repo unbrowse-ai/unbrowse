@@ -11,12 +11,13 @@ node, its window, CLI and SDK (the "Software"). The unbrowse.ai website and host
 The node runs on your machine. What it sends us is usage telemetry (which tools ran, whether they worked, how long
 they took), on by default in a release while the node is on the network, and off with one command. The node joins the
 network with its own wallet; no sign-in is needed. A node you keep off the network is local and sends us nothing:
-telemetry counted then is dropped, and bug reports wait. If you link a wallet of yours (with Privy, or your own), the
-node's events also name that wallet: the wallet is your account with us, in place of an API key. Telemetry never
-carries what you browse, call or keep. Bug reports are the one exception, and they are public: when an agent reports a
-problem with Unbrowse, or the node notices one itself, a scrubbed report naming the site and the route's path
-template becomes a GitHub issue anyone can read. They follow telemetry and turn off with one command. Everything else that leaves your machine goes to the sites you call, to other nodes you deal with, and
-to public blockchains, all because you or your agents asked.
+telemetry counted then is dropped, and bug reports wait. If you link an optional wallet, the node's signed events to
+unbrowse.ai name that wallet, `install_id`, and (for unbrowse.ai sign-ins) your browser's visitor id so Unbrowse can
+see the path from first visit to first good call and fix drop-offs. Telemetry never carries what you browse, call or
+keep. Bug reports are the one exception, and they are public: when an agent reports a problem with Unbrowse, or the
+node notices one itself, a scrubbed report naming the site and the route's path template becomes a GitHub issue anyone
+can read. They follow telemetry and turn off with one command. Everything else that leaves your machine goes to the
+sites you call, to other nodes you deal with, and to public blockchains, all because you or your agents asked.
 
 ## What stays on your machine
 
@@ -37,12 +38,15 @@ We never receive any of these. You can delete them by deleting the node's data f
   answer. When your node calls another node's route, that node sees the call and its inputs. Other nodes are run by
   independent people; we don't control what they keep.
 - **Unbrowse, as usage telemetry.** A release sends batches to `telemetry.unbrowse.ai` with only these fields: the
-  event (the node started, or an agent called a tool), the node's version and operating system, a random install id
-  tied to nothing else, which agent tool or API route ran (never which route or site), the outcome and a coarse error
-  class, and how long it took. It never sends URLs, sites or host names, page content, requests or answers, route ids,
-  goals or inputs, cookies, passwords, passkeys, vault entries, keys, wallet addresses, user or machine names, or your
-  IP address. We keep each event and the hour it arrived, and never read or keep your IP address. A build from source
-  sends nothing unless you turn it on.
+  event (the node started, or an agent called a tool), the node's version and operating system, a random `install_id`
+  that by itself names no person, account, machine or name, though linking a wallet joins its counts to that wallet,
+  which agent tool or API route ran (never which route or site), the outcome and a coarse error class, and how long it
+  took. If started with `unbrowse start --from <tag>` or `UNBROWSE_FROM=<tag>`, `node_start` also sends `from` (saved
+  once in `~/.unbrowse/from.json` and shared by everyone copying that install line) so Unbrowse can count which places
+  send people who reach a first working call. It never sends URLs, sites or host names, page content, requests or
+  answers, route ids, goals or inputs, cookies, passwords, passkeys, vault entries, keys, wallet addresses, user or
+  machine names, or your IP address. We keep each event and the hour it arrived, delete it 400 days after that hour,
+  and never read or keep your IP address. A build from source sends nothing unless you turn it on.
 - **Everyone, as bug reports.** While telemetry and reports are on, an agent can report a problem with Unbrowse (a
   result for the wrong thing, a block page answered as a success, a call that failed), and the node reports a few
   problems it notices itself (a crash, an internal error, a route that still failed after its page was walked again).
@@ -65,11 +69,19 @@ We never receive any of these. You can delete them by deleting the node's data f
   day's count under a hash of the id and the day, and for each problem only its issue and how often it was reported.
   Later reports of a problem add only a count to its issue.
   An agent is told never to put personal data in a report, and every reply shows the agent exactly what was filed.
-- **Unbrowse, as your account.** If you link a wallet of yours to the node, with Privy or your own, the node also sends the
-  site three events while telemetry is on: it started, it was linked, it was unlinked. Each is signed by the node's key
-  and names the node's address and your wallet, so we know a node really sent it and which wallet owns it. The wallet
-  is how we know you, instead of an API key. These events never name a site, route or input. A node you haven't linked
-  sends none of them, and turning telemetry off stops them too.
+- **Unbrowse, as your account.** Linking a wallet is optional because the node joins the network with its own wallet.
+  If you link one (with email or Google on unbrowse.ai, or your own wallet), the node sends unbrowse.ai three signed
+  events while telemetry is on: `node_started`, `owner_linked` and `owner_unlinked`. If unbrowse.ai cannot be reached,
+  the node sends them to unbrowse.si instead, a second address of the same Unbrowse website run by Unbrowse under the
+  same site privacy policy. Each carries the node's address, your wallet, `install_id`, and, when you sign in on
+  unbrowse.ai, your browser's random visitor id (cookie `ub_vid`, kept in `~/.unbrowse/owner.json`). Unbrowse collects
+  these to see each signed-in person's path from first visit to installing, signing in, and their agent's first good
+  call, to fix where people drop off. `ub_vid` requires Allow in the EU, EEA, UK and Switzerland, has a one-click Opt
+  out notice elsewhere, and is skipped for Global Privacy Control. Visits join only through the sign-in the site kept
+  itself, and events never name a site, route or input. The website deletes each record it holds under `ub_vid`
+  (visits, sign-in, and the node and install it joined) 400 days after it last changed. Unlinked nodes send
+  none, outside links send no `ub_vid`, turning telemetry off stops them, and opting out on unbrowse.ai/privacy
+  deletes everything kept under `ub_vid`.
 - **Public blockchains.** Registering your node, listing routes, and paying or being paid for calls are recorded on
   chain with your wallet address. Blockchain records are public and permanent; we can't change or delete them.
 
@@ -79,11 +91,13 @@ shared. Check what you list before you list it.
 ## Your choices
 
 You can turn usage telemetry off with `unbrowse-node telemetry off` or `UNBROWSE_TELEMETRY=0` (bug reports stop with
-it), turn bug reports alone off with `unbrowse-node reports off` (a running node stops at once) or `UNBROWSE_REPORTS=0`, turn passkeys off
-with `unbrowse-node passkey off` (or never for one site with `passkey never <site>`), run the node without joining the
-network, turn off learning, keep routes unlisted, delist a route, or stop
+it), turn bug reports alone off with `unbrowse-node reports off` (a running node stops at once) or
+`UNBROWSE_REPORTS=0`, turn passkeys off with `unbrowse-node passkey off` (or never for one site with `passkey never
+<site>`), run the node without joining the network, turn off learning, keep routes unlisted, delist a route, or stop
 the node. Delisting removes a route from future searches but not from copies other nodes already hold or from the
-chain.
+chain. Start without `--from` or `UNBROWSE_FROM` to keep no source tag, delete `~/.unbrowse/from.json` to remove a
+saved tag, and opt out on unbrowse.ai/privacy to delete what the site kept under your visitor id, including the
+sign-in and the node it joined.
 
 ## Children
 

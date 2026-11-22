@@ -1,0 +1,321 @@
+# The task gate's bank (UNB-208): the fixed tasks in test-banks/gate run through a scratch node's MCP, with a real
+# model as the client and as the judge (test-banks/gate/run_gate.py; AGENTS.md, "The task gate and the 13 November
+# rule").
+#
+#   push to staging/main  the slice (test-banks/gate/slice.json): six tasks right on staging on 17 Nov 2026. Red on a
+#                         confident wrong answer, or on a slice task right on the reference that is not right now
+#                         ("changed" until a person re-reads that site by hand). QA (qa.yml) calls it on those pushes,
+#                         so its verdict sits in the same report as every journey (UNB-235)
+#                         and it runs the node QA's run built once (`build_digest`), not a build of its own
+#   nightly, on staging   the whole bank: a number to read, and the floor's early warning
+#   push to release/**    the whole bank on the candidate: the run the promotion gate (release.yml, promotion-gate.yml)
+#                         reads, kept as the artifact `gate-bank-full-<tree>`
+#   by hand               either, on any branch
+#
+# No pull request starts it. A ready pull request into staging from a branch of this repository runs the same slice
+# in pr-agent-checks.yml (UNB-248), the one pull request workflow allowed a model's credential, under its own rules in
+# .github/scripts/test/test_workflow_security.py. promotion-gate.yml checks the gate itself on every pull request.
+#
+# The model's credential sits only on the two steps that run the model, and they run nothing of this repository's but
+# the node's own MCP program, which the client starts: the locked Claude CLI is run on argument files a step without
+# the credential wrote (run_gate.py prepare and judges), and a step without it reads the results. The scratch nodes are
+# started before, without it. The agent gets only the node's tools: no shell, no web or files of its own.
+# Live sites change on their own: a red run is read, site by site, before anything is called a regression.
+name: Gate bank
+
+on:
+  # staging and main: QA calls the slice (workflow_call below), so a push runs it once, in QA's report.
+  push:
+    branches: ["release/**"]
+  workflow_call:
+    inputs:
+      scope:
+        description: slice or full
+        type: string
+        default: slice
+      # QA builds the node once for its jobs and this one (qa.yml's `build`): the SHA-256 of the archive it kept as
+      # the artifact `qa-node-build`. Empty (a release branch's push, the nightly run, a run by hand): this job builds.
+      build_digest:
+        description: SHA-256 of the calling run's qa-node-build archive (empty = build here)
+        type: string
+        default: ""
+      # Where the calling run's place job put this slice (qa.yml's `slice` output), so one place job hands out the Mac
+      # once for the whole run. Without it this workflow's own place job asks, and it cannot see the calling run's own
+      # jobs (place_jobs.py skips its run): QA dispatch 44948600956 put Claude QA's shard 4 and the slice both on the
+      # one Mac, and the slice waited 6.6 min behind it (UNB-235). Empty: placed here.
+      runs_on:
+        description: runs-on JSON from the calling run's place job (empty = place here)
+        type: string
+        default: ""
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: false
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: false
+      CLAUDE_CODE_OAUTH_TOKEN_2:
+        required: false
+      DASHBOARD_INGEST_KEY:
+        required: false
+      RUNNER_READ_TOKEN:
+        required: false
+  schedule:
+    - cron: '47 18 * * *'
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: slice or full
+        type: choice
+        options: [slice, full]
+        default: slice
+
+concurrency:
+  group: gate-bank-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
+  # machine that starts at once, so a Mac that is asleep or busy never holds a run up. The summary says why for each
+  # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
+  place:
+    name: Where the agent jobs run
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      bank: ${{ steps.place.outputs.bank }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/place_jobs.py
+          sparse-checkout-cone-mode: false
+      - id: place
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+          MAC_POOL: ${{ vars.MAC_RUNNER }}
+          LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
+          PLACED: ${{ inputs.runs_on }}
+        run: |
+          if [ -n "$PLACED" ]; then
+            # A runs-on label or label list, nothing else.
+            python3 -I -c 'import json, sys; v = json.loads(sys.argv[1]); assert isinstance(v, str) or (isinstance(v, list) and v and all(isinstance(x, str) for x in v))' "$PLACED"
+            echo "bank=$PLACED" >> "$GITHUB_OUTPUT"
+            echo "bank=$PLACED (placed by the calling run)"
+          else
+            python3 -I .github/scripts/place_jobs.py bank=mac
+          fi
+
+  bank:
+    needs: place
+    if: github.event_name != 'schedule' || github.ref == 'refs/heads/staging'
+    name: Gate bank (${{ (inputs.scope == 'slice' || github.event_name == 'push' && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')) && 'slice' || 'full' }})
+    runs-on: ${{ fromJSON(needs.place.outputs.bank) }}
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    env:
+      SCOPE: ${{ (inputs.scope == 'slice' || github.event_name == 'push' && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')) && 'slice' || 'full' }}
+      CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: echo "GATE=$RUNNER_TEMP/gate" >> "$GITHUB_ENV"
+      # Node before the CLI's npm ci: a self-hosted Mac's runner service has no npm on its PATH ("npm: command not
+      # found", run 44870008228 on lewis-macbook-pro); a hosted image ships one.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      # The Claude CLI the bank runs: the locked one, its lifecycle scripts off, in a step with no secret.
+      - name: Install the pinned Claude CLI
+        run: |
+          npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
+          # The CLI is a stub until its own install.cjs, from the same locked package, links in the native binary of
+          # the platform's locked optional package; skipped, every ask says "claude native binary not installed" (UNB-235).
+          node .github/tools/claude-cli/node_modules/@anthropic-ai/claude-code/install.cjs
+          .github/tools/claude-cli/node_modules/.bin/claude --version
+      - name: Pick the Claude credential that answers
+        id: credential
+        env:
+          CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+      # Called by QA with the build its run made: checked against the SHA-256 QA's build job gave, then unpacked, and
+      # nothing is built here. A push has no inputs and a run by hand has no build_digest: both are null, which is
+      # false, so `!inputs.build_digest` is true exactly when this job must build.
+      - if: ${{ inputs.build_digest }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: qa-node-build
+          path: ${{ runner.temp }}/node-build
+      - name: Unpack the build the calling run made
+        if: ${{ inputs.build_digest }}
+        env:
+          DIGEST: ${{ inputs.build_digest }}
+        run: |
+          echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
+          tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
+          # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
+          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
+          # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
+          browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
+          test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
+          echo "UNBROWSE_BROWSER=$browser" >> "$GITHUB_ENV"
+      # On its own (a release branch, nightly, by hand) it builds the node itself.
+      - if: ${{ !inputs.build_digest }}
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+      - if: ${{ !inputs.build_digest }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: vendor
+        with:
+          path: unbrowse-node/vendor
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-pss.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-grease-sigalg.patch') }}
+      - if: ${{ !inputs.build_digest && steps.vendor.outputs.cache-hit != 'true' }}
+        working-directory: unbrowse-node
+        run: sh scripts/apply-tls-patch.sh
+      # Restored, and saved straight after the build, before any node or model runs: a cache this job saves holds only
+      # what the build made. Its own key: no other workflow restores it.
+      - if: ${{ !inputs.build_digest }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: build-cache
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            unbrowse-node/target
+            unbrowse-browser/cli/target
+          key: gate-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}
+          restore-keys: gate-${{ runner.os }}-rust-1.99.1-
+      - name: Build the node and its browser
+        if: ${{ !inputs.build_digest }}
+        run: |
+          cargo build --locked --manifest-path unbrowse-browser/cli/Cargo.toml
+          cargo build --locked --manifest-path unbrowse-node/Cargo.toml --bin unbrowse-node --bin unb
+      - name: Save the build's folders before anything else runs
+        if: ${{ !inputs.build_digest && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            unbrowse-node/target
+            unbrowse-browser/cli/target
+          key: gate-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}
+
+      # A person's Mac keeps what an earlier job left running (a node on the port this job wants): stop it.
+      - name: Stop what an earlier job left running
+        run: sh .github/qa/stop-left-nodes.sh
+      # One fresh scratch node per round of twelve tasks, all started now, each stopped when its round ends: on 17 Nov
+      # 2026 one debug node grew from 57 MB to 3.6 GB in 13 minutes of bank tasks (programme 887958, BASELINE.md §4),
+      # and a node that big times tasks out.
+      - name: Start the scratch nodes and write the clients' runs
+        run: |
+          mkdir -p "$GATE"
+          if [ "$SCOPE" = slice ]; then pick="--slice test-banks/gate/slice.json"; per=6; else pick=""; per=12; fi
+          left=$(python3 -I test-banks/gate/run_gate.py left --out "$GATE/none.jsonl" $pick)
+          rounds=$(( (left + per - 1) / per ))
+          mcps=""
+          r=0
+          while [ "$r" -lt "$rounds" ]; do
+            dir="$RUNNER_TEMP/n$r"
+            PORT=$((17810 + r)) sh test-banks/popular-sites/scratch-node.sh "$dir" > "$GATE/node-$r.log" 2>&1 || { cat "$GATE/node-$r.log"; exit 1; }
+            token=$(cat "$dir/token")
+            echo "::add-mask::$token"
+            jq -n --arg unb "$GITHUB_WORKSPACE/unbrowse-node/target/debug/unb" --arg token "$token" --arg node "http://127.0.0.1:$((17810 + r))" \
+              '{mcpServers: {unbrowse: {command: $unb, args: ["mcp"], env: {UNBROWSE_NODE: $node, UNBROWSE_AGENT_TOKEN: $token}}}}' > "$dir/mcp.json"
+            rm -f "$dir/token"
+            mcps="$mcps --mcp $dir/mcp.json"
+            r=$((r + 1))
+          done
+          python3 -I test-banks/gate/run_gate.py prepare --dir "$GATE/runs" $mcps --per "$per" $pick \
+            --claude "$CLAUDE_BIN" --build "$GITHUB_SHA debug"
+          echo "$left task(s) in $rounds round(s)"
+
+      # The credential is here and in the judges' step alone. Each run is the locked CLI on its argument file, three at
+      # a time, under an alarm (20 minutes a task, as the unbrowse6 harness gives); a round's node stops when it ends.
+      - name: The clients
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          r=0
+          while [ -d "$GATE/runs/round-$r" ]; do
+            for f in "$GATE/runs/round-$r"/*.args; do
+              while [ "$(jobs -rp | wc -l)" -ge 3 ]; do sleep 2; done
+              perl -e '$t=shift; $b=shift; local $/; open F, shift or die; @a=split /\0/, <F>; alarm $t; exec $b, @a' \
+                1200 "$CLAUDE_BIN" "$f" < /dev/null > "${f%.args}.out" 2> "${f%.args}.err" &
+            done
+            wait
+            kill "$(cat "$RUNNER_TEMP/n$r/node.pid")" 2>/dev/null || true
+            echo "round $r done"
+            r=$((r + 1))
+          done
+
+      - name: Write the judges' runs
+        run: |
+          n=$(python3 -I test-banks/gate/run_gate.py judges --dir "$GATE/runs" --claude "$CLAUDE_BIN")
+          echo "$n answer(s) to judge"
+
+      - name: The judges
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          for f in "$GATE/runs/judge"/*.args; do
+            [ -e "$f" ] || continue
+            while [ "$(jobs -rp | wc -l)" -ge 3 ]; do sleep 2; done
+            perl -e '$t=shift; $b=shift; local $/; open F, shift or die; @a=split /\0/, <F>; alarm $t; exec $b, @a' \
+              300 "$CLAUDE_BIN" "$f" < /dev/null > "${f%.args}.out" 2> "${f%.args}.err" &
+          done
+          wait
+
+      - name: The gate's verdict
+        id: verdict
+        if: ${{ !cancelled() }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+          [ "$SCOPE" = slice ] && pick="--slice test-banks/gate/slice.json" || pick=""
+          python3 -I test-banks/gate/run_gate.py collect --dir "$GATE/runs" --out "$GATE/results.jsonl"
+          python3 -I test-banks/gate/run_gate.py score --out "$GATE/results.jsonl" $pick --md "$GATE/score.md" > /dev/null
+          status=0
+          python3 -I .github/scripts/promotion_gate.py check --tasks-only --bank-results "$GATE/results.jsonl" $pick --md "$GATE/verdict.md" || status=$?
+          { echo "### Gate bank ($SCOPE), tree \`$tree\`"; cat "$GATE/verdict.md"; cat "$GATE/score.md"; } >> "$GITHUB_STEP_SUMMARY"
+          [ "$status" = 0 ] && echo "GATE_OK scope=$SCOPE tree=${tree::12}"
+          # The slice's verdict is this run's; the whole bank's is the promotion gate's to give, so here it is read.
+          [ "$SCOPE" = full ] || exit "$status"
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gate-bank-${{ env.SCOPE }}-${{ steps.verdict.outputs.tree || github.sha }}
+          path: |
+            ${{ env.GATE }}/results.jsonl
+            ${{ env.GATE }}/score.md
+            ${{ env.GATE }}/verdict.md
+          if-no-files-found: ignore
+          retention-days: 90
+
+  # The run's numbers to the test dashboard (UNB-250): dashboard-post.yml. Never turns the run red. Called from QA, QA
+  # posts its own run's numbers, so this one is skipped there.
+  dashboard:
+    needs: bank
+    if: always() && github.workflow == 'Gate bank'
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/dashboard-post.yml
+    with:
+      conclusion: ${{ (contains(needs.*.result, 'failure') && 'failure') || (contains(needs.*.result, 'cancelled') && 'cancelled') || 'success' }}
+    secrets:
+      DASHBOARD_INGEST_KEY: ${{ secrets.DASHBOARD_INGEST_KEY }}

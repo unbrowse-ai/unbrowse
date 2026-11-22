@@ -2,14 +2,18 @@
 //! a screen reads is here; fields the node adds later are ignored, and a
 //! field it leaves out takes its default.
 const std = @import("std");
+/// The node's types, generated from agent-api.json (unbrowse-sdk/codegen/generate.py). The structs here are the
+/// window's views of them: the fields a screen reads, with the defaults it shows before the node answers. The test
+/// at the end holds each view to its node type.
+pub const wire = @import("wire.zig");
 
-pub const Identity = struct { address: []const u8 = "", created: bool = false };
+pub const Identity = wire.Identity;
 /// `terms_version` is the version the node asks its owner about; a node older than the question answers none.
 pub const NodeInfo = struct { name: []const u8 = "this node", version: []const u8 = "", api_port: u16 = 7788, dev: bool = false, terms_version: []const u8 = "" };
 /// The terms the owner is asked about, as the node carries them.
-pub const TermsText = struct { version: []const u8 = "", terms: []const u8 = "", privacy: []const u8 = "" };
-pub const Site = struct { host: []const u8 = "", walked: ?f64 = null };
-pub const Session = struct { host: []const u8 = "", cookies: f64 = 0, updated: ?f64 = null };
+pub const TermsText = wire.TermsText;
+pub const Site = wire.Site;
+pub const Session = wire.Session;
 
 pub const Settings = struct {
     map_while_browsing: bool = true,
@@ -98,18 +102,7 @@ pub const RouteChain = struct { id: []const u8 = "", listed: bool = false, live:
 
 pub const CallResult = struct { ok: bool = false, ms: f64 = 0, data: std.json.Value = .null, @"error": ?[]const u8 = null };
 
-pub const Activity = struct {
-    at: f64 = 0,
-    who: []const u8 = "",
-    site: []const u8 = "",
-    what: []const u8 = "",
-    kind: []const u8 = "",
-    result: []const u8 = "",
-    ms: ?f64 = null,
-    unb: ?f64 = null,
-    tx: ?[]const u8 = null,
-    note: ?[]const u8 = null,
-};
+pub const Activity = wire.Activity;
 
 pub const Agent = struct {
     index: u32 = 0,
@@ -121,15 +114,18 @@ pub const Agent = struct {
     revoked: bool = false,
     tx: ?[]const u8 = null,
 };
-pub const AgentSpend = struct { index: u32 = 0, spent: f64 = 0, cap: f64 = 0 };
-pub const NewAgent = struct { agent: Agent = .{}, setup: []const u8 = "" };
+pub const AgentSpend = wire.AgentSpend;
+pub const NewAgent = wire.NewAgent;
+/// This node's own remote MCP address at a gateway, and a remote key made for it (`remote.rs`).
+pub const Remote = wire.Remote;
+pub const NewRemoteKey = wire.NewRemoteKey;
 
 /// `code`: the Keychain keeps the login's one-time code key (two-step sign-in).
 pub const Login = struct { site: []const u8 = "", account: []const u8 = "", kind: []const u8 = "derived", counter: f64 = 0, created: f64 = 0, code: bool = false };
 
 /// What `wallet_restore` did: `previous` is the key it replaced, kept in the Keychain; null when the words were this
 /// node's key already.
-pub const Restored = struct { address: []const u8 = "", previous: ?[]const u8 = null };
+pub const Restored = wire.Restored;
 
 pub const Deployment = struct { unb: []const u8 = "", settlement: []const u8 = "", chain_id: f64 = 0, block: f64 = 0 };
 pub const ChainStatus = struct { up: bool = false, @"error": ?[]const u8 = null, rpc: []const u8 = "", network: []const u8 = "devnet", deployment: ?Deployment = null, settlement_missing: bool = false, payments: []const u8 = "starting" };
@@ -166,7 +162,7 @@ pub const Wallet = struct {
 pub const Split = struct { contributor: f64 = 65, site: f64 = 30, platform: f64 = 0, serving: f64 = 0, burn: f64 = 5 };
 /// How the node's fee moves: by hand, or with demand once an epoch between a floor and a ceiling.
 pub const Pricing = struct { auto: bool = false, floor: f64 = 0.01, ceiling: f64 = 1, epoch: f64 = 0, block: f64 = 0, lines: f64 = 0 };
-pub const BoardRow = struct { contributor: []const u8 = "", entries: f64 = 0, lines: f64 = 0, earned: f64 = 0, sites: f64 = 0 };
+pub const BoardRow = wire.BoardRow;
 /// One live entry of a route, as the node ranks it from the chain (R3.36): `unverified` under the evidence floor,
 /// `unavailable` when no node served it lately.
 pub const EntryStanding = struct {
@@ -251,14 +247,17 @@ pub const VaultImport = struct {
 };
 
 /// A site's browser the owner can take over (hands.rs): the page it shows, and whether the owner has it.
-pub const HandsBrowser = struct { site: []const u8 = "", url: []const u8 = "", held: bool = false, walk: []const u8 = "" };
+pub const HandsBrowser = wire.HandsBrowser;
 /// A payment with a card from the vault the owner is asked to approve (hands.rs `Pay`): the card and the site it goes
 /// to, and for a route call, which has no page, what the route does and the values it sends.
-pub const HandsPay = struct { card: []const u8 = "", merchant: []const u8 = "", route: ?[]const u8 = null, inputs: []const []const u8 = &.{} };
+/// A payment an agent asks the owner to approve (the node's `HandsAsk.pay`).
+pub const HandsPay = wire.HandsAsk.Pay;
+/// A login an agent asks the owner to add to the vault (`vault:ask:`): its site and account, never a password.
+pub const HandsLogin = wire.HandsAsk.HandsAskLogin;
 /// An agent asking for the owner on a site's page (`ask_owner`): what it needs, and until when it waits. `pay` when
 /// it asks them to approve a payment.
-pub const HandsAsk = struct { id: []const u8 = "", site: []const u8 = "", why: []const u8 = "", agent: []const u8 = "", asked_at: f64 = 0, expires_at: f64 = 0, pay: ?HandsPay = null };
-pub const Hands = struct { browsers: []const HandsBrowser = &.{}, asks: []const HandsAsk = &.{}, watching: ?[]const u8 = null };
+pub const HandsAsk = wire.HandsAsk;
+pub const Hands = wire.Hands;
 /// What the node says happened on a site's page: an ask, the owner taking it or giving it back, the page moving on.
 pub const HandsEvent = struct { kind: []const u8 = "", site: []const u8 = "", url: []const u8 = "", ask: ?HandsAsk = null };
 
@@ -281,17 +280,15 @@ pub const ShareRoute = struct {
 };
 pub const ShareStatus = struct { mode: []const u8 = "used", per_day: f64 = 0, listed_today: f64 = 0, routes: []const ShareRoute = &.{} };
 /// What the node's key lacks for gas on a live chain.
-pub const GasShort = struct { have: f64 = 0, need: f64 = 0, why: []const u8 = "", chain_id: f64 = 0 };
+pub const GasShort = wire.GasShort;
 /// What the node's own key needs in USDC on a live chain (no sponsor, spec §76): `short` is null on the devnet and
 /// whenever it can pay; `identity_usdc` is what its identity needs once; `fund_usdc` what to send for its deposit.
 pub const Funding = struct { live: ?[]const u8 = null, short: ?GasShort = null, identity_usdc: ?f64 = null, deposit_floor_usdc: f64 = 0, fund_usdc: ?f64 = null };
-/// One source's earnings, in USDC (`earnings`): earned all time, taken to the wallet, and waiting for it to take.
-pub const EarningsLine = struct { earned: f64 = 0, claimed: f64 = 0, to_claim: f64 = 0 };
-/// What the wallet earned, by where it came from: staking route coins, and as a contributor (route shares owed for
-/// paid fetches of its entries that had no coin); the
-/// route share its entries' paid fetches sent to their coins (the coins' money, not the wallet's); and the USDC waiting
-/// for it in all. Paid whole: nothing vests.
-pub const Earnings = struct { staking: EarningsLine = .{}, contributor: EarningsLine = .{}, routes_paid: f64 = 0, to_claim: f64 = 0 };
+/// One source's earnings, in USDC (`earnings`): credited, of it still vesting, ready to withdraw, withdrawn, withheld
+/// into the bond, still to collect from a pool or a vault, and held with stake a fraud proof froze.
+pub const EarningsLine = wire.EarningsLine;
+/// What the wallet earned, by where it came from, and its own vesting and withdrawable totals.
+pub const Earnings = wire.Earnings;
 /// One staked lot of a route coin (`coin_holdings`): its exit delay in seconds; coins earning now, and coins staked this
 /// epoch that earn from the next; coins asked back, and when they are ready to take back (seconds since the epoch, 0
 /// when none are).
@@ -322,7 +319,10 @@ pub const Holdings = struct { wallet: []const u8 = "", coins: []const Holding = 
 pub const WalletKey = struct { agent: []const u8 = "", cap_usdc: f64 = 0, expiry: f64 = 0, revoked: bool = false, spent_usdc: f64 = 0, this_node: bool = false, name: ?[]const u8 = null };
 /// The owner's wallet, its deposit, every key it granted, and when its grant to this node's keys runs out, once that
 /// is within a week (`owner_nodes`).
-pub const OwnerNodes = struct { wallet: []const u8 = "", deposit_usdc: f64 = 0, keys: []const WalletKey = &.{}, renew_by: ?f64 = null };
+pub const OwnerNodes = wire.OwnerNodes;
+/// A listing this node keeps for the owner's wallet to sign (`listings_to_sign`): the node lists under the wallet's
+/// identity and doesn't hold its key. `what` says what signing it does, in plain words.
+pub const ListingToSign = struct { id: []const u8 = "", site: []const u8 = "", description: []const u8 = "", wallet: []const u8 = "", what: []const u8 = "" };
 
 /// The Money screen, in dollars (`money`): every sum a decimal string of USDC.
 pub const MoneyAgent = struct { index: u32 = 0, name: []const u8 = "", daily_limit: []const u8 = "0.00", spent_today: []const u8 = "0.00", pays_from: []const u8 = "node" };
@@ -342,7 +342,37 @@ pub const Money = struct {
 };
 
 /// The owner's wallet linked to this node, and a sign-in waited on.
-pub const OwnerLink = struct { owner: ?[]const u8 = null, waiting: bool = false, @"error": ?[]const u8 = null };
+pub const OwnerLink = wire.OwnerLink;
+pub const LinkStart = wire.LinkStart;
+
+/// One agent app the node looked for on this Mac (`agent_clients`): whether it is installed (`found`), whether it already
+/// carries the node's `unbrowse` entry (`connected`), the config file that would hold it, and a word of caution when an
+/// `unbrowse` entry that is not the node's own is there.
+pub const AgentClient = struct {
+    id: []const u8 = "",
+    name: []const u8 = "",
+    found: bool = false,
+    connected: bool = false,
+    path: []const u8 = "",
+    note: ?[]const u8 = null,
+    /// Set up per project (ElizaOS): named with how, never ticked or written.
+    manual: bool = false,
+};
+pub const AgentClients = struct { clients: []const AgentClient = &.{} };
+
+/// What `agent_connect` did for one client. `restart_needed`: the app reads its config only when it starts.
+pub const ConnectResult = struct {
+    id: []const u8 = "",
+    name: []const u8 = "",
+    ok: bool = false,
+    restart_needed: bool = false,
+    @"error": ?[]const u8 = null,
+};
+pub const ConnectAnswer = struct { results: []const ConnectResult = &.{} };
+
+/// A client `agent_connect_undo` put back as it was.
+pub const UndoneClient = struct { id: []const u8 = "", name: []const u8 = "", path: []const u8 = "" };
+pub const UndoAnswer = struct { restored: []const UndoneClient = &.{} };
 
 /// The node's resources the window reads, each a command with no arguments
 /// (activity takes its limit).
@@ -370,8 +400,10 @@ pub const Res = enum {
     share_status,
     funding,
     link_status,
+    remote_status,
     earnings,
     owner_nodes,
+    listings_to_sign,
     money,
     terms_text,
     coin_holdings,
@@ -401,8 +433,10 @@ pub const Res = enum {
             .share_status => ShareStatus,
             .funding => Funding,
             .link_status => OwnerLink,
+            .remote_status => Remote,
             .earnings => Earnings,
             .owner_nodes => OwnerNodes,
+            .listings_to_sign => []const ListingToSign,
             .money => Money,
             .terms_text => TermsText,
             .coin_holdings => Holdings,
@@ -460,4 +494,106 @@ test "parse a route and an eye event" {
     try std.testing.expectEqualStrings("q", rs[0].inputs[0].name);
     const e = try std.json.parseFromSliceLeaky(Eye, a, "{\"kind\":\"seen\",\"walk\":\"w\",\"n\":3,\"method\":\"GET\",\"host\":\"h\",\"path\":\"/p\",\"status\":200,\"bytes\":10,\"sort\":\"data\"}", parse_options);
     try std.testing.expectEqualStrings("data", e.sort);
+}
+
+// ---------------------------------------------------------------- the views, held to the node's types
+
+/// Where a window view `V` reads something the node's type `W` doesn't send, or sends as another kind: a message
+/// naming the path, or null when `V` reads only what `W` sends. A field the node may send as null must be optional
+/// here, or the whole answer fails to parse. Decls and methods of `V` are its own; `std.json.Value` on either side is
+/// read as anything.
+pub fn misread(comptime V: type, comptime W: type, comptime path: []const u8) ?[]const u8 {
+    if (V == W or V == std.json.Value or W == std.json.Value) return null;
+    const vi = @typeInfo(V);
+    const wi = @typeInfo(W);
+    if (wi == .optional) {
+        if (vi != .optional) return path ++ ": the node may send null, and the window's " ++ @typeName(V) ++ " is not optional";
+        return misread(vi.optional.child, wi.optional.child, path);
+    }
+    if (vi == .optional) return misread(vi.optional.child, W, path);
+    switch (vi) {
+        .int, .float => return if (wi == .float or wi == .int) null else path ++ ": a number here, a " ++ @typeName(W) ++ " from the node",
+        .bool => return if (W == bool) null else path ++ ": a bool here, a " ++ @typeName(W) ++ " from the node",
+        .@"enum" => return if (W == []const u8) null else path ++ ": an enum here, a " ++ @typeName(W) ++ " from the node",
+        .array => |a| {
+            if (wi != .pointer) return path ++ ": a list here, a " ++ @typeName(W) ++ " from the node";
+            return misread(a.child, wi.pointer.child, path ++ "[]");
+        },
+        .pointer => |pv| {
+            if (wi != .pointer) return path ++ ": " ++ @typeName(V) ++ " here, " ++ @typeName(W) ++ " from the node";
+            if (pv.child == u8 or wi.pointer.child == u8) {
+                return if (pv.child == wi.pointer.child) null else path ++ ": " ++ @typeName(V) ++ " here, " ++ @typeName(W) ++ " from the node";
+            }
+            return misread(pv.child, wi.pointer.child, path ++ "[]");
+        },
+        .@"struct" => |sv| {
+            if (wi != .@"struct") return path ++ ": an object here, a " ++ @typeName(W) ++ " from the node";
+            if (@hasDecl(W, "KV") and !@hasDecl(V, "KV")) return path ++ ": an object here, a map from the node";
+            for (sv.field_names, sv.field_types) |name, t| {
+                if (!@hasField(W, name)) return path ++ "." ++ name ++ ": the window reads it and the node never sends it";
+                if (misread(t, @FieldType(W, name), path ++ "." ++ name)) |m| return m;
+            }
+            return null;
+        },
+        else => return path ++ ": " ++ @typeName(V) ++ " here, " ++ @typeName(W) ++ " from the node",
+    }
+}
+
+/// The node's name for a view whose name the window gives it otherwise.
+fn nodeName(comptime name: []const u8) []const u8 {
+    if (std.mem.eql(u8, name, "Route")) return "KeptRoute";
+    if (std.mem.eql(u8, name, "Login")) return "VaultLogin";
+    if (std.mem.eql(u8, name, "Card")) return "VaultCard";
+    return name;
+}
+
+test "a view is told where it misreads the node" {
+    const W = wire.Activity;
+    comptime {
+        if (misread(struct { at: f64 = 0, site: []const u8 = "" }, W, "A") != null) @compileError("a plain view was refused");
+        if (misread(struct { ms: ?f64 = null }, W, "A") != null) @compileError("an optional view of a nullable field was refused");
+        const never = misread(struct { colour: []const u8 = "" }, W, "A") orelse @compileError("a field the node never sends passed");
+        if (!std.mem.endsWith(u8, never, "the node never sends it")) @compileError(never);
+        const nullable = misread(struct { ms: f64 = 0 }, W, "A") orelse @compileError("a non-optional view of a nullable field passed");
+        if (!std.mem.endsWith(u8, nullable, "is not optional")) @compileError(nullable);
+        if (misread(struct { site: f64 = 0 }, W, "A") == null) @compileError("a number read from a string passed");
+    }
+}
+
+test "every view reads only what the node sends" {
+    comptime {
+        @setEvalBranchQuota(200_000);
+        for (@typeInfo(@This()).@"struct".decl_names) |name| {
+            const node = nodeName(name);
+            if (!@hasDecl(wire, node)) continue;
+            const V = @field(@This(), name);
+            if (@TypeOf(V) != type or @typeInfo(V) != .@"struct") continue;
+            if (misread(V, @field(wire, node), name)) |m| @compileError(m);
+        }
+    }
+}
+
+test "every resource is a view of what its command answers" {
+    comptime {
+        @setEvalBranchQuota(200_000);
+        for (std.enums.values(Res)) |r| {
+            const cmd = std.meta.stringToEnum(wire.Command, @tagName(r)) orelse @compileError(@tagName(r) ++ ": no owner command of that name");
+            if (misread(r.Type(), wire.Returns(cmd), @tagName(r))) |m| @compileError(m);
+        }
+    }
+}
+
+test "every command's answer parses from nothing to its defaults" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    inline for (comptime std.enums.values(wire.Command)) |c| {
+        const T = wire.Returns(c);
+        const empty = switch (@typeInfo(T)) {
+            .pointer => "[]",
+            .@"struct" => if (T == std.json.Value) "null" else "{}",
+            .optional => "null",
+            else => continue,
+        };
+        _ = try std.json.parseFromSliceLeaky(T, arena.allocator(), empty, parse_options);
+    }
 }

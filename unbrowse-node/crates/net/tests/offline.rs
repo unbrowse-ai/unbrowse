@@ -417,8 +417,23 @@ fn a_restarted_node_still_skips_a_provider_it_set_aside() {
     assert_eq!(std::fs::read_to_string(&path).unwrap(), newer, "which is never written over");
     std::fs::remove_file(&path).unwrap();
 
+    // The schedule as a long-running node left it, 50 short of its bound, written in the file's own format: every
+    // failure saves the whole schedule, so reaching the bound one failure at a time is two thousand saves and a third
+    // of a minute. The failures that cross the bound are counted one at a time, as a node counts them.
+    #[derive(Serialize)]
+    struct Kept {
+        body: String,
+        peer: String,
+        count: u32,
+        until: u64,
+    }
+    let seeded = unbrowse_net::MAX_KEPT - 50;
+    let kept: Vec<Kept> = (0..seeded).map(|i| Kept { body: format!("sha256:{i:064x}"), peer: dead.to_string(), count: 1, until: i as u64 + 1 }).collect();
+    unbrowse_net::save_kept(&path, &unbrowse_files::SET_ASIDE, &kept);
     let mut p = Providers::open(&path);
-    for i in 0..(unbrowse_net::MAX_KEPT + 50) {
+    assert_eq!(p.len(), seeded, "the schedule written reads back whole");
+    assert!(p.excluded(&format!("sha256:{:064x}", seeded - 1), dead, seeded as u64 - 1));
+    for i in seeded..(unbrowse_net::MAX_KEPT + 50) {
         p.failed(&format!("sha256:{i:064x}"), dead, i as u64);
     }
     assert!(std::fs::metadata(&path).unwrap().len() <= unbrowse_net::MAX_KEPT_BYTES);

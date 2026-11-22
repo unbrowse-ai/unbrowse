@@ -1,0 +1,57 @@
+# Posts one finished run's numbers to the test dashboard (UNB-250, unbrowse-dashboard/): scores, QA checks, the hard
+# sites, line coverage, wall-clock and model cost, signed with DASHBOARD_INGEST_KEY.
+#
+# Called at the end of qa.yml and gate-bank.yml (their own run, still going: --in-progress, conclusion from their
+# jobs), and by dashboard.yml when CI, Coverage, Bank or the nightly fresh-seed run ends (workflows that take pull
+# requests may not hold a secret: test_workflow_security.py). Pull request runs are never posted.
+#
+# It runs only this repository's collector from a trusted checkout; the artifacts it reads are data (JSON, Markdown),
+# parsed and never run. It never fails the run that called it: a dashboard that is down shows as a warning.
+name: Dashboard post
+
+on:
+  workflow_call:
+    inputs:
+      run_id:
+        description: The run to post (empty = the calling run)
+        type: string
+        default: ""
+      conclusion:
+        description: The calling run's conclusion so far (only with an empty run_id)
+        type: string
+        default: ""
+    secrets:
+      DASHBOARD_INGEST_KEY:
+        required: false
+
+permissions: {}
+
+jobs:
+  post:
+    name: Dashboard
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: unbrowse-dashboard
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Post
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DASHBOARD_INGEST_KEY: ${{ secrets.DASHBOARD_INGEST_KEY }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL || 'https://unbrowse-dashboard-staging.lewistham9x.workers.dev' }}
+          RUN: ${{ inputs.run_id }}
+          CONCLUSION: ${{ inputs.conclusion }}
+        run: |
+          if [ -n "$RUN" ]; then
+            node unbrowse-dashboard/collect/collect.mjs run "$RUN" --soft
+          else
+            node unbrowse-dashboard/collect/collect.mjs run "$GITHUB_RUN_ID" --in-progress --conclusion "$CONCLUSION" --soft
+          fi

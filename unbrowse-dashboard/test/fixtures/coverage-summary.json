@@ -1,0 +1,10 @@
+{
+  "commit": "49391c899ad7c39a3ecece44d8dc46fcdc43a324",
+  "measured_at": "2026-11-20T02:15:04Z",
+  "rust_all": {
+    "covered": 176870,
+    "pct": 81.12,
+    "total": 218044
+  },
+  "threshold": 90.0
+}

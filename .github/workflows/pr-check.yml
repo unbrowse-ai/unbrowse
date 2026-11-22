@@ -1,0 +1,237 @@
+# The pull request check that holds no credential (UNB-235). Every pull request into staging or main, draft or ready,
+# on its merge commit, on each push: the checks below need no model, no secret and no write permission, so they run
+# on a draft and would run on a fork's pull request too (forking is off on this private repository, 21 Nov 2026), and
+# most breakage shows here, minutes after a push, before any agent is asked.
+#
+#   MCP check (no model)  the node, its CLI, its browser and the window built from the pull request's merge commit, then
+#                         qa.yml's MCP check on that build: the MCP surface as a contract, the person's journey
+#                         (.github/qa/mcp-journey.json) with a picture of every step, the shipped skills against the
+#                         node's tools, the window opened and pictured. Its steps are pr-agent-checks.yml's `check`
+#                         job's, step for step (test_workflow_security.py fails when the two part).
+#   Journey coverage      qa.yml's journey coverage: every journey in .github/qa/journeys.json has a QA step or a
+#                         waiver a person can check (journey_coverage.py), the same steps as qa.yml's `coverage` job.
+#   PR check (no credential)  green only when both passed; prints PR_CHECK_OK.
+#
+# What it may not do, held by test_workflow_security.py: name a secret or an environment, hold a write permission,
+# save a cache (it restores staging's; nothing a pull request builds reaches another run), talk to GitHub, check out
+# anything but the merge commit, or run on one of Lewis's own machines (every job is on a Blacksmith machine).
+# The Claude credential stays in pr-agent-checks.yml (a ready pull request from a branch of this repository) and in
+# qa.yml (a push, nightly, by hand); the split is written out in qa.yml's header.
+name: PR check (no credential)
+
+on:
+  pull_request:
+    branches: [staging, main]
+    types: [opened, reopened, synchronize, ready_for_review]
+
+# A newer push to the same pull request cancels the older run.
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  check:
+    name: MCP check (no model)
+    runs-on: blacksmith-6vcpu-macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+      # Restored, never saved: staging's runs save these, and a pull request's build reaches no other run.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: vendor
+        with:
+          path: unbrowse-node/vendor
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-pss.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-grease-sigalg.patch') }}
+      - if: steps.vendor.outputs.cache-hit != 'true'
+        working-directory: unbrowse-node
+        run: sh scripts/apply-tls-patch.sh
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            unbrowse-node/target
+            unbrowse-browser/cli/target
+          key: qa-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            qa-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}-
+            qa-${{ runner.os }}-rust-1.99.1-
+      - name: Build the node and its browser
+        run: |
+          cargo build --locked --manifest-path unbrowse-browser/cli/Cargo.toml
+          cargo build --locked --manifest-path unbrowse-node/Cargo.toml --bin unbrowse-node --bin unb
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.17.0
+      - name: Build the window
+        working-directory: unbrowse-node/window
+        run: zig build
+      # The build is this job's own: a debug node finds its browser program by the path it was built at, and the checks
+      # below find it by name.
+      - name: Name the browser this job built
+        run: |
+          browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
+          test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
+          echo "UNBROWSE_BROWSER=$browser" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      # The checks' own tests first: a checker that can't fail proves nothing (fake server, fake browser, no node).
+      - name: Test the checks
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet jsonschema==4.23.0
+          "$RUNNER_TEMP/venv/bin/python" -m unittest discover -s .github/qa -p 'test_*.py'
+          python3 -I -m unittest discover -s test-banks/attack -p 'test_*.py'
+      # A person's Mac keeps what an earlier job left running (a node on the port this job wants): stop it.
+      - name: Stop what an earlier job left running
+        run: sh .github/qa/stop-left-nodes.sh
+      - name: Start the node
+        run: sh .github/qa/start-node.sh unbrowse-node/target/debug/unbrowse-node "$GITHUB_WORKSPACE/unbrowse-node/target/debug/unb" "$RUNNER_TEMP/unbrowse"
+      - name: MCP contract and journey
+        id: mcp
+        continue-on-error: true
+        run: |
+          UNBROWSE_AGENT_TOKEN="$(cat "$UNBROWSE_HOME/token")" "$RUNNER_TEMP/venv/bin/python" .github/qa/mcp_check.py \
+            --unb "$UNB" --out "$RUNNER_TEMP/check" --chrome "$QA_CHROME"
+      # Agents try to take a signed-in user's session, stored token and vault password, from inside her node and from
+      # another node; a canary oracle reads every reply and what reached an attacker's host (test-banks/attack).
+      - name: Attack bank
+        id: attack
+        continue-on-error: true
+        run: |
+          # The canary site is reached at a public https address (a node's browser never browses this machine).
+          command -v cloudflared > /dev/null || brew install cloudflared
+          python3 -I test-banks/attack/run_attack.py --node unbrowse-node/target/debug/unbrowse-node --unb "$UNB" \
+            --browser "$UNBROWSE_BROWSER" --out "$RUNNER_TEMP/check/attack"
+      - name: Skills against the node's tools
+        id: skills
+        continue-on-error: true
+        run: python3 .github/qa/skill_check.py --tools "$RUNNER_TEMP/check/tools.json" --out "$RUNNER_TEMP/check"
+      - name: The window, on this node
+        id: window
+        continue-on-error: true
+        # The window draws itself (qa_tools.py --picture: nanoui's offscreen snapshot) on this node: no screen is read
+        # and nothing comes in front of anyone, so a person's own Mac needs no screen permission. A home whose
+        # .unbrowse is this node's points it here.
+        env:
+          QA_WINDOW: ${{ github.workspace }}/unbrowse-node/window/zig-out/bin/unbrowse-window
+          QA_WORK: ${{ runner.temp }}/window
+          QA_SHOTS: ${{ runner.temp }}/window
+          QA_WINDOW_WAIT: "8"
+        run: |
+          shots="$RUNNER_TEMP/check/shots"
+          mkdir -p "$shots"
+          drew=fail; python3 -I .github/qa/qa_tools.py --picture "$shots/window.png" > "$RUNNER_TEMP/check/window.log" 2>&1 && drew=pass
+          # A new node opens on its terms; Open my node, and the same window asks its owner to sign in (Skip for now).
+          opened=fail; python3 -I .github/qa/qa_tools.py --picture "$shots/window-open-my-node.png" "click:Open my node;live:4" >> "$RUNNER_TEMP/check/window.log" 2>&1 && opened=pass
+          # The sign-in shows only in the window that pressed Open my node (window/src/app.zig acceptTerms), so a window
+          # opened after it goes on to Connect your agents when it finds agent apps here (Skip, which the node
+          # remembers), else to the node. Skip on Connect goes on to ChatGPT and Claude on the web, whose Not now ends it
+          # (screens/connect.zig webStep).
+          # With no agent installed here the sheet's button is Next, not Skip.
+          clicked=fail
+          for script in "click:Skip;live:2;click:Not now;live:2;click:Vault;live:2" "click:Next;live:2;click:Not now;live:2;click:Vault;live:2" "click:Skip;live:2;click:Vault;live:2" "click:Vault;live:2"; do
+            python3 -I .github/qa/qa_tools.py --picture "$shots/window-vault.png" "$script" >> "$RUNNER_TEMP/check/window.log" 2>&1 && { clicked=pass; break; }
+          done
+          size=$(wc -c < "$shots/window.png" 2>/dev/null || echo 0)
+          {
+            echo "#### The window"
+            echo
+            echo "| Step | Result | Note |"
+            echo "| --- | --- | --- |"
+            echo "| opens on this node and draws | $drew | window.png, $size bytes |"
+            echo "| its terms, then Open my node opens the node | $opened | window-open-my-node.png |"
+            echo "| opened again: Skip on Connect your agents if it shows, then Vault shows the Vault screen | $clicked | window-vault.png |"
+          } > "$RUNNER_TEMP/check/window.md"
+          cat "$RUNNER_TEMP/check/window.md" "$RUNNER_TEMP/check/window.log"
+          [ "$drew" = pass ] && [ "$opened" = pass ] && [ "$clicked" = pass ]
+      - name: Collect the node's log
+        if: always()
+        run: cp "$UNBROWSE_HOME/node.log" "$RUNNER_TEMP/check/node.log" 2>/dev/null || true
+      - id: upload
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: qa-mcp-check
+          path: ${{ runner.temp }}/check/
+          if-no-files-found: warn
+      - name: Summary
+        if: always()
+        env:
+          SHOTS_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          {
+            echo "## MCP check (no model)"
+            echo
+            echo "Every step's picture is in the artifact [qa-mcp-check]($SHOTS_URL) (shots/, named by step)."
+            echo
+            cat "$RUNNER_TEMP/check/mcp-check.md" 2>/dev/null || echo "**MCP check: didn't finish.** See its step's log."
+            echo
+            cat "$RUNNER_TEMP/check/skill-check.md" 2>/dev/null || echo "**Skill check: didn't finish.** See its step's log."
+            echo
+            cat "$RUNNER_TEMP/check/window.md" 2>/dev/null || echo "**The window: didn't finish.** See its step's log."
+            echo
+            cat "$RUNNER_TEMP/check/attack/attack.md" 2>/dev/null || echo "**Attack bank: didn't finish.** See its step's log."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Verdict
+        if: always()
+        env:
+          MCP: ${{ steps.mcp.outcome }}
+          SKILLS: ${{ steps.skills.outcome }}
+          WINDOW: ${{ steps.window.outcome }}
+          ATTACK: ${{ steps.attack.outcome }}
+        run: |
+          echo "MCP check: $MCP, skills: $SKILLS, window: $WINDOW, attack bank: $ATTACK"
+          [ "$MCP" = success ] && [ "$SKILLS" = success ] && [ "$WINDOW" = success ] && [ "$ATTACK" = success ]
+      - if: always()
+        run: kill "$(cat "$UNBROWSE_HOME/node.pid")" 2>/dev/null || true
+
+  # Journey coverage, as qa.yml's `coverage` job runs it: no model, no build, no secret.
+  coverage:
+    name: Journey coverage
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            test-banks/gate
+      - name: Every journey has a QA step
+        run: python3 -I .github/qa/journey_coverage.py check --out "$RUNNER_TEMP/coverage"
+      - name: Summary
+        if: always()
+        run: |
+          { echo "## Journey coverage"; echo; cat "$RUNNER_TEMP/coverage/coverage.md" 2>/dev/null || echo "**Journey coverage: didn't finish.** See its step's log."; } >> "$GITHUB_STEP_SUMMARY"
+
+  verdict:
+    name: PR check (no credential)
+    needs: [check, coverage]
+    if: always()
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Both checks ran and passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          SHA: ${{ github.sha }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e 'length == 2 and (to_entries | all(.value.result == "success"))' > /dev/null || { echo "::error::A check did not pass: see the jobs above"; exit 1; }
+          echo "PR_CHECK_OK checks=mcp,journey-coverage draft=$DRAFT sha=${SHA:0:8}"

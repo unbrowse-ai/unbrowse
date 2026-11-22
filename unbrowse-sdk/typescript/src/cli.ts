@@ -6,7 +6,7 @@
 // fetches when a goal first needs it, or `unbrowse browser install` fetches now: no install downloads it.
 //
 //   unbrowse app                    open the window (it starts the node when none is running)
-//   unbrowse start                  run the node without the window
+//   unbrowse start [--from <tag>]   run the node without the window; the tag says where the install came from
 //   unbrowse browser install|status|remove|fetch on|off   the browser add-on: get it, see it, take it away, or let the node fetch it
 //   unbrowse update [channel …]     check for a newer release now; the node restarts into it once idle
 //   unbrowse restart                restart the running node, into the newest release here
@@ -33,8 +33,8 @@ import { OLD_SKILL_FILES } from "./old-skills.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const PROGRAMS = ["unbrowse-node", "unb", "agent-browser"];
 const NODE_COMMANDS = new Set([
-  "agent", "browser", "chain", "bounty", "coin", "domain", "earnings", "max-fetch", "money", "nodes", "passkey", "reports", "session", "network", "restart", "share", "sign-in", "telemetry", "terms", "update",
-  "vault", "wallet",
+  "agent", "browser", "chain", "bounty", "coin", "domain", "earnings", "max-fetch", "money", "nodes", "onboard", "passkey", "reports", "session", "network", "restart", "share", "sign-in", "telemetry", "terms", "update",
+  "vault", "wallet", "agent-user", "checkout", "confirm", "passphrase", "remote",
 ]);
 
 /** A program's file name here: Windows' end in .exe. */
@@ -417,7 +417,7 @@ function main(args: string[]): number {
     case "--help":
     case "-h":
       console.log(
-        "usage: unbrowse app | unbrowse start | unbrowse update [channel stable|canary|auto] | unbrowse restart\n" +
+        "usage: unbrowse app | unbrowse start [--from <tag>] | unbrowse update [channel stable|canary|auto] | unbrowse restart\n" +
           "       unbrowse do <goal> [--url <page>] | unbrowse browse <command…> | unbrowse search [words]\n" +
           "       unbrowse call <id> [name=value …] | unbrowse logins | unbrowse whoami | unbrowse connect\n" +
           "       unbrowse mcp [--agent <n|first>] (the node's MCP server over stdio, for an agent's MCP config)\n" +

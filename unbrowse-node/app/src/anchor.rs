@@ -98,30 +98,75 @@ impl Anchored {
 /// Where headers come from: by hash, as the RPC serves them. Whatever it serves is rehashed before it is used.
 pub trait Headers {
     fn by_hash(&self, hash: B256) -> impl Future<Output = Result<Option<alloy::consensus::Header>, String>> + Send;
+    /// The headers the source names as blocks `low` to `high`, in that order: `None` for one it hasn't. A walk takes
+    /// none of them on their word: each is rehashed and linked as `by_hash`'s are (`walk_down`).
+    fn by_numbers(&self, low: u64, high: u64) -> impl Future<Output = Result<Vec<Option<alloy::consensus::Header>>, String>> + Send;
+}
+
+/// How many headers a walk asks for in one request: the gateway's most calls a batch, and about 100 KiB on Arc.
+pub const LINK_BATCH: u64 = 50;
+
+/// Why a link down the chain wasn't made. An RPC that refused, rate-limited, timed out or hadn't a block yet said
+/// nothing (`Unanswered`): the chain is just not followed this time, and the node reads again on its next pass. An
+/// RPC whose answers contradict themselves or the checkpoints the node already took (`Contradicts`) can't be trusted,
+/// and that alone stops every write (`advance`, `rpc::halt`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Broken {
+    Unanswered(String),
+    Contradicts(String),
+}
+
+impl std::fmt::Display for Broken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Broken::Unanswered(e) | Broken::Contradicts(e) => f.write_str(e),
+        }
+    }
+}
+
+impl From<Broken> for String {
+    fn from(b: Broken) -> String {
+        b.to_string()
+    }
 }
 
 /// Walks from the block `hash`, at height `number`, down to height `to`, by parent hashes: every header on the way is
-/// fetched by the hash the walk derived, rehashed here, and must be at the height the walk expects. The hash at `to`, as
-/// the walk derives it. An error for a header that doesn't rehash to the hash it was asked by, a height out of place, or
-/// a walk longer than `MAX_LINK`.
-pub async fn walk_down<H: Headers>(src: &H, hash: B256, number: u64, to: u64) -> Result<B256, String> {
+/// rehashed here, must be the block the walk derived (its child's parent) and at the height the walk expects. The
+/// headers are asked for by number, `LINK_BATCH` to a request (a link of a minute on Arc is a hundred blocks or more,
+/// and one request a header made every link, and so every release, wait on that many round trips); one the source names
+/// otherwise at a height is asked for again by the hash the walk derived, as every one was before. The hash at `to`, as
+/// the walk derives it. A header that doesn't rehash to the hash it was asked by, or a height out of place, contradicts
+/// the walk; a header not served, or a walk longer than `MAX_LINK`, is only not linked.
+pub async fn walk_down<H: Headers>(src: &H, hash: B256, number: u64, to: u64) -> Result<B256, Broken> {
     if to > number {
-        return Err(format!("block {to} is above {number}"));
+        return Err(Broken::Unanswered(format!("block {to} is above {number}")));
     }
     if number - to > MAX_LINK {
-        return Err(format!("{} blocks to link, more than {MAX_LINK}", number - to));
+        return Err(Broken::Unanswered(format!("{} blocks to link, more than {MAX_LINK}", number - to)));
     }
     let (mut at, mut height) = (hash, number);
     while height > to {
-        let h = src.by_hash(at).await?.ok_or_else(|| format!("the RPC has no block {at:#x}"))?;
-        if h.hash_slow() != at {
-            return Err(format!("the header the RPC gave for {at:#x} hashes otherwise"));
+        let low = height.saturating_sub(LINK_BATCH - 1).max(to + 1);
+        // A batch that isn't answered is no contradiction: the walk goes on one header at a time, as it always could.
+        let batch = src.by_numbers(low, height).await.unwrap_or_default();
+        while height >= low {
+            let named = batch.get((height - low) as usize).cloned().flatten().filter(|h| h.number == height && h.hash_slow() == at);
+            let h = match named {
+                Some(h) => h,
+                None => {
+                    let h = src.by_hash(at).await.map_err(Broken::Unanswered)?.ok_or_else(|| Broken::Unanswered(format!("the RPC has no block {at:#x} yet")))?;
+                    if h.hash_slow() != at {
+                        return Err(Broken::Contradicts(format!("the header the RPC gave for {at:#x} hashes otherwise")));
+                    }
+                    if h.number != height {
+                        return Err(Broken::Contradicts(format!("the header for {at:#x} says it is block {}, not {height}", h.number)));
+                    }
+                    h
+                }
+            };
+            at = h.parent_hash;
+            height -= 1;
         }
-        if h.number != height {
-            return Err(format!("the header for {at:#x} says it is block {}, not {height}", h.number));
-        }
-        at = h.parent_hash;
-        height -= 1;
     }
     Ok(at)
 }
@@ -129,7 +174,7 @@ pub async fn walk_down<H: Headers>(src: &H, hash: B256, number: u64, to: u64) ->
 /// Takes the finalized head (`number`, `hash`) as the next checkpoint when the links from it reach the last one; one
 /// too far to link starts a new run. `witness` is who stands behind it now: none (a second RPC named but behind or not
 /// answering) and it is never taken. Whether the head was taken.
-pub async fn extend<H: Headers>(chain: &mut Anchored, number: u64, hash: B256, witness: Option<Witness>, src: &H) -> Result<bool, String> {
+pub async fn extend<H: Headers>(chain: &mut Anchored, number: u64, hash: B256, witness: Option<Witness>, src: &H) -> Result<bool, Broken> {
     let Some(witness) = witness else { return Ok(false) };
     match chain.head() {
         None => chain.runs.push(vec![(number, hash)]),
@@ -141,7 +186,7 @@ pub async fn extend<H: Headers>(chain: &mut Anchored, number: u64, hash: B256, w
         Some((m, hm)) => {
             let derived = walk_down(src, hash, number, m).await?;
             if derived != hm {
-                return Err(format!("the finalized block {number} ({hash:#x}) doesn't descend from block {m} ({hm:#x}), which the node had taken as final"));
+                return Err(Broken::Contradicts(format!("the finalized block {number} ({hash:#x}) doesn't descend from block {m} ({hm:#x}), which the node had taken as final")));
             }
             chain.runs.last_mut().expect("a head has a run").push((number, hash));
         }
@@ -155,13 +200,13 @@ pub async fn extend<H: Headers>(chain: &mut Anchored, number: u64, hash: B256, w
 /// checkpoint at or above it, in the same run, arrives at `hash` at that height. False for a block below every run,
 /// above every checkpoint, or in a gap between runs.
 #[cfg(test)]
-pub async fn anchored<H: Headers>(chain: &Anchored, number: u64, hash: B256, src: &H) -> Result<bool, String> {
+pub async fn anchored<H: Headers>(chain: &Anchored, number: u64, hash: B256, src: &H) -> Result<bool, Broken> {
     Ok(anchored_at(chain, number, hash, src).await?.is_some())
 }
 
 /// `anchored`, and whether the checkpoint it walked down from was one a witness other than the one RPC stood behind
 /// (`Witness::agrees`): `None` when the block isn't on the followed chain.
-pub async fn anchored_at<H: Headers>(chain: &Anchored, number: u64, hash: B256, src: &H) -> Result<Option<bool>, String> {
+pub async fn anchored_at<H: Headers>(chain: &Anchored, number: u64, hash: B256, src: &H) -> Result<Option<bool>, Broken> {
     for run in &chain.runs {
         let Some(&(start, _)) = run.first() else { continue };
         if number < start {
@@ -196,6 +241,18 @@ impl Headers for FromRpc {
             crate::proof::Answer::Refused(e) => Err(e),
         }
     }
+
+    async fn by_numbers(&self, low: u64, high: u64) -> Result<Vec<Option<alloy::consensus::Header>>, String> {
+        let calls: Vec<(&str, serde_json::Value)> = (low..=high).map(|n| ("eth_getBlockByNumber", serde_json::json!([format!("{n:#x}"), false]))).collect();
+        let answers = crate::proof::fetch_batch(&self.0, &calls, calls.len() * crate::proof::MAX_HEADER_BYTES).await?;
+        Ok(answers
+            .into_iter()
+            .map(|a| match a {
+                crate::proof::Answer::Value(v) => serde_json::from_value::<alloy::rpc::types::Block>(v).ok().map(|b| b.header.inner),
+                _ => None,
+            })
+            .collect())
+    }
 }
 
 fn path() -> std::path::PathBuf {
@@ -208,8 +265,9 @@ static ADVANCING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 /// Takes the chain's finalized head as a checkpoint, if it links (`extend`), and says whether the node follows the chain
 /// now (`Followed::current`): only when the head was taken, or is the last checkpoint already, on this call. With a
 /// second RPC named, only once it has the same block there now: one behind, or not answering, leaves the chain
-/// unfollowed, and the node waits. A primary with no finalized head leaves it unfollowed too. A head that doesn't
-/// descend from the last checkpoint, or whose header doesn't rehash, stops every write (`rpc::halt`).
+/// unfollowed, and the node waits. A primary with no finalized head, or one that doesn't answer a header the link
+/// needs (a refusal, a rate limit), leaves it unfollowed too. A head that doesn't descend from the last checkpoint, or
+/// whose header doesn't rehash, stops every write (`rpc::halt`).
 pub async fn advance(chain_id: u64) -> Result<Followed, String> {
     let _one = ADVANCING.lock().await;
     let url = crate::chain::url();
@@ -260,7 +318,13 @@ pub async fn advance(chain_id: u64) -> Result<Followed, String> {
             }
             _ => false,
         },
-        Err(e) => {
+        // An RPC that didn't answer said nothing: the chain isn't followed this time, so nothing that needs it is
+        // signed, and the next pass reads again. Only answers that contradict stop every write.
+        Err(Broken::Unanswered(e)) => {
+            eprintln!("chain: not followed this pass, read again next: {e}");
+            false
+        }
+        Err(Broken::Contradicts(e)) => {
             crate::rpc::halt(&e);
             return Err(e);
         }
@@ -282,6 +346,16 @@ mod tests {
     impl Headers for Mem {
         async fn by_hash(&self, hash: B256) -> Result<Option<alloy::consensus::Header>, String> {
             Ok(self.0.get(&hash).cloned())
+        }
+
+        /// The one header it holds at each height; none where it holds two (a forged chain beside the real one).
+        async fn by_numbers(&self, low: u64, high: u64) -> Result<Vec<Option<alloy::consensus::Header>>, String> {
+            Ok((low..=high)
+                .map(|n| {
+                    let at: Vec<_> = self.0.values().filter(|h| h.number == n).collect();
+                    (at.len() == 1).then(|| at[0].clone())
+                })
+                .collect())
         }
     }
 
@@ -314,10 +388,90 @@ mod tests {
         assert!(!anchored(&a, 5, real[5].hash_slow(), &src).await.unwrap(), "a block before the node looked");
         assert!(!anchored(&a, 35, real[35].hash_slow(), &src).await.unwrap(), "a block past the last checkpoint");
         assert!(!extend(&mut a, 39, real[39].hash_slow(), None, &src).await.unwrap(), "a head the second RPC doesn't agree on");
-        assert!(extend(&mut a, 39, forged[39].hash_slow(), Some(Witness::Second), &src).await.is_err(), "a head that doesn't descend from the last checkpoint");
+        assert!(
+            matches!(extend(&mut a, 39, forged[39].hash_slow(), Some(Witness::Second), &src).await, Err(Broken::Contradicts(_))),
+            "a head that doesn't descend from the last checkpoint contradicts it"
+        );
         assert_eq!(a.head(), Some((30, real[30].hash_slow())), "and nothing of it was taken");
         // What a proof walks from says who stood behind it: block 20 walks from checkpoint 30, taken on one RPC's word.
         assert_eq!(anchored_at(&a, 20, real[20].hash_slow(), &src).await.unwrap(), Some(false), "anchored on one RPC's word");
         assert_eq!(anchored_at(&a, 10, real[10].hash_slow(), &src).await.unwrap(), Some(true), "anchored where a second RPC agreed");
+    }
+
+    /// An RPC that refuses one header of the walk (a public endpoint's rate limit), or hasn't it yet, has said nothing:
+    /// the head isn't taken and the walk is only not linked, never a contradiction that stops every write. The same
+    /// head links once the RPC answers again.
+    #[tokio::test]
+    async fn an_rpc_that_refuses_a_header_contradicts_nothing() {
+        struct Refusing(Mem, B256);
+        impl Headers for Refusing {
+            async fn by_hash(&self, hash: B256) -> Result<Option<alloy::consensus::Header>, String> {
+                if hash == self.1 {
+                    return Err(r#"{"code":-32005,"message":"rate limit exceeded"}"#.into());
+                }
+                self.0.by_hash(hash).await
+            }
+
+            async fn by_numbers(&self, _low: u64, _high: u64) -> Result<Vec<Option<alloy::consensus::Header>>, String> {
+                Err(r#"{"code":-32005,"message":"rate limit exceeded"}"#.into())
+            }
+        }
+        let real = chain(40, 1);
+        let all = || Mem(real.iter().map(|h| (h.hash_slow(), h.clone())).collect());
+        let mut a = Anchored { chain_id: 1, ..Default::default() };
+        assert!(extend(&mut a, 10, real[10].hash_slow(), Some(Witness::One), &all()).await.unwrap());
+        let refusing = Refusing(all(), real[20].hash_slow());
+        assert!(matches!(extend(&mut a, 30, real[30].hash_slow(), Some(Witness::One), &refusing).await, Err(Broken::Unanswered(_))), "a refused header");
+        let missing = Mem(real.iter().filter(|h| h.number != 25).map(|h| (h.hash_slow(), h.clone())).collect());
+        assert!(matches!(extend(&mut a, 30, real[30].hash_slow(), Some(Witness::One), &missing).await, Err(Broken::Unanswered(_))), "a header not served yet");
+        assert_eq!(a.head(), Some((10, real[10].hash_slow())), "neither took the head");
+        assert!(extend(&mut a, 30, real[30].hash_slow(), Some(Witness::One), &all()).await.unwrap(), "the RPC answering again links it");
+    }
+
+    /// A source that counts what it was asked: headers by number in batches, and one by hash.
+    struct Counted {
+        real: Vec<alloy::consensus::Header>,
+        lie_at: Option<(u64, alloy::consensus::Header)>,
+        batches: std::sync::atomic::AtomicUsize,
+        singles: std::sync::atomic::AtomicUsize,
+    }
+
+    impl Headers for Counted {
+        async fn by_hash(&self, hash: B256) -> Result<Option<alloy::consensus::Header>, String> {
+            self.singles.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(self.real.iter().find(|h| h.hash_slow() == hash).cloned())
+        }
+
+        async fn by_numbers(&self, low: u64, high: u64) -> Result<Vec<Option<alloy::consensus::Header>>, String> {
+            self.batches.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok((low..=high)
+                .map(|n| match &self.lie_at {
+                    Some((at, forged)) if *at == n => Some(forged.clone()),
+                    _ => self.real.get(n as usize).cloned(),
+                })
+                .collect())
+        }
+    }
+
+    /// A link between heads costs a request for each `LINK_BATCH` headers, not one a header: on Arc a minute's link is a
+    /// hundred blocks or more, and a release that waited on a round trip for each ran past its deadline.
+    #[tokio::test]
+    async fn a_link_between_heads_asks_for_its_headers_in_batches() {
+        let real = chain(130, 1);
+        let src = Counted { real: real.clone(), lie_at: None, batches: Default::default(), singles: Default::default() };
+        assert_eq!(walk_down(&src, real[120].hash_slow(), 120, 10).await.unwrap(), real[10].hash_slow());
+        let (batches, singles) = (src.batches.load(std::sync::atomic::Ordering::SeqCst), src.singles.load(std::sync::atomic::Ordering::SeqCst));
+        assert_eq!((batches, singles), (3, 0), "110 headers in three batches of at most {LINK_BATCH}, and none asked for alone");
+    }
+
+    /// A batch that names another block at a height is no contradiction on its own: that header is asked for again by the
+    /// hash the walk derived, as every header was before batches, and the walk goes on when the source has it.
+    #[tokio::test]
+    async fn a_batch_that_names_another_block_is_checked_by_hash() {
+        let real = chain(60, 1);
+        let forged = chain(60, 2);
+        let src = Counted { real: real.clone(), lie_at: Some((30, forged[30].clone())), batches: Default::default(), singles: Default::default() };
+        assert_eq!(walk_down(&src, real[50].hash_slow(), 50, 10).await.unwrap(), real[10].hash_slow());
+        assert_eq!(src.singles.load(std::sync::atomic::Ordering::SeqCst), 1, "only the header the batch named otherwise");
     }
 }

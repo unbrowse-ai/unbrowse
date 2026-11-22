@@ -314,8 +314,10 @@ async fn serve_to(mut client: TcpStream, carries: Carries, label: Option<std::sy
 
 /// Carries a browser's connection to `host` until it ends, or until the checkout hold changes so that it is refused
 /// (`hold::changed`): then it is closed, both ways. What the page sends goes through [`forward`], whose every write is
-/// held to the hold's generation; what the site answers is copied as it comes. A keep-alive connection opened before a
-/// hold began carries nothing past it, not even a chunk read just as the hold was made durable.
+/// held to the hold's generation; what the site answers is copied as it comes, and when the site ends its side the
+/// browser hears that end, as `copy_bidirectional` passes it on (an answer that ends by closing is otherwise waited on
+/// for ever). A keep-alive connection opened before a hold began carries nothing past it, not even a chunk read just as
+/// the hold was made durable.
 async fn carry_while_allowed<A, B>(client: A, target: B, label: Option<std::sync::Arc<str>>, host: String, mut changes: tokio::sync::watch::Receiver<u64>, seen: u64)
 where
     A: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
@@ -324,7 +326,11 @@ where
     let (mut client_rd, mut client_wr) = tokio::io::split(client);
     let (mut target_rd, mut target_wr) = tokio::io::split(target);
     let up = forward(&mut client_rd, &mut target_wr, label.as_deref(), &host, seen);
-    let down = tokio::io::copy(&mut target_rd, &mut client_wr);
+    let down = async {
+        let copied = tokio::io::copy(&mut target_rd, &mut client_wr).await;
+        let _ = client_wr.shutdown().await;
+        copied
+    };
     tokio::pin!(up);
     tokio::pin!(down);
     let (mut up_done, mut down_done) = (false, false);
@@ -907,6 +913,143 @@ mod tests {
         release(&["long-poll.invalid"]);
     }
 
+    /// A site that ends its answer by closing the connection (HTTP/1.0, or HTTP/1.1 with neither a length nor chunks)
+    /// is heard to close by the browser, through the browser's proxy: the browser reads the whole answer and then the end,
+    /// as it does with no proxy. Before, the site-to-page copy stopped at the site's end without passing it on, so the
+    /// browser waited for the rest of an answer that had ended: the page never loaded and the next `Page.navigate` timed
+    /// out (EU TARIC, UNB-208 step 8).
+    #[test]
+    fn a_site_that_ends_its_answer_by_closing_is_heard_to_close_by_the_browser() {
+        let host = "close-delimited.invalid".to_string();
+        let target = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = target.local_addr().unwrap();
+        std::thread::spawn(move || {
+            let (mut s, _) = target.accept().unwrap();
+            s.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+            let mut req = [0u8; 256];
+            let _ = s.read(&mut req);
+            s.write_all(b"HTTP/1.0 200 OK\r\ncontent-type: text/html\r\n\r\n<html>the whole page</html>").unwrap();
+            // The answer ends here: the site closes, and keeps the socket's other half open, as a server that
+            // lingers for the client's close does.
+            s.shutdown(std::net::Shutdown::Write).unwrap();
+            std::thread::sleep(Duration::from_secs(15));
+        });
+        TARGETS.lock().unwrap().push((host.clone(), addr));
+        let proxy = start(Carries::Browser, Some(std::sync::Arc::from("close-site"))).expect("the proxy starts");
+        let mut s = std::net::TcpStream::connect(("127.0.0.1", proxy)).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        s.write_all(&[5, 1, 0]).unwrap();
+        let mut two = [0u8; 2];
+        s.read_exact(&mut two).unwrap();
+        let mut req = vec![5u8, 1, 0, 3, host.len() as u8];
+        req.extend_from_slice(host.as_bytes());
+        req.extend_from_slice(&80u16.to_be_bytes());
+        s.write_all(&req).unwrap();
+        let mut answer = [0u8; 10];
+        s.read_exact(&mut answer).unwrap();
+        assert_eq!(answer[1], 0, "the tunnel opens");
+        s.write_all(b"GET / HTTP/1.0\r\nhost: close-delimited.invalid\r\n\r\n").unwrap();
+        let mut page = Vec::new();
+        let ended = s.read_to_end(&mut page);
+        TARGETS.lock().unwrap().retain(|(h, _)| *h != host);
+        assert!(ended.is_ok(), "the browser hears the site's close within 5 s, not a wait for more: {ended:?}, read {:?}", String::from_utf8_lossy(&page));
+        assert!(String::from_utf8_lossy(&page).ends_with("<html>the whole page</html>"), "and the whole answer before it: {:?}", String::from_utf8_lossy(&page));
+    }
+
+    /// A SOCKS5 upstream that asks for a user and password, takes `user:pass` only, and answers each connect in turn
+    /// with the status and address form in `replies`. It keeps the methods offered and each address asked.
+    fn fake_upstream_with_login(user: &'static str, pass: &'static str, replies: Vec<(u8, u8)>) -> (u16, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let keep = seen.clone();
+        std::thread::spawn(move || {
+            let Ok((mut s, _)) = listener.accept() else { return };
+            let mut head = [0u8; 2];
+            s.read_exact(&mut head).unwrap();
+            let mut methods = vec![0u8; head[1] as usize];
+            s.read_exact(&mut methods).unwrap();
+            keep.lock().unwrap().push(format!("methods {methods:?}"));
+            s.write_all(&[5, 2]).unwrap();
+            let mut n = [0u8; 2];
+            s.read_exact(&mut n).unwrap();
+            let mut u = vec![0u8; n[1] as usize];
+            s.read_exact(&mut u).unwrap();
+            let mut pl = [0u8; 1];
+            s.read_exact(&mut pl).unwrap();
+            let mut pw = vec![0u8; pl[0] as usize];
+            s.read_exact(&mut pw).unwrap();
+            if u != user.as_bytes() || pw != pass.as_bytes() {
+                let _ = s.write_all(&[1, 1]);
+                return;
+            }
+            s.write_all(&[1, 0]).unwrap();
+            for (status, form) in replies {
+                let mut req = [0u8; 4];
+                if s.read_exact(&mut req).is_err() {
+                    return;
+                }
+                let asked = if req[3] == 4 {
+                    let mut a = [0u8; 16];
+                    s.read_exact(&mut a).unwrap();
+                    std::net::IpAddr::from(a).to_string()
+                } else {
+                    let mut a = [0u8; 4];
+                    s.read_exact(&mut a).unwrap();
+                    std::net::IpAddr::from(a).to_string()
+                };
+                let mut p = [0u8; 2];
+                s.read_exact(&mut p).unwrap();
+                keep.lock().unwrap().push(format!("{asked} {}", u16::from_be_bytes(p)));
+                let mut reply = vec![5u8, status, 0, form];
+                match form {
+                    1 => reply.extend_from_slice(&[10, 0, 0, 1]),
+                    4 => reply.extend_from_slice(&[0u8; 16]),
+                    3 => {
+                        reply.push(12);
+                        reply.extend_from_slice(b"exit.example");
+                    }
+                    _ => {}
+                }
+                reply.extend_from_slice(&[0, 80]);
+                s.write_all(&reply).unwrap();
+            }
+            let mut rest = [0u8; 1];
+            let _ = s.read(&mut rest);
+        });
+        (port, seen)
+    }
+
+    fn chained(upstream: &str, addrs: &[SocketAddr]) -> bool {
+        tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap().block_on(chain(upstream, addrs)).is_some()
+    }
+
+    /// A pinned site's upstream that asks for a login gets the user and password its URL names. Each address this
+    /// proxy checked is asked in turn, IPv6 in its own form, until the upstream opens one, whatever address form its
+    /// answer is written in.
+    #[test]
+    fn an_upstream_that_asks_for_a_login_gets_the_urls_and_each_checked_address_in_turn() {
+        let v6: SocketAddr = "[2001:db8::7]:443".parse().unwrap();
+        let v4: SocketAddr = "192.0.2.10:443".parse().unwrap();
+        let (port, seen) = fake_upstream_with_login("exit-user", "s3cret", vec![(5, 4), (0, 3)]);
+        assert!(chained(&format!("socks5://exit-user:s3cret@127.0.0.1:{port}"), &[v6, v4]), "the second address is open");
+        assert_eq!(*seen.lock().unwrap(), ["methods [0, 2]", "2001:db8::7 443", "192.0.2.10 443"]);
+    }
+
+    /// A login the upstream refuses, an answer in no address form, or an upstream that speaks no SOCKS5 opens nothing.
+    #[test]
+    fn a_refused_login_an_unreadable_answer_or_another_scheme_opens_nothing() {
+        let v4: SocketAddr = "192.0.2.10:443".parse().unwrap();
+        let (port, _) = fake_upstream_with_login("exit-user", "s3cret", vec![(0, 1)]);
+        assert!(!chained(&format!("socks5://exit-user:wrong@127.0.0.1:{port}"), &[v4]));
+        let (port, seen) = fake_upstream_with_login("exit-user", "s3cret", vec![(0, 9)]);
+        assert!(!chained(&format!("socks5h://exit-user:s3cret@127.0.0.1:{port}"), &[v4]), "an answer in no address form");
+        assert_eq!(seen.lock().unwrap().len(), 2, "the address was asked");
+        let (port, seen) = fake_upstream_with_login("exit-user", "s3cret", vec![]);
+        assert!(!chained(&format!("http://exit-user:s3cret@127.0.0.1:{port}"), &[v4]), "only socks5 carries a pinned site");
+        assert!(seen.lock().unwrap().is_empty(), "nothing was sent to it");
+    }
+
     #[test]
     fn a_pinned_site_leaves_through_its_upstream() {
         let _setting = setting();
@@ -1065,5 +1208,115 @@ mod tests {
             }
         }
         crate::egress::allow_private(false);
+    }
+
+    /// An echo on an address of its own: whatever four bytes it is sent, it answers `pong`.
+    fn pong_site() -> std::net::SocketAddr {
+        let echo = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let at = echo.local_addr().unwrap();
+        std::thread::spawn(move || {
+            for s in echo.incoming() {
+                let Ok(mut s) = s else { continue };
+                let mut b = [0u8; 4];
+                if s.read_exact(&mut b).is_ok() {
+                    let _ = s.write_all(b"pong");
+                }
+            }
+        });
+        at
+    }
+
+    /// Opens a SOCKS5 CONNECT with the address bytes the caller gives (`kind` 1, 3 or 4), reads the 10-byte answer, and
+    /// then says `ping` and returns what comes back: `None` where the proxy refused.
+    fn ask_and_ping(proxy: u16, kind: u8, address: &[u8], port: u16) -> Option<Vec<u8>> {
+        let mut s = std::net::TcpStream::connect(("127.0.0.1", proxy)).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        s.write_all(&[5, 1, 0]).unwrap();
+        let mut two = [0u8; 2];
+        s.read_exact(&mut two).unwrap();
+        let mut req = vec![5u8, 1, 0, kind];
+        req.extend_from_slice(address);
+        req.extend_from_slice(&port.to_be_bytes());
+        s.write_all(&req).unwrap();
+        let mut answer = [0u8; 10];
+        s.read_exact(&mut answer).ok()?;
+        if answer[1] != 0 { return None; }
+        s.write_all(b"ping").unwrap();
+        let mut back = Vec::new();
+        let _ = s.take(4).read_to_end(&mut back);
+        Some(back)
+    }
+
+    /// A tunnel carries bytes both ways, for a call and for a browser: what the client sends reaches the site and what
+    /// the site answers comes back, plainly addressed and through a pinned site's upstream.
+    #[test]
+    fn a_tunnel_carries_bytes_both_ways() {
+        let _setting = setting();
+        let at = pong_site();
+        let proxy = start(Carries::Calls, None).expect("the proxy starts");
+        assert_eq!(ask_and_ping(proxy, 1, &[127, 0, 0, 1], at.port()).as_deref(), Some(&b"pong"[..]), "a call's tunnel");
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let upstream = fake_upstream(seen.clone());
+        pin_all(std::collections::BTreeMap::from([("127.0.0.1".to_string(), format!("socks5://127.0.0.1:{upstream}"))]));
+        let through = ask_and_ping(proxy, 1, &[127, 0, 0, 1], at.port());
+        pin_all(Default::default());
+        assert_eq!(through.as_deref(), Some(&b"pong"[..]), "a pinned site's tunnel");
+        assert!(!seen.lock().unwrap_or_else(std::sync::PoisonError::into_inner).is_empty(), "it went through the upstream");
+    }
+
+    /// A pinned site whose upstream doesn't carry it is refused, and the client is told so: nothing leaves by the
+    /// address the owner didn't pin, and the client doesn't wait.
+    #[test]
+    fn a_pinned_site_whose_upstream_is_down_is_refused() {
+        let _setting = setting();
+        let at = pong_site();
+        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        pin_all(std::collections::BTreeMap::from([("127.0.0.1".to_string(), format!("socks5://127.0.0.1:{closed}"))]));
+        let proxy = start(Carries::Calls, None).expect("the proxy starts");
+        let carried = connect_through(proxy, "127.0.0.1", at.port());
+        pin_all(Default::default());
+        assert!(!carried, "the upstream didn't carry it, so nothing was");
+    }
+
+    /// A client that offers no way of greeting this proxy accepts (only a login) is told no method fits, and is not
+    /// carried anywhere.
+    #[test]
+    fn a_client_that_offers_only_a_login_is_told_no_method_fits() {
+        let proxy = start(Carries::Calls, None).expect("the proxy starts");
+        let mut s = std::net::TcpStream::connect(("127.0.0.1", proxy)).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        s.write_all(&[5, 1, 2]).unwrap();
+        let mut two = [0u8; 2];
+        s.read_exact(&mut two).unwrap();
+        assert_eq!(two, [5, 0xFF]);
+    }
+
+    /// A browser that asks for an address in its IPv6 form is read whole: the proxy names the address as the sixteen
+    /// bytes it was given, and carries the connection to the target that name stands for.
+    #[test]
+    fn an_address_asked_for_in_its_ipv6_form_is_read_whole() {
+        let at = pong_site();
+        let host = "2001:db8::7";
+        TARGETS.lock().unwrap().push((host.to_string(), at));
+        let proxy = start(Carries::Browser, None).expect("the proxy starts");
+        let address = "2001:db8::7".parse::<std::net::Ipv6Addr>().unwrap().octets();
+        let back = ask_and_ping(proxy, 4, &address, 443);
+        TARGETS.lock().unwrap().retain(|(h, _)| h != host);
+        assert_eq!(back.as_deref(), Some(&b"pong"[..]));
+    }
+
+    /// A write the site doesn't take ends the copy with that error, rather than going on reading what the page sends.
+    #[test]
+    fn a_copy_ends_when_the_site_takes_no_more() {
+        use tokio::io::AsyncWriteExt;
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let (mut page, mut page_end) = tokio::io::duplex(1024);
+            let (mut site_end, site) = tokio::io::duplex(1024);
+            drop(site);
+            page.write_all(b"data").await.unwrap();
+            let ended = tokio::time::timeout(Duration::from_secs(5), forward(&mut page_end, &mut site_end, None, "gone.invalid", 0)).await.expect("the copy ended, not waited on the page");
+            assert!(ended.is_err(), "{ended:?}");
+        });
     }
 }

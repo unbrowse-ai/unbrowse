@@ -66,6 +66,17 @@ pub fn build(b: *std.Build) void {
     // With UNB_SNAP_DIR the run writes each test's frame there: the point of it, so it always runs.
     if (b.graph.environ_map.get("UNB_SNAP_DIR") != null) run_tests.has_side_effects = true;
     b.step("test", "Run the tests").dependOn(&run_tests.step);
+    // `zig build test-bin`: the same tests as zig-out/bin/window-tests, unrun, for a coverage tool to run (coverage.yml).
+    // Built by LLVM: kcov reads its line tables, not the ones Zig's own x86 backend writes.
+    const tests_llvm = b.addTest(.{ .use_llvm = true, .root_module = b.createModule(.{
+        .root_source_file = b.path("src/tests.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "nanoui", .module = nanoui }},
+    }) });
+    art(b, tests_llvm.root_module);
+    const tests_bin = b.addInstallArtifact(tests_llvm, .{ .dest_sub_path = "window-tests" });
+    b.step("test-bin", "Build the tests into zig-out/bin/window-tests without running them").dependOn(&tests_bin.step);
 }
 
 /// The window's art (src/art): the U mark and Uni in each of the film's moods, as `art_mark` and `uni_<mood>`

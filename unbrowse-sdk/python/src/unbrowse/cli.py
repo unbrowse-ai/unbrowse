@@ -32,8 +32,8 @@ from unbrowse._old_skills import OLD_SKILL_FILES
 HERE = Path(__file__).resolve().parent
 PROGRAMS = ("unbrowse-node", "unb", "agent-browser")
 NODE_COMMANDS = {
-    "agent", "browser", "chain", "bounty", "coin", "domain", "earnings", "max-fetch", "money", "network", "nodes", "passkey", "reports", "restart", "session", "share", "sign-in", "telemetry", "terms", "update",
-    "vault", "wallet",
+    "agent", "browser", "chain", "bounty", "coin", "domain", "earnings", "max-fetch", "money", "network", "nodes", "onboard", "passkey", "reports", "restart", "session", "share", "sign-in", "telemetry", "terms", "update",
+    "vault", "wallet", "agent-user", "checkout", "confirm", "passphrase", "remote",
 }
 WINDOWS = sys.platform == "win32"
 

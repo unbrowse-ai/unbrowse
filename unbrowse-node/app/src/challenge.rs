@@ -42,15 +42,52 @@ fn forget(site: &str, session: &str) {
 
 /// Shows the page: a picture of it, its address, its title, its readable text, and whether it still asks for a person.
 pub fn look(who: &str, site: &str, session: &str, url: &str) -> Result<Value, String> {
-    show(who, site, session, url, None)
+    show(who, site, session, url, None, false)
 }
 
 /// Takes one step on the page and shows it again, so the agent sees what its step did.
 pub fn act(who: &str, site: &str, session: &str, act: Act) -> Result<Value, String> {
-    show(who, site, session, "", Some(act))
+    show(who, site, session, "", Some(act), false)
 }
 
-fn show(who: &str, site: &str, session: &str, url: &str, act: Option<Act>) -> Result<Value, String> {
+/// A hand step (click/drag/type/press) with no picture or page read after it: for beating a short challenge timer,
+/// where the caller already holds the grid and only needs the clicks to land fast. The reply says what was done, not
+/// what the page shows; a `look` afterwards reads the page.
+pub fn act_quick(who: &str, site: &str, session: &str, act: Act) -> Result<Value, String> {
+    show(who, site, session, "", Some(act), true)
+}
+
+/// Several hand steps over ONE browser attachment, no picture or page read between them: a captcha grid's clicks and
+/// its Confirm land in a single fast call, inside a short WAF timer that a round-trip per click would outrun. The
+/// reply says what was done; a `look` afterwards reads the page.
+pub fn batch(who: &str, site: &str, session: &str, steps: Vec<Act>) -> Result<Value, String> {
+    let site = if !site.trim().is_empty() {
+        unbrowse_learn::identity::site_of(site.trim())
+    } else {
+        crate::browse::last_site(session).ok_or("no page is open: give url, or open one with unbrowse_browse")?
+    };
+    crate::browse::in_the_sites_turn(&site.clone(), format!("a challenge batch for {who}"), || {
+        for a in &steps {
+            crate::browse::page_policy(&site, session, &[a.command().to_string()])?;
+        }
+        let tab = crate::browse::tab_of(session);
+        let cdp = crate::browse::cdp_of(&site).ok_or_else(|| format!("{site}'s browser isn't open: it opens when an agent browses the site"))?;
+        let target = crate::browse::target_of(&site, &tab).ok_or("the session's tab isn't open in that browser")?;
+        let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
+        let opened = rt.block_on(open(&cdp, &target))?;
+        let mut page = CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title };
+        let mut done = Vec::new();
+        for a in &steps {
+            match take(&mut page, a) {
+                Ok(()) => { note(&site, session, a.said()); done.push(a.said()); }
+                Err(e) => { note(&site, session, format!("{} failed: {e}", a.said())); done.push(format!("{} failed: {e}", a.said())); }
+            }
+        }
+        Ok(json!({ "site": site, "said": done, "asks": Value::Null, "quick": true, "batched": steps.len() }))
+    })
+}
+
+fn show(who: &str, site: &str, session: &str, url: &str, act: Option<Act>, quick: bool) -> Result<Value, String> {
     let site = if !url.trim().is_empty() {
         // The page to meet is opened in the session's own tab, as the agent would have opened it.
         crate::browse::act(&["open".to_string(), url.trim().to_string()], None, who, session)?;
@@ -62,28 +99,31 @@ fn show(who: &str, site: &str, session: &str, url: &str, act: Option<Act>) -> Re
     };
     // The step, and the picture after it, are one turn of the site's browser: no card fill or agent command comes
     // between them, and the gates are read inside it, so a hold begun while it waited is seen.
-    crate::browse::in_the_sites_turn(&site.clone(), format!("a challenge step for {who}"), || shown(who, &site, session, act))
+    crate::browse::in_the_sites_turn(&site.clone(), format!("a challenge step for {who}"), || shown(who, &site, session, act, quick))
 }
 
 /// The browse commands a challenge call amounts to, for the one page policy (`browse::page_policy`) to judge: its step
-/// (a click, a drag, typed text, a key), the picture it may take, and the page's words it reads back.
-fn what_it_does(act: Option<&Act>) -> Vec<Vec<String>> {
+/// (a click, a drag, typed text, a key), the picture it may take, and the page's words it reads back. A quick hand step
+/// takes no picture and reads no words: only the step itself.
+fn what_it_does(act: Option<&Act>, quick: bool) -> Vec<Vec<String>> {
     let mut all = Vec::new();
     if let Some(a) = act.filter(|a| !matches!(a, Act::Wait(_) | Act::Done)) {
         all.push(vec![a.command().to_string()]);
     }
-    all.push(vec!["screenshot".to_string()]);
-    all.push(vec!["get".to_string(), "text".to_string(), "body".to_string()]);
+    if !quick {
+        all.push(vec!["screenshot".to_string()]);
+        all.push(vec!["get".to_string(), "text".to_string(), "body".to_string()]);
+    }
     all
 }
 
-fn shown(_who: &str, site: &str, session: &str, act: Option<Act>) -> Result<Value, String> {
+fn shown(_who: &str, site: &str, session: &str, act: Option<Act>, quick: bool) -> Result<Value, String> {
     let site = site.to_string();
     // The step, the picture and the words read back each cross the same page policy `unbrowse_browse` does, before
     // anything reaches the page: the tab, the owner's hand-off, the pause, the exclusions, the card hold, and the secret
     // rules. A picture can't be scrubbed, so a page that may hold a secret the node filled or the owner typed gets no
     // picture taken, by the same test browse's `screenshot` meets; the words are scrubbed of every secret below.
-    for args in what_it_does(act.as_ref()) {
+    for args in what_it_does(act.as_ref(), quick) {
         crate::browse::page_policy(&site, session, &args)?;
     }
     let tab = crate::browse::tab_of(session);
@@ -93,11 +133,22 @@ fn shown(_who: &str, site: &str, session: &str, act: Option<Act>) -> Result<Valu
     let opened = rt.block_on(open(&cdp, &target))?;
     let mut page = CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title };
     let done = matches!(act, Some(Act::Done));
+    let hand = act.as_ref().is_some_and(|a| !matches!(a, Act::Wait(_) | Act::Done));
+    // A page holding a secret has no picture taken: the page policy above refused it, and the node's own read of what
+    // the page paints is asked again before the step and before the picture (a step may show it: the page's own "show
+    // password"), a second guard (`browse::may_picture`). The steps themselves are hands, never the agent's code, so
+    // they leave the tab fillable. A quick hand step skips the read: it only lands the click.
+    if !quick {
+        crate::browse::may_picture(&site, &tab, || page.shown(&site))?;
+    }
     if let Some(act) = &act {
         match take(&mut page, act) {
             Ok(()) => note(&site, session, act.said()),
             Err(e) => note(&site, session, format!("{} failed: {e}", act.said())),
         }
+    }
+    if quick && hand {
+        return Ok(json!({ "site": site, "said": said(&site, session), "asks": Value::Null, "quick": true }));
     }
     if done {
         page.settle(600);
@@ -109,7 +160,12 @@ fn shown(_who: &str, site: &str, session: &str, act: Option<Act>) -> Result<Valu
     let state = page.state()?;
     // A picture only of a page the node judges to be asking for a person: the tool is for meeting a challenge, not a
     // camera on any page. A page that doesn't ask is answered with its words alone.
-    let shot = if state.asks_a_person { Some(page.shot()?) } else { None };
+    let shot = if state.asks_a_person {
+        crate::browse::may_picture(&site, &tab, || page.shown(&site))?;
+        Some(page.shot()?)
+    } else {
+        None
+    };
     let image = match &shot {
         Some(shot) => Some(save_shot(session, &shot.png)?),
         None => None,
@@ -146,6 +202,7 @@ fn take(page: &mut CdpPage, act: &Act) -> Result<(), String> {
     match act {
         Act::Click(x, y) => page.click(*x, *y)?,
         Act::Drag(from, to) => page.drag(*from, *to)?,
+        Act::Hold(x, y, ms) => page.hold(*x, *y, *ms)?,
         Act::Type(text) => page.type_text(text)?,
         Act::Press(key) => page.press(key)?,
         Act::Wait(ms) => page.settle(*ms),
@@ -256,7 +313,7 @@ fn forget_old_shots(dir: &std::path::Path, now: SystemTime) {
 struct Opened {
     client: Arc<CdpClient>,
     session: String,
-    viewport: (f64, f64),
+    viewport: View,
     url: String,
     title: String,
 }
@@ -272,17 +329,40 @@ async fn open(ws: &str, target: &str) -> Result<Opened, String> {
     Ok(Opened { client, session, viewport, url, title })
 }
 
-async fn layout(client: &CdpClient, session: &str) -> (f64, f64) {
+/// The part of the document the tab shows: where it sits in the document and its size, in CSS pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct View {
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+}
+
+/// The tab's view read from the browser's layout: the visual viewport's place in the document (`pageX`, `pageY`) and its
+/// size. A page scrolled to its form shows the form, not the document's top, so a picture clipped at the document's
+/// origin is of a part nobody can see, blank, while the page still asks.
+fn view_of(metrics: &Value) -> Option<View> {
+    let v = metrics.get("cssVisualViewport")?;
+    let w = v.get("clientWidth")?.as_f64()?;
+    let h = v.get("clientHeight")?.as_f64()?;
+    let x = v.get("pageX").and_then(|n| n.as_f64()).unwrap_or(0.0).max(0.0);
+    let y = v.get("pageY").and_then(|n| n.as_f64()).unwrap_or(0.0).max(0.0);
+    (w > 0.0 && h > 0.0).then_some(View { x, y, w, h })
+}
+
+/// The clip of a picture of what the tab shows: the view's own place in the document, at one image pixel per CSS
+/// pixel, so a point in the picture is the point a click at the same place lands on (clicks are viewport pixels).
+fn clip_of(view: View) -> Value {
+    json!({ "x": view.x, "y": view.y, "width": view.w, "height": view.h, "scale": 1.0 })
+}
+
+async fn layout(client: &CdpClient, session: &str) -> View {
     client
         .send_command("Page.getLayoutMetrics", None, Some(session))
         .await
         .ok()
-        .and_then(|m| {
-            let v = m.get("cssVisualViewport")?;
-            Some((v.get("clientWidth")?.as_f64()?, v.get("clientHeight")?.as_f64()?))
-        })
-        .filter(|(w, h)| *w > 0.0 && *h > 0.0)
-        .unwrap_or((1280.0, 800.0))
+        .and_then(|m| view_of(&m))
+        .unwrap_or(View { x: 0.0, y: 0.0, w: 1280.0, h: 800.0 })
 }
 
 async fn where_it_is(client: &CdpClient, session: &str) -> (String, String) {
@@ -308,7 +388,7 @@ struct CdpPage {
     rt: tokio::runtime::Runtime,
     client: Arc<CdpClient>,
     session: String,
-    viewport: (f64, f64),
+    viewport: View,
     url: String,
     title: String,
 }
@@ -317,15 +397,23 @@ impl CdpPage {
     fn send(&self, method: &str, params: Value) -> Result<Value, String> {
         self.rt.block_on(async { self.client.send_command(method, Some(params), Some(&self.session)).await })
     }
+
+    /// The node's own read of what the page paints (`browse::shown_js`): `None` when the page wouldn't say.
+    fn shown(&self, site: &str) -> Option<crate::browse::Shown> {
+        let said = self.send("Runtime.evaluate", json!({ "expression": crate::browse::shown_js(site), "returnByValue": true })).ok()?;
+        crate::browse::Shown::of(&said.pointer("/result/value")?.to_string())
+    }
 }
 
 impl Page for CdpPage {
     fn shot(&mut self) -> Result<Shot, String> {
-        let (w, h) = self.viewport;
-        let said = self.send(
-            "Page.captureScreenshot",
-            json!({ "format": "png", "clip": { "x": 0.0, "y": 0.0, "width": w, "height": h, "scale": 1.0 }, "captureBeyondViewport": false }),
-        )?;
+        // Read where the tab is at the moment of the picture: a step may have scrolled it (a focus, a click on a box
+        // below the fold), and the picture is of what the tab shows now.
+        if let Some(view) = self.send("Page.getLayoutMetrics", json!({})).ok().and_then(|m| view_of(&m)) {
+            self.viewport = view;
+        }
+        let View { w, h, .. } = self.viewport;
+        let said = self.send("Page.captureScreenshot", json!({ "format": "png", "clip": clip_of(self.viewport), "captureBeyondViewport": false }))?;
         let b64 = said.get("data").and_then(|d| d.as_str()).ok_or("the browser took no picture")?;
         let png = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64).map_err(|e| e.to_string())?;
         Ok(Shot { png, w, h })
@@ -360,6 +448,16 @@ impl Page for CdpPage {
         Ok(())
     }
 
+    fn hold(&mut self, x: f64, y: f64, ms: u64) -> Result<(), String> {
+        self.send("Input.dispatchMouseEvent", json!({ "type": "mouseMoved", "x": x, "y": y }))?;
+        self.send("Input.dispatchMouseEvent", json!({ "type": "mousePressed", "x": x, "y": y, "button": "left", "buttons": 1, "clickCount": 1 }))?;
+        // Held for the time named: the button fills while it is pressed, and lets the page on once full.
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+        self.send("Input.dispatchMouseEvent", json!({ "type": "mouseReleased", "x": x, "y": y, "button": "left", "buttons": 0, "clickCount": 1 }))?;
+        self.settle(500);
+        Ok(())
+    }
+
     fn type_text(&mut self, text: &str) -> Result<(), String> {
         self.send("Input.insertText", json!({ "text": text }))?;
         self.settle(200);
@@ -387,46 +485,155 @@ impl Page for CdpPage {
     }
 
     fn state(&mut self) -> Result<State, String> {
-        let said = self.send(
-            "Runtime.evaluate",
-            json!({
-                "expression": "JSON.stringify((()=>{const f=(document.documentElement&&document.documentElement.outerHTML)||'';const cut=f.length>300000;return {url:location.href,title:document.title,text:(document.body&&document.body.innerText||'').slice(0,4000),html:f.slice(0,300000),body:cut?((document.body&&document.body.outerHTML)||'').slice(0,300000):'',cut:cut,answered:[...document.querySelectorAll('input,textarea')].some(e=>/-response$/i.test(e.name||'')&&String(e.value||'').length>0)}})())",
-                "returnByValue": true
-            }),
-        )?;
-        let raw = said.pointer("/result/value").and_then(|v| v.as_str()).ok_or("the page said nothing")?;
-        let v: Value = serde_json::from_str(raw).map_err(|e| e.to_string())?;
-        self.url = v.get("url").and_then(|u| u.as_str()).unwrap_or_default().to_string();
-        self.title = v.get("title").and_then(|t| t.as_str()).unwrap_or_default().to_string();
-        let html = {
-            let whole = v.get("html").and_then(|h| h.as_str()).unwrap_or_default().to_string();
-            let body = v.get("body").and_then(|h| h.as_str()).unwrap_or_default().to_string();
-            let cut = v.get("cut").and_then(|c| c.as_bool()).unwrap_or(false);
-            page_act::page_or_body(&whole, &body, cut).to_string()
-        };
-        let text = v.get("text").and_then(|t| t.as_str()).unwrap_or_default().to_string();
-        let at = url::Url::parse(&self.url).ok();
-        // A widget that has answered (its `<widget>-response` field holds a token) is the site's own word that the check
-        // passed, wherever its frame still sits: the page is no longer asking, even before it navigates.
-        let answered = v.get("answered").and_then(|a| a.as_bool()).unwrap_or(false);
-        // A page that says, in its own words, that it wants a person: a code to type, a slide, a robot check. The same
-        // generic words the test bank labels a challenge by, never a vendor's name; the agent's look settles it.
-        let lower = text.to_lowercase();
-        let says = |words: &[&str]| words.iter().any(|w| lower.contains(w));
-        let cue = wants_a_person(&lower);
-        // The site's own word that the check was passed, on the page itself: a code challenge whose page stays put.
-        let passed = says(&["验证成功", "verification successful", "captcha is passed", "challenge success"]);
-        let asks = !answered && !passed && (at.as_ref().is_some_and(|at| page_act::asks_a_person(&html, at)) || cue);
-        Ok(State {
-            url: self.url.clone(),
-            title: self.title.clone(),
-            text,
-            asks_a_person: asks,
-        })
+        let said = self.send("Runtime.evaluate", json!({ "expression": READ_JS, "returnByValue": true }))?;
+        let top = Read::of(said.pointer("/result/value").and_then(|v| v.as_str()).ok_or("the page said nothing")?)?;
+        self.url = top.url.clone();
+        self.title = top.title.clone();
+        let frames = self.frames_of_the_site(&top.url);
+        // The page's words, then each shown frame's: a check drawn in a frame says what it asks there, not on the page.
+        let mut text = top.text.clone();
+        for f in frames.iter().filter(|f| f.shown && !f.text.trim().is_empty()) {
+            text.push('\n');
+            text.push_str(&f.text);
+        }
+        Ok(State { url: self.url.clone(), title: self.title.clone(), text: text.chars().take(4000).collect(), asks_a_person: page_asks(&top, &frames) })
     }
 
     fn settle(&mut self, ms: u64) {
         std::thread::sleep(std::time::Duration::from_millis(ms.min(20_000)));
+    }
+}
+
+impl CdpPage {
+    /// Each frame of the page's own site, at any depth, read as the page is (`READ_JS`). A check is often drawn in a
+    /// frame the site serves from another of its hosts over its page, and the page under it reads as a page of the
+    /// site. Another site's frame runs apart from the page (its own process) and isn't read here: what it shows is
+    /// judged by the frame of the site that holds it.
+    fn frames_of_the_site(&self, page: &str) -> Vec<Read> {
+        let Some(host) = url::Url::parse(page).ok().and_then(|u| u.host_str().map(String::from)) else { return Vec::new() };
+        let Ok(tree) = self.send("Page.getFrameTree", json!({})) else { return Vec::new() };
+        let mut ids = Vec::new();
+        fn children(node: &Value, host: &str, out: &mut Vec<String>) {
+            for child in node.get("childFrames").and_then(Value::as_array).into_iter().flatten() {
+                let frame = &child["frame"];
+                let ours = frame["url"].as_str().and_then(|u| url::Url::parse(u).ok()).and_then(|u| u.host_str().map(String::from)).is_some_and(|h| unbrowse_learn::identity::same_site(&h, host));
+                if let (true, Some(id)) = (ours, frame["id"].as_str()) {
+                    out.push(id.to_string());
+                }
+                children(child, host, out);
+            }
+        }
+        children(tree.get("frameTree").unwrap_or(&Value::Null), &host, &mut ids);
+        ids.into_iter()
+            .take(FRAMES_MOST)
+            .filter_map(|id| {
+                let world = self.send("Page.createIsolatedWorld", json!({ "frameId": id, "worldName": "unbrowse-challenge" })).ok()?;
+                let context = world.get("executionContextId")?.as_i64()?;
+                let said = self.send("Runtime.evaluate", json!({ "expression": READ_JS, "returnByValue": true, "contextId": context })).ok()?;
+                Read::of(said.pointer("/result/value")?.as_str()?).ok()
+            })
+            .collect()
+    }
+}
+
+/// The most frames of the site read per step: a page of the site frames a few of its own; more is not a check.
+const FRAMES_MOST: usize = 12;
+
+/// What a document says of itself, for the page and for each frame of its site: its address and title, its words, its
+/// markup (its body when the whole is past the cap), whether a widget in it has answered (its `<widget>-response` field
+/// holds a token), and whether it is shown: a frame with no room on screen (an empty or hidden one) shows nothing.
+const READ_JS: &str = "JSON.stringify((()=>{const f=(document.documentElement&&document.documentElement.outerHTML)||'';const cut=f.length>300000;return {url:location.href,title:document.title,text:(document.body&&document.body.innerText||'').slice(0,4000),html:f.slice(0,300000),body:cut?((document.body&&document.body.outerHTML)||'').slice(0,300000):'',cut:cut,answered:[...document.querySelectorAll('input,textarea')].some(e=>/-response$/i.test(e.name||'')&&String(e.value||'').length>0),shown:innerWidth>=40&&innerHeight>=40&&document.visibilityState!=='hidden'}})())";
+
+/// A document as `READ_JS` reads it.
+#[derive(Clone, Debug, Default)]
+struct Read {
+    url: String,
+    title: String,
+    text: String,
+    /// Its markup, or its body when the whole was past the cap (`page_or_body`).
+    html: String,
+    answered: bool,
+    shown: bool,
+}
+
+impl Read {
+    fn of(raw: &str) -> Result<Read, String> {
+        let v: Value = serde_json::from_str(raw).map_err(|e| e.to_string())?;
+        let s = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or_default().to_string();
+        let cut = v.get("cut").and_then(|c| c.as_bool()).unwrap_or(false);
+        let (whole, body) = (s("html"), s("body"));
+        Ok(Read {
+            url: s("url"),
+            title: s("title"),
+            text: s("text"),
+            html: page_act::page_or_body(&whole, &body, cut).to_string(),
+            answered: v.get("answered").and_then(|a| a.as_bool()).unwrap_or(false),
+            shown: v.get("shown").and_then(|a| a.as_bool()).unwrap_or(true),
+        })
+    }
+
+    /// Whether this document, read alone, asks for a person: it is only a script and a check, shows a widget, or says
+    /// in its own words that it wants one.
+    fn asks(&self) -> bool {
+        url::Url::parse(&self.url).is_ok_and(|at| page_act::asks_a_person(&self.html, &at)) || wants_a_person(&self.text)
+    }
+
+    /// The site's own word that the check was passed, on the page itself: a code challenge whose page stays put.
+    fn says_passed(&self) -> bool {
+        let lower = self.text.to_lowercase();
+        ["验证成功", "verification successful", "captcha is passed", "challenge success"].iter().any(|w| lower.contains(w))
+    }
+}
+
+/// Whether the page asks for a person: the page itself does, or a frame of its site shown over it does (a check drawn
+/// in a frame the site serves from another of its hosts, on a page that reads as a page of the site under it). A
+/// widget that has answered, in the page or a frame, or the site's word that the check passed, is the site saying it
+/// no longer asks. A frame with no room on screen asks nobody: a script's own frame, a check not shown. The same
+/// generic words and properties for every site, never a vendor's name; the agent's look settles it.
+fn page_asks(top: &Read, frames: &[Read]) -> bool {
+    let shown: Vec<&Read> = frames.iter().filter(|f| f.shown).collect();
+    let answered = top.answered || shown.iter().any(|f| f.answered);
+    let passed = top.says_passed() || shown.iter().any(|f| f.says_passed());
+    !answered && !passed && (top.asks() || shown.iter().any(|f| f.asks()))
+}
+
+#[cfg(test)]
+mod frame_tests {
+    use super::*;
+
+    fn read(url: &str, html: &str, text: &str) -> Read {
+        Read { url: url.into(), title: String::new(), text: text.into(), html: html.into(), answered: false, shown: true }
+    }
+
+    /// A page of the site, its own links all around, with a search that came back empty under a dialog: the dialog is a
+    /// frame the site serves from another of its hosts, and the check (another site's frame) sits in that frame. Read
+    /// alone, the page asks nobody; with its shown frame, it asks. The run that exposed it: a shop's search page on
+    /// 2026-11-19, where `asks` said false on every step while the box and then the picture grid were on screen.
+    #[test]
+    fn a_check_in_a_shown_frame_of_the_site_is_the_page_asking() {
+        let links: String = (1..=8).map(|i| format!("<a href=\"/c/{i}/\">c{i}</a>")).collect();
+        let top = read("https://www.shop.example/tag/thing/?q=thing", &format!("<html><body><nav>{links}</nav><h1>Search No Result</h1><div><iframe src=\"https://guard.shop.example//h5/x/1.0/_____gate_____/hold?d=1\"></iframe></div></body></html>"), "Search No Result");
+        assert!(!page_asks(&top, &[]), "read alone, the page is a page of the site");
+        let frame = read(
+            "https://guard.shop.example//h5/x/1.0/_____gate_____/hold?d=1",
+            "<html><body><img src=/m.png><p>We need to check if you are a robot.</p><iframe src=\"https://widget.example/api2/anchor?k=1\"></iframe></body></html>",
+            "We need to check if you are a robot.",
+        );
+        assert!(page_asks(&top, std::slice::from_ref(&frame)), "the shown frame of the site holds the check");
+        // Answered in the frame, it asks no more.
+        assert!(!page_asks(&top, &[Read { answered: true, ..frame.clone() }]));
+        // The same frame with no room on screen asks nobody.
+        assert!(!page_asks(&top, &[Read { shown: false, ..frame }]));
+    }
+
+    /// A frame of the site that is part of the page (its comments, its own links around) asks nobody: a frame is read
+    /// as a page is, by the same properties.
+    #[test]
+    fn a_frame_of_the_site_that_is_a_page_asks_nobody() {
+        let links: String = (1..=8).map(|i| format!("<a href=\"/p/{i}/\">p{i}</a>")).collect();
+        let top = read("https://www.shop.example/item/1", &format!("<html><body><nav>{links}</nav><h1>A thing</h1></body></html>"), "A thing");
+        let frame = read("https://reviews.shop.example/item/1", &format!("<html><body><nav>{links}</nav><p>Great thing</p><iframe src=\"https://ads.example/slot\"></iframe></body></html>"), "Great thing");
+        assert!(!page_asks(&top, &[frame]));
     }
 }
 
@@ -435,9 +642,81 @@ impl Page for CdpPage {
 /// route read back: a check handed over as a route's answer is a wrong success.
 pub(crate) fn wants_a_person(text: &str) -> bool {
     let lower = text.to_lowercase();
-    ["captcha", "验证码", "完成验证", "您是真人", "verify you are human", "verify you're a human", "verify you’re a human", "confirm you’re human", "confirm you're human", "confirm you are human", "prove your humanity", "please slide to verify", "slide to verify", "i'm not a robot", "i am not a robot", "human verification", "security check", "unusual browser activity", "unusual traffic"]
+    ["captcha", "验证码", "完成验证", "您是真人", "verify you are human", "verify you're a human", "verify you’re a human", "confirm you’re human", "confirm you're human", "confirm you are human", "prove your humanity", "please slide to verify", "slide to verify", "i'm not a robot", "i am not a robot", "you are a robot", "you're a robot", "human verification", "security check", "unusual browser activity", "unusual traffic"]
         .iter()
         .any(|w| lower.contains(w))
+}
+
+#[cfg(test)]
+mod hold_tests {
+    use super::*;
+
+    /// A DevTools endpoint with one page, keeping each mouse event it was sent and when.
+    fn devtools() -> (String, Arc<Mutex<Vec<(Value, std::time::Instant)>>>) {
+        let heard: Arc<Mutex<Vec<(Value, std::time::Instant)>>> = Arc::default();
+        let kept = heard.clone();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let kept = kept.clone();
+                std::thread::spawn(move || {
+                    let Ok(mut socket) = tokio_tungstenite::tungstenite::accept(stream) else { return };
+                    while let Ok(msg) = socket.read() {
+                        let Ok(cmd) = serde_json::from_str::<Value>(msg.to_text().unwrap_or_default()) else { continue };
+                        if cmd["method"] == "Input.dispatchMouseEvent" {
+                            kept.locked().push((cmd["params"].clone(), std::time::Instant::now()));
+                        }
+                        let result = match cmd["method"].as_str() {
+                            Some("Target.attachToTarget") => json!({ "sessionId": "S1" }),
+                            _ => json!({}),
+                        };
+                        let _ = socket.send(tokio_tungstenite::tungstenite::Message::text(json!({ "id": cmd["id"], "result": result }).to_string()));
+                    }
+                });
+            }
+        });
+        (format!("ws://127.0.0.1:{port}/devtools/browser/fake"), heard)
+    }
+
+    /// A hold presses where it is told and lets go only after the time named, at the same point: a button that fills
+    /// while pressed sees one press, held, and one release.
+    #[test]
+    fn a_hold_is_one_press_let_go_after_its_time() {
+        let (ws, heard) = devtools();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let opened = rt.block_on(open(&ws, "T1")).unwrap();
+        let mut page = CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title };
+        take(&mut page, &Act::Hold(664.0, 494.0, 700)).unwrap();
+        let heard = heard.locked().clone();
+        let kinds: Vec<&str> = heard.iter().map(|(p, _)| p["type"].as_str().unwrap_or_default()).collect();
+        assert_eq!(kinds, ["mouseMoved", "mousePressed", "mouseReleased"]);
+        assert!(heard.iter().all(|(p, _)| p["x"] == 664.0 && p["y"] == 494.0), "{heard:?}");
+        assert!(heard[2].1.duration_since(heard[1].1) >= std::time::Duration::from_millis(700), "held for its time");
+    }
+}
+
+#[cfg(test)]
+mod view_tests {
+    use super::*;
+
+    /// The run that exposed it: a sign-up form at document y 718 in a 632 px tab, scrolled to the form. The picture is
+    /// of the part the tab shows, where the form is, not of the document's top.
+    #[test]
+    fn a_picture_is_of_what_the_tab_shows_not_the_document_top() {
+        let metrics = json!({ "cssVisualViewport": { "pageX": 0.0, "pageY": 520.0, "clientWidth": 1280.0, "clientHeight": 632.0 } });
+        let view = view_of(&metrics).unwrap();
+        assert_eq!(view, View { x: 0.0, y: 520.0, w: 1280.0, h: 632.0 });
+        let clip = clip_of(view);
+        assert_eq!(clip["y"], 520.0);
+        assert_eq!(clip["height"], 632.0);
+        assert_eq!(clip["scale"], 1.0, "one image pixel per CSS pixel, so a point in the picture is where a click lands");
+        // A page never scrolled is pictured from its top, as before.
+        let top = view_of(&json!({ "cssVisualViewport": { "clientWidth": 800.0, "clientHeight": 600.0 } })).unwrap();
+        assert_eq!((top.x, top.y), (0.0, 0.0));
+        // A layout with no size is no view: the node falls back to its default size rather than a zero picture.
+        assert!(view_of(&json!({ "cssVisualViewport": { "clientWidth": 0.0, "clientHeight": 600.0 } })).is_none());
+    }
 }
 
 #[cfg(test)]
@@ -448,6 +727,7 @@ mod wants_tests {
     fn a_page_that_says_it_wants_a_person_is_one_that_asks() {
         assert!(super::wants_a_person("We’re noticing unusual browser activity\nCheck the box to confirm you’re human."));
         assert!(!super::wants_a_person("1-48 of over 30,000 results for flask\nSort by: Featured"));
+        assert!(super::wants_a_person("We need to check if you are a robot."));
     }
 
     /// A picture of a page is of a signed-in session. It is kept long enough for the agent that asked to read it, and
@@ -483,7 +763,7 @@ mod gate_tests {
         let _home = crate::store::scratch_home("challenge-any-hold");
         crate::payhold::seal_for_tests();
         crate::payhold::begin("checkout-waiting.example", &[]).unwrap();
-        for a in [Act::Click(10.0, 10.0), Act::Drag((1.0, 1.0), (50.0, 1.0)), Act::Type("hello".into()), Act::Press("Enter".into())] {
+        for a in [Act::Click(10.0, 10.0), Act::Drag((1.0, 1.0), (50.0, 1.0)), Act::Hold(10.0, 10.0, 500), Act::Type("hello".into()), Act::Press("Enter".into())] {
             let why = act("agent", "unrelated.example", "s1", a).unwrap_err();
             assert!(why.contains("waiting for the owner"), "{why}");
         }
@@ -552,7 +832,7 @@ mod gate_tests {
     /// browse commands; a wait and done take no step of their own.
     #[test]
     fn a_challenge_call_is_judged_as_the_browse_commands_it_amounts_to() {
-        let names = |a: Option<&Act>| what_it_does(a).into_iter().map(|c| c.join(" ")).collect::<Vec<_>>();
+        let names = |a: Option<&Act>| what_it_does(a, false).into_iter().map(|c| c.join(" ")).collect::<Vec<_>>();
         assert_eq!(names(None), ["screenshot", "get text body"]);
         assert_eq!(names(Some(&Act::Click(1.0, 1.0))), ["click", "screenshot", "get text body"]);
         assert_eq!(names(Some(&Act::Wait(5))), ["screenshot", "get text body"]);

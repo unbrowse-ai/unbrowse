@@ -79,8 +79,9 @@ Secrets the release reads: `UNBROWSE_RELEASE_KEY` (the Ed25519 key that signs th
 and every role of the built-in update root; its public half is `RELEASE_KEY` in `update.rs`), `UNBROWSE_TARGETS_KEY`
 and `UNBROWSE_TIMESTAMP_KEY` (the update metadata's targets and timestamp keys once root 2 names them; until then
 unset, and the release key signs both, §2), and for a notarised Mac app `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD`,
-`APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD`. Only `UNBROWSE_RELEASE_KEY` (and `qa.yml`'s
-`CLAUDE_CODE_OAUTH_TOKEN`) exist now, so the Mac app is signed ad hoc and not notarised.
+`APPLE_TEAM_ID`, and an App Store Connect team key to notarise with: `APPLE_API_KEY` (the `.p8`, as text or base64),
+`APPLE_API_KEY_ID` and `APPLE_API_ISSUER`. `APPLE_ID` with an app-specific `APPLE_APP_PASSWORD` still works in its
+place. On the owner's Mac, `NOTARY_PROFILE` names a profile `xcrun notarytool store-credentials` keeps in the keychain.
 
 ---
 
@@ -114,6 +115,19 @@ So to ship a release:
 
 4. Watch it (`gh run watch`), then check the release page and `npm view unbrowse version`.
 
+**The promotion gate (UNB-208).** A tag publishes only when the tree it ships has 98% line coverage or more in each of
+`unbrowse-node`, `unbrowse-node/crates/browser`, `unbrowse-browser/cli` and both SDKs, and its whole task bank lost no task the
+last promoted build had right, holds no confident wrong answer, and passes at least as many tasks as that build did
+(`test-banks/gate/promoted.json`, the floor). release.yml's `version` job runs it before anything is built
+(`.github/scripts/promotion-gate.sh`), reading the artifacts CI kept for that tree when the release branch was pushed:
+`coverage-summary-<tree>` (coverage.yml) and `gate-bank-full-<tree>` (gate-bank.yml, the whole bank, a few hours on
+macOS). A pull request into `main` shows the same verdict (promotion-gate.yml). When it refuses it names each rule
+unmet; nothing ships until the release branch meets them. A changed task verdict is re-read by hand, one site at a
+time, and recorded in `test-banks/gate/rereads.json` before it is called a regression or cleared. After a release goes
+out, record its bank run as the new floor in a pull request: `python3 .github/scripts/promotion_gate.py record
+--bank-results results.jsonl --build vX.Y.Z --out test-banks/gate/promoted.json`. Exclusions from the coverage count
+are in `docs/COVERAGE-EXCLUSIONS.md`, each approved by Lewis.
+
 To release a ref again (a new run, so a new prerelease number), run it by hand on that ref:
 `gh workflow run release.yml --repo unbrowse-ai/unbrowse-core --ref release/X.Y`.
 
@@ -134,7 +148,7 @@ the folder is absent.
 | Job | Runner | Does |
 |---|---|---|
 | `version` | `blacksmith-2vcpu-ubuntu-2404` | the ref's version and channel, and that npm has every package a release publishes and not yet this version (`npm-preflight.mjs`), so a missing package or a spent version stops the run before anything is built |
-| `programs` | darwin-arm64 `blacksmith-6vcpu-macos-latest`; darwin-x64 `macos-15-intel` (GitHub's, Blacksmith has no Intel Macs); linux-x64 `blacksmith-4vcpu-ubuntu-2204`; linux-arm64 `blacksmith-4vcpu-ubuntu-2204-arm`; win32-x64 `blacksmith-4vcpu-windows-2025` | `UNBROWSE_RELEASE=1 cargo build --release --locked --bin unbrowse-node --bin unb`, the UI (`bun run build`), the window (`zig build`), the Mac app and dmg, a smoke test |
+| `programs` | darwin-arm64 `blacksmith-6vcpu-macos-15` (there is no Intel Mac build since 22 November 2026, UNB-224); linux-x64 `blacksmith-4vcpu-ubuntu-2204`; linux-arm64 `blacksmith-4vcpu-ubuntu-2204-arm`; win32-x64 `blacksmith-4vcpu-windows-2025` | `UNBROWSE_RELEASE=1 cargo build --release --locked --bin unbrowse-node --bin unb`, the UI (`bun run build`), the window (`zig build`), the Mac app and dmg, a smoke test |
 | `sdks` | `blacksmith-2vcpu-ubuntu-2404` | signs `manifest.json` (checked against `update.rs`'s key), packs the npm packages and Python wheels (a prerelease's in PEP 440's form, `13.19.0rc7`, `13.20.0.dev9`), and but for staging writes and signs the update metadata (`updates.mjs release`), checked against the root nodes trust |
 | `npm` | `ubuntu-24.04` (trusted publishing needs GitHub's own runners), environment `release` | each `@unbrowse/<platform>`, then `unbrowse`, under the ref's dist-tag, then `@unbrowse/updates` (`npm-publish.sh`); a version npm has with the same bytes is skipped, so a rerun finishes the job, and one it has with other bytes fails the run |
 | `release` | `blacksmith-2vcpu-ubuntu-2404` | a tag's alone, last, once npm has everything: `gh release create v$VERSION --verify-tag --latest`, with `SHA256SUMS` and stable-named dmgs (`releases/latest/download/Unbrowse-macos-<arch>.dmg`) |
@@ -366,7 +380,7 @@ read instead from `~/.unbrowse/networks/<name>.json` when that exists (`chain::n
 |---|---|---|
 | `chain_id` | 5042002 | 5042 |
 | `registry_from` (the block ERC-8004 registrations are read from) | 69,700,000 | 28,500,000 |
-| `deployment` | `null`: the deployment of the contracts before route coins (Settlement `0xdb93…272f`, 6 November 2026) is no longer read, and the route-coin contracts are not deployed yet | `null` |
+| `deployment` | the route-coin set, deployed 18 November 2026 from block 72,792,533 (Settlement `0x2043…1ca5`, test UNB `0x577e…c9d0`, stand-in pool `0xb680…5b13` seeded with 5 USDC and 370,000 UNB); the one before route coins (Settlement `0xdb93…272f`) is no longer read | `null` |
 | `existing.usdc` | Arc's USDC, `0x3600…0000` | Arc's USDC, `0x3600…0000` |
 | `existing.unb` | `null`: the deploy makes a test UNB | `null`: named on the deploying machine with `UNBROWSE_ARC_MAINNET_UNB` |
 | `existing.pool` | `null`: the deploy makes a stand-in pool | `null`: the same |
@@ -536,12 +550,17 @@ shows where a domain stands. A node has no domain duty to turn on.
 
 ---
 
-## 4. No sponsor
+## 4. Unbrowse pays its members' gas
 
-There is no sponsor and no faucet to set up (spec §76): every write is paid by its writer in USDC on Arc. A node that
-only earns needs a few cents of USDC once, for its identity; when its key can't pay its gas, the sign-in page offers
-the owner one transfer from their own wallet (`fund=<chain id>`, [MONEY.md](MONEY.md) §5). Nothing the operator runs
-holds or pays out USDC.
+Unbrowse gasses the nodes of owners signed in with Privy (Lewis, 18 November 2026: "the whole point is to make it
+frictionless, so that we gas our users"; this replaces spec §76's "no sponsor"). The RPC gateway (`unbrowse-rpc`,
+`rpc.unbrowse.ai`) does it: the first time a member node reads a network there holding less than 0.05 USDC, it is sent
+0.10 USDC from the gas wallet, once a node a network, at most 20 USDC a network a day (`unbrowse-rpc/src/drip.js`). On
+Arc the gas is USDC, so that pays the identity's registration (about 0.025) and many writes after. The sign-in page asks
+the owner for nothing. A node that isn't a member (its owner never signed in) still pays its own gas.
+
+The gas wallet is the `GAS_KEY` secret of each gateway Worker, made in the operator's keychain (`unbrowse-gas` / `arc`);
+fund it on each network and watch its balance (§8). Arc testnet's was first funded on 18 November 2026 (3 USDC).
 
 ---
 
@@ -583,22 +602,40 @@ Leave the centralised app's own routes on the zone alone.
 ## 6. CI
 
 Every workflow is in [`.github/workflows/`](../.github/workflows), and runs on Blacksmith's runners except the two
-jobs that can't.
+jobs that can't. The agent jobs (a model, a simulated user or the task bank: Claude QA, the MCP check, skill
+triggers, the gate bank and its slice, Bank, Claude review, SDK polish) may run on Lewis's own runners instead: see
+**Agent jobs on Lewis's runners** below.
 
 | Workflow | Trigger | Jobs and runners |
 |---|---|---|
 | `ci.yml` (CI) | push to `main`, `staging` or `release/**`, pull requests, by hand | `sdk-typescript`, `sdk-python` (3.9, 3.13), `ui`, `telemetry`, `settlement` on `blacksmith-2vcpu-ubuntu-2404`; `engine` on `blacksmith-4vcpu-ubuntu-2404`; `node` and `window` on `blacksmith-6vcpu-macos-latest`; `elsewhere` on `blacksmith-4vcpu-ubuntu-2204` and `blacksmith-4vcpu-windows-2025` |
 | `release.yml` (Release) | CI passing on a push to `staging` or `release/**`, a pushed `vX.Y.Z` tag, by hand | §2 |
 | `main-source-guard.yml` | pull requests into `main` or `release/**` | fails one into `main` from anything but `release/*`, and one into a release branch not titled `fix:` |
+| `coverage.yml` (Coverage) | pull requests into `staging`, `release/**` or `main`; pushes to `staging` and `release/**`; by hand | line coverage per part: `rust-node` on `blacksmith-8vcpu-ubuntu-2404`, `rust-browser` on `blacksmith-4vcpu-ubuntu-2404`, the SDKs and the contracts (reported apart) on `blacksmith-2vcpu-ubuntu-2404`; posts one comment on a pull request and never blocks it; keeps `coverage-summary-<tree>` for the promotion gate |
+| `gate-bank.yml` (Gate bank) | called by QA (qa.yml) on every push to `staging` and `main` (the six-task slice, in QA's report; not again for a push to staging whose tree already passed it on its pull request), nightly on staging and every push to `release/**` (the whole bank), by hand | the task gate's bank through a scratch node's MCP, a model as client and judge, on `blacksmith-6vcpu-macos-latest`; no pull request starts it (it holds a model credential); keeps `gate-bank-<scope>-<tree>` |
+| `promotion-gate.yml` (Promotion gate) | pull requests, pushes to `staging` and `release/**` | the gate's own tests and its refusal of staging as measured on 17 Nov 2026; on a pull request into `main`, the gate's verdict on the release branch's tree |
 | `qa.yml` | nightly on staging, by hand | an agent runs `.github/qa/checklist.md` against a built node on `blacksmith-6vcpu-macos-latest`; skips without a Claude secret |
-| `claude.yml`, `claude-review.yml` | `@claude` mentions, pull requests | `blacksmith-2vcpu-ubuntu-2404` |
+| `claude-review.yml` | pushes to `staging`, by hand | placed (below); comments on the merged pull request |
+| `pr-closed.yml` | a pull request closes or merges | cancels that pull request's runs still waiting or running |
+
+**Agent jobs on Lewis's runners (UNB-166).** From 20 to 21 Nov 2026 every job ran on the local pool (four slots on
+the Steam Machine, one MacBook). It was asked for about twice what it could do, and 0 of 43 pull requests into staging
+went green. Now each workflow with agent jobs starts with a `place` job on Blacksmith
+(`.github/scripts/place_jobs.py`). It sends an agent job to one of Lewis's runners while one is free, and otherwise to
+a Blacksmith machine that starts at once, and the run's summary says why. The Mac pool is the repository variable
+`MAC_RUNNER` (unset means no Mac pool). The Linux pool is `LINUX_POOL` (default `["self-hosted", "linux", "x64"]`).
+With the repository secret `RUNNER_READ_TOKEN` (a fine-grained token, Administration: read on this repository) the
+placement reads whether each runner is online and idle. Without it, a runner counts as asleep once a job has waited
+2 minutes for it while nothing runs on it. Pull request workflows never get that token, because in them only the
+model's jobs hold a secret.
 
 What each CI job tests is in [TESTING.md](TESTING.md).
 
 **Blacksmith.** CI moved to Blacksmith on 28 October 2026 (`c30bea4a`). On 30 October the Windows builds and Claude
-Code moved too, after GitHub's October bill went $63 over the included minutes (`1feff34c`, #62). Two jobs stay on
-GitHub's runners on purpose: the darwin-x64 build (`macos-15-intel`; Blacksmith has no Intel Macs) and the npm publish
-(`ubuntu-24.04`; trusted publishing needs GitHub's own).
+Code moved too, after GitHub's October bill went $63 over the included minutes (`1feff34c`, #62). On 22 November
+(UNB-224) every release, update and installer job moved to Blacksmith too, and the Intel Mac build was dropped. Only
+the npm publishing jobs stay on GitHub's runners (`ubuntu-24.04`): npm's trusted publishing works from cloud-hosted
+runners only.
 
 **The startup failures.** On 30 October 2026, between 05:30 and 12:13 UTC, 88 runs ended `startup_failure`: every push
 and pull request, on every branch, each with no jobs. The workflow files weren't the cause: a CI run dispatched by
@@ -730,6 +767,7 @@ export BINDGEN_EXTRA_CLANG_ARGS="-isystem $Z/include \
 
 | Role | Key | Fund it with | Why |
 |---|---|---|---|
+| Gas wallet | `GAS_KEY` of the `unbrowse-rpc` Workers (keychain `unbrowse-gas` / `arc`, `0x60a3…7e05`) | USDC on each network: 0.10 a new member node, at most 20 a day | Unbrowse pays its members' gas (§4); it holds nothing else and has no power on chain |
 | Deployer | the root key of the node that runs `chain deploy` | gas (the deploy checks for 2.25 USDC at 25 gwei before it starts, and uses less), plus the `--pool` seed: Arc USDC on testnet; Arc USDC and Unbrowse's UNB on mainnet | the deploy and the pool. It has no power afterwards: the pool, the DNSSEC trust anchors, the escrow wait and every route-coin number are fixed at deployment, and no function is its alone (R10.3, R1.10) |
 | The curves' fee recipient | `UNBROWSE_<NETWORK>_FEE_RECIPIENT`, else the deployer; must be named on mainnet (§3) | nothing | the 1% trade fee of every route coin accrues to it, for good, and it has no other power. Nobody takes a share of fetch fees |
 | Each node's key | the node's root key | nothing while local. Signed in on a live chain: a few cents of USDC once for its identity, from its owner (the sign-in page offers the transfer), and its deposit when its agents pay others | its writes, deposits and fees |
@@ -791,8 +829,8 @@ Read from the live services on 30 October 2026.
   (`npm-preflight.mjs`, in the `version` job). **So no release runs past `version`, and no tag or GitHub release is made,
   until these are done.** Read on 6 November 2026, npm has `unbrowse` and none of the other eleven. What the owner does,
   once, as a member of the npm org `unbrowse`:
-  1. Publish each of `@unbrowse/darwin-arm64`, `@unbrowse/darwin-x64`, `@unbrowse/linux-x64`, `@unbrowse/linux-arm64`,
-     `@unbrowse/win32-x64`, their browser add-ons `@unbrowse/browser-darwin-arm64`, `@unbrowse/browser-darwin-x64`,
+  1. Publish each of `@unbrowse/darwin-arm64`, `@unbrowse/linux-x64`, `@unbrowse/linux-arm64`,
+     `@unbrowse/win32-x64`, their browser add-ons `@unbrowse/browser-darwin-arm64`,
      `@unbrowse/browser-linux-x64`, `@unbrowse/browser-linux-arm64`, `@unbrowse/browser-win32-x64`, and
      `@unbrowse/updates` once by hand (`npm publish --access public` of a placeholder `0.0.0` with only a
      `package.json`; nodes read exact versions, and `@unbrowse/updates`' first real version is `1.0.1`).

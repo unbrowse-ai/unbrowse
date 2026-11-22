@@ -123,7 +123,7 @@ pub(super) fn proposed_word(url: &str, goal: &str, asked: &[String], offered: &[
 /// those the page was asked: a judgement about meaning, which the walk for that word then bears out or does not
 /// (`asked_the_same_page`). And what it says a caller should call that value, when it is a plain name.
 pub(super) fn proposed_word_and_place(url: &str, goal: &str, asked: &[String], offered: &[String], held: &[String]) -> Option<(String, Option<String>, Option<String>)> {
-    let command = std::env::var("UNBROWSE_PROPOSE_PROGRAM").ok().filter(|c| !c.trim().is_empty())?;
+    let command = proposer()?;
     let page = page_told(url, asked, held)?;
     let ask = serde_json::json!({ "ask": "second_word", "instruction": SECOND_WORD, "goal": goal, "page": page, "asked": asked, "the_site_offers": offered });
     let said = unbrowse_learn::generated::run_agent(&command, &ask.to_string())?;
@@ -412,7 +412,7 @@ const ANSWER: &str = "This is one page of a website walked twice in a browser, f
 /// shown both walks of the page as one graph (`sitegraph`), with nothing the session holds. None when there is no
 /// proposer, it names no call of the first walk's, or what it names is no candidate.
 pub(super) fn proposed_answer(walks: &Walks, first: &WalkView, url: &str, goal: &str, second: &Second) -> Option<usize> {
-    let command = std::env::var("UNBROWSE_PROPOSE_PROGRAM").ok().filter(|c| !c.trim().is_empty())?;
+    let command = proposer()?;
     let graph = {
         let guard = walks.0.locked();
         let (a, b) = (&guard.get(&first.walk)?.trace, &guard.get(&second.view.walk)?.trace);
@@ -550,6 +550,37 @@ fn from_the_page_for(walks: &Walks, first: &Route, url: &str, goal: &str, who: &
     other.heard = store::Heard { probed: true, said_back: was.first().cloned(), ..Default::default() };
     let _ = store::save_route(&other);
     Some(other)
+}
+
+/// The proposer the owner configured (`UNBROWSE_PROPOSE_PROGRAM`), None when there is none. In tests it is the one
+/// `with_a_proposer` set on the test's own thread, never the process's: tests run side by side, and one test's
+/// proposer must not answer another's walk.
+pub(super) fn proposer() -> Option<String> {
+    #[cfg(test)]
+    let set = TEST_PROPOSER.with(|p| p.borrow().clone());
+    #[cfg(not(test))]
+    let set = std::env::var("UNBROWSE_PROPOSE_PROGRAM").ok();
+    set.filter(|c| !c.trim().is_empty())
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_PROPOSER: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `f` with `program` as the configured proposer, seen only by this test's thread ([`proposer`]). Shared with the
+/// links tests.
+#[cfg(test)]
+pub(super) fn with_a_proposer<T>(program: &str, f: impl FnOnce() -> T) -> T {
+    struct Unset;
+    impl Drop for Unset {
+        fn drop(&mut self) {
+            TEST_PROPOSER.with(|p| *p.borrow_mut() = None);
+        }
+    }
+    TEST_PROPOSER.with(|p| *p.borrow_mut() = Some(program.to_string()));
+    let _unset = Unset;
+    f()
 }
 
 #[cfg(test)]
@@ -845,5 +876,241 @@ mod tests {
         }
         route.heard.said_back = None;
         assert_eq!(route.shown_to_an_agent().heard.said_back, None);
+    }
+
+    /// A site on this machine, for the trial that asks one: it answers every request with `answer(target)` as JSON.
+    fn a_site(answer: impl Fn(&str) -> (u16, String) + Send + 'static) -> u16 {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut buf = [0u8; 8192];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).to_string();
+                let (status, body) = answer(request.split_whitespace().nth(1).unwrap_or(""));
+                let _ = write!(stream, "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+            }
+        });
+        port
+    }
+
+    /// The records a search site lists for `word`: each says it, and each word has records of its own beside.
+    fn records_for(word: &str) -> serde_json::Value {
+        let own: &[&str] = match word {
+            "lamp" => &["Anodised arc fitting from Leeds", "Warm light for the reading nook", "Dimmer switch included", "Fits a standard socket"],
+            "kettle" => &["Boils two litres in minutes", "Whistles when the steam is ready", "Cordless jug with a base", "Lime scale filter inside"],
+            _ => &["Wall clock", "Garden chair"],
+        };
+        serde_json::json!({ "results": [{ "title": format!("Brass {word} one") }, { "title": format!("Glass {word} two") }, { "title": format!("Tall {word} three") }, { "note": own[0] }, { "note": own[1] }, { "note": own.get(2) }, { "note": own.get(3) }] })
+    }
+
+    /// What a search site answers for the word in `q` or `term`: records that say it.
+    fn says_the_word(target: &str) -> (u16, String) {
+        let word = url::Url::parse(&format!("http://site.example{target}")).ok().and_then(|u| u.query_pairs().find(|(k, _)| k == "q" || k == "term").map(|(_, v)| v.into_owned())).unwrap_or_default();
+        (200, records_for(&word).to_string())
+    }
+
+    fn search_route(port: u16, path: &str, key: &str) -> Route {
+        let graph: unbrowse_learn::Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "steps": [{ "exchange": 0, "method": "GET", "status": 200, "url": format!("http://127.0.0.1:{port}{path}?{key}={{{key}}}"), "needs_browser": false,
+                "fields": [{ "loc": { "in": "query", "key": key }, "class": "input", "name": key, "secret": false, "default": "lamp", "optional": false }] }]
+        }))
+        .unwrap();
+        Route::from_graph(format!("trial-test-{port}"), "search".into(), format!("http://127.0.0.1:{port}/"), graph).unwrap()
+    }
+
+    fn walk_of(trace: &Trace, url: &str) -> Walk {
+        Walk { url: url.into(), trace: trace.clone(), probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None }
+    }
+
+    /// The page `url` walked, and the call it made: a list of records that say the word.
+    fn page_with_search(host: &str, word: &str) -> (String, Trace) {
+        let url = format!("https://{host}/s?q={word}");
+        let list = records_for(word);
+        let trace = Trace { exchanges: vec![seen("GET", &url, "<html><body>results</body></html>", true), seen("GET", &format!("https://{host}/api/search?q={word}"), &list.to_string(), false)], inputs: Vec::new() };
+        (url, trace)
+    }
+
+    /// The proposer is told the page and what it was asked, never what the session holds, and its word is kept only
+    /// where it is a word to ask: with the value it stands in place of, and what a caller calls that value.
+    #[test]
+    fn a_proposer_names_the_second_word_and_where_it_goes() {
+        let dir = std::env::temp_dir().join(format!("trial-ask-{}-{}", std::process::id(), store::now()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let heard = dir.join("ask.json");
+        let program = format!("cat > '{}'; echo 'I would try {{\"second_word\":\"kettle\",\"in_place_of\":\"LAMP\",\"called\":\"Product Name\"}}'", heard.display());
+        let held = vec!["Zx81kQ0pLm".to_string()];
+        let asked = vec!["lamp".to_string()];
+        let url = "https://shop.example/u/Zx81kQ0pLm/search/lamp";
+        let said = with_a_proposer(&program, || proposed_word_and_place(url, "find lamps", &asked, &["lamp shade".to_string()], &held));
+        assert_eq!(said, Some(("kettle".to_string(), Some("lamp".to_string()), Some("product_name".to_string()))));
+        let text = std::fs::read_to_string(&heard).unwrap();
+        let ask: serde_json::Value = serde_json::from_str(&text).unwrap_or_else(|e| panic!("{e}: ...{}", text.chars().skip(1150).collect::<String>()));
+        assert_eq!(ask["page"], "shop.example/u/{session}/search/lamp", "the session's piece is named, not shown");
+        assert_eq!((ask["goal"].as_str(), ask["asked"][0].as_str(), ask["the_site_offers"][0].as_str()), (Some("find lamps"), Some("lamp"), Some("lamp shade")));
+        assert_eq!(with_a_proposer(&program, || proposed_word(url, "find lamps", &asked, &[], &held)).as_deref(), Some("kettle"));
+        // A name that is not one an input can take is left unsaid, and the word still stands.
+        let odd = "echo '{\"second_word\":\"kettle\",\"in_place_of\":\"lamp\",\"called\":\"q\"}'";
+        assert_eq!(with_a_proposer(odd, || proposed_word_and_place(url, "g", &asked, &[], &held)), Some(("kettle".to_string(), Some("lamp".to_string()), None)));
+        // The asked word again, or a word that is no word, is not one to ask; nor is an answer that is not one.
+        let again = "echo '{\"second_word\":\"LAMP\"}'";
+        assert_eq!(with_a_proposer(again, || proposed_word_and_place(url, "g", &asked, &[], &held)), None);
+        let symbol = "echo '{\"second_word\":\"%%\"}'";
+        assert_eq!(with_a_proposer(symbol, || proposed_word(url, "g", &asked, &[], &held)), None);
+        assert_eq!(with_a_proposer("echo nothing", || proposed_word(url, "g", &asked, &[], &held)), None);
+        assert_eq!(with_a_proposer("  ", || proposed_word(url, "g", &asked, &[], &held)), None, "a blank program is none");
+        assert_eq!(with_a_proposer(&program, || proposed_word("not an address", "g", &asked, &[], &held)), None, "no page, no ask");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Two walks of a page, a call that answers each word with its own records: the answer the two agree on is the
+    /// call (`agreed`), and a proposer that names a call of the first walk names it too; one that names a call the walk
+    /// never made, or the page's own address, names none.
+    #[test]
+    fn a_proposer_names_the_call_the_two_walks_answer() {
+        let _old = crate::learn::own_asks::as_the_old_node();
+        let (url, first) = page_with_search("shop.example", "lamp");
+        let (other_url, second) = page_with_search("shop.example", "kettle");
+        let walks = Walks::default();
+        walks.0.locked().insert("one".into(), walk_of(&first, &url));
+        walks.0.locked().insert("two".into(), walk_of(&second, &other_url));
+        let site = site_of("shop.example");
+        let view = view_of("one", &url, &site, &first, 0);
+        let again = Second { word: "kettle".into(), url: other_url.clone(), view: view_of("two", &other_url, &site, &second, 0), address: Vec::new(), called: None };
+        let call = view.candidates.iter().find(|c| !c.page).map(|c| c.index).expect("the search call is a candidate");
+        assert_eq!(agreed(&walks, &view, &url, "search for items", &again), Some(call));
+        assert_eq!(agreed(&walks, &view_of("lost", &url, &site, &first, 0), &url, "search for items", &again), None, "a walk the node no longer holds agrees with nothing");
+        let names = |said: &str| with_a_proposer(&format!("cat >/dev/null; echo '{said}'"), || proposed_answer(&walks, &view, &url, "search for items", &again));
+        assert_eq!(names(&format!("{{\"answer\":\"a:{call}\"}}")), Some(call));
+        assert_eq!(names("{\"answer\":\"a:41\"}"), None, "a call the first walk never made");
+        assert_eq!(names("no idea"), None);
+        assert_eq!(with_a_proposer("", || proposed_answer(&walks, &view, &url, "search for items", &again)), None, "no proposer, no answer");
+    }
+
+    /// With no walk of the page kept there is no second walk and no proposer is asked; with the walk kept, the
+    /// proposer is asked for the word, and a door that has just refused the walk's browser is not walked again for it.
+    #[test]
+    fn a_second_walk_needs_a_walk_and_a_word_and_a_door_that_lets_it() {
+        let _old = crate::learn::own_asks::as_the_old_node();
+        let dir = std::env::temp_dir().join(format!("second-walk-{}-{}", std::process::id(), store::now()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let asked_mark = dir.join("asked");
+        let program = format!("cat >/dev/null; touch '{}'; echo '{{\"second_word\":\"kettle\"}}'", asked_mark.display());
+        let walks = Walks::default();
+        let (url, first) = page_with_search("closed-door.example", "lamp");
+        assert!(with_a_proposer(&program, || second_walk(&walks, "one", &url, "g", "w", "You", &[])).is_none(), "no walk held");
+        assert!(!asked_mark.exists(), "no walk, no proposer asked");
+        walks.0.locked().insert("one".into(), walk_of(&first, &url));
+        REFUSED.locked().insert(site_of("closed-door.example"), std::time::Instant::now());
+        let found = with_a_proposer(&program, || second_walk(&walks, "one", &url, "g", "w", "You", &[]));
+        REFUSED.locked().remove(&site_of("closed-door.example"));
+        assert!(found.is_none(), "a rested door is not walked again");
+        assert!(asked_mark.exists(), "the proposer was asked for the word");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The words the records of an answer share beside the asked one are offered after the page's own links, and a
+    /// route that writes is never asked a word.
+    #[test]
+    fn the_words_the_records_share_are_offered_and_a_write_is_never_asked() {
+        let url = "https://shop.example/s?q=lamp";
+        let answer = serde_json::json!({ "results": [{ "name": "Brass lamp shade" }, { "name": "Glass lamp shade" }, { "name": "Tall lamp shade" }, { "name": "Wall lamp stand" }] });
+        let trace = Trace { exchanges: vec![seen("GET", url, "<html></html>", true), seen("GET", "https://shop.example/api/s?q=lamp", &answer.to_string(), false)], inputs: Vec::new() };
+        assert_eq!(offered_words(&trace, url, &["lamp".to_string()]), ["shade"]);
+        assert!(offered_without_records(&trace, url, &["lamp".to_string()]).is_empty());
+        let mut route = search_route(1, "/api/search", "q");
+        route.write = true;
+        let mut hears = |_: &unbrowse_learn::Graph, _: &HashMap<String, String>| Some(records_for("kettle"));
+        assert_eq!(says_back(&route, &["lamp".to_string()], "kettle", &mut hears), None);
+        route.write = false;
+        assert_eq!(says_back(&route, &["lamp".to_string()], "kettle", &mut hears), Some(true));
+    }
+
+    /// The site is asked for the pieces of a path one at a time over plain HTTP: the piece with no page without it is
+    /// its address, and the value is named for the word before it.
+    #[test]
+    fn the_pieces_of_a_path_are_told_apart_by_asking_the_site() {
+        let _old = crate::learn::own_asks::as_the_old_node();
+        let port = a_site(|target| (if target.starts_with("/search/") { 200 } else { 404 }, "{}".to_string()));
+        let url = format!("http://127.0.0.1:{port}/search/lamp/");
+        let in_path = vec![("part0".to_string(), "search".to_string()), ("part1".to_string(), "lamp".to_string())];
+        assert_eq!(callers_own(&url, in_path, Some("Mozilla/5.0 test")), vec![("search".to_string(), "lamp".to_string())]);
+        // A site that answers every address alike says nothing: both pieces stay the caller's.
+        let any = a_site(|_| (200, "{}".to_string()));
+        let url = format!("http://127.0.0.1:{any}/search/lamp/");
+        let in_path = vec![("part0".to_string(), "search".to_string()), ("part1".to_string(), "lamp".to_string())];
+        assert_eq!(callers_own(&url, in_path.clone(), None), in_path);
+    }
+
+    /// A route that answers the second word is marked as having said it back; one that does not, with the walk of
+    /// that call agreed, stands unverified; and with no second walk nothing is asked at all.
+    #[test]
+    fn a_route_is_held_to_the_second_word_the_page_was_walked_for() {
+        let _old = crate::learn::own_asks::as_the_old_node();
+        let walks = Walks::default();
+        let (other_url, second) = page_with_search("held.example", "kettle");
+        let site = site_of("held.example");
+        let again = Second { word: "kettle".into(), url: other_url.clone(), view: view_of("two", &other_url, &site, &second, 0), address: Vec::new(), called: None };
+        let page = "http://127.0.0.1:1/s?q=lamp".to_string();
+        let hears = a_site(says_the_word);
+        let route = search_route(hears, "/api/search", "q");
+        let (stood, said) = with_another_word(&walks, route.clone(), &page, "search", "You", &[], None, false, false);
+        assert_eq!((said, stood.heard.said_back), (false, None), "no second walk, nothing asked");
+        let (stood, said) = with_another_word(&walks, route.clone(), &page, "search", "You", &[], Some(&again), false, false);
+        assert!(said && stood.heard.probed, "the site answers the word");
+        assert_eq!(stood.heard.said_back.as_deref(), Some("kettle"));
+        assert_eq!(store::load_route(&route.id).and_then(|r| r.heard.said_back).as_deref(), Some("kettle"), "and the route kept says so");
+        // The answer a page of the other word made, a strip that says the same for any word: the route does not hear.
+        let deaf_site = a_site(|_| (200, r#"{"items":[{"name":"Garden chair"},{"name":"Desk fan"}]}"#.to_string()));
+        let deaf = search_route(deaf_site, "/api/strip", "q");
+        let (stood, said) = with_another_word(&walks, deaf.clone(), &page, "search", "You", &[], Some(&again), false, true);
+        assert!(!said && stood.heard.said_back.is_none() && stood.id == deaf.id, "walked on this very call: the route stands, unverified");
+        let (stood, said) = with_another_word(&walks, deaf.clone(), &page, "search", "You", &[], Some(&again), false, false);
+        assert!(!said && stood.id == deaf.id, "no walk of the page's own call is held: the route stands");
+        // The page's own call is no better a proof than the page: the walk of the other word was never kept.
+        let (stood, said) = with_another_word(&walks, route.clone(), &page, "search", "You", &[], Some(&again), true, false);
+        assert!(said && stood.id == route.id, "no call of the other word's walk to take its place");
+    }
+
+    /// A route that does not answer the second word gives way to the call the page made for it, when the site
+    /// answers that call for the first word too and the answers differ.
+    #[test]
+    fn a_route_that_does_not_hear_gives_way_to_the_call_the_page_made() {
+        let _old = crate::learn::own_asks::as_the_old_node();
+        let ear = a_site(says_the_word);
+        let deaf_site = a_site(|_| (200, r#"{"items":[{"name":"Garden chair"},{"name":"Desk fan"}]}"#.to_string()));
+        let (url, other_url) = (format!("http://127.0.0.1:{ear}/s?q=lamp"), format!("http://127.0.0.1:{ear}/s?q=kettle"));
+        let list = |word: &str| records_for(word).to_string();
+        let second = Trace { exchanges: vec![seen("GET", &other_url, "<html><body>results</body></html>", true), seen("GET", &format!("http://127.0.0.1:{ear}/api/find?term=kettle"), &list("kettle"), false)], inputs: Vec::new() };
+        let walks = Walks::default();
+        walks.0.locked().insert("two".into(), walk_of(&second, &other_url));
+        let again = Second { word: "kettle".into(), url: other_url.clone(), view: view_of("two", &other_url, "127.0.0.1", &second, 0), address: Vec::new(), called: None };
+        let deaf = search_route(deaf_site, "/api/strip", "q");
+        let (stood, said) = with_another_word(&walks, deaf.clone(), &url, "search", "You", &[], Some(&again), true, false);
+        assert!(said, "the page's other call answers both words");
+        assert_ne!(stood.id, deaf.id, "the call the page made took the deaf route's place");
+        assert_eq!(stood.heard.said_back.as_deref(), Some("lamp"), "kept for the page that was asked");
+        assert!(stood.inputs.iter().all(|i| i.default.as_deref() != Some("kettle")), "its default is the page's word, not the experiment's");
+    }
+
+    /// Where the only call the page made for the second word is the route's own call, it is no other call's turn: the
+    /// route that answered the word stands, said back, and nothing is put in its place.
+    #[test]
+    fn the_call_the_route_already_is_is_not_taken_for_another_call() {
+        let _old = crate::learn::own_asks::as_the_old_node();
+        let ear = a_site(says_the_word);
+        let (url, other_url) = (format!("http://127.0.0.1:{ear}/s?q=lamp"), format!("http://127.0.0.1:{ear}/s?q=kettle"));
+        let second = Trace { exchanges: vec![seen("GET", &other_url, "<html><body>results</body></html>", true), seen("GET", &format!("http://127.0.0.1:{ear}/api/own?term=kettle"), &records_for("kettle").to_string(), false)], inputs: Vec::new() };
+        let walks = Walks::default();
+        walks.0.locked().insert("two".into(), walk_of(&second, &other_url));
+        let again = Second { word: "kettle".into(), url: other_url.clone(), view: view_of("two", &other_url, "127.0.0.1", &second, 0), address: Vec::new(), called: None };
+        let route = search_route(ear, "/api/own", "term");
+        let (stood, said) = with_another_word(&walks, route.clone(), &url, "search", "You", &[], Some(&again), true, false);
+        assert!(said, "the route answers the word");
+        assert_eq!((stood.id.as_str(), stood.heard.said_back.as_deref()), (route.id.as_str(), Some("kettle")), "the route stands, as it heard the word");
+        assert_eq!(store::load_route(&route.id).and_then(|r| r.heard.said_back).as_deref(), Some("kettle"));
     }
 }

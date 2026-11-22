@@ -17,7 +17,7 @@ const event = (over = {}) => ({
   ...over,
 });
 
-/** A D1 stand-in that keeps each bound row. */
+/** A D1 stand-in that keeps each inserted row (the batch's expiry DELETE inserts none). */
 function fakeDb({ fails = false } = {}) {
   const rows = [];
   return {
@@ -27,7 +27,7 @@ function fakeDb({ fails = false } = {}) {
     },
     async batch(statements) {
       if (fails) throw new Error("D1 is down");
-      for (const s of statements) rows.push(s.values);
+      for (const s of statements) if (s.sql.startsWith("INSERT")) rows.push(s.values);
       return statements.map(() => ({ success: true }));
     },
   };
@@ -47,8 +47,8 @@ test("a valid batch is kept, one row per event, with its fields and the hour", a
   const r = await handle(post({ events: [event(), event({ event: "node_start", tool: undefined, duration_ms: undefined })] }), { TELEMETRY_DB: db }, now);
   assert.equal(r.status, 204);
   assert.equal(db.rows.length, 2);
-  assert.deepEqual(db.rows[0], [hourOf(now), "tool_call", "1.4.2", "macos", ID, "unbrowse_do", "ok", 120, null]);
-  assert.deepEqual(db.rows[1], [hourOf(now), "node_start", "1.4.2", "macos", ID, null, "ok", null, null]);
+  assert.deepEqual(db.rows[0], [hourOf(now), "tool_call", "1.4.2", "macos", ID, "unbrowse_do", "ok", 120, null, null]);
+  assert.deepEqual(db.rows[1], [hourOf(now), "node_start", "1.4.2", "macos", ID, null, "ok", null, null, null]);
   assert.equal(hourOf(now), Date.UTC(2026, 9, 29, 13) / 1000);
 });
 
@@ -134,7 +134,7 @@ test("the caller's address and headers are never kept", async () => {
   const kept = JSON.stringify(db.rows);
   assert.ok(!kept.includes("203.0.113.9"));
   assert.ok(!kept.includes("host-a"));
-  assert.equal(db.rows[0].length, 9, "the hour and the eight fields, nothing more");
+  assert.equal(db.rows[0].length, 10, "the hour and the nine fields, nothing more");
   // The worker reads no header but the body's type and length, and a report's key and signature; the stats door alone reads the admin's token.
   const src = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
   const door = src.slice(src.indexOf("async function stats("), src.indexOf("export default {"));
@@ -169,4 +169,35 @@ test("the worker's lists are the shared schema's", () => {
   assert.equal(schema.MAX_DURATION_MS, shared.max_duration_ms);
   assert.equal(schema.MAX_EVENTS, shared.max_events);
   assert.equal(schema.MAX_BODY_BYTES, shared.max_body_bytes);
+  assert.equal(schema.FROM_EVENT, shared.from.event);
+  assert.equal(schema.FROM_PATTERN.source, shared.from.pattern);
+});
+
+test("a source tag rides on node_start only, in its one shape, and is kept as from_tag", async () => {
+  const start = (from) => event({ event: "node_start", tool: undefined, duration_ms: undefined, from });
+  for (const ok of ["hn", "hn-e", "0", "ai-chatgpt-b", "a".repeat(40)]) assert.equal(schema.check(JSON.parse(JSON.stringify(start(ok)))), null, ok);
+  for (const [bad, why] of [
+    ["hn.example.com", "from looks like an address"],
+    ["me@home", "from looks like an address"],
+    ["https://x.com/?q=1", "from looks like an address"],
+    ["HN", "from is not an allowed value"],
+    ["-hn", "from is not an allowed value"],
+    ["hn_e", "from is not an allowed value"],
+    ["", "from is not an allowed value"],
+    ["a".repeat(41), "from is not an allowed value"],
+  ]) {
+    assert.equal(schema.check(JSON.parse(JSON.stringify(start(bad)))), why, bad);
+  }
+  assert.equal(schema.check(JSON.parse(JSON.stringify(start(7)))), "from is a string");
+  for (const ev of ["tool_call", "route_failed", "fetch_failed"]) {
+    assert.equal(schema.check(event({ event: ev, from: "hn-e" })), "from goes on node_start only", ev);
+  }
+  const db = fakeDb();
+  const now = Date.UTC(2026, 10, 17, 6);
+  const r = await handle(post({ events: [JSON.parse(JSON.stringify(start("hn-e")))] }), { TELEMETRY_DB: db }, now);
+  assert.equal(r.status, 204);
+  assert.deepEqual(db.rows[0], [hourOf(now), "node_start", "1.4.2", "macos", ID, null, "ok", null, null, "hn-e"]);
+  const bad = await handle(post({ events: [event({ from: "hn-e" })] }), { TELEMETRY_DB: db });
+  assert.equal(bad.status, 400, "a tag on a tool call refuses the batch");
+  assert.equal(db.rows.length, 1);
 });

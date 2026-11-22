@@ -31,7 +31,7 @@ fn in(v: View, kind: []const u8) bool {
 fn kindWord(kind: []const u8) []const u8 {
     const words = [_][2][]const u8{
         .{ "call", "Route call" },  .{ "approval", "Approval" },  .{ "deposit", "Balance" },       .{ "withdraw", "Withdrawal" },
-        .{ "bond", "Chain write" }, .{ "pledge", "Chain write" }, .{ "claim", "Usage collected" }, .{ "list", "Listing" },
+        .{ "bond", "Network record" }, .{ "pledge", "Network record" }, .{ "claim", "Usage collected" }, .{ "list", "Listing" },
         .{ "coin", "Route coin" },  .{ "bounty", "Bounty" },      .{ "learn", "Learning" },        .{ "key", "Agent key" },
         .{ "vault", "Vault" },
     };
@@ -64,6 +64,8 @@ const cols = [_]look.Col{
 };
 
 const row_h: f32 = 58;
+/// Lines a page of Activity shows: more than a table's, since its rows are short and it scrolls them itself.
+const per_page = 50;
 
 pub fn view(a: *App, c: *ui.Context) void {
     const fa = c.alloc();
@@ -85,7 +87,10 @@ pub fn view(a: *App, c: *ui.Context) void {
         c.print("All  {d}", .{counts[0]}),   c.print("Calls  {d}", .{counts[1]}),
         c.print("Money  {d}", .{counts[2]}), c.print("Node  {d}", .{counts[3]}),
     };
-    _ = kit.tabs(c, &names, &a.activity_tab, .{ .variant = .underline, .size = .sm });
+    if (kit.tabs(c, &names, &a.activity_tab, .{ .variant = .underline, .size = .sm })) a.activity_page = 0;
+    // Fifty to a page, newest first; the pager sits under the list.
+    const page = look.pageRowsBy(&a.activity_page, rows.items.len, per_page);
+    defer look.pagerBy(c, "activity-pages", &a.activity_page, page, rows.items.len, per_page);
     const t = ui.div(c).column().wFull().grow().minW(0).bg(c.theme.surface).border(x.frame).rounded(12).clip();
     defer t.end();
     {
@@ -108,8 +113,9 @@ pub fn view(a: *App, c: *ui.Context) void {
         look.rule(c);
         return look.empty(c, "Nothing here yet.");
     }
-    var list = ui.list(c, .{ .count = rows.items.len, .row_height = row_h });
-    while (list.next()) |i| row(a, c, rows.items[i]);
+    const shown = rows.items[page.from..page.to];
+    var list = ui.list(c, .{ .count = shown.len, .row_height = row_h });
+    while (list.next()) |i| row(a, c, shown[i]);
     list.end();
 }
 

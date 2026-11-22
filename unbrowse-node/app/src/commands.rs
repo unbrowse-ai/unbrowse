@@ -76,6 +76,11 @@ fn tx() -> Value {
     s()
 }
 
+/// One MCP client as `agent_clients` answers it (`connect::Status`).
+fn client_status() -> Value {
+    json!({ "type": "object", "properties": { "id": s(), "name": s(), "found": yes(), "connected": yes(), "path": s(), "note": s(), "manual": yes() }, "required": ["id", "name", "found", "connected", "path"] })
+}
+
 /// The arguments of the commands that name a login.
 fn login() -> Value {
     args(json!({ "site": s(), "account": s() }), &["site", "account"])
@@ -141,6 +146,16 @@ pub fn asks_the_owner(cmd: &str, a: &Value) -> Option<String> {
             // The site as the limit is kept, its registrable domain, which covers every host under it: not the text sent.
             a.get("site").and_then(Value::as_str).and_then(|s| crate::vault::limit_site(s).ok()).unwrap_or_else(|| "?".into()).chars().take(120).collect::<String>())),
         "agent_set_cap" => Some(format!("Something on this computer is asking Unbrowse to let agent key {} spend up to {} USDC an epoch. {only}", number("index"), number("cap_usdc"))),
+        // Connecting a client hands it the node's first agent: its token goes into the owner-only grant that
+        // `unb mcp --agent first` reads. Asked only when that grant isn't there yet, and not while the root key sits in a
+        // plain file this user can read anyway (as `hand_out_token` does).
+        "agent_connect" => connect_needs_yes().map(|agent| {
+            let names: Vec<String> = a.get("clients").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(|id| crate::connect::Client::from_id(id).map(|c| c.name().to_string()).unwrap_or_else(|| id.chars().take(40).collect())).collect();
+            format!(
+                "Something on this computer is asking Unbrowse to connect {} to this node as the agent \"{agent}\", so it can browse and spend within that agent's limit. {only}",
+                if names.is_empty() { "an MCP client".to_string() } else { names.join(", ") }
+            )
+        }),
         "agent_create" => Some(format!(
             "Something on this computer is asking Unbrowse to make a new agent key, \"{}\", that may spend up to {} USDC an epoch for {} days, and to hand back its token. {only}",
             said("name").chars().take(60).collect::<String>(),
@@ -155,6 +170,22 @@ pub fn asks_the_owner(cmd: &str, a: &Value) -> Option<String> {
             "Something on this computer is asking Unbrowse to send {} USDC from this node's wallet to:\n\n{}\n\nCheck it is your own wallet's address, as your wallet shows it: USDC sent can't be taken back. {only}",
             number("amount"),
             said("to")
+        )),
+        // A coin bought, sold or launched spends or parts with the wallet's own value, as a send does (audit 1118 M11).
+        "coin_buy" => Some(format!(
+            "Something on this computer is asking Unbrowse to buy the route coin of entry {} with {} UNB from this node's wallet. A buy can't be undone. {only}",
+            said("entry"),
+            number("unb")
+        )),
+        "coin_sell" => Some(format!(
+            "Something on this computer is asking Unbrowse to sell {} of this node's coins of entry {} for UNB, at the price the coin's curve gives now. {only}",
+            number("coins"),
+            said("entry")
+        )),
+        "coin_launch" => Some(format!(
+            "Something on this computer is asking Unbrowse to launch the route coin of entry {} with a first buy of {} UNB from this node's wallet. It can't be undone. {only}",
+            said("entry"),
+            number("unb")
         )),
         // Confirming spends the bounty's UNB on a coin, half of it staked for the entry's contributor: the owner's word.
         "bounty_confirm" => Some(format!(
@@ -179,6 +210,15 @@ pub fn asks_the_owner(cmd: &str, a: &Value) -> Option<String> {
         // Letting the owner SDK approve card payments is a yes given once for many payments; going back asks nothing.
         "payment_approver" if a.get("approver").and_then(Value::as_str) == Some("sdk") => Some(format!(
             "Something on this computer is asking Unbrowse to let a program holding the owner token approve card payments without this dialog: one that asks you on another device, such as the daemon hub's Telegram bot. Each payment is still asked and logged, one at a time, but any program running as you on this computer could then approve one an agent waits on. `unbrowse-node vault card approver dialog` turns it off. {only}"
+        )),
+        // Letting a device away from the machine answer sign-in and code asks is asked once; turning it off asks nothing.
+        // A remote key lets an agent anywhere use this node through the gateway, browser and logins included.
+        "remote_key_create" => Some(format!(
+            "Something on this computer is asking Unbrowse to make a remote key: whoever holds it can use this node from anywhere through its gateway, browser and logins included, spending up to {} USDC a day for {} days. {only}",
+            crate::remote::KEY_CAP_USDC, crate::remote::KEY_DAYS
+        )),
+        "remote_answers" if a.get("on").and_then(Value::as_bool) == Some(true) => Some(format!(
+            "Something on this computer is asking Unbrowse to let a program holding the owner token answer agents' sign-in and code asks from another device, such as the daemon hub's Telegram bot: a code you send there is typed into the page, never shown to the agent. Any program running as you on this computer could then answer an ask that waits. `remote_answers` off turns it back. {only}"
         )),
         // The two commands that set what `save_settings` asks about one at a time ask the same.
         "bounty_auto" if a.get("on").and_then(Value::as_bool) == Some(true) && !store::load_settings().bounty_auto => {
@@ -312,6 +352,42 @@ pub static OWNER_COMMANDS: &[OwnerCommand] = &[
         sdk_ts: "linkWallet",
         sdk_py: "link_wallet",
         run: |node, a| Box::pin(async move { out(link::link_wallet(node, &arg::<String>(a, "owner")?, &arg::<String>(a, "nonce")?, &arg::<String>(a, "signature")?)?) }),
+    },
+    OwnerCommand {
+        name: "remote_status",
+        description: "This node's own remote MCP address at a gateway: on or off, the URL, and the live remote keys for it.",
+        input: none,
+        returns: || r("Remote"),
+        sdk_ts: "remoteStatus",
+        sdk_py: "remote_status",
+        run: |_, _| Box::pin(async move { out(crate::remote::status()) }),
+    },
+    OwnerCommand {
+        name: "remote_set",
+        description: "Turns this node's own remote MCP address on or off, at the gateway named or the one it had (https://unbrowse.ai by default). The running node attaches or leaves within a few seconds.",
+        input: || args(json!({ "on": yes(), "gateway": s() }), &["on"]),
+        returns: || r("Remote"),
+        sdk_ts: "setRemote",
+        sdk_py: "remote_set",
+        run: |_, a| Box::pin(async move { out(crate::remote::set(arg::<bool>(a, "on")?, arg::<Option<String>>(a, "gateway")?.as_deref())?) }),
+    },
+    OwnerCommand {
+        name: "remote_key_create",
+        description: "Makes a remote key for the gateway, which opens this node only through it, and answers its token once with how an MCP client uses it.",
+        input: || args(json!({ "name": s() }), &[]),
+        returns: || r("NewRemoteKey"),
+        sdk_ts: "createRemoteKey",
+        sdk_py: "remote_key_create",
+        run: |node, a| Box::pin(async move { out(crate::remote::new_key(node.keys.as_ref(), &arg::<Option<String>>(a, "name")?.unwrap_or_default())?) }),
+    },
+    OwnerCommand {
+        name: "remote_revoke",
+        description: "Revokes every remote key for the gateway.",
+        input: none,
+        returns: || r("Remote"),
+        sdk_ts: "revokeRemoteKeys",
+        sdk_py: "remote_revoke",
+        run: |_, _| Box::pin(async move { out(crate::remote::revoke_all()?) }),
     },
     OwnerCommand {
         name: "unlink",
@@ -530,6 +606,40 @@ pub static OWNER_COMMANDS: &[OwnerCommand] = &[
         },
     },
     OwnerCommand {
+        name: "agent_clients",
+        description: "The MCP clients this machine has (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI, opencode and the others Unbrowse connects): whether each is found and connected to this node, and its config file.",
+        input: none,
+        returns: || json!({ "type": "object", "properties": { "clients": { "type": "array", "items": client_status() } }, "required": ["clients"] }),
+        sdk_ts: "agentClients",
+        sdk_py: "agent_clients",
+        run: |node, _| Box::pin(async move { out(agent_clients(node)) }),
+    },
+    OwnerCommand {
+        name: "agent_connect",
+        description: "Connects the named MCP clients to this node as its first agent: each gets `unb mcp --agent first` in its own config, checked to answer first, its file kept as it was beside it, and no token in it.",
+        input: || args(json!({ "clients": { "type": "array", "items": { "type": "string", "enum": ["claude_code", "claude_desktop", "cursor", "codex"] } } }), &["clients"]),
+        returns: || {
+            json!({ "type": "object", "properties": { "results": { "type": "array", "items": { "type": "object",
+                "properties": { "id": s(), "name": s(), "ok": yes(), "restart_needed": yes(), "error": { "type": ["string", "null"] } },
+                "required": ["id", "name", "ok", "restart_needed", "error"] } } }, "required": ["results"] })
+        },
+        sdk_ts: "connectAgents",
+        sdk_py: "agent_connect",
+        run: |node, a| Box::pin(async move { out(agent_connect(node, arg(a, "clients")?).await?) }),
+    },
+    OwnerCommand {
+        name: "agent_connect_undo",
+        description: "Puts back every MCP client config the last agent_connect changed, and answers the files it restored.",
+        input: none,
+        returns: || {
+            json!({ "type": "object", "properties": { "restored": { "type": "array", "items": { "type": "object",
+                "properties": { "id": s(), "name": s(), "path": s() }, "required": ["id", "name", "path"] } } }, "required": ["restored"] })
+        },
+        sdk_ts: "undoConnectAgents",
+        sdk_py: "agent_connect_undo",
+        run: |_, _| Box::pin(async move { out(agent_connect_undo().await?) }),
+    },
+    OwnerCommand {
         name: "agent_revoke",
         description: "Revokes an agent key here at once, then on the chain.",
         input: || args(json!({ "index": { "type": "integer" } }), &["index"]),
@@ -609,6 +719,15 @@ pub static OWNER_COMMANDS: &[OwnerCommand] = &[
         sdk_ts: "listingsToSign",
         sdk_py: "listings_to_sign",
         run: |node, _| Box::pin(async move { out(owner_nodes::to_sign(node).await?) }),
+    },
+    OwnerCommand {
+        name: "listings_sign",
+        description: "Has the owner's wallet sign the listings listings_to_sign names, as it sends its grants: opens the sign-in page in the owner's browser in its signing mode, where the wallet's provider signs each one, and takes each signature back through the site's relay. The node keeps only the wallet's own signature. Up to 8 a page; answers the page's url and how many it asks.",
+        input: none,
+        returns: || r("ListingsSign"),
+        sdk_ts: "listingsSign",
+        sdk_py: "listings_sign",
+        run: |node, _| Box::pin(async move { out(link::sign_listings(node).await?) }),
     },
     OwnerCommand {
         name: "listing_sign",
@@ -1381,6 +1500,42 @@ pub static OWNER_COMMANDS: &[OwnerCommand] = &[
         }),
     },
     OwnerCommand {
+        name: "remote_answers",
+        description: "Whether an agent's ask for the owner (a sign-in, a two-step code) may be answered from another device through the owner SDK, such as the daemon hub's Telegram bot: off by default. With it on, an ask reaches the owner while such a device keeps calling this command with `via` (within 30 s), though no window is open on the machine, and `hands_answer` types the code they send into the page. Turning it on asks the owner first, in the node's dialog; off asks nothing. `on` sets it; null only reads it. `via` names the device that is there (\"Telegram\").",
+        input: || args(json!({ "on": { "type": ["boolean", "null"] }, "via": { "type": ["string", "null"] } }), &[]),
+        returns: || json!({ "type": "object", "properties": { "on": { "type": "boolean" }, "since": { "type": "integer" } }, "required": ["on"], "additionalProperties": false }),
+        sdk_ts: "remoteAnswers",
+        sdk_py: "remote_answers",
+        run: |node, a| Box::pin(async move {
+            let keys = node.key()?;
+            let now = match arg::<Option<bool>>(a, "on")? {
+                Some(on) => crate::owner_dialog::set_remote_answers(keys, on, "You")?,
+                None => crate::owner_dialog::remote_answers(Some(keys as &dyn unbrowse_core::KeyStore)),
+            };
+            if now.on && arg::<Option<String>>(a, "via")?.is_some_and(|v| !v.trim().is_empty()) {
+                hands::away_seen();
+            }
+            out(now)
+        }),
+    },
+    OwnerCommand {
+        name: "hands_answer",
+        description: "Answers an agent's ask with what the owner sent from another device (`remote_answers` on): `text`, a two-step code, is typed into the page's code field as the owner's own typing, said as [typed by the owner] in anything the browser returns to an agent and kept out of the walk record, then Enter is pressed (`submit` false skips it) and the page is given back with done. `ask` names the ask (`hands` lists them); one that no longer waits, or is a card payment, is refused and nothing is typed. The code is never logged or answered.",
+        input: || args(json!({ "site": s(), "ask": s(), "text": s(), "submit": { "type": ["boolean", "null"] }, "via": { "type": ["string", "null"] } }), &["site", "ask", "text"]),
+        returns: || json!({ "type": "object", "properties": { "site": s(), "answered": { "type": "integer" }, "field": s() }, "required": ["site", "answered", "field"], "additionalProperties": false }),
+        sdk_ts: "handsAnswer",
+        sdk_py: "hands_answer",
+        run: |node, a| Box::pin(async move {
+            let (site, ask, text) = (arg::<String>(a, "site")?, arg::<String>(a, "ask")?, arg::<String>(a, "text")?);
+            let via = arg::<Option<String>>(a, "via")?.map(|v| crate::owner_dialog::plain(&v).replace('\n', " ").trim().chars().take(40).collect::<String>()).filter(|v| !v.is_empty());
+            let submit = arg::<Option<bool>>(a, "submit")?.unwrap_or(true);
+            if !crate::owner_dialog::remote_answers(node.key().ok().map(|k| k as &dyn unbrowse_core::KeyStore)).on {
+                return Err(OwnerError::Failed("answering asks from another device is off: the owner turns it on at the machine (`remote_answers` on, which asks in the dialog). Nothing was typed".into()));
+            }
+            out(hands::answer_code(&site, &ask, &text, submit, via.as_deref().unwrap_or("another device"), &node.events).await?)
+        }),
+    },
+    OwnerCommand {
         name: "hands_give_back",
         description: "Gives a page back to the agents, telling the one that asked whether the owner did what it needed. `ask` names the ask answered (`hands` lists them): refused when that ask no longer waits, and, with `payment_approver` set to sdk, what lets done approve that ask's card payment without the node's dialog. `via` says where the owner answered (\"Telegram\"), for the activity they read.",
         input: || args(json!({ "site": s(), "done": { "type": ["boolean", "null"] }, "ask": { "type": ["string", "null"] }, "via": { "type": ["string", "null"] } }), &["site"]),
@@ -1573,6 +1728,19 @@ mod tests {
         assert_eq!(crate::vault::limit_site("checkout.pay.shop.co.uk").unwrap(), "shop.co.uk");
     }
 
+    /// Audit 1118 M11: a coin bought, sold or launched spends or parts with the wallet's own value, as `wallet_send`
+    /// does, so it goes only on the owner's yes, and the question says what and how much.
+    #[test]
+    fn a_coin_buy_sell_or_launch_goes_only_on_the_owners_yes() {
+        let entry = format!("{:#x}", alloy::primitives::FixedBytes::<32>::repeat_byte(7));
+        let buy = asks_the_owner("coin_buy", &json!({ "entry": entry, "unb": 12.5 })).expect("a buy is asked");
+        assert!(buy.contains(&entry) && buy.contains("12.5"), "{buy}");
+        let launch = asks_the_owner("coin_launch", &json!({ "entry": entry, "unb": 4 })).expect("a launch is asked");
+        assert!(launch.contains(&entry) && launch.contains('4'), "{launch}");
+        let sell = asks_the_owner("coin_sell", &json!({ "entry": entry, "coins": 9 })).expect("a sale is asked");
+        assert!(sell.contains(&entry) && sell.contains('9'), "{sell}");
+    }
+
     #[test]
     fn the_node_asks_the_owner_for_exactly_the_commands_that_hand_out_a_secret_a_key_or_more_to_spend() {
         let _home = store::scratch_home("asked-invariant");
@@ -1580,11 +1748,12 @@ mod tests {
         raised["max_fetch_usdc"] = json!(store::load_settings().max_fetch_usdc + 1.0);
         let every = json!({ "index": 1, "cap_usdc": 20.0, "site": "a.example", "account": "me", "words": "w", "backup": "b", "passphrase": "p",
             "name": "n", "days": 7, "owner": "0x0000000000000000000000000000000000000001", "nonce": "00", "signature": "00", "settings": raised, "id": 1, "report": 1,
-            "entry": format!("{:#x}", alloy::primitives::FixedBytes::<32>::repeat_byte(1)), "unb": 50.0, "bps": store::COIN_DEV_BUY_BPS + 50 });
+            "entry": format!("{:#x}", alloy::primitives::FixedBytes::<32>::repeat_byte(1)), "unb": 50.0, "coins": 3.0, "bps": store::COIN_DEV_BUY_BPS + 50 });
         let mut asked: Vec<&str> = OWNER_COMMANDS.iter().filter(|c| asks_the_owner(c.name, &every).is_some()).map(|c| c.name).collect();
         asked.sort_unstable();
         let want = [
-            "agent_create", "agent_set_cap", "bounty_confirm", "card_limit", "chain_kept_release", "checkout_release", "coin_dev_buy", "import_session", "link_wallet", "passkey_remove", "report_send",
+            "agent_create", "agent_set_cap", "bounty_confirm", "card_limit", "chain_kept_release", "checkout_release", "coin_buy", "coin_dev_buy", "coin_launch", "coin_sell", "import_session", "link_wallet", "passkey_remove", "remote_key_create",
+            "report_send",
             "save_settings", "vault_card_remove", "vault_remove", "vault_reveal", "vault_rotate", "wallet_export", "wallet_import", "wallet_phrase", "wallet_restore", "wallet_send",
         ];
         assert_eq!(asked, want, "the commands the node asks the owner about");
@@ -1704,7 +1873,13 @@ mod tests {
     /// `returns` says. The rest are named in `UNEXERCISED`, with why, so a new command is put in one list or the other.
     #[test]
     fn what_each_command_answers_is_what_its_schema_says() {
+        // `hands_stop` below would stop the picture `hands::tests` keeps running.
+        let _one = crate::hands::WATCH_FOR_TEST.locked();
         const UNEXERCISED: &[(&str, &str)] = &[
+            ("agent_clients", "reads the owner's real MCP client configs: connect.rs tests it on a made-up home, scripts/install-e2e.sh against a running node"),
+            ("agent_connect", "starts `unb mcp` and writes client configs: connect.rs tests (connect_writes_each_client_and_keeps_everything_else) and scripts/install-e2e.sh"),
+            ("agent_connect_undo", "puts back what agent_connect wrote: connect.rs tests (undo_puts_every_file_back) and scripts/install-e2e.sh"),
+            ("hands_answer", "types into a live page: needs a waiting ask and a browser; a_code_from_another_device_answers_only_a_waiting_sign_in_ask covers its refusals"),
             ("card_limit", "needs a card in the vault; vault.rs tests it"),
             ("report_send", "needs a report waiting and a relay: report.rs tests it (an_agent_report_waits_for_the_owner_before_it_is_sent)"),
             ("report_discard", "needs a report waiting: report.rs tests it (an_agent_report_waits_for_the_owner_before_it_is_sent)"),
@@ -1739,6 +1914,7 @@ mod tests {
             ("collect_earnings", "writes to the chain"),
             ("wallet_renew", "opens the owner's browser"),
             ("listings_to_sign", "reads the chain (checked in owner_nodes' Anvil test)"),
+            ("listings_sign", "opens the owner's browser"),
             ("listing_sign", "reads and writes the chain (checked in owner_nodes' Anvil test)"),
             ("owner_nodes", "reads the chain"),
             ("domain_status", "reads the chain (its answer is checked against its schema in `domains::tests`)"),
@@ -1846,6 +2022,13 @@ mod tests {
             ("keep_card_codes", json!({ "on": null })),
             ("payment_approver", json!({ "approver": null })),
             ("payment_approver", json!({ "approver": "dialog" })),
+            ("remote_answers", json!({ "on": null })),
+            ("remote_answers", json!({ "on": false })),
+            ("remote_status", json!({})),
+            ("remote_set", json!({ "on": true, "gateway": "https://gateway.example" })),
+            ("remote_key_create", json!({ "name": "laptop" })),
+            ("remote_revoke", json!({})),
+            ("remote_set", json!({ "on": false })),
             ("vault_reveal", json!({ "site": "a.example", "account": "me" })),
             ("vault_rotate", json!({ "site": "b.example", "account": "me" })),
             ("vault_code", json!({ "site": "a.example", "account": "me", "key": "JBSWY3DPEHPK3PXP" })),
@@ -1904,7 +2087,9 @@ mod tests {
         assert!(store::load_routes().iter().all(|r| r.body.is_some()), "the routes keep their bodies on the node");
         assert_eq!(routes[0]["share"], json!(true));
         let agents = rt.block_on(owner(&node, "agents_list", json!({}))).ok().unwrap();
-        assert_eq!(agents.as_array().map(Vec::len), Some(2), "{agents}");
+        // The two made above and the remote key, which remote_revoke revoked.
+        assert_eq!(agents.as_array().map(Vec::len), Some(3), "{agents}");
+        assert_eq!(agents[2]["revoked"], json!(true), "{agents}");
         let vault = rt.block_on(owner(&node, "vault_list", json!({}))).ok().unwrap();
         assert!(vault.as_array().is_some_and(|v| v.iter().any(|l| l["code"] == true)), "{vault}");
 
@@ -1968,6 +2153,10 @@ mod tests {
         };
         let secrets = ["4242", "01/30", "Ada Lovelace", "987"];
         let said_none = |v: &str| {
+            // When the card was added is a number of its own, and its digits are no secret said back: left out, or a
+            // run in the minutes whose time holds the code's digits fails.
+            let when = v.split("\"created\":").nth(1).map(|rest| rest.chars().take_while(char::is_ascii_digit).collect::<String>()).unwrap_or_default();
+            let v = &if when.is_empty() { v.to_string() } else { v.replace(&format!("\"created\":{when}"), "\"created\":0") };
             for s in &secrets[1..] {
                 assert!(!v.contains(s), "{v} says {s}");
             }
@@ -2407,5 +2596,128 @@ mod tests {
             assert!(!crate::owner_dialog::approver_file().exists());
             assert!(owner(&node, "payment_approver", json!({ "approver": "anyone" })).await.is_err());
         });
+    }
+
+    // ---- UNB-147: sign-in and code asks answered away from the machine ----
+
+    /// A sign-in ask waiting on the owner at `site`, as `ask_owner` makes one: the ask and its id.
+    async fn sign_in_waits(site: &'static str) -> (tokio::task::JoinHandle<hands::Answer>, String) {
+        let waiting = tokio::spawn(hands::ask(site, None, "type the two-step code the site sent", "claude-code", std::time::Duration::from_secs(30), None, |_| {}));
+        loop {
+            if let Some(a) = hands::asks().into_iter().find(|a| a.site == site) {
+                return (waiting, a.id);
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    }
+
+    /// Answering from another device is off until the owner says yes in the dialog: the token alone, no dialog or a
+    /// no leaves it off, and so does a record the node's key didn't seal. Off asks nothing. A device saying it is there
+    /// counts only while it is on.
+    #[test]
+    fn answering_asks_from_another_device_is_off_until_the_owner_says_yes() {
+        let home = store::scratch_home("remote-answers-switch");
+        let (rt, node) = scratch_node(&home);
+        rt.block_on(async {
+            assert_eq!(owner(&node, "remote_answers", json!({})).await.ok().unwrap()["on"], false, "off by default");
+            for answer in [None, Some(false)] {
+                crate::owner_dialog::answer_in_test(answer);
+                assert!(owner(&node, "remote_answers", json!({ "on": true })).await.is_err());
+                assert_eq!(owner(&node, "remote_answers", json!({ "via": "Telegram" })).await.ok().unwrap()["on"], false);
+            }
+            std::fs::write(crate::owner_dialog::remote_answers_file(), r#"{"approver":"on","since":1,"mac":"00"}"#).unwrap();
+            assert_eq!(owner(&node, "remote_answers", json!({})).await.ok().unwrap()["on"], false, "a record the node didn't seal");
+            let asked = crate::owner_dialog::asked_in_test().len();
+            crate::owner_dialog::answer_in_test(Some(true));
+            assert_eq!(owner(&node, "remote_answers", json!({ "on": true })).await.ok().unwrap()["on"], true);
+            assert_eq!(crate::owner_dialog::asked_in_test().len(), asked + 1, "turning it on asked the dialog");
+            owner(&node, "remote_answers", json!({ "via": "Telegram" })).await.ok().unwrap();
+            assert!(hands::away_there(), "the device that said so is there");
+            crate::owner_dialog::answer_in_test(None);
+            assert_eq!(owner(&node, "remote_answers", json!({ "on": false })).await.ok().unwrap()["on"], false);
+            assert_eq!(crate::owner_dialog::asked_in_test().len(), asked + 1, "turning it off asked nothing");
+            assert!(!crate::owner_dialog::remote_answers_file().exists());
+        });
+    }
+
+    /// A code from another device is typed only for a sign-in ask that still waits, with remote answers on: off, an
+    /// ask that isn't waiting, a card payment's ask, or a code that isn't one types nothing and leaves the ask waiting.
+    /// Nothing the node answers holds the code.
+    #[test]
+    fn a_code_from_another_device_answers_only_a_waiting_sign_in_ask() {
+        let home = store::scratch_home("remote-answers-code");
+        let (rt, node) = scratch_node(&home);
+        rt.block_on(async {
+            let site = "code-ask.example";
+            let (waiting, id) = sign_in_waits(site).await;
+            let code = "482913";
+            match owner(&node, "hands_answer", json!({ "site": site, "ask": id, "text": code, "via": "Telegram" })).await {
+                Err(OwnerError::Failed(m)) => assert!(m.contains("is off") && !m.contains(code), "{m}"),
+                other => panic!("typed with remote answers off: {:?}", other.ok()),
+            }
+            crate::owner_dialog::answer_in_test(Some(true));
+            owner(&node, "remote_answers", json!({ "on": true })).await.ok().unwrap();
+            let long = "9".repeat(65);
+            for (ask, text, said) in [("ask-0-0", code, "isn't waiting"), (id.as_str(), "", "printable"), (id.as_str(), "48\n29", "printable"), (id.as_str(), long.as_str(), "printable")] {
+                match owner(&node, "hands_answer", json!({ "site": site, "ask": ask, "text": text })).await {
+                    Err(OwnerError::Failed(m)) => assert!(m.contains(said) && m.contains("nothing was typed") && !m.contains(code), "{m}"),
+                    other => panic!("{ask}: {:?}", other.ok()),
+                }
+            }
+            // A waiting ask whose site has no browser open: refused, nothing typed, the ask still waits.
+            match owner(&node, "hands_answer", json!({ "site": site, "ask": id, "text": code })).await {
+                Err(OwnerError::Failed(m)) => assert!(!m.contains(code), "{m}"),
+                other => panic!("answered with no page: {:?}", other.ok()),
+            }
+            assert!(hands::asks().iter().any(|a| a.id == id), "the ask waits on");
+            let said = store::read_activity(20).into_iter().map(|a| a.what).collect::<Vec<_>>().join("\n");
+            assert!(!said.contains(code), "the code is never logged: {said}");
+            // A card payment's ask is answered by the payment approver, never by a code.
+            owner(&node, "hands_give_back", json!({ "site": site, "done": false, "ask": id })).await.ok().unwrap();
+            assert_eq!(waiting.await.unwrap(), hands::Answer::Declined);
+            let (waiting, id) = payment_waits("code-pay.example").await;
+            match owner(&node, "hands_answer", json!({ "site": "code-pay.example", "ask": id, "text": code })).await {
+                Err(OwnerError::Failed(m)) => assert!(m.contains("card payment"), "{m}"),
+                other => panic!("a code answered a payment: {:?}", other.ok()),
+            }
+            owner(&node, "hands_give_back", json!({ "site": "code-pay.example", "done": false, "ask": id })).await.ok().unwrap();
+            assert_eq!(waiting.await.unwrap(), hands::Answer::Declined);
+        });
+    }
+
+    /// The owner is shown the writes the node keeps (each by what it is and what it moved, and a hint only where the chain
+    /// was read), none when none is kept; and a rank asked of entries that aren't entries is answered with none, with
+    /// nothing read.
+    #[test]
+    fn the_owner_is_shown_the_writes_the_node_keeps_and_ranks_for_no_entries_come_back_empty() {
+        let home = store::scratch_home("owner-kept-shown");
+        let (rt, node) = scratch_node(&home);
+        let run = |cmd: &str, a: Value| match rt.block_on(owner(&node, cmd, a)) {
+            Ok(v) => v,
+            Err(OwnerError::Failed(m)) => panic!("{cmd}: {m}"),
+            Err(OwnerError::Unknown) => panic!("{cmd} is unknown"),
+        };
+        assert_eq!(run("chain_kept", json!({})), json!([]), "nothing is kept");
+        crate::inflight::keep_for_test(crate::inflight::Sending {
+            key: "deposit".into(),
+            what: "the deposit".into(),
+            signer: alloy::primitives::Address::ZERO,
+            nonce: 7,
+            tx: alloy::primitives::B256::repeat_byte(4),
+            raw: alloy::primitives::Bytes::new(),
+            at: 11,
+            amount: 5.0,
+            book: None,
+            others: Vec::new(),
+            told: false,
+            watch: None,
+        });
+        let kept = run("chain_kept", json!({}));
+        let t = types();
+        let c = OWNER_COMMANDS.iter().find(|c| c.name == "chain_kept").unwrap();
+        check(&(c.returns)(), &kept, &t).unwrap_or_else(|e| panic!("chain_kept answered {kept}: {e}"));
+        assert_eq!((kept[0]["key"].as_str(), kept[0]["nonce"].as_u64(), kept[0]["amount"].as_f64(), kept[0]["changed"].clone()), (Some("deposit"), Some(7), Some(5.0), Value::Null), "{kept}");
+        assert_eq!(kept.as_array().map(Vec::len), Some(1));
+        assert_eq!(run("coin_rank", json!({ "entries": ["not an entry", " "] })), json!({}), "an id that isn't one names no rank");
     }
 }

@@ -11,7 +11,6 @@ pub use dashboard::{
 };
 
 use serde_json::{json, Value};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -19,6 +18,7 @@ use tokio::net::TcpListener;
 use tokio::sync::{broadcast, watch, Mutex, Notify, RwLock};
 
 use super::cdp::client::CdpClient;
+use crate::session_settings::IdleTimeout;
 
 /// Screencast encoding for the live stream, from `AGENT_BROWSER_STREAM_*`.
 ///
@@ -30,8 +30,8 @@ use super::cdp::client::CdpClient;
 /// a daemon-wide switch would leave connected clients decoding blind, and png
 /// measures about 3x larger.
 ///
-/// Not an invariant, though. A page has one cast: a `screencast_start` that ran
-/// before the first client joined sets the format that client gets.
+/// Not an invariant, though. `screencast_start` reconfigures the same shared
+/// screencast, so an explicit png request does reach stream clients mid-flight.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScreencastConfig {
     pub quality: i32,
@@ -127,6 +127,9 @@ fn seq_in_serialized_frame(frame: &str) -> Option<u64> {
 pub(crate) struct IdleActivity {
     last: std::sync::Mutex<Instant>,
     notify: Notify,
+    /// The idle timeout in effect. A session setting can change it while the
+    /// daemon runs, so the shutdown loop reads it on every pass.
+    timeout: std::sync::Mutex<Option<IdleTimeout>>,
 }
 
 impl IdleActivity {
@@ -134,7 +137,16 @@ impl IdleActivity {
         Self {
             last: std::sync::Mutex::new(Instant::now()),
             notify: Notify::new(),
+            timeout: std::sync::Mutex::new(None),
         }
+    }
+
+    pub(crate) fn timeout(&self) -> Option<IdleTimeout> {
+        *self.timeout.lock().unwrap_or_else(|err| err.into_inner())
+    }
+
+    pub(crate) fn set_timeout(&self, timeout: Option<IdleTimeout>) {
+        *self.timeout.lock().unwrap_or_else(|err| err.into_inner()) = timeout;
     }
 
     pub(crate) fn mark(&self) {
@@ -196,9 +208,6 @@ pub struct StreamServer {
     /// Shared activity clock used by the daemon idle timer.
     idle_activity: Arc<IdleActivity>,
     screencasting: Arc<Mutex<bool>>,
-    /// Whether a `screencast start` command holds the cast. A page has one cast, which the command and the stream's viewers
-    /// share, so the loop stops it only when neither wants it.
-    screencast_held: Arc<AtomicBool>,
     viewport_width: Arc<Mutex<u32>>,
     viewport_height: Arc<Mutex<u32>>,
     last_tabs: Arc<RwLock<Vec<Value>>>,
@@ -282,26 +291,10 @@ impl StreamServer {
         (w, h)
     }
 
-    /// Say whether a `screencast start` command holds the cast.
-    pub fn hold_screencast(&self, held: bool) {
-        self.screencast_held.store(held, Ordering::Relaxed);
-    }
-
-    /// Whether a stream client is connected. A locked count is a client joining or leaving, which reads as watching: the
-    /// answer decides who acks frames and whether a stop is left to the loop, and the loop handles that client.
-    pub fn has_viewers(&self) -> bool {
-        self.client_count.try_lock().map_or(true, |count| *count > 0)
-    }
-
     /// Override the cached screencast state for explicit CLI start/stop commands.
     pub async fn set_screencasting(&self, active: bool) {
         let mut guard = self.screencasting.lock().await;
         *guard = active;
-    }
-
-    #[cfg(test)]
-    pub async fn is_recording(&self) -> bool {
-        *self.recording.lock().await
     }
 
     /// Update and broadcast the recording state.
@@ -354,7 +347,6 @@ impl StreamServer {
         let client_count = Arc::new(Mutex::new(0usize));
         let client_notify = Arc::new(Notify::new());
         let screencasting = Arc::new(Mutex::new(false));
-        let screencast_held = Arc::new(AtomicBool::new(false));
         let cdp_session_id = Arc::new(RwLock::new(None::<String>));
         let viewport_width = Arc::new(Mutex::new(1280u32));
         let viewport_height = Arc::new(Mutex::new(720u32));
@@ -405,7 +397,6 @@ impl StreamServer {
         let client_slot_bg = client_slot.clone();
         let client_notify_bg = client_notify.clone();
         let screencasting_bg = screencasting.clone();
-        let screencast_held_bg = screencast_held.clone();
         let client_count_bg = client_count.clone();
         let cdp_session_bg = cdp_session_id.clone();
         let vw_bg = viewport_width.clone();
@@ -423,7 +414,6 @@ impl StreamServer {
                 client_slot_bg,
                 client_notify_bg,
                 screencasting_bg,
-                screencast_held_bg,
                 client_count_bg,
                 cdp_session_bg,
                 vw_bg,
@@ -449,7 +439,6 @@ impl StreamServer {
                 client_notify,
                 idle_activity,
                 screencasting,
-                screencast_held,
                 viewport_width,
                 viewport_height,
                 last_tabs,
@@ -662,117 +651,6 @@ pub fn is_allowed_origin(origin: Option<&str>) -> bool {
     }
 }
 
-/// The stream server's secret, one per daemon process.
-///
-/// A loopback TCP port has no file permissions, and Origin, Host and Referer
-/// are whatever the client writes, so they cannot tell the owner from another
-/// local account or a page the browser was steered to. The secret can: it is
-/// written only to `<session>.stream-token`, readable by the owner alone, and
-/// every `/api/*` request and WebSocket upgrade must carry it.
-pub(crate) fn stream_token() -> &'static str {
-    static TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    TOKEN.get_or_init(new_secret)
-}
-
-/// 32 random bytes as hex.
-pub(crate) fn new_secret() -> String {
-    let mut bytes = [0u8; 32];
-    getrandom::getrandom(&mut bytes).expect("the OS random source is available");
-    hex::encode(bytes)
-}
-
-pub(crate) fn stream_token_path(session: &str) -> std::path::PathBuf {
-    crate::connection::get_socket_dir().join(format!("{session}.stream-token"))
-}
-
-/// Write this daemon's stream secret beside its `.stream` file, owner-only.
-/// Any earlier file is removed first so a file another account created can
-/// never be reused with its permissions.
-pub(crate) fn write_stream_token_file(session: &str) -> std::io::Result<()> {
-    use std::io::Write as _;
-    let path = stream_token_path(session);
-    match std::fs::remove_file(&path) {
-        Ok(()) => {}
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-        Err(err) => return Err(err),
-    }
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    options.open(&path)?.write_all(stream_token().as_bytes())
-}
-
-pub(crate) fn remove_stream_token_file(session: &str) {
-    let _ = std::fs::remove_file(stream_token_path(session));
-}
-
-/// Read another daemon's stream secret, as the dashboard does to proxy it.
-pub(super) fn read_stream_token(session: &str) -> Option<String> {
-    let token = std::fs::read_to_string(stream_token_path(session)).ok()?;
-    let token = token.trim();
-    is_secret(token).then(|| token.to_string())
-}
-
-fn is_secret(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
-}
-
-pub(super) fn constant_time_eq(expected: &str, provided: &str) -> bool {
-    if expected.len() != provided.len() {
-        return false;
-    }
-    expected
-        .bytes()
-        .zip(provided.bytes())
-        .fold(0u8, |difference, (left, right)| difference | (left ^ right))
-        == 0
-}
-
-/// Whether a request presents `expected`, as `Authorization: Bearer <token>`
-/// or, for browser WebSocket clients that cannot set headers, as the `token`
-/// query parameter.
-pub(super) fn presents_token(
-    authorization: Option<&str>,
-    query: Option<&str>,
-    expected: &str,
-) -> bool {
-    let bearer = authorization
-        .and_then(|value| value.trim().strip_prefix("Bearer "))
-        .map(str::trim);
-    if bearer.is_some_and(|provided| constant_time_eq(expected, provided)) {
-        return true;
-    }
-    query.is_some_and(|query| {
-        url::form_urlencoded::parse(query.as_bytes())
-            .any(|(name, value)| name == "token" && constant_time_eq(expected, &value))
-    })
-}
-
-/// Clear the environment that makes a process a server rather than a CLI.
-///
-/// The dashboard and stream servers start `agent-browser` children to run a
-/// command. A child that inherits `AGENT_BROWSER_DAEMON` from a daemon ignores
-/// its argv and becomes a second daemon for the serving session
-/// (`AGENT_BROWSER_SESSION`), taking over its socket; one that inherits the
-/// dashboard variables becomes a dashboard or holds its token. Every child runs
-/// the command it was given instead.
-pub(crate) fn strip_server_env(cmd: &mut tokio::process::Command) {
-    for name in [
-        "AGENT_BROWSER_DAEMON",
-        "AGENT_BROWSER_DASHBOARD",
-        "AGENT_BROWSER_DASHBOARD_PORT",
-        "AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN",
-        "AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS",
-        "AGENT_BROWSER_STREAM_PORT",
-    ] {
-        cmd.env_remove(name);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -888,87 +766,11 @@ mod tests {
     }
 
     async fn connect_client_to(port: u16, target: &str) -> WsClient {
-        let separator = if target.contains('?') { '&' } else { '?' };
-        let (ws, _) = tokio_tungstenite::connect_async(format!(
-            "ws://127.0.0.1:{}{}{}token={}",
-            port,
-            target,
-            separator,
-            stream_token()
-        ))
-        .await
-        .expect("client connect");
+        let (ws, _) =
+            tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{}{}", port, target))
+                .await
+                .expect("client connect");
         ws
-    }
-
-    #[test]
-    fn a_server_child_never_inherits_the_daemon_identity() {
-        let mut cmd = tokio::process::Command::new("agent-browser");
-        cmd.env("AGENT_BROWSER_DAEMON", "1")
-            .env("AGENT_BROWSER_SESSION", "serving");
-        strip_server_env(&mut cmd);
-        let envs: Vec<_> = cmd.as_std().get_envs().collect();
-        for name in [
-            "AGENT_BROWSER_DAEMON",
-            "AGENT_BROWSER_DASHBOARD",
-            "AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN",
-        ] {
-            assert!(
-                envs.iter().any(|(key, value)| *key == name && value.is_none()),
-                "{name} reaches the child"
-            );
-        }
-    }
-
-    #[test]
-    fn the_stream_token_is_presented_only_exactly() {
-        let token = "e".repeat(64);
-        assert!(presents_token(Some(&format!("Bearer {token}")), None, &token));
-        assert!(presents_token(None, Some(&format!("maxFps=5&token={token}")), &token));
-        assert!(!presents_token(None, None, &token));
-        assert!(!presents_token(Some(&token), None, &token));
-        assert!(!presents_token(Some(&format!("Bearer {token}0")), None, &token));
-        assert!(!presents_token(None, Some("token="), &token));
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn the_stream_token_file_is_readable_by_the_owner_alone() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let guard = crate::test_utils::EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
-        guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        std::fs::write(stream_token_path("s"), "planted").unwrap();
-        std::fs::set_permissions(stream_token_path("s"), std::fs::Permissions::from_mode(0o644))
-            .unwrap();
-
-        write_stream_token_file("s").unwrap();
-        let mode = std::fs::metadata(stream_token_path("s")).unwrap().permissions().mode();
-        assert_eq!(mode & 0o777, 0o600);
-        assert_eq!(read_stream_token("s").as_deref(), Some(stream_token()));
-        remove_stream_token_file("s");
-        assert_eq!(read_stream_token("s"), None);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn a_stream_client_without_the_token_is_refused() {
-        let (server, _slot) = StreamServer::start_without_client(
-            0,
-            "no-token".to_string(),
-            true,
-            Arc::new(IdleActivity::new()),
-        )
-        .await
-        .expect("server start");
-
-        for target in ["/", "/?token=0000"] {
-            let refused =
-                tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{}{}", server.port(), target))
-                    .await;
-            assert!(refused.is_err(), "upgrade without the token succeeded: {target}");
-        }
-        let _ = connect_client(server.port()).await;
-        server.shutdown().await;
     }
 
     /// Read until a "frame" arrives, skipping status and tabs. Timed out so a

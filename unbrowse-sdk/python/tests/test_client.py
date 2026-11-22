@@ -67,7 +67,7 @@ def answer(method, path, query, headers, body):
             return 422, {"error": "the walk failed: no Chrome"}
         return 404, {"error": "no such route"}
     if route == "GET /v1/whoami":
-        return 200, {"agent": "claude", "address": "0xabc", "node": "lewis-mac", "browser": "missing", "browser_fetch": False}
+        return 200, {"agent": "claude", "address": "0xabc", "node": "lewis-mac", "browser": "missing", "browser_fetch": False, "owner": "off"}
     if route == "GET /v1/routes":
         q = query.get("q", [""])[0]
         if q == "nothing here":
@@ -81,6 +81,33 @@ def answer(method, path, query, headers, body):
         return 200, {"routes": [HN]}
     if route == "POST /v1/do":
         goal = body.get("goal")
+        learned = {"how": "learned", "picked_by": "the rule", "route": dict(HN, id="slow", what="list the items"), "ask": "ask_1", "outcome": "answered",
+                   "result": {"ok": True, "ms": 9, "data": {"items": [{"name": "desk lamp"}]}, "error": None, "paid_unb": None, "possible_commit": False, "retry": "as_is"}}
+        working = {"how": "working", "ask": "ask_1", "phase": "walk", "outcome": "still_working", "outcome_from": "ask.wait", "next": {"tool": "unbrowse_do", "args": {"ask": "ask_1"}}}
+        # A batch: one ask, and each page its own; still working while a page is pending, the whole batch once collected.
+        def page(url, ask, done):
+            if done:
+                return {"url": url, "how": "learned", "ms": 9, "ok": True, "route_id": "slow", "data": {"items": [{"name": "desk lamp"}]}, "ask": ask, "outcome": "answered", "outcome_from": "result.outcome"}
+            return {"url": url, "how": "working", "ms": 200, "ok": False, "ask": ask, "outcome": "still_working", "outcome_from": "ask.wait", "next": {"tool": "unbrowse_do", "args": {"ask": ask}}}
+
+        def batch(done):
+            b = {"how": "pages", "ms": 200, "count": {"learned": 2} if done else {"learned": 1, "working": 1}, "fields": {}, "ask": "ask_batch",
+                 "pages": [page("https://shop.example/items/1", "ask_p1", True), page("https://shop.example/items/2", "ask_p2", done)]}
+            if done:
+                b.update(outcome="answered", outcome_from="pages")
+            else:
+                b.update(pending=["https://shop.example/items/2"], outcome="still_working", outcome_from="pages.pending", next={"tool": "unbrowse_do", "args": {"ask": "ask_batch"}})
+            return b
+
+        if body.get("ask") == "ask_batch":
+            return 200, batch(True)
+        if body.get("pages"):
+            return 200, batch(False)
+        if body.get("ask") == "ask_1":
+            # Collected: still working while a collect said a short wait, else the answer.
+            return 200, working if body.get("wait_ms") == 10 else learned
+        if goal == "list the items slowly":
+            return 200, working
         if not goal:
             return 400, {"error": "say what you want in goal, e.g. 'search Hacker News stories'"}
         call = {"ok": True, "ms": 212, "data": {"hits": [{"title": body["inputs"].get("q", "rust")}]}, "error": None, "paid_unb": None, "possible_commit": False, "retry": "as_is"}
@@ -226,6 +253,10 @@ class ClientTest(unittest.TestCase):
         self.assertEqual((old.whoami().browser, old.whoami().browser_fetch), (None, None))
         self.assertEqual(old.capabilities(), Capabilities(browser="unknown", fetches_browser=False, browser_option=False))
 
+    def test_whoami_says_whether_the_owner_can_be_asked_and_an_older_node_says_nothing(self):
+        self.assertEqual(self.node().whoami().owner, "off")
+        self.assertIsNone(UnbrowseNode(token=OLD_TOKEN, base_url=self.base).whoami().owner)
+
     def test_a_goal_that_needs_the_browser_the_node_lacks_raises_browser_missing_saying_what_and_how(self):
         with self.assertRaises(BrowserMissingError) as c:
             self.node().do("list new arrivals", url="https://shop.example/new")
@@ -305,6 +336,38 @@ class ClientTest(unittest.TestCase):
         self.assertIsNone(r.picked_by)
         self.assertIsNone(r.route_failed)
         self.assertIsNone(r.network_skipped)
+
+    def test_do_pages_names_the_batchs_ask_and_each_pages_own_and_the_batchs_ask_collects_it(self):
+        node = self.node()
+        r = node.do_pages("list the items", ["https://shop.example/items/1", "https://shop.example/items/2"], wait_ms=200)
+        self.assertEqual(last()["body"]["wait_ms"], 200)
+        self.assertTrue(r.still_working)
+        self.assertEqual(r.ask, "ask_batch")
+        self.assertEqual([(p.how, p.ask) for p in r.pages], [("learned", "ask_p1"), ("working", "ask_p2")])
+        self.assertEqual(r.pending, ["https://shop.example/items/2"])
+        whole = node.do_pages("", [], ask=r.ask)
+        self.assertEqual(last()["body"], {"ask": "ask_batch", "session": node.session})
+        self.assertFalse(whole.still_working)
+        self.assertEqual([(p.how, p.ask) for p in whole.pages], [("learned", "ask_p1"), ("learned", "ask_p2")])
+        self.assertEqual(whole.pending, [])
+
+    def test_do_says_still_working_with_its_ask_and_the_ask_collects_the_answer(self):
+        node = self.node()
+        r = node.do("list the items slowly", url="https://shop.example/items", wait_ms=200)
+        self.assertEqual(last()["body"]["wait_ms"], 200)
+        self.assertTrue(r.still_working)
+        self.assertEqual((r.how, r.ask, r.phase), ("working", "ask_1", "walk"))
+        self.assertTrue(node.do("", ask=r.ask, wait_ms=10).still_working)
+        self.assertEqual(last()["body"], {"ask": "ask_1", "wait_ms": 10, "session": node.session})
+        got = node.do("", ask=r.ask, wait_ms=1000)
+        self.assertFalse(got.still_working)
+        self.assertEqual((got.how, got.result.data), ("learned", {"items": [{"name": "desk lamp"}]}))
+        # Saying no wait, the caller is answered as before: the client collects the ask itself.
+        before = len(SEEN)
+        whole = node.do("list the items slowly", url="https://shop.example/items")
+        self.assertEqual(whole.how, "learned")
+        self.assertNotIn("wait_ms", SEEN[before]["body"])
+        self.assertEqual(SEEN[-1]["body"], {"ask": "ask_1", "session": node.session})
 
     def test_an_older_callers_payment_words_are_dropped_and_said(self):
         with warnings.catch_warnings(record=True) as said:

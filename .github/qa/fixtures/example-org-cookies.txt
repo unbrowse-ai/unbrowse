@@ -1,0 +1,4 @@
+# Netscape HTTP Cookie File
+# A made-up session for QA (UNB-235): example.org sets no cookies, so nothing real signs in with it.
+.example.org	TRUE	/	TRUE	4102444800	qa_session	qa-made-up-value-1
+example.org	FALSE	/	TRUE	4102444800	qa_pref	light
