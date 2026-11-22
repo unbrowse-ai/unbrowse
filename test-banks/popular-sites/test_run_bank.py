@@ -684,6 +684,49 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual(problems(build_report(doc, {"a.test": {"classification": "pass", "note": "semantic matches, read by hand"}})), [])
 
 
+class CollectTests(unittest.TestCase):
+    """A reply that says the node is still working names an ask: the bank collects that ask's answer before it scores."""
+
+    def node(self, replies):
+        sent = []
+
+        class Reply:
+            def __init__(self, body):
+                self.status, self.body = 200, json.dumps(body).encode()
+
+            def read(self):
+                return self.body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        def opener(request, timeout):
+            sent.append(json.loads(request.data))
+            return Reply(replies[len(sent) - 1])
+
+        return Node("http://127.0.0.1:17810", "t", opener=opener), sent
+
+    def test_a_working_reply_is_collected_by_its_ask(self):
+        answer = {"how": "learned", "result": {"ok": True, "data": {"items": ["kettle"]}}}
+        node, sent = self.node([{"how": "working", "ask": "a1", "phase": "walking"}, answer])
+        self.assertEqual(node.do("search", "https://shop.test/s?q=kettle"), (200, answer))
+        self.assertEqual(sent[1], {"ask": "a1", "wait_ms": run_bank.COLLECT_WAIT_MS})
+
+    def test_collecting_stops_after_its_limit(self):
+        working = {"how": "working", "ask": "a1", "phase": "walking"}
+        node, sent = self.node([working] * (run_bank.COLLECTS + 2))
+        self.assertEqual(node.do("search", "https://shop.test/s?q=kettle")[1]["how"], "working")
+        self.assertEqual(len(sent), 1 + run_bank.COLLECTS)
+
+    def test_an_answer_is_not_collected_again(self):
+        node, sent = self.node([{"how": "called", "result": {"ok": True, "data": {}}}])
+        node.do("search", "https://shop.test/s?q=kettle")
+        self.assertEqual(len(sent), 1)
+
+
 class SampleTests(unittest.TestCase):
     SITES = [{"domain": f"{c}{n}.test", "category": c, "market": "DE" if n == 9 else "GLOBAL", "tranco_rank": n} for c in ("a", "b") for n in range(10)]
 
@@ -1117,6 +1160,16 @@ class CorrectAnswerTests(unittest.TestCase):
         listing = lambda n, r: {"listingId": str(70000000 + n), "avgRating": r}
         got = self.judged("bangkok", {"results": [listing(n, f"4.{n}") for n in range(9)]}, {"results": [listing(n + 50, f"3.{n}") for n in range(9)]})
         self.assertEqual(got, ("ok_but_wrong", "records_known_only_by_ids"))
+
+    def test_places_in_nested_arrays_are_read_by_what_they_say(self):
+        # Google Maps' `/search?tbm=map` answers in arrays of arrays, the ask said back first (UNB-165, 16 Nov 2026).
+        place = lambda fid, name, kind, area: [None, [fid, name, [None, None, 25.03, 121.56], None, [kind]], area, None]
+        shops = [["bookstore taipei", [[None, "UOz6", ["bookstore taipei", 0]]]], [place("0x1:0x2", "Eslite Spectrum Taipei Station Store", "Book store", "Taipei City, Taiwan 100"), place("0x3:0x4", "TSUTAYA BOOKSTORE Xinyi Store", "Book store", "Taipei City, Taiwan 110")]]
+        trails = [["hiking trail", [[None, "Vez6", ["hiking trail", 0]]]], [place("0x5:0x6", "Clementi Nature Trail", "Hiking area", "Singapore 596470"), place("0x7:0x8", "MacRitchie Nature Trail", "Hiking area", "Singapore 298735")]]
+        read = read_answer(shops)
+        self.assertIn("Eslite Spectrum Taipei Station Store", read["lines"])
+        self.assertEqual(self.judged("bookstore taipei", shops, trails), ("pass", None))
+        self.assertEqual(self.judged("hiking trail", trails, shops), ("pass", None))
 
     def test_ids_that_mention_the_query_are_still_no_stays(self):
         listing = lambda n: {"id": f"bangkok{n}"}
@@ -1947,8 +2000,11 @@ class ScratchScriptRefusalTests(unittest.TestCase):
 
 
 FAKE_NODE = r"""#!/bin/sh
-# A stand-in for a debug node: says a key to `agent new`, writes the environment it was started with, answers health.
-if [ "$1" = agent ]; then echo "unb_fake_token_for_tests"; exit 0; fi
+# A stand-in for a debug node: names the agent's number to `agent new` as the node does, says a key to `agent token <n>`,
+# writes the environment it was started with, answers health.
+if [ "$1 $2" = "agent new" ]; then echo 'export UNBROWSE_AGENT_TOKEN="$(/x/debug/unbrowse-node agent token 1)"'; exit 0; fi
+if [ "$1 $2 $3" = "agent token 1" ]; then echo "unb_fake_token_for_tests"; exit 0; fi
+if [ "$1" = agent ]; then exit 1; fi
 env > "$UNBROWSE_HOME/node.env"
 exec /usr/bin/python3 -c '
 import http.server, json, os

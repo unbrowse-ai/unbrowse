@@ -1,0 +1,15 @@
+{"pass": true, "checks": [
+{"n":1,"result":"pass","note":"learned then called","url":"https://lobste.rs/"},
+{"n":2,"result":"pass","note":"search lists bff10648be800e23","url":"https://lobste.rs/"},
+{"n":3,"result":"pass","note":"call by id returns stories","url":"https://lobste.rs/"},
+{"n":4,"result":"pass","note":"how: browse with page and next","url":"https://the-internet.herokuapp.com/login"},
+{"n":5,"result":"pass","note":"logged in via vault ref; password never returned","url":"https://the-internet.herokuapp.com/login","shot":"/Users/runner/.agent-browser/files/check-05.png"},
+{"n":6,"result":"pass","note":"all three refused or no password; screenshot on the password page refused by design","url":"https://the-internet.herokuapp.com/login"},
+{"n":7,"result":"pass","note":"immediate owner_unavailable error; screenshot refused (page holds a secret)","url":"https://the-internet.herokuapp.com/login"},
+{"n":8,"result":"pass","note":"no route does that yet: give url","url":""},
+{"n":9,"result":"pass","note":"robots learned as data; 404 Not Found carried","url":"https://www.python.org/robots.txt"},
+{"n":10,"result":"pass","note":"sessions isolated; browser close/reopen ok","url":"https://the-internet.herokuapp.com/checkboxes","shot":"/Users/runner/.agent-browser/files/check-10.png"},
+{"n":11,"result":"pass","note":"35s waited; 40s timed out clearly at 30 s","url":"https://the-internet.herokuapp.com/checkboxes","shot":"/Users/runner/.agent-browser/files/check-11.png"},
+{"n":12,"result":"pass","note":"report off, scrubbed, repeat off","url":"https://news.ycombinator.com/?p=2"},
+{"n":13,"result":"pass","note":"passed over, restored after right, wrong without url refused","url":"https://lobste.rs/"}
+]}

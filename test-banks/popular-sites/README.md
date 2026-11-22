@@ -172,6 +172,17 @@ python3 -m unittest discover -s test-banks/popular-sites -p 'test_*.py'
 servers on this machine (a site with the report's shapes, a model that leaves out
 `type`), with no network. They need `scratch-node.sh`'s two binaries built.
 
+## Staging's live-site check: the 30 hardest sites
+
+`staging-hard-sites.json` holds the 30 hardest sites we know of (UNB-249), each a `run_bank.py` case with `hard`: the
+wall or trouble, the evidence (run ids, tickets, the hard-site ledger) and what a right answer holds; `left_out` says why
+other known-hard sites are not in it. `.github/workflows/bank.yml` reads them nightly on staging and by hand (not on a push since
+21 Nov 2026, UNB-166: the next push cancelled 27 of 40 push runs before they finished), in ten jobs of three sites (`hard_sites.py shard`), one site per `run_bank.py run` so each site's seconds are measured.
+`hard_sites.py report` sorts each site into right (all five checks pass, no warm call in the browser), wrong (the rule
+reads an answer as wrong, or the calls fail), needs a browser (right only through the node's browser, or it needed
+hands), walled (a wall, a sign-in or a rate limit) or unknown (no record, a timeout, a safety stop). It decides no answer
+itself: `run_bank.py`'s rule does. A wrong site is read by hand before it is called a regression (AGENTS.md).
+
 ## Findings of a run
 
 `run_bank.py run` writes these per site under `findings`, and `report` prints them as a

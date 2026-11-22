@@ -23,6 +23,22 @@ const board = @import("screens/board.zig");
 const live_screen = @import("screens/live.zig");
 const hands_screen = @import("screens/hands.zig");
 const first_run = @import("screens/first_run.zig");
+const connect = @import("screens/connect.zig");
+const move_to_apps = @import("screens/move_to_apps.zig");
+const sign_in = @import("screens/sign_in.zig");
+
+/// What stands in front of the normal screens, in the order it is asked: the move to Applications while the window runs
+/// from a disk image, then the terms, then signing in (a new node only, skippable), then Connect your agents until it
+/// has been through.
+pub const Front = enum { none, move, terms, sign_in, connect };
+
+pub fn front(a: *App) Front {
+    if (a.mustMove() != null) return .move;
+    if (a.termsDue()) return .terms;
+    if (a.signInDue()) return .sign_in;
+    if (a.connectDue()) return .connect;
+    return .none;
+}
 
 pub fn view(a: *App, c: *ui.Context) void {
     look.apply(c);
@@ -32,8 +48,15 @@ pub fn view(a: *App, c: *ui.Context) void {
         a.now = @floatFromInt(t.toSeconds());
         a.now_ms = @floatFromInt(t.toMilliseconds());
     }
-    if (a.termsDue()) {
-        first_run.view(a, c);
+    const stands = front(a);
+    if (stands != .none) {
+        switch (stands) {
+            .move => move_to_apps.view(a, c),
+            .terms => first_run.view(a, c),
+            .sign_in => sign_in.view(a, c),
+            .connect => connect.view(a, c),
+            .none => {},
+        }
         a.toaster.view(c);
         return;
     }

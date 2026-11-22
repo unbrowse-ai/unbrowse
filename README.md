@@ -80,7 +80,7 @@ values as inputs. An agent says what it wants; the node calls the route that doe
 ```
 agent ── HTTP / MCP ──▶ unbrowse-node ──▶ the site's own API      (a route, plain HTTP)
                             │
-                            └── links unbrowse-browser/core ──▶ Chrome   (once, to learn the route)
+                            └── links unbrowse-node/crates/browser ──▶ Chrome   (once, to learn the route)
 ```
 
 Your sign-ins stay on your computer, in your system's own keystore.
@@ -89,7 +89,7 @@ Your sign-ins stay on your computer, in your system's own keystore.
 
 | Goal | Start here |
 |---|---|
-| Use it | [Install](#install) |
+| Use it | [Download the app](#install) for Mac, Windows or Linux; or `npm install -g unbrowse` |
 | Connect an agent (Claude Code, Cursor, …) | [Install the Unbrowse MCP](docs/install-mcp.md), or [Connect an agent](#connect-an-agent) |
 | Move from the hosted version | [docs/upgrade.md](docs/upgrade.md) |
 | Build from this repo | [Run from source](#run-from-source) |
@@ -101,6 +101,59 @@ Your sign-ins stay on your computer, in your system's own keystore.
 | Start as a new owner, from install to first earnings | [docs/ONBOARDING.md](docs/ONBOARDING.md); every command in [docs/CLI.md](docs/CLI.md); all the docs, and the order to read them, in [docs/README.md](docs/README.md) |
 | Fix something that broke | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): symptom, cause, fix |
 | Contribute | [CONTRIBUTING.md](CONTRIBUTING.md); report vulnerabilities privately per [SECURITY.md](SECURITY.md) |
+
+## Install
+
+Download the app for your computer:
+
+| Your computer | Download |
+|---|---|
+| Mac with Apple silicon | [Unbrowse-13.21.0-installers.3-macos-arm64.dmg](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-macos-arm64.dmg) |
+| Windows (x64) | [Unbrowse-13.21.0-installers.3-windows-x64-setup.exe](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-windows-x64-setup.exe) |
+| Linux, Debian or Ubuntu (x64) | [unbrowse_13.21.0-installers.3_amd64.deb](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_amd64.deb) |
+| Linux, Debian or Ubuntu (ARM) | [unbrowse_13.21.0-installers.3_arm64.deb](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_arm64.deb) |
+
+Every file with its SHA-256 is on [the release](https://github.com/unbrowse-ai/unbrowse/releases/tag/v13.21.0-installers.3); the step-by-step guide is at [unbrowse.ai/#install](https://unbrowse.ai/#install).
+
+Open the app. The Unbrowse window starts the node on your computer (its MCP server is `http://127.0.0.1:7788/mcp`),
+then its Agents screen, the one it opens on, adds Unbrowse to the agents it finds (Claude Code, Claude Desktop, Cursor,
+Codex, VS Code, Gemini CLI, opencode, Hermes, OpenClaw and 15 more, whichever are installed: [the list](docs/guides/connect-your-agent.md#agents-the-app-connects))
+and gives ChatGPT and Claude on the web an address for this node, with the steps to add it. No terminal, Node or npm.
+
+- **Mac:** open the disk image and drag Unbrowse onto Applications. It is signed ad hoc, not notarized, so open it the
+  first time by hand: right-click it and choose Open, or on macOS 15 and later, after the warning, System Settings >
+  Privacy & Security > Open Anyway.
+- **Windows:** run the setup. It installs for your user alone, with no administrator prompt, and opens Unbrowse when it
+  finishes. It is not code-signed, so SmartScreen asks once: More info, then Run anyway.
+- **Linux:** `sudo apt install ./unbrowse_13.21.0-installers.3_amd64.deb`, then open Unbrowse from your apps menu. The window needs GTK 4.
+
+These installers do not update themselves yet: download the newer one when it ships.
+
+### Or from a release, with npm or archives
+
+Install the latest [release](https://github.com/unbrowse-ai/unbrowse-core/releases). A release build keeps itself up to
+date and runs on Arc testnet. Foundry's Anvil (`foundryup`) is needed only for test mode, the local devnet: the
+default of a build from source, or a node whose `chain` setting is `devnet`.
+
+- **Any machine with Node 20.3+:** `npm install -g unbrowse`, then `unbrowse app` opens the window (or `unbrowse start`
+  runs the node without it). npm fetches the programs for the machine it installs on: macOS (Apple silicon and Intel),
+  Linux (x64 and arm64, glibc 2.35 or later) and Windows (x64). That brings the app, the node, `unb`, the agent skill
+  and the client, and no browser: the node fetches its browser the first time a goal needs one (or `unbrowse browser
+  install` fetches it now; [docs/guides/the-browser.md](docs/guides/the-browser.md)). `pip install` with the release's
+  wheel for your machine does the same.
+- **macOS, without npm:** download the disk image,
+  [Apple silicon](https://github.com/unbrowse-ai/unbrowse-core/releases/latest/download/Unbrowse-macos-arm64.dmg) (there is
+  no Intel Mac build), open it and
+  drag Unbrowse onto Applications, then open it. After the terms, its "Connect your agents" screen lists the MCP
+  clients on the Mac (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI and the rest connect.rs knows)
+  and Connect adds the node's server to each, then offers ChatGPT and Claude on the web: no
+  terminal, Node or npm. Opened from the disk image itself, the app first offers to move itself to Applications. A
+  build that isn't notarized is stopped by macOS on its first launch: right-click it and choose Open, or on macOS 15
+  and later, after the warning, System Settings > Privacy & Security > Open Anyway (production releases are notarized).
+  `Unbrowse-<version>-macos-<arch>.zip` is the same app in a zip.
+- **Linux or Windows, without npm:** `unbrowse-<version>-linux-<arch>.tar.gz` or `unbrowse-<version>-windows-x64.zip`
+  holds the node, `unb`, the browser and the window in one folder, with a README that says how to start them. Check the
+  download against the release's `SHA256SUMS`.
 
 ## Run from source
 
@@ -151,8 +204,10 @@ left at `target/release/` — `unbrowse-node <command>` and `unb <command>`. Eac
 
 ## Connect an agent
 
-On a fresh machine, `npm i -g unbrowse@next && unbrowse connect` is enough for Claude Code: `connect` starts the node if
-it isn't running and registers the agent the node made on its first run. For another agent, make a key (in the
+On a Mac with the app, click Connect in its window (first run, or Agent access later). On a fresh machine with npm,
+`npm i -g unbrowse && unbrowse connect` is enough for Claude Code: `connect` starts the node if it isn't running and
+registers the agent the node made on its first run; `unbrowse connect --client all` also writes Claude Desktop, Cursor
+and Codex. `unb mcp` starts a node that isn't running, so a client opened after a reboot works without the window. For another agent, make a key (in the
 window: Money, Add agent; or `unbrowse agent new <name>`), then point an MCP client at the node with the key's
 token:
 
@@ -194,9 +249,9 @@ A polyglot repository, not a single-language monorepo. Each directory is its own
 
 The architecture, with diagrams of the pipeline, keys, peer network and payments, is in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); what each action costs and where the money goes is in
-[docs/MONEY.md](docs/MONEY.md). The two repository-wide guides sit at the root: [AGENTS.md](AGENTS.md) explains the pipeline and the rules learned
-building it; [CLAUDE.md](CLAUDE.md) adds the one rule every change follows — fixes are general, never written for one
-site. CI runs every directory's tests ([.github/workflows/ci.yml](.github/workflows/ci.yml)); work lands on `staging`,
+[docs/MONEY.md](docs/MONEY.md). The repository-wide guide sits at the root as [AGENTS.md](AGENTS.md) and, byte for byte, [CLAUDE.md](CLAUDE.md): the
+pipeline, the rules learned building it, and the one rule every change follows — fixes are general, never written for
+one site. CI runs every directory's tests ([.github/workflows/ci.yml](.github/workflows/ci.yml)); work lands on `staging`,
 is cut into `release/X.Y` branches and ships to `main` as tagged semantic versions
 ([CONTRIBUTING.md](CONTRIBUTING.md#branches-and-releases)).
 
@@ -217,10 +272,11 @@ UNBROWSE_TELEMETRY=0             # in the environment: off, whatever the file sa
 |---|---|
 | `event` | `node_start` (the node started), `tool_call` (an agent called a tool), `route_failed` (a route the node keeps ran and failed) or `fetch_failed` (a paid fetch of another node's route failed) |
 | `version`, `os` | the node's version, and `macos`, `linux` or `windows` |
-| `install_id` | a random id drawn once for this install, tied to nothing else: not your identity, account, machine or name |
+| `install_id` | a random id drawn once for this install. By itself it names no person, account, machine or name. If you link a wallet, the node's signed events to the site carry it too, joining this install's usage counts to that wallet. |
 | `tool` | which agent tool or API route: `unbrowse_do`, `unbrowse_call`, `/v1/routes/{id}/call`, … (never which route) |
 | `outcome`, `error_class` | `ok`, `failed` (the site's call failed) or `error` (the node refused it), and a coarse class: `not_found`, `forbidden`, `site`, …; for a failed route or fetch, the kind of failure from a fixed list (`http`, `door`, `shape_mismatch`, `no_body`, …) |
 | `duration_ms` | how long the call took |
+| `from` | on `node_start` only: the source tag the node was first started with, `unbrowse start --from <tag>` or `UNBROWSE_FROM`, such as `hn-e` (lowercase letters, digits and dashes); kept once in `~/.unbrowse/from.json` |
 
 **Never sent:** URLs, sites or host names, page content, requests or answers, route ids, goals or inputs, cookies,
 passwords, passkeys, vault entries, keys, wallet addresses, user or machine names, or your IP address. Every field and
@@ -228,12 +284,23 @@ value is checked against a fixed list before it is queued, and again by the work
 other field or anything that looks like an address. The worker keeps each event and the hour it arrived; it never
 reads or keeps the caller's IP address.
 
-**Your linked wallet.** Unbrowse uses no API keys, and needs no account: the node has its own wallet. If you link a
-wallet of yours to the node (with email or Google, or your own), the node also sends the site three events while telemetry is on: `node_started`, `owner_linked` and
-`owner_unlinked`. Each is signed by the node's key and names the node's address and your account's address, so a
-count belongs to a node that really sent it and the account that owns it (`unbrowse-node/app/src/link.rs`,
-`link::tell`). They never name a site, route or input. A node you haven't linked sends none, and `telemetry off`
-stops them too. The usage counts above stay as they are: no account, only the random install id.
+**Your linked wallet.** If you link an optional wallet (with email or Google on unbrowse.ai, or your own; the node has
+its own), the node sends unbrowse.ai three signed events while telemetry is on: `node_started`, `owner_linked` and
+`owner_unlinked` (`unbrowse-node/app/src/link.rs`, `link::tell`). Each carries the node's address, your wallet,
+`install_id`, and, for unbrowse.ai sign-ins, your browser's visitor id (`ub_vid`, kept in `~/.unbrowse/owner.json`) to
+trace the path from first visit to first good call and fix drop-offs. `ub_vid` needs Allow in the EU, EEA, UK and
+Switzerland, has one-click Opt out elsewhere, and skips Global Privacy Control browsers. Visits join only through the
+site's own sign-in. Events never name a site, route or input, and `telemetry.unbrowse.ai` gets no wallet, site or
+visitor id. Unlinked nodes send none, outside wallet links send no `ub_vid`, turning telemetry off stops them, and
+opting out on unbrowse.ai/privacy deletes the joined data.
+
+**Source tag.** Starting with `unbrowse start --from <tag>` or `UNBROWSE_FROM=<tag>` (such as `hn-e`) sends `from` on
+`node_start` while usage telemetry is on so Unbrowse can count which places send people who get a first working call.
+Everyone who copies an install line shares its visible tag, so it says where an install came from and never who made
+it. Valid tags are 1 to 40 lowercase letters, digits and dashes starting with a letter or digit, while anything else
+is ignored with a one-line warning and the node still starts. The node saves the first tag in `~/.unbrowse/from.json`
+and never replaces it. Start without `--from` or `UNBROWSE_FROM` for no tag, or delete `~/.unbrowse/from.json` to
+remove it.
 
 Telemetry never slows the node: an event is queued without waiting, a full queue drops it, and a batch the worker
 doesn't take within a few seconds is dropped, never retried. With the worker down, everything works the same.
@@ -250,8 +317,8 @@ page host and last failed call, as the node says them (an agent's own words neve
 whose issue was closed opens a new one. The node also reports a few problems it notices itself: a crash, an internal error, a route that still failed
 after its page was walked again.
 
-Reports are off until you turn them on (`unbrowse-node reports on`), since each becomes a public issue. Once on, they
-follow telemetry: off in a build from source unless `UNBROWSE_REPORTS=1`, and off whenever telemetry is.
+Reports are on by default in a release, as telemetry is, and turn off with one command (`unbrowse-node reports off`).
+They follow telemetry: off in a build from source unless `UNBROWSE_REPORTS=1`, and off whenever telemetry is.
 
 **An agent's report waits for you.** An agent writes its own words into a report, and a page it read can steer what it
 writes, so nothing an agent reports leaves until you have read it, scrubbed, in your window and sent it
@@ -260,7 +327,7 @@ or `report_discard`). The agent is told its report waits (`waiting_for_owner`). 
 words from a site, and are sent as before.
 
 ```bash
-unbrowse-node reports on         # opt in; `reports off` turns them off again
+unbrowse-node reports on         # back on after `reports off`
 unbrowse-node reports off        # kept in ~/.unbrowse/reports.json, and a running node stops at once; `unbrowse-node reports` shows the state
 UNBROWSE_REPORTS=0               # in the environment: off, whatever the file says
 ```

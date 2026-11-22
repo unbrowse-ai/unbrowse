@@ -12,7 +12,12 @@ an ordinary Arc wallet (§1). It joins the network with that wallet; nobody sign
    renews them (`agents::keep_granted`), and lists the routes it learns by default, after showing the owner which
    (`share_status`). Registering costs a few cents of USDC on Arc, once (§3); until the wallet holds it, the node's
    health says so and it joins as soon as it does. Its first agent key is made for it on its first run
-   (`agents::ensure_first`), so `unbrowse connect` works at once: `npm i -g unbrowse && unbrowse connect`.
+   (`agents::ensure_first`), so `unbrowse connect` works at once: `npm i -g unbrowse && unbrowse connect`. On a Mac
+   the disk image needs no terminal: the app is dragged to Applications, and the window's Connect screen writes every
+   agent `connect.rs` knows that is installed on the Mac, by its program (24: Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI,
+   opencode, Hermes, OpenClaw and the rest, `agent_connect`) with `<app>/Contents/MacOS/unb mcp --agent first`, which starts the node
+   when a client opens it, then offers ChatGPT and Claude on the web by the node's remote address (`remote_set`,
+   screens/cloud.zig). The window opens on Agents, which holds both ([design](design/mac-installer.md)).
 2. **Local, if the owner keeps it off.** With the peer network off (`unbrowse-node network off`, or "Keep my node off
    the network" in the window), and until the terms are acknowledged, the node learns and calls its owner's routes and shares nothing
    (`health::LOCAL`). Its chain work goes on: it still claims what its agents paid, and keeps its route coins
@@ -25,7 +30,9 @@ an ordinary Arc wallet (§1). It joins the network with that wallet; nobody sign
    owner in the node's own dialog (`decide.dev-buy-default-on`).
 
 The window opens first on the terms, with the choice to keep the node off the network; the node joins only once the
-owner presses Open my node (`window/src/screens/first_run.zig`).
+owner presses Open my node (`window/src/screens/first_run.zig`). On a new node (terms never answered before) it asks
+next for a sign-in, which opens the sign-in page in the browser and lets the owner through once the wallet is linked;
+"Skip for now", at the foot, goes straight to the window with no wallet linked (`window/src/screens/sign_in.zig`).
 
 - [1. Install and start](#1-install-and-start)
 - [2. Linking a wallet, optional](#2-linking-a-wallet-optional)
@@ -122,8 +129,21 @@ draw on its deposit; `unbrowse-node nodes`, run before unlinking, lists them.
   in place of an API key. These events name the node's address and your account's address, never a site, route or
   input. A node with no link sends none. [PRIVACY.md](../PRIVACY.md) says the same.
 
-**Where to link one.** The window: Money, Advanced, "Link a wallet".
-A shell: `unbrowse-node sign-in`.
+**Where to link one.** The window: the sign-in a new node asks for after its terms, or later Money, Advanced, "Link a
+wallet".
+A shell: `unbrowse-node sign-in`. No window is needed for any of these: on a machine with no browser it prints the
+page's address to open on any device, and `unbrowse-node sign-in --key-file <path>` signs with a wallet key the owner
+keeps in a file of their own (`chmod 600`), here, with nothing else to open. The flow is one module the shell and any
+other front end share (`unbrowse-node/app/src/login.rs`).
+
+**From nothing to signed in, on one terminal.** `unbrowse-node onboard` walks a new owner through every step with no
+window: it starts the node if none runs here (in the background, its output in `node.log` in the node's home), sets
+the owner passphrase where the machine has no screen (offered where it has one), shows the terms and takes them when
+`accept` is typed (`--keep-off` keeps the node off the peer network), asks how to sign in (the website, a wallet key
+file, or a wallet that signs elsewhere, whose signature is pasted back), and answers the node's question for the
+owner's yes on the same terminal. A step done already is skipped, so running it again carries on where it stopped.
+`unbrowse-node onboard status` says where each step stands, and exits 0 only when the node runs and is signed in
+(`unbrowse-node/app/src/onboard.rs`).
 
 **Advanced: the account underneath, and bringing your own.** The account is a wallet Privy keeps for you, and the
 message it signs is a plain EIP-191 one, so any wallet signs it on any chain. To use a wallet of your own instead,
@@ -186,7 +206,8 @@ Arc's own CCTP v2 or Gateway (`other_chains`). A write the node can't pay for is
 ## 4. First routes, first listing, first earnings
 
 1. **Connect an agent.** `unbrowse connect` registers agent 0, which the node made on its first run, with Claude
-   Code, starting the node first if it isn't running. For another agent, `unbrowse-node agent new <name>` or the
+   Code, starting the node first if it isn't running. `--client claude-desktop,cursor,codex,…` (or `all`), or the
+   window's Connect, writes the other clients too. For another agent, `unbrowse-node agent new <name>` or the
    window's Money, "Add agent". Each key is set up on the network with its daily limit once the node is on it, and
    renewed by the node (`authorizeAgent`). [CLI.md](CLI.md#agent).
 2. **Learn routes.** The agent says what it wants with `unbrowse_do` and a page that does it; the node learns the

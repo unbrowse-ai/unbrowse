@@ -136,7 +136,7 @@ export function tokens(chars: number): number {
   return Math.round(chars / CHARS_PER_TOKEN)
 }
 
-/** Tokens not read: the page against the answer that stood for it; null until the page is measured. */
+/** Tokens saved: the page against the answer that stood for it; null until the page is measured. */
 export function savedTokens(r: Pick<Receipt, 'pageChars' | 'answerChars'>): number | null {
   return r.pageChars === null ? null : Math.max(0, tokens(r.pageChars - r.answerChars))
 }
@@ -186,7 +186,7 @@ export function cardText(r: Receipt): { how: string; rest: string } {
   parts.push(r.browser ? 'browser' : 'no browser')
   parts.push(r.paidUsdc ? `paid ${fmtUsdc(r.paidUsdc)}` : 'free')
   const saved = savedTokens(r)
-  if (saved !== null) parts.push(`≈${fmtTokens(saved)} tokens not read`)
+  if (saved !== null) parts.push(`≈${fmtTokens(saved)} tokens saved`)
   if (r.via === 'webfetch') parts.push('in place of WebFetch')
   return { how: r.how, rest: parts.join(' · ') }
 }
@@ -765,7 +765,7 @@ export const register: Register = (on, options) => {
         <Text color={MUTE}> · {s.calls} call{s.calls === 1 ? '' : 's'}</Text>
         {s.calls > 0 ? <Text color={GREEN}> · {s.browserless} no browser</Text> : null}
         <Text color={MUTE}> · paid {fmtUsdc(s.paidUsdc)}</Text>
-        {saved > 0 ? <Text color={SIGNAL}> · ≈{fmtTokens(saved)} tokens not read</Text> : null}
+        {saved > 0 ? <Text color={SIGNAL}> · ≈{fmtTokens(saved)} tokens saved</Text> : null}
         {index !== null ? <Text color={MUTE}> · {index.count} routes</Text> : null}
         {watching.length > 0 ? <Text color={FIELD}> · {watching.length} watching</Text> : null}
         {recent !== undefined ? <Text color={AMBER} bold> · fired: {clip(recent.what, 30)}</Text> : null}
@@ -796,7 +796,7 @@ export const register: Register = (on, options) => {
     const row = (label: string, l: Ledger | null) => (
       <Text color={PAPER}>
         {label.padEnd(9)}
-        <Text color={MUTE}>{l === null ? '—' : `${l.calls} calls · ${l.browserless} no browser · paid ${fmtUsdc(l.paidUsdc)} · ≈${fmtTokens(ledgerSaved(l))} tokens not read`}</Text>
+        <Text color={MUTE}>{l === null ? '—' : `${l.calls} calls · ${l.browserless} no browser · paid ${fmtUsdc(l.paidUsdc)} · ≈${fmtTokens(ledgerSaved(l))} tokens saved`}</Text>
       </Text>
     )
     return (

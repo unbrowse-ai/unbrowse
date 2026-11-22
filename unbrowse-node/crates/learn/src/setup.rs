@@ -73,6 +73,30 @@ pub struct Setup {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub earns: Vec<String>,
     pub steps: Vec<Step>,
+    /// A sign-in's own requests, as a graph (`graph::Graph`, written as JSON): the request that sent the login the
+    /// vault typed, and the steps it reads from (the sign-in page's token, a cookie set before it). The login is in it
+    /// only by its vault name, the default of a secret input, as the walk's record writes it. A node sends this with no
+    /// browser before it runs `steps` in one. None where the walk shows no such request, or one only a page's own code
+    /// can make.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native: Option<serde_json::Value>,
+    /// The vault login (`vault:<site>:<account>`) the sign-in's own request is sealed under, once the node has put it
+    /// in the vault: the request is kept there and nowhere else, and this says only where. A node writes a sign-in's
+    /// `native` into the vault and keeps this in its place, never the request itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sealed: Option<String>,
+}
+
+impl Setup {
+    /// The vault login the sign-in's own request (`native`) signs in with: the reference its secret input carries,
+    /// the name the walk's record wrote where the password went.
+    pub fn native_login(&self) -> Option<String> {
+        let graph: crate::graph::Graph = serde_json::from_value(self.native.clone()?).ok()?;
+        graph.steps.iter().flat_map(|s| &s.fields).find_map(|f| match &f.class {
+            crate::graph::Class::Input { secret: true, default: Some(d), .. } if is_vault(d) => Some(d.clone()),
+            _ => None,
+        })
+    }
 }
 
 impl Setup {
@@ -149,7 +173,73 @@ fn sign_in(session: &Session, site: &str) -> Option<Setup> {
             }
         }
     }
-    Some(Setup { kind: Kind::SignIn, page, asks: None, earns: Vec::new(), steps: steps_of(&actions[opened + 1..=sent])? })
+    Some(Setup { kind: Kind::SignIn, page, asks: None, earns: Vec::new(), steps: steps_of(&actions[opened + 1..=sent])?, native: native_sign_in(session, site, time), sealed: None })
+}
+
+/// The sign-in's own requests as a graph, read from the walk: the first request after the login was typed (`typed`)
+/// that changes the site, on the site, and carries the login by its vault name (what the walk's record writes where
+/// the password went), with the steps it reads from. Told by what the request did, never by its address. None when no
+/// request carried it, when a step of it is the page's own code's to make (only a browser sends that), or when it sends
+/// a secret the vault can't fill again: then the sign-in is the steps alone.
+fn native_sign_in(session: &Session, site: &str, typed: f64) -> Option<serde_json::Value> {
+    use crate::graph::Class;
+    let trace = &session.trace;
+    let logins: Vec<&str> = session.actions.iter().filter(|a| a.secret).filter_map(|a| a.value.as_deref()).filter(|v| is_vault(v)).collect();
+    let carries = |e: &crate::trace::Exchange| logins.iter().any(|l| crate::trace::carries_text(e.url.query().unwrap_or_default(), l) || e.request_body.as_deref().is_some_and(|b| crate::trace::carries_text(b, l)));
+    let sent = (0..trace.exchanges.len()).find(|&i| {
+        let e = &trace.exchanges[i];
+        session.time_of(i) > typed && !matches!(e.method.as_str(), "GET" | "HEAD") && e.url.host_str().is_some_and(|h| on_site(h, site)) && carries(e)
+    })?;
+    let target = &trace.exchanges[sent];
+    let graph = crate::graph::build(std::slice::from_ref(trace), |e| e.method == target.method && e.url == target.url && e.request_body == target.request_body).ok()?;
+    let graph = what_the_sign_in_reads(graph);
+    let secrets: Vec<&Class> = graph.steps.iter().flat_map(|s| &s.fields).map(|f| &f.class).filter(|c| matches!(c, Class::Input { secret: true, .. })).collect();
+    let from_the_vault = |c: &&Class| matches!(c, Class::Input { default: Some(d), .. } if is_vault(d));
+    let sends_it = graph.steps.last().is_some_and(|s| s.fields.iter().any(|f| from_the_vault(&&f.class)));
+    if !sends_it || !secrets.iter().all(from_the_vault) || graph.steps.iter().any(|s| s.is_page_signed()) {
+        return None;
+    }
+    serde_json::to_value(&graph).ok()
+}
+
+/// `graph` cut to the steps the sign-in reads a value from: its last step, and each step a kept one takes a value from
+/// in a place that is not a cookie (a page's token, the address a redirect hands over), and theirs in turn. A page loads dozens of
+/// files and calls that each set a cookie every answer sets again (a region, a bot manager's pass), so read by its
+/// cookies the walk is one chain of all of them; a sign-in sent again needs none of it. A cookie a step it no longer
+/// holds set comes from the session (`Minted`), as the browser held it, and the steps it keeps set theirs again.
+fn what_the_sign_in_reads(mut graph: crate::graph::Graph) -> crate::graph::Graph {
+    use crate::graph::Class;
+    let Some(last) = graph.steps.last().map(|s| s.exchange) else { return graph };
+    let mut keep: BTreeSet<usize> = BTreeSet::from([last]);
+    loop {
+        let more: Vec<usize> = graph
+            .steps
+            .iter()
+            .filter(|s| keep.contains(&s.exchange))
+            .flat_map(|s| &s.fields)
+            .filter(|f| !matches!(f.loc, crate::slots::Loc::Cookie(_)))
+            .filter_map(|f| match &f.class {
+                Class::Derived { origin } if !origin.at.sets_a_cookie() => Some(origin.exchange),
+                _ => None,
+            })
+            .filter(|e| !keep.contains(e))
+            .collect();
+        if more.is_empty() {
+            break;
+        }
+        keep.extend(more);
+    }
+    graph.steps.retain(|s| keep.contains(&s.exchange));
+    for step in &mut graph.steps {
+        for field in &mut step.fields {
+            if let (crate::slots::Loc::Cookie(name), Class::Derived { origin }) = (&field.loc, &field.class) {
+                if !keep.contains(&origin.exchange) {
+                    field.class = Class::Minted { name: name.clone() };
+                }
+            }
+        }
+    }
+    graph
 }
 
 /// Whether an exchange loaded the tab's page. A browsing log may not mark frames, so a frame's own document reads as a
@@ -194,8 +284,11 @@ fn choices(session: &Session, site: &str) -> Vec<Setup> {
         if asks.is_empty() || asks == answered {
             continue;
         }
+        if leaves_a_state(session, site, last.t, to) {
+            continue;
+        }
         let Some(steps) = steps_of(&done) else { continue };
-        let setup = Setup { kind: Kind::Choice, page: trace.exchanges[asked].url.to_string(), asks: Some(asks), earns, steps };
+        let setup = Setup { kind: Kind::Choice, page: trace.exchanges[asked].url.to_string(), asks: Some(asks), earns, steps, native: None, sealed: None };
         out.retain(|s| !s.same_as(&setup));
         out.push(setup);
     }
@@ -225,12 +318,40 @@ fn choices(session: &Session, site: &str) -> Vec<Setup> {
         if earns.is_empty() {
             continue;
         }
+        if leaves_a_state(session, site, a.t, next) {
+            continue;
+        }
         let Some(steps) = steps_of(&done) else { continue };
-        let setup = Setup { kind: Kind::Choice, page: trace.exchanges[on].url.to_string(), asks: None, earns, steps };
+        let setup = Setup { kind: Kind::Choice, page: trace.exchanges[on].url.to_string(), asks: None, earns, steps, native: None, sealed: None };
         out.retain(|s| !s.same_as(&setup));
         out.push(setup);
     }
     out
+}
+
+/// Whether what was done between `from` and `to` took a state away rather than made one: the site's own answers took
+/// out a cookie the visitor was sending, and set none of the name again before `to`. A sign-out does that (the session
+/// goes, and the page after it may hand out fresh cookies of other names), and so does anything that clears what the
+/// owner had; a choice made again only ever adds. A sign-in takes the old session too, but sets the new one at once.
+fn leaves_a_state(session: &Session, site: &str, from: f64, to: f64) -> bool {
+    let trace = &session.trace;
+    let own = |i: usize| trace.exchanges[i].url.host_str().is_some_and(|h| on_site(h, site));
+    let sent: BTreeSet<String> = (0..trace.exchanges.len()).filter(|&i| session.time_of(i) <= from && own(i)).flat_map(|i| trace.exchanges[i].cookies().into_iter().map(|(k, _)| k)).collect();
+    let (mut taken, mut set) = (BTreeSet::new(), BTreeSet::new());
+    for i in (0..trace.exchanges.len()).filter(|&i| own(i) && session.time_of(i) > from && session.time_of(i) <= to) {
+        for change in trace.exchanges[i].cookie_changes_whole() {
+            match change.value {
+                None if sent.contains(&change.name) => {
+                    taken.insert(change.name);
+                }
+                Some(_) => {
+                    set.insert(change.name);
+                }
+                None => {}
+            }
+        }
+    }
+    taken.iter().any(|name| !set.contains(name))
 }
 
 /// What the browsing in `session` shows `site` needs done.
@@ -394,6 +515,31 @@ mod tests {
         assert_eq!(found[0].asks.as_deref(), Some("Choose your country"));
     }
 
+    /// Signing out reads like a choice: a click on the site's page, another page after it, and a cookie the browser
+    /// begins sending (the signed-out page hands out fresh ones). Made again whenever a route lacked that cookie, it would
+    /// end the owner's session (Fandom: the avatar, then "sign out", took `fandom_session`). What tells it apart is what the
+    /// site did: it took out a cookie the visitor was sending and set none of the name again. A sign-in takes the old
+    /// session too, but sets the new one at once, and a choice only adds.
+    #[test]
+    fn a_click_that_takes_the_session_away_is_no_choice() {
+        let mut out = page(2.5, "https://shop.example/logout", "", "seen=1; sid=s3ss10n-7731");
+        out["entry"]["response"]["status"] = json!(302);
+        out["entry"]["response"]["headers"] = json!([{ "name": "Set-Cookie", "value": "sid=; Max-Age=0; Path=/" }, { "name": "Set-Cookie", "value": "visitor=v-1; Path=/" }]);
+        let signed_in = vec![
+            action(1.0, "navigate", None, Some("https://shop.example/"), false),
+            page(1.5, "https://shop.example/", "Your account", "seen=1; sid=s3ss10n-7731"),
+            action(2.0, "click", Some("a[href=\"/logout\"]"), None, false),
+            out.clone(),
+            page(3.0, "https://shop.example/", "Shop: home", "seen=1; visitor=v-1"),
+        ];
+        assert!(choices(&session(&signed_in), "shop.example").is_empty(), "signing out is no choice to make again");
+        // The same click whose answer sets the session it took again is no sign-out: it renewed it.
+        let mut renewed = signed_in.clone();
+        renewed[3]["entry"]["response"]["headers"].as_array_mut().unwrap().push(json!({ "name": "Set-Cookie", "value": "sid=n3w-s3ss10n-8812; Path=/" }));
+        renewed[4] = page(3.0, "https://shop.example/", "Shop: home", "seen=1; visitor=v-1; sid=n3w-s3ss10n-8812");
+        assert_eq!(choices(&session(&renewed), "shop.example").len(), 1, "a step that set the session again stands as a choice");
+    }
+
     /// An ordinary link earns no cookie, so reading on through a site is no choice.
     #[test]
     fn following_a_link_is_no_choice() {
@@ -524,9 +670,80 @@ mod tests {
         assert_eq!(s.steps.len(), 4, "{:?}", s.steps);
     }
 
+    /// A sign-in the walk made is kept as its own request too, beside the steps: the request that changed the site and
+    /// carried the login by its vault name (what the record writes where the password went), with the step it reads
+    /// from, here the sign-in page whose token it sends back. The login is in it only as that name, the default of a
+    /// secret input; what the owner typed beside it is an input too. Told by what the request did: a report of the
+    /// page sent after the login was typed carries no login and is not it.
+    #[test]
+    fn a_sign_in_is_kept_as_its_own_request_beside_its_steps() {
+        let login = "vault:shop.example:me";
+        let mut form = page(1.5, "https://shop.example/login", "Sign in", "");
+        form["entry"]["response"]["content"]["text"] = json!("<html><form><input type=\"hidden\" name=\"_token\" value=\"tok-9f31c2aa77b0\"></form></html>");
+        form["entry"]["response"]["headers"] = json!([{ "name": "Set-Cookie", "value": "pre=cookie-4410aa; Path=/" }]);
+        let mut report = posted(5.2, "https://shop.example/metrics", "page=login&ms=412", "m=1");
+        report["entry"]["request"]["headers"] = json!([{ "name": "cookie", "value": "pre=cookie-4410aa" }]);
+        let mut sent = posted(5.5, "https://shop.example/session", "_token=tok-9f31c2aa77b0&email=me%40mail.example&password=vault%3Ashop.example%3Ame", "sid=signed-in-77");
+        sent["entry"]["request"]["headers"] = json!([{ "name": "cookie", "value": "pre=cookie-4410aa" }, { "name": "content-type", "value": "application/x-www-form-urlencoded" }]);
+        let mut typed_email = action(2.0, "fill", Some("#email"), Some("me@mail.example"), false);
+        typed_email["field"] = json!("email");
+        let mut typed_password = action(4.0, "fill", Some("#password"), Some(login), true);
+        typed_password["field"] = json!("password");
+        let lines = vec![
+            action(1.0, "navigate", None, Some("https://shop.example/login"), false),
+            form,
+            typed_email,
+            typed_password,
+            action(5.0, "click", Some("button[type=\"submit\"]"), None, false),
+            report,
+            sent,
+        ];
+        let kept = read(&session(&lines), "shop.example");
+        let sign_in = kept.iter().find(|s| s.kind == Kind::SignIn).expect("the sign-in");
+        assert_eq!(sign_in.steps.len(), 3, "its steps in the browser are kept as before");
+        let graph: crate::graph::Graph = serde_json::from_value(sign_in.native.clone().expect("its own request")).unwrap();
+        let last = graph.steps.last().unwrap();
+        assert_eq!((last.method.as_str(), last.url.as_str()), ("POST", "https://shop.example/session"));
+        let class_at = |key: &str| last.fields.iter().find(|f| matches!(&f.loc, crate::slots::Loc::Form(k) if k == key)).map(|f| f.class.clone());
+        assert!(matches!(class_at("password"), Some(crate::graph::Class::Input { secret: true, default: Some(d), .. }) if d == login), "the login by its vault name: {:?}", class_at("password"));
+        assert!(matches!(class_at("email"), Some(crate::graph::Class::Input { secret: false, default: Some(d), .. }) if d == "me@mail.example"), "{:?}", class_at("email"));
+        assert!(matches!(class_at("_token"), Some(crate::graph::Class::Derived { .. })), "the page's token is read again from the page: {:?}", class_at("_token"));
+        assert!(graph.steps.len() >= 2 && graph.steps.iter().any(|s| s.method == "GET" && s.url.starts_with("https://shop.example/")), "the page it reads from is a step of it: {:?}", graph.steps.iter().map(|s| &s.url).collect::<Vec<_>>());
+        assert!(!serde_json::to_string(&sign_in.native).unwrap().contains("metrics"), "a report of the page is not the sign-in");
+        // A walk whose requests carry no login keeps the steps alone.
+        let no_request: Vec<Value> = lines.iter().filter(|l| l["entry"]["request"]["url"] != "https://shop.example/session").cloned().collect();
+        let kept = read(&session(&no_request), "shop.example");
+        assert!(kept.iter().find(|s| s.kind == Kind::SignIn).is_some_and(|s| s.native.is_none() && s.steps.len() == 3));
+    }
+
+    /// A sign-in sent again needs only the steps it reads a value from: the page that hands over its token. A file the
+    /// page loaded that only set a cookie every answer sets again (a region, a bot manager's pass) is no step of it, and
+    /// the cookie comes from the session. Fandom's sign-in read by its cookies was 84 steps; by what it reads, 3.
+    #[test]
+    fn a_sign_in_keeps_only_the_steps_it_reads_a_value_from() {
+        let derived = |key: (&str, &str), exchange: usize, at: Value| json!({ "loc": { "in": key.0, "key": key.1 }, "class": "derived", "origin": { "exchange": exchange, "url": "https://shop.example/", "at": at } });
+        let graph: crate::graph::Graph = serde_json::from_value(json!({ "provisional": false, "steps": [
+            { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/app.css", "needs_browser": false, "sets_cookie": true, "fields": [] },
+            { "exchange": 2, "method": "GET", "status": 200, "url": "https://shop.example/signin", "needs_browser": false, "sets_cookie": true, "fields": [
+                derived(("cookie", "region"), 1, json!({ "from": "set_cookie", "name": "region" })) ] },
+            { "exchange": 3, "method": "POST", "status": 303, "url": "https://shop.example/session", "needs_browser": false, "sets_cookie": true, "fields": [
+                derived(("form", "csrf"), 2, json!({ "from": "json", "pointer": "/csrf" })),
+                derived(("cookie", "region"), 1, json!({ "from": "set_cookie", "name": "region" })),
+                { "loc": { "in": "form", "key": "password" }, "class": "input", "name": "password", "secret": true, "default": "vault:shop.example:me" } ] }
+        ] }))
+        .unwrap();
+        let cut = what_the_sign_in_reads(graph);
+        assert_eq!(cut.steps.iter().map(|s| s.url.as_str()).collect::<Vec<_>>(), ["https://shop.example/signin", "https://shop.example/session"]);
+        for step in &cut.steps {
+            let region = step.fields.iter().find(|f| f.loc == crate::slots::Loc::Cookie("region".into())).map(|f| &f.class);
+            assert!(matches!(region, Some(crate::graph::Class::Minted { name }) if name == "region"), "the cookie comes from the session: {region:?}");
+        }
+        assert!(matches!(cut.steps[1].fields[0].class, crate::graph::Class::Derived { .. }), "the token is still read from the page");
+    }
+
     #[test]
     fn a_newer_setup_replaces_what_it_does_the_same_as() {
-        let setup = |page: &str, asks: Option<&str>, kind| Setup { kind, page: page.into(), asks: asks.map(String::from), earns: Vec::new(), steps: Vec::new() };
+        let setup = |page: &str, asks: Option<&str>, kind| Setup { kind, page: page.into(), asks: asks.map(String::from), earns: Vec::new(), native: None, sealed: None, steps: Vec::new() };
         let kept = vec![setup("/a", None, Kind::SignIn), setup("/b", Some("Ask"), Kind::Choice)];
         let merged = merge(kept, vec![setup("/c", None, Kind::SignIn)]);
         assert_eq!(merged.iter().map(|s| s.page.as_str()).collect::<Vec<_>>(), ["/b", "/c"]);

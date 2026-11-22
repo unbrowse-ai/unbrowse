@@ -150,7 +150,9 @@ pub async fn granted_by(chain: &Chain, payer: Address) -> Result<Vec<Address>, S
     let d = chain.deployed()?;
     let p = ProviderBuilder::new().connect_http(url());
     let filter = alloy::rpc::types::Filter::new().address(d.settlement).event_signature(<LeanSettlement::AgentAuthorized as alloy::sol_types::SolEvent>::SIGNATURE_HASH).topic1(payer.into_word());
-    let mut out: Vec<Address> = logs(&p, filter, chain.registry_from().unwrap_or(0), None).await?.iter().filter_map(|l| l.topics().get(2).map(|t| Address::from_word(*t))).collect();
+    // From Settlement's own block: it logged nothing before it was deployed. The registry's start, read here before,
+    // is 3 million blocks earlier on Arc testnet, 309 windows of nothing on each read.
+    let mut out: Vec<Address> = logs(&p, filter, d.block, None).await?.iter().filter_map(|l| l.topics().get(2).map(|t| Address::from_word(*t))).collect();
     out.dedup();
     let mut seen = std::collections::HashSet::new();
     out.retain(|a| seen.insert(*a));

@@ -83,6 +83,47 @@ class SigningJobs(unittest.TestCase):
         self.assertIn("release.yml: job programs reads a signing key outside the release environment", found)
         self.assertIn("release.yml: job mac-sign reads a signing key outside the release environment", found)
 
+    def test_an_oidc_publish_job_without_a_ref_check_is_refused(self):
+        # A job that can mint an OIDC token publishes as this workflow: it is held to the signing jobs' ref check
+        # (an `if` naming the ref, or the version job's verdict on it), whether it asks for the token itself or
+        # inherits it from the workflow's permissions.
+        folder = pathlib.Path(tempfile.mkdtemp(prefix="signing-jobs-"))
+        shutil.copy(WORKFLOWS / "release.yml", folder / "release.yml")
+        cases = {
+            "own.yml": "on: workflow_dispatch\npermissions: {}\njobs:\n  publish:\n    runs-on: ubuntu-24.04\n    environment: release\n    permissions:\n      id-token: write\n    steps:\n      - run: echo hi\n",
+            "inherited.yml": "on: workflow_dispatch\npermissions:\n  id-token: write\njobs:\n  publish:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n",
+            "everything.yml": "on: workflow_dispatch\npermissions: write-all\njobs:\n  publish:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n",
+            "unrelated-if.yml": "on: workflow_dispatch\njobs:\n  publish:\n    if: inputs.go == true\n    runs-on: ubuntu-24.04\n    permissions:\n      id-token: write\n    steps:\n      - run: echo hi\n",
+        }
+        for name, text in cases.items():
+            (folder / name).write_text(text)
+        found = "\n".join(check_signing_jobs.problems(folder))
+        for name in cases:
+            self.assertIn(f"{name}: job publish can publish by OIDC with no ref check", found)
+        # A job that asks for no token is not one, and a ref check clears the rest.
+        (folder / "fine.yml").write_text(
+            "on: workflow_dispatch\npermissions:\n  id-token: write\njobs:\n  quiet:\n    runs-on: ubuntu-24.04\n    permissions:\n      contents: read\n    steps:\n      - run: echo hi\n"
+            "  publish:\n    if: github.ref == 'refs/heads/main'\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo hi\n"
+        )
+        self.assertNotIn("fine.yml", "\n".join(check_signing_jobs.problems(folder)))
+
+    def test_the_release_workflows_oidc_jobs_each_carry_a_ref_check(self):
+        import yaml
+
+        release = yaml.safe_load((WORKFLOWS / "release.yml").read_text())
+        oidc = [n for n, j in release["jobs"].items() if (j.get("permissions") or {}).get("id-token") == "write"]
+        self.assertEqual(sorted(oidc), ["npm", "npm-next"])
+        # npm-next is also reachable by hand (`next_to`), which skips the version job: the ref is named there.
+        self.assertIn("github.ref == 'refs/heads/main'", release["jobs"]["npm-next"]["if"])
+        # Taking the check out of the real workflow is refused.
+        folder = pathlib.Path(tempfile.mkdtemp(prefix="signing-jobs-"))
+        text = (WORKFLOWS / "release.yml").read_text()
+        stripped = text.replace("github.ref == 'refs/heads/main' && ", "")
+        self.assertNotEqual(stripped, text)
+        (folder / "release.yml").write_text(stripped)
+        found = "\n".join(check_signing_jobs.problems(folder))
+        self.assertIn("release.yml: job npm-next can publish by OIDC with no ref check", found)
+
 
 if __name__ == "__main__":
     unittest.main()

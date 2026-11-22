@@ -1,0 +1,29 @@
+diff --git a/ssl/internal.h b/ssl/internal.h
+--- a/ssl/internal.h	2026-11-20 16:51:49.164953376 +0800
++++ b/ssl/internal.h	2026-11-20 16:51:49.165188998 +0800
+@@ -1612,7 +1612,8 @@
+   ssl_grease_version,
+   ssl_grease_ticket_extension,
+   ssl_grease_ech_config_id,
+-  ssl_grease_last_index = ssl_grease_ech_config_id,
++  ssl_grease_sigalg,
++  ssl_grease_last_index = ssl_grease_sigalg,
+ };
+ 
+ enum tls12_server_hs_state_t {
+diff --git a/ssl/extensions.cc b/ssl/extensions.cc
+--- a/ssl/extensions.cc	2026-11-20 16:51:49.165496524 +0800
++++ b/ssl/extensions.cc	2026-11-20 16:51:49.165552860 +0800
+@@ -314,6 +314,12 @@
+ }
+ 
+ bool tls12_add_verify_sigalgs(const SSL_HANDSHAKE *hs, CBB *out) {
++  // Chrome prepends a GREASE signature algorithm ahead of its real ones; a door clearance bound to the browser's
++  // ClientHello is refused without it. RFC 8701 GREASE, gated on the same flag as the other GREASE values.
++  if (hs->ssl->ctx->grease_enabled &&
++      !CBB_add_u16(out, ssl_get_grease_value(hs, ssl_grease_sigalg))) {
++    return false;
++  }
+   for (uint16_t sigalg : tls12_get_verify_sigalgs(hs)) {
+     if (!CBB_add_u16(out, sigalg)) {
+       return false;

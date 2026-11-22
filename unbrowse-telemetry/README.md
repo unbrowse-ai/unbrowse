@@ -17,7 +17,7 @@ POST https://telemetry.unbrowse.ai/v1/events
 
 ## What it accepts
 
-Eight fields, and no others ([schema.json](schema.json), which the worker's and the node's tests both read):
+Nine fields, and no others ([schema.json](schema.json), which the worker's and the node's tests both read):
 
 | Field | Values |
 |---|---|
@@ -28,6 +28,7 @@ Eight fields, and no others ([schema.json](schema.json), which the worker's and 
 | `tool` | an agent API tool (`unbrowse_search`, `unbrowse_do`, `unbrowse_browse`, `unbrowse_call`) or route template (`/v1/do`, `/v1/routes/{id}/call`, …); never a route's id |
 | `outcome` | `ok`, `failed` (the site's call failed), `error` (the node refused the call) |
 | `duration_ms` | a whole number, up to a day |
+| `from` | on `node_start` only: the source tag the node was first started with (`unbrowse start --from <tag>` or `UNBROWSE_FROM`), `^[a-z0-9][a-z0-9-]{0,39}$`, such as `hn-e`. Kept in the column `from_tag` (`from` is an SQL word). Refused on any other event |
 | `error_class` | `bad_request`, `unauthorized`, `payment_required`, `forbidden`, `not_found`, `conflict`, `unavailable`, `internal`, `site`, `other`; for a failed route use, how it failed: `step_status`, `door`, `not_an_answer`, `needs_browser`, `source_missing`, `unsupported_body`, `breaks_body`, `missing_input`, `missing_minted`, `shape_mismatch`, `http`, `transport`, `bad_url`, `refused`, `refused_hop`, `file`, `socket`, `no_body` |
 
 A batch holds at most 100 events and 64 KiB. One event with a field off the list, a value off its list, or a value
@@ -42,7 +43,13 @@ Cloudflare's edge still sees the connection's IP address, as for any site it ser
 
 Anyone can post a well-formed event, so the counts are what nodes say, not proof: read them as a trend.
 [queries.sql](queries.sql) holds the aggregate questions: active installs a day, calls by tool and outcome, what
-breaks, call times, versions in use.
+breaks, call times, versions in use, the funnel, the funnel by source tag (`funnel_by_from`) and the hero test's arms
+judged on a first good call (`arms`).
+
+A store made before `from_tag` keeps its table: `CREATE TABLE IF NOT EXISTS` leaves it as it is, so the store adds the
+column itself on every start (`migrate` in [src/sql.js](src/sql.js), `ADDED_COLUMNS`), which is a no-op once it is there.
+A new column goes in schema.sql and in `ADDED_COLUMNS`, never an index on it in schema.sql (schema.sql runs before the
+column is added).
 
 ## Bug reports
 
@@ -139,6 +146,13 @@ The stats door needs the secret `ADMIN_TOKEN` on each Worker (`npx wrangler secr
 are the questions in [queries.sql](queries.sql); `funnel` is the node's half of the funnel (UNB-179): by the week an
 install was first seen, how many started, had an agent call a tool, got a first good call (within 7 days, and at
 all), and came back a week on.
+`funnel_by_from` is the same split by each install's first source tag (`from_tag`, `direct` for none), over the last 12
+weeks. `arms` judges the site's hero test on the first good call: per arm (a tag ending in `-<one letter>`, so `hn-e`
+is arm `e`), installs, how many got a first good call within 7 days, and the same for `settled` installs, first seen 7
+or more days ago, whose window is over.
+`install` is the one question that takes a value: `GET /v1/stats/install?id=<install id>` (32 hex, checked, then bound
+as a value, never written into the SQL) answers one install's first and last seen hour, first source tag, first tool
+call, first good call, and its call counts. The site's `/admin` Journey reads it for a node whose owner signed in.
 
 ### Turning on bug reports
 

@@ -470,7 +470,17 @@ pub fn answer_as_json(content_type: &str, bytes: &[u8]) -> Option<String> {
 /// guarded or padded answer, a stream's events, an answer only the site's own code unpacks) is the trace's
 /// `own_json`'s to read, once, the same for a walk's record and a call's live answer.
 pub fn reply_text(content_type: &str, bytes: &[u8]) -> Option<String> {
-    answer_as_json(content_type, bytes).or_else(|| std::str::from_utf8(bytes).ok().filter(|t| !t.contains('\0')).map(String::from))
+    answer_as_json(content_type, bytes)
+        .or_else(|| {
+            // A binary answer its content type mislabels (a protobuf body served as application/json): where the bytes
+            // are no text and open exactly as a codec this crate reads, read them as that codec's JSON. A text body is
+            // never re-read as a codec; bytes that open as none stay unread.
+            if std::str::from_utf8(bytes).ok().filter(|t| !t.contains('\0')).is_some() {
+                return None;
+            }
+            opened(Some("application/octet-stream"), bytes).map(|(_, tree)| tree.to_string())
+        })
+        .or_else(|| std::str::from_utf8(bytes).ok().filter(|t| !t.contains('\0')).map(String::from))
 }
 
 /// [`reply_text`] for a live answer, which is always some text: bytes that are neither are carried lossily, as a
@@ -525,6 +535,18 @@ mod tests {
         let mut filled = tree.clone();
         filled[0]["text"] = json!("teapot");
         assert_eq!(close(Codec::Protobuf, &filled), Some(search("teapot")));
+    }
+
+    /// A binary answer its content type mislabels (a storefront's protobuf search served as `application/json`): the
+    /// type names no codec and the bytes are no text (a high varint byte), but they open exactly as protobuf, so the
+    /// answer is read as the JSON it holds. A text body is never re-read as a codec.
+    #[test]
+    fn a_binary_answer_mislabeled_by_its_content_type_is_read_by_its_bytes() {
+        let bytes = vec![0x0a, 0x03, 0x08, 0x94, 0x4e]; // field 1 = a message holding varint 10004; 0x94 is no UTF-8
+        let text = reply_text("application/json", &bytes).expect("protobuf bytes are read despite the json label");
+        let v: serde_json::Value = serde_json::from_str(&text).expect("read as the JSON the codec holds");
+        assert!(v.to_string().contains("10004"), "{text}");
+        assert_eq!(reply_text("application/json", b"{\"q\":\"kettle\"}").as_deref(), Some("{\"q\":\"kettle\"}"));
     }
 
     /// Bytes that are no text are carried marked and come back as they were; text is carried as itself, and a text
@@ -589,5 +611,190 @@ mod tests {
         assert_eq!(opened(None, &b), None, "MessagePack is read only where its type says so");
         assert_eq!(answer_as_json("application/x-msgpack", &b).map(|t| serde_json::from_str::<Value>(&t).unwrap()), Some(tree));
         assert_eq!(answer_as_json("application/octet-stream", &b), None, "a type that names no codec is not guessed at");
+    }
+
+    /// A message holds every kind of field and writes back its own bytes: fixed widths in hex, bytes that are no text
+    /// in base64, a message within a message, and a number as the varint it was.
+    #[test]
+    fn a_message_of_every_kind_of_field_writes_back_its_bytes() {
+        // 1: int 300 (two-byte varint), 2: fixed64, 3: fixed32, 4: bytes that are no text and no message, 5: a message.
+        let mut b = vec![0x08, 0xac, 0x02, 0x11, 1, 2, 3, 4, 5, 6, 7, 8, 0x1d, 9, 10, 11, 12, 0x22, 0x03, 0xff, 0xfe, 0xfd];
+        b.extend([0x2a, 0x04, 0x08, 0x07, 0x08, 0x08]);
+        let tree = open(Codec::Protobuf, &b).expect("it opens");
+        assert_eq!(tree[0], json!({ "n": 1, "int": 300 }));
+        assert_eq!(tree[1], json!({ "n": 2, "x64": "0102030405060708" }));
+        assert_eq!(tree[2], json!({ "n": 3, "x32": "090a0b0c" }));
+        assert_eq!(tree[3], json!({ "n": 4, "b64": "//79" }));
+        assert_eq!(tree[4], json!({ "n": 5, "msg": [{ "n": 1, "int": 7 }, { "n": 1, "int": 8 }] }));
+        assert_eq!(close(Codec::Protobuf, &tree), Some(b.clone()));
+        // A leaf filled as text where a number goes is parsed; a fixed width of the wrong length is no field.
+        let mut filled = tree.clone();
+        filled[0]["int"] = json!("301");
+        assert_eq!(close(Codec::Protobuf, &filled).map(|w| w[..3].to_vec()), Some(vec![0x08, 0xad, 0x02]));
+        filled[1]["x64"] = json!("0102");
+        assert_eq!(close(Codec::Protobuf, &filled), None);
+        filled[1]["x64"] = json!("zz");
+        assert_eq!(close(Codec::Protobuf, &filled), None, "not hex");
+        let mut odd = tree.clone();
+        odd[2]["x32"] = json!("abc");
+        assert_eq!(close(Codec::Protobuf, &odd), None, "hex of an odd length");
+        assert_eq!(close(Codec::Protobuf, &json!([{ "n": 1 }])), None, "a field of no kind");
+        assert_eq!(close(Codec::Protobuf, &json!({ "n": 1 })), None, "not a list of fields");
+        assert_eq!(close(Codec::Protobuf, &json!([{ "n": 4, "b64": "not base64!" }])), None);
+        assert_eq!(close(Codec::Protobuf, &json!([{ "n": 1, "int": [1] }])), None, "a list is no leaf");
+        // A boolean or a number as the text of a leaf goes as itself.
+        assert_eq!(close(Codec::Protobuf, &json!([{ "n": 1, "text": 12 }])), Some(vec![0x0a, 2, b'1', b'2']));
+        assert_eq!(close(Codec::Protobuf, &json!([{ "n": 1, "text": true }])), Some(vec![0x0a, 4, b't', b'r', b'u', b'e']));
+    }
+
+    /// Bytes that are no message are no reading: a wire type no one uses, a field number of nought, a length past the
+    /// end, a float cut short, and a message nested past the depth a reader follows.
+    #[test]
+    fn bytes_that_are_no_message_are_refused_where_the_wire_breaks() {
+        for broken in [&[0x0b, 0x00][..], &[0x00, 0x01], &[0x0a, 0x09, b'a'], &[0x09, 1, 2, 3], &[0x0d, 1, 2], &[0x0a], &[0x08]] {
+            assert_eq!(open(Codec::Protobuf, broken), None, "{broken:?}");
+        }
+        // Seventeen messages within messages: past sixteen it is bytes, still carried and written back as they were.
+        let mut b = vec![0x08, 0x01];
+        for _ in 0..20 {
+            let mut outer = vec![0x0a, b.len() as u8];
+            outer.extend(b);
+            b = outer;
+        }
+        let tree = open(Codec::Protobuf, &b).expect("it opens");
+        let mut depth = 0;
+        let mut at = &tree;
+        while let Some(inner) = at[0].get("msg") {
+            depth += 1;
+            at = inner;
+        }
+        assert!(depth > 10 && depth < 20, "a deep one is followed to a depth, then carried as bytes: {depth}");
+        assert!(at[0].get("b64").is_some());
+        assert_eq!(close(Codec::Protobuf, &tree), Some(b));
+    }
+
+    /// A gRPC-web body ends with a trailers frame that is no message: carried as bytes. A frame that is cut short, a
+    /// frame whose message is not one and a body of no frames are no reading; the frames written back are the bytes.
+    #[test]
+    fn grpc_web_trailers_are_carried_as_bytes_and_a_cut_frame_is_no_reading() {
+        let msg = [0x08, 0x05];
+        let trailers = b"grpc-status: 0\r\n";
+        let mut body = vec![0, 0, 0, 0, msg.len() as u8];
+        body.extend(msg);
+        body.push(0x80);
+        body.extend((trailers.len() as u32).to_be_bytes());
+        body.extend(trailers);
+        let tree = open(Codec::GrpcWeb, &body).expect("it opens");
+        assert_eq!(tree[0], json!({ "flag": 0, "msg": [{ "n": 1, "int": 5 }] }));
+        assert_eq!(tree[1]["flag"], 128);
+        assert!(tree[1]["b64"].is_string());
+        assert_eq!(close(Codec::GrpcWeb, &tree), Some(body.clone()));
+        use base64::Engine;
+        let as_text = base64::engine::general_purpose::STANDARD.encode(&body);
+        let (codec, same) = opened(Some("application/grpc-web-text+proto"), as_text.as_bytes()).expect("as text");
+        assert_eq!((codec, &same), (Codec::GrpcWebText, &tree));
+        assert_eq!(close(Codec::GrpcWebText, &tree), Some(as_text.into_bytes()));
+        assert_eq!(open(Codec::GrpcWeb, &body[..body.len() - 3]), None, "a frame cut short");
+        assert_eq!(open(Codec::GrpcWeb, &[]), None, "no frame");
+        assert_eq!(open(Codec::GrpcWeb, &[0, 0, 0]), None, "a header cut short");
+        assert_eq!(open(Codec::GrpcWebText, b"%%%"), None, "not base64");
+        assert_eq!(open(Codec::GrpcWebText, &[0xff, 0xfe]), None, "not text");
+        assert_eq!(close(Codec::GrpcWeb, &json!([{ "flag": 300, "msg": [] }])), None, "a flag is a byte");
+        assert_eq!(close(Codec::GrpcWeb, &json!([{ "flag": 0 }])), None, "a frame of nothing");
+        assert_eq!(close(Codec::GrpcWeb, &json!([{ "flag": 0, "b64": "%%" }])), None);
+        assert_eq!(close(Codec::GrpcWeb, &json!("x")), None);
+    }
+
+    /// MessagePack of every width the narrowest writer picks reads and writes back exact: small and wide integers of
+    /// both signs, floats, nested lists and maps, long texts; and a width the narrowest writer would not pick is no
+    /// reading, nor are bytes, a map with a repeated key or a map with a key that is no text.
+    #[test]
+    fn msgpack_of_every_width_reads_and_writes_back_the_same_bytes() {
+        let long = "x".repeat(300);
+        let longer = "y".repeat(70_000);
+        let tree = json!({
+            "u": [0, 127, 128, 255, 256, 65_535, 65_536, 4_294_967_295u64, 4_294_967_296u64],
+            "i": [-1, -32, -33, -128, -129, -32_768, -32_769, -2_147_483_648i64, -2_147_483_649i64],
+            "f": [1.5, -0.25], "t": true, "n": null, "no": false,
+            "s": ["", "ab", "z".repeat(31), "z".repeat(32), long, longer],
+            "big": (0..20).collect::<Vec<_>>(),
+        });
+        let bytes = close(Codec::Msgpack, &tree).expect("it writes");
+        assert_eq!(open(Codec::Msgpack, &bytes), Some(tree.clone()));
+        assert_eq!(close(Codec::Msgpack, &open(Codec::Msgpack, &bytes).unwrap()), Some(bytes.clone()));
+        // The tags a writer picks for the edges.
+        assert_eq!(close(Codec::Msgpack, &json!(255)), Some(vec![0xcc, 0xff]));
+        assert_eq!(close(Codec::Msgpack, &json!(256)), Some(vec![0xcd, 1, 0]));
+        assert_eq!(close(Codec::Msgpack, &json!(65_536)), Some(vec![0xce, 0, 1, 0, 0]));
+        assert_eq!(close(Codec::Msgpack, &json!(4_294_967_296u64)).map(|b| (b[0], b.len())), Some((0xcf, 9)));
+        assert_eq!(close(Codec::Msgpack, &json!(-33)), Some(vec![0xd0, 0xdf]));
+        assert_eq!(close(Codec::Msgpack, &json!(-129)), Some(vec![0xd1, 0xff, 0x7f]));
+        assert_eq!(close(Codec::Msgpack, &json!(-32_769)), Some(vec![0xd2, 0xff, 0xff, 0x7f, 0xff]));
+        assert_eq!(close(Codec::Msgpack, &json!(-2_147_483_649i64)).map(|b| (b[0], b.len())), Some((0xd3, 9)));
+        assert_eq!(close(Codec::Msgpack, &json!("z".repeat(32))).map(|b| (b[0], b[1])), Some((0xd9, 32)));
+        assert_eq!(close(Codec::Msgpack, &json!("z".repeat(300))).map(|b| (b[0], b[1], b[2])), Some((0xda, 1, 44)));
+        assert_eq!(close(Codec::Msgpack, &json!("z".repeat(70_000))).map(|b| b[0]), Some(0xdb));
+        assert_eq!(close(Codec::Msgpack, &json!((0..16).collect::<Vec<_>>())).map(|b| (b[0], b[1], b[2])), Some((0xdc, 0, 16)));
+        assert_eq!(close(Codec::Msgpack, &json!({ "a": 1 })), Some(vec![0x81, 0xa1, b'a', 1]));
+        let wide_map: serde_json::Map<String, Value> = (0..16).map(|i| (format!("k{i:02}"), json!(i))).collect();
+        assert_eq!(close(Codec::Msgpack, &Value::Object(wide_map)).map(|b| (b[0], b[1], b[2])), Some((0xde, 0, 16)));
+        // What is not the narrowest, or is not JSON, does not read.
+        for (what, wide) in [
+            ("a u16 that fits a u8", vec![0xcd, 0, 5]),
+            ("a u32 that fits a u16", vec![0xce, 0, 0, 1, 0]),
+            ("a u64 that fits a u32", vec![0xcf, 0, 0, 0, 0, 0, 0, 1, 0]),
+            ("an i8 that fits the small form", vec![0xd0, 0xff]),
+            ("an i16 that fits an i8", vec![0xd1, 0xff, 0xff]),
+            ("an i32 that fits an i16", vec![0xd2, 0xff, 0xff, 0xff, 0xff]),
+            ("an i64 that fits an i32", vec![0xd3, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]),
+            ("a str8 that fits the short form", vec![0xd9, 1, b'a']),
+            ("bytes", vec![0xc4, 1, 0]),
+            ("an extension", vec![0xd4, 1, 0]),
+            ("a map whose key is a number", vec![0x81, 1, 2]),
+            ("a map that repeats a key", vec![0x82, 0xa1, b'a', 1, 0xa1, b'a', 2]),
+            ("a text that is not UTF-8", vec![0xa1, 0xff]),
+            ("a list cut short", vec![0x92, 1]),
+            ("two values", vec![1, 2]),
+            ("nothing", vec![]),
+        ] {
+            assert_eq!(open(Codec::Msgpack, &wide), None, "{what}");
+        }
+        // A float of the narrower width is no reading either: it would be written wider.
+        assert_eq!(open(Codec::Msgpack, &[0xca, 0x3f, 0xc0, 0, 0]), None);
+        // Nested past the depth a reader follows.
+        let mut deep = vec![0x91; 70];
+        deep.push(1);
+        assert_eq!(open(Codec::Msgpack, &deep), None);
+        let mut ok = vec![0x91; 10];
+        ok.push(1);
+        assert!(open(Codec::Msgpack, &ok).is_some());
+        assert_eq!(close(Codec::Msgpack, &json!(1)), Some(vec![1]));
+    }
+
+    /// A reply is read as the text of its JSON where its type names a codec this node reads, else as its own text; bytes
+    /// that are neither are no text to a reader, and a live answer carries them as lossily as a transport always has.
+    #[test]
+    fn a_reply_is_read_as_the_json_its_codec_holds_or_as_its_own_text() {
+        let msg = [0x0a, 0x02, b'h', b'i'];
+        assert_eq!(reply_text("application/x-protobuf", &msg), Some(r#"[{"n":1,"text":"hi"}]"#.to_string()));
+        assert_eq!(reply_text("text/plain", b"plain"), Some("plain".to_string()));
+        assert_eq!(reply_text("application/octet-stream", &[0xff, 0xfe]), None);
+        assert_eq!(reply_text("application/octet-stream", b"a\0b"), None, "a NUL is no text");
+        assert_eq!(reply_read("application/octet-stream", &[b'a', 0xff]), "a\u{fffd}");
+        assert_eq!(reply_read("application/protobuf", &msg), r#"[{"n":1,"text":"hi"}]"#);
+        assert_eq!(named("application/vnd.google.protobuf; charset=x"), Some(Codec::Protobuf));
+        assert_eq!(named("application/messagepack"), Some(Codec::Msgpack));
+        assert_eq!(named("application/grpc-web+proto"), Some(Codec::GrpcWeb));
+        assert_eq!(named("application/json"), None);
+        assert_eq!(opened(Some("application/json"), &msg), None, "a type that names none is not guessed at");
+        assert_eq!(opened(Some("application/x-protobuf"), &[0x0b, 0x00]), None);
+        assert_eq!(opened(Some("application/octet-stream"), &msg).map(|(c, _)| c), Some(Codec::Protobuf));
+        assert_eq!(unhex("0g"), None);
+        assert_eq!(unhex("abc"), None);
+        assert_eq!(unhex("0aFf"), Some(vec![0x0a, 0xff]));
+        assert_eq!(unb64("!!"), None);
+        assert_eq!(unb64(&b64(&[1, 2, 3])), Some(vec![1, 2, 3]));
+        assert_eq!(bytes_of(&format!("{BYTES_MARK}%%")), Vec::<u8>::new(), "a marked body that is no base64 is nothing");
+        assert_eq!(varint(&[0xff; 11], &mut 0), None, "a varint past ten bytes");
     }
 }

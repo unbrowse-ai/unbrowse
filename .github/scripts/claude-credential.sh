@@ -52,13 +52,18 @@ for name in "$@"; do
 
   # From an empty directory: the question needs none of the repository's settings, tools or instructions.
   answer=$(cd "$work" && env -i PATH="$PATH" HOME="${HOME:-$work}" CLAUDE_CODE_OAUTH_TOKEN="$token" \
-    "$claude" -p "Reply with the word ok." --output-format json --max-turns 1 < /dev/null 2> /dev/null) || true
+    "$claude" -p "Reply with the word ok." --output-format json --max-turns 1 < /dev/null 2> "$work/err") || true
   if printf '%s' "$answer" | jq -e '.is_error == false' > /dev/null 2>&1; then
     echo "$name: answers"
     echo "name=$name" >> "$out"
     exit 0
   fi
-  reason=$(printf '%s' "$answer" | jq -r '.result // empty' 2> /dev/null | head -1 | sed -E 's/sk-ant-[A-Za-z0-9_-]+/[redacted]/g')
+  # The CLI's own words: its result when it gave one, else the first line it wrote to stderr (an expired or revoked
+  # login says so there, and "no answer" alone left three nights of failed QA unexplained, UNB-235). Anything shaped
+  # like a key is cut out.
+  reason=$(printf '%s' "$answer" | jq -r '.result // empty' 2> /dev/null | head -1)
+  [ -n "$reason" ] || reason=$(grep -v '^[[:space:]]*$' "$work/err" 2> /dev/null | head -1 | cut -c1-300)
+  reason=$(printf '%s' "$reason" | sed -E 's/sk-ant-[A-Za-z0-9_-]+/[redacted]/g')
   echo "::warning::Claude credential $name refuses: ${reason:-no answer}"
 done
 

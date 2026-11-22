@@ -126,6 +126,21 @@ pub fn failed_by_code(body: &Value) -> Option<String> {
     (!lists_things(body, 0)).then(|| cut(&code, 80))
 }
 
+/// The address of the site's check that a failed answer points to: the page the site hands back beside a failure
+/// code ([`failed_by_code`]) instead of records — its validate/punish page (Alibaba baxia puts it under `data.url`;
+/// others name a top-level `url`/`redirect`). The clearance flow opens this page; once it is passed (by a person, or
+/// by the node) the site sets its clearance cookie and the route's own call answers. None when the answer did not
+/// fail by a code, or named no address to go to.
+pub fn check_url(body: &Value) -> Option<String> {
+    failed_by_code(body)?;
+    let o = body.as_object()?;
+    let in_data = |k: &str| o.get("data").and_then(|d| d.get(k)).and_then(Value::as_str);
+    in_data("url")
+        .or_else(|| o.get("url").and_then(Value::as_str))
+        .or_else(|| in_data("redirect"))
+        .map(String::from)
+}
+
 /// Whether a member says the request failed: an error member that holds something, an outcome member of the
 /// request (`response`, `result`, `outcome`) whose word is a failure, a `status` of `error`, `success`/`ok` set
 /// false, or, under any name, a failure code or a list of nothing but them (`failure_code`). A record's own
@@ -727,6 +742,23 @@ mod tests {
         // An answer with no code at all and only an address is not read as a failure here.
         let moved: Value = serde_json::from_str(r#"{"data":{"url":"https://www.shop.example/find/lamps"}}"#).unwrap();
         assert!(said_failure(&moved).is_none());
+    }
+
+    /// A failed answer that hands back its validate/check page points the clearance flow at that page; a healthy
+    /// answer, or a plain move with no failure code, points nowhere. General: the address is read from the answer's
+    /// shape (`data.url`, a top-level `url`/`redirect`), never from any site's name — the site below is a fixture.
+    #[test]
+    fn a_failed_answer_points_at_the_sites_check_page() {
+        let walled: Value = serde_json::from_str(r#"{"ret":["FAIL_SYS_USER_VALIDATE","GATE7_ERROR::SM::busy"],"data":{"url":"https://www.shop.example/_____tmd_____/punish?x5secdata=abc"}}"#).unwrap();
+        assert_eq!(check_url(&walled).as_deref(), Some("https://www.shop.example/_____tmd_____/punish?x5secdata=abc"));
+        let top: Value = serde_json::from_str(r#"{"ret":["FAIL_SYS_USER_VALIDATE"],"url":"https://www.shop.example/validate"}"#).unwrap();
+        assert_eq!(check_url(&top).as_deref(), Some("https://www.shop.example/validate"));
+        let healthy: Value = serde_json::from_str(r#"{"ret":["GATE7_ERROR::slow"],"data":{"items":[{"name":"Lamp"}]}}"#).unwrap();
+        assert!(check_url(&healthy).is_none(), "a healthy answer with records points nowhere");
+        let moved: Value = serde_json::from_str(r#"{"data":{"url":"https://www.shop.example/find/lamps"}}"#).unwrap();
+        assert!(check_url(&moved).is_none(), "a move with no failure code is not a check");
+        let codeless: Value = serde_json::from_str(r#"{"ret":["FAIL_SYS_USER_VALIDATE"]}"#).unwrap();
+        assert!(check_url(&codeless).is_none(), "a failure that names no address points nowhere");
     }
     use super::*;
     use serde_json::json;

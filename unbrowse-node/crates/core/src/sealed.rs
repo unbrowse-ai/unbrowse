@@ -36,6 +36,12 @@ impl Sealer {
         Sealer(key)
     }
 
+    /// Another sealer for the same kind, for a thread of its own: the key is copied, never shown, and each copy wipes
+    /// its bytes when dropped.
+    pub fn duplicate(&self) -> Self {
+        Sealer(Zeroizing::new(*self.0))
+    }
+
     /// `plain` sealed: the nonce, then the ciphertext and its tag. `about` is bound in and must match to open it.
     pub fn seal(&self, about: &[u8], plain: &[u8]) -> Result<Vec<u8>, SealError> {
         let mut nonce = [0u8; NONCE];

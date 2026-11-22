@@ -81,8 +81,15 @@ export async function runTool(node: UnbrowseNode, spec: ToolSpec, input: unknown
       args[k] = isStringMap(spec.inputSchema.properties[k]) && typeof v === "object" ? Object.fromEntries(Object.entries(v as object).map(([n, x]) => [n, String(x)])) : v;
     }
     // As the MCP server answers a call missing an argument it needs.
-    const missing = spec.inputSchema.required.find((k) => args[k] === undefined || args[k] === "");
+    const absent = (k: string) => args[k] === undefined || args[k] === "";
+    const missing = spec.inputSchema.required.find(absent);
     if (missing) return { error: `${spec.name} needs ${missing}`, code: "bad_request" } satisfies ToolError;
+    // And one of the argument sets the call takes one of in full (a goal, or an ask to collect): with none, the first
+    // set's first missing name, as the MCP server says it.
+    const groups = spec.needsOneOf ?? [];
+    if (groups.length && !groups.some((g) => g.every((k) => !absent(k)))) {
+      return { error: `${spec.name} needs ${groups[0].find(absent)}`, code: "bad_request" } satisfies ToolError;
+    }
     // Every page this client opens is in its own session, as the MCP server keeps each client's: a session the model
     // names is one of this client's.
     if ("session" in spec.inputSchema.properties) args.session = args.session ? `${node.session}:${args.session}` : node.session;

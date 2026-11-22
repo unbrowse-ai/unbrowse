@@ -50,7 +50,7 @@ The lower-level `screencast_start` and `screencast_stop` commands still control 
 
 ## WebSocket protocol
 
-Connect to `ws://localhost:9223/?token=<token>` to receive frames and send input. The token is the session's stream secret, written to `<socket dir>/<session>.stream-token` and readable only by its owner; every WebSocket upgrade and `/api/*` request must carry it (`?token=` or `Authorization: Bearer <token>`).
+Connect to `ws://localhost:9223` to receive frames and send input.
 
 Frame encoding is set per daemon with `AGENT_BROWSER_STREAM_QUALITY` (0 to 100), `AGENT_BROWSER_STREAM_MAX_WIDTH` and `AGENT_BROWSER_STREAM_MAX_HEIGHT`. The live stream requests jpeg. An explicit `screencast_start` reconfigures the same underlying screencast, so a client can see the format change mid-stream. Width and height cap the frame and default to the session viewport. On a busy page at 1280x720, quality 80 costs about 54 KB per frame, quality 20 about 25 KB, and quality 20 at 640x360 about 9 KB.
 

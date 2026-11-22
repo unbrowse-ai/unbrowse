@@ -2,7 +2,8 @@
 // Reads one of the named questions in queries.sql from the deployed worker and prints its rows as a table.
 //
 //   node stats.mjs                 the names
-//   node stats.mjs installs        active installs a day (also: calls, breaks, times, versions, gate)
+//   node stats.mjs installs        active installs a day (also: calls, breaks, times, versions, gate, funnel,
+//                                  funnel_by_from, arms)
 //
 // TELEMETRY_URL (default https://telemetry.unbrowse.ai) picks the worker. The token is ADMIN_TOKEN, or the file
 // ~/.config/unbrowse/telemetry-admin-token (production) / telemetry-admin-token-staging (any other URL).

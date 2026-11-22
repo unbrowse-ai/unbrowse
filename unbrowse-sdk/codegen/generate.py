@@ -13,6 +13,9 @@ what is written here can't drift from what the node runs:
 - the agent plugins' lists of the node's tools: `integrations/openclaw/openclaw.plugin.json` (`contracts.tools`, and
   `toolMetadata`: a primitive served by GET is replay-safe, any other side-effecting), and the Hermes plugin's
   `provides_tools` (`plugin.yaml`) and `TOOL_NAMES` (`tools.py`). Only those parts of the files are written;
+- `unbrowse-node/window/src/wire.zig`: the node's window's reading of every type, every owner command and what each
+  answers and takes (`Command`, `Returns`, `Input`); the window's `types.zig` holds its views of them and checks them
+  against these when it is built;
 - the copies of `skills/unbrowse` the plugins carry (`integrations/sync-skills.py` says how each is made).
 
 The hand-written clients sit on top. Run it after the manifest changes; `--check` writes nothing and fails, naming
@@ -164,10 +167,20 @@ def ts_object(schema: Schema, indent: int) -> str:
     return "\n".join(lines)
 
 
+def presence_only(schema: Schema) -> bool:
+    """Whether a schema's `anyOf` says only which of its own properties are present (each alternative a `required`
+    list and nothing else): a rule a call is checked by (`needs_one_of`), not a choice of types. It is typed as the
+    object it is."""
+    alts = schema.get("anyOf")
+    return bool(alts) and "properties" in schema and all(set(a) == {"required"} for a in alts)
+
+
 def ts_type(schema: Schema, indent: int = 0) -> str:
     name = ref_name(schema)
     if name:
         return name
+    if presence_only(schema):
+        return ts_type({k: v for k, v in schema.items() if k != "anyOf"}, indent)
     if "anyOf" in schema:
         return ts_union([ts_type(s, indent + 4) for s in schema["anyOf"]], indent)
     if "allOf" in schema:
@@ -413,6 +426,8 @@ class Py:
         if name:
             refs.add(name)
             return name
+        if presence_only(schema):
+            return self.type({k: v for k, v in schema.items() if k != "anyOf"}, hint, refs)
         if "anyOf" in schema:
             members = [s for s in schema["anyOf"] if types_of(s) != ["null"]]
             nullable = len(members) < len(schema["anyOf"])
@@ -733,11 +748,23 @@ def tool_description(p: Schema) -> str:
     return f"{when} {own}".strip()
 
 
+# The combinators no model's tool schema takes at its top level (the Anthropic API refuses them there, as OpenAI's
+# strict mode does): the MCP server lists a primitive's input without them, and so do the tool specs.
+TOP_LEVEL_COMBINATORS = ("anyOf", "oneOf", "allOf")
+
+
 def tool_schema(p: Schema) -> Schema:
-    """A primitive's input as the MCP server lists it, with `required` always present (some frameworks need it)."""
-    schema = dict(p["input"])
+    """A primitive's input as the MCP server lists it, with `required` always present (some frameworks need it) and
+    no combinator at its top level (`TOP_LEVEL_COMBINATORS`): what it said there is `needs_one_of`."""
+    schema = {k: v for k, v in p["input"].items() if k not in TOP_LEVEL_COMBINATORS}
     schema.setdefault("required", [])
     return schema
+
+
+def needs_one_of(p: Schema) -> List[List[str]]:
+    """The argument sets a primitive's input takes one of (its top-level `anyOf`, each `{required: [...]}`): a call
+    has every name of at least one. Empty when it says none."""
+    return [list(alt.get("required", [])) for alt in p["input"].get("anyOf", []) if alt.get("required")]
 
 
 def ts_tools_file(api: Schema) -> str:
@@ -753,7 +780,7 @@ def ts_tools_file(api: Schema) -> str:
         "export type InputSchema = { type: \"object\"; properties: Record<string, Record<string, unknown>>; required: string[] };",
         "",
         "/** One agent primitive as a tool: the MCP server's name and input schema, and the description the adapters give it. */",
-        "export type ToolSpec = { name: string; description: string; inputSchema: InputSchema };",
+        "export type ToolSpec = { name: string; description: string; inputSchema: InputSchema; needsOneOf: string[][] };",
         "",
         "/** The agent primitives, each by the name the adapters' `include` takes: its tool's without `unbrowse_`. */",
         "export type ToolName = " + " | ".join(json.dumps(short(p["tool"])) for p in api["primitives"]) + ";",
@@ -766,6 +793,7 @@ def ts_tools_file(api: Schema) -> str:
         out.append(f"    name: {json.dumps(p['tool'])},")
         out.append(f"    description: {json.dumps(tool_description(p), ensure_ascii=False)},")
         out.append(f"    inputSchema: {ts_json(tool_schema(p))},")
+        out.append(f"    needsOneOf: {ts_json(needs_one_of(p))},")
         out.append("  },")
     out += ["};", ""]
     return "\n".join(out)
@@ -783,7 +811,8 @@ def py_tools_file(api: Schema) -> str:
         "from typing import Any, Dict",
         "",
         "# Every agent primitive as a tool, by the name the adapters' ``include`` takes (its tool's without ``unbrowse_``),",
-        "# in the node's order: ``name``, ``description`` and ``input_schema`` (JSON Schema).",
+        "# in the node's order: ``name``, ``description``, ``input_schema`` (JSON Schema) and ``needs_one_of`` (the argument",
+        "# sets a call has one of in full, as the schema's top-level ``anyOf`` says, which no model's tool schema takes).",
         "TOOLS: Dict[str, Dict[str, Any]] = {",
     ]
     for p in api["primitives"]:
@@ -791,6 +820,7 @@ def py_tools_file(api: Schema) -> str:
         out.append(f"        \"name\": {py_lit(p['tool'])},")
         out.append(f"        \"description\": {json.dumps(tool_description(p), ensure_ascii=False)},")
         out.append(f"        \"input_schema\": {py_lit(tool_schema(p))},")
+        out.append(f"        \"needs_one_of\": {py_lit(needs_one_of(p))},")
         out.append("    },")
     out += ["}", ""]
     return "\n".join(out)
@@ -841,6 +871,193 @@ def skill_copies() -> List[Tuple[Path, Callable[[Schema], str]]]:
 
 # ---------------------------------------------------------------- main
 
+
+# ---------------------------------------------------------------- Zig (the node's window)
+
+ZIG_OUT = ROOT / "unbrowse-node" / "window" / "src" / "wire.zig"
+ZIG_KEYWORDS = {
+    "addrspace", "align", "allowzero", "and", "anyframe", "anytype", "asm", "break", "callconv", "catch", "comptime",
+    "const", "continue", "defer", "else", "enum", "errdefer", "error", "export", "extern", "fn", "for", "if", "inline",
+    "linksection", "noalias", "noinline", "nosuspend", "opaque", "or", "orelse", "packed", "pub", "resume", "return",
+    "struct", "suspend", "switch", "test", "threadlocal", "try", "union", "unreachable", "var", "volatile", "while",
+    "type", "null", "true", "false", "undefined",
+}
+ZIG_IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def zig_name(name: str) -> str:
+    """A field or value name as Zig writes it: bare where it can be, else `@"..."`."""
+    return name if ZIG_IDENT.match(name) and name not in ZIG_KEYWORDS else "@" + json.dumps(name)
+
+
+def zig_doc(text: Optional[str], pad: str) -> List[str]:
+    if not text:
+        return []
+    return [f"{pad}/// {line}".rstrip() for line in textwrap.wrap(text, 116 - len(pad), break_on_hyphens=False)]
+
+
+class Zig:
+    """The window's reading of the node's types. Every field has a default, so a field the node leaves out takes it,
+    and the window parses with `ignore_unknown_fields`, so one the node adds is ignored: the window's own rule
+    (types.zig). Numbers are `f64`, the window's convention (exact to 2^53). A string enum stays a string, so a value the
+    node adds later still parses; its values are a Zig enum beside the field, for comparisons."""
+
+    def __init__(self, api: Schema) -> None:
+        self.types: Schema = api["types"]
+
+    def target(self, name: str) -> Schema:
+        return self.types.get(name) or {}
+
+    def nullable(self, schema: Schema) -> Tuple[Schema, bool]:
+        """The schema without its `null`, and whether it had one (`["T", "null"]`, or `anyOf: [T, {type: null}]`)."""
+        kinds = types_of(schema)
+        if "null" in kinds and len(kinds) > 1:
+            rest = dict(schema)
+            rest["type"] = [k for k in kinds if k != "null"]
+            if len(rest["type"]) == 1:
+                rest["type"] = rest["type"][0]
+            return rest, True
+        if "anyOf" in schema:
+            parts = [p for p in schema["anyOf"] if types_of(p) != ["null"]]
+            if len(parts) < len(schema["anyOf"]) and len(parts) == 1:
+                return parts[0], True
+        return schema, False
+
+    def kind(self, schema: Schema, nest: Optional[List[str]] = None, hint: str = "", pad: str = "    ") -> Tuple[str, str]:
+        """(the Zig type, its default) of a schema. An object written inline, not as a type of its own, becomes a
+        struct nested in the one that holds it, named for its field (`nest` collects it; `hint` names it)."""
+        inner, opt = self.nullable(schema)
+        t, d = self.plain(inner, nest, hint, pad)
+        if opt:
+            return ("?" + t, "null") if not t.startswith("?") else (t, "null")
+        return t, d
+
+    def plain(self, schema: Schema, nest: Optional[List[str]] = None, hint: str = "", pad: str = "    ") -> Tuple[str, str]:
+        name = ref_name(schema)
+        if name:
+            target = self.target(name)
+            if is_object(target):
+                return name, ".{}"
+            return name, self.plain(target)[1]
+        if "anyOf" in schema or "allOf" in schema:
+            return "std.json.Value", ".null"
+        if "enum" in schema:
+            vals = schema["enum"]
+            if all(isinstance(v, str) for v in vals):
+                return "[]const u8", '""'
+            return "std.json.Value", ".null"
+        kinds = types_of(schema)
+        if len(kinds) != 1:
+            return "std.json.Value", ".null"
+        k = kinds[0]
+        if k == "string":
+            return "[]const u8", '""'
+        if k in ("integer", "number"):
+            return "f64", "0"
+        if k == "boolean":
+            return "bool", "false"
+        if k == "null":
+            return "?std.json.Value", "null"
+        if k == "array":
+            items = schema.get("items")
+            if not items:
+                return "[]const std.json.Value", "&.{}"
+            t, _ = self.kind(items, nest, hint, pad)
+            return f"[]const {t}", "&.{}"
+        if k == "object":
+            props = schema.get("properties")
+            extra = schema.get("additionalProperties")
+            if not props and isinstance(extra, dict):
+                t, _ = self.kind(extra, nest, hint, pad)
+                return f"std.json.ArrayHashMap({t})", ".{}"
+            if props and nest is not None and hint:
+                # An object written inline: a struct of its own, nested in the one that holds it.
+                nest += self.struct(hint, schema, pad)
+                return hint, ".{}"
+            return "std.json.Value", ".null"
+        raise SystemExit(f"a JSON type the generator doesn't know: {k}")
+
+    def enums(self, props: Schema, pad: str) -> List[str]:
+        out = []
+        for name, p in props.items():
+            inner, _ = self.nullable(p)
+            vals = inner.get("enum")
+            if vals and all(isinstance(v, str) for v in vals) and "$ref" not in inner:
+                out.append(f"{pad}pub const {pascal(name)} = enum {{ {', '.join(zig_name(v) for v in vals)} }};")
+        return out
+
+    def struct(self, name: str, schema: Schema, pad: str = "") -> List[str]:
+        inner = pad + "    "
+        lines = zig_doc(schema.get("description"), pad)
+        props = schema.get("properties") or {}
+        lines.append(f"{pad}pub const {name} = struct {{")
+        lines += self.enums(props, inner)
+        nested: List[str] = []
+        body: List[str] = []
+        required = set(schema.get("required") or [])
+        for field, p in props.items():
+            hint = pascal(field)
+            if hint == name or hint in self.types:  # a nested name never shadows a type of the file's own
+                hint = name + hint
+            t, d = self.kind(p, nested, hint, inner)
+            # An object the node may leave out is optional: whether it came says something (a payment ask, or none).
+            # A scalar left out takes its default.
+            if field not in required and not t.startswith("?") and d == ".{}" and not t.startswith("std.json.ArrayHashMap"):
+                t, d = "?" + t, "null"
+            body += zig_doc(p.get("description"), inner)
+            body.append(f"{inner}{zig_name(field)}: {t} = {d},")
+        lines += nested + body
+        lines.append(f"{pad}}};")
+        return lines
+
+    def alias(self, name: str, schema: Schema) -> List[str]:
+        lines = zig_doc(schema.get("description"), "")
+        inner, _ = self.nullable(schema)
+        vals = inner.get("enum")
+        if vals and all(isinstance(v, str) for v in vals):
+            lines.append(f"pub const {name} = []const u8;")
+            lines.append(f"pub const {name}Value = enum {{ {', '.join(zig_name(v) for v in vals)} }};")
+            return lines
+        t, _ = self.kind(schema)
+        lines.append(f"pub const {name} = {t};")
+        return lines
+
+
+def zig_file(api: Schema) -> str:
+    z = Zig(api)
+    out = header("//!", REGENERATE, "The window's types.zig holds its views of these, checked against them when it is built.")
+    out += ["", 'const std = @import("std");', ""]
+    for name, schema in api["types"].items():
+        out += (z.struct(name, schema) if is_object(schema) else z.alias(name, schema)) + [""]
+    owner = api["owner"]
+    out += ["/// Every owner command (`POST /owner/<command>`), by its name.",
+            "pub const Command = enum {"]
+    out += [f"    {zig_name(c['command'])}," for c in owner]
+    out += ["};", "",
+            "/// What an owner command answers with: the type the node writes for it.",
+            "pub fn Returns(comptime c: Command) type {", "    return switch (c) {"]
+    for c in owner:
+        t, _ = z.kind(c["returns"]) if c.get("returns") else ("std.json.Value", ".null")
+        out.append(f"        .{zig_name(c['command'])} => {t},")
+    out += ["    };", "}", "",
+            "/// What an owner command takes: its arguments, each defaulted, so a body is built from the fields set.",
+            "pub fn Input(comptime c: Command) type {", "    return switch (c) {"]
+    for c in owner:
+        props = (c.get("input") or {}).get("properties") or {}
+        if not props:
+            out.append(f"        .{zig_name(c['command'])} => struct {{}},")
+            continue
+        fields = []
+        for field, p in props.items():
+            t, d = z.kind(p)
+            if not t.startswith("?"):
+                t, d = "?" + t, "null"
+            fields.append(f"{zig_name(field)}: {t} = {d}")
+        out.append(f"        .{zig_name(c['command'])} => struct {{ {', '.join(fields)} }},")
+    out += ["    };", "}", ""]
+    return "\n".join(out)
+
+
 OUTPUTS: List[Tuple[Path, Callable[[Schema], str]]] = [
     (TS_OUT, ts_file),
     (PY_OUT, py_file),
@@ -849,6 +1066,7 @@ OUTPUTS: List[Tuple[Path, Callable[[Schema], str]]] = [
     (OPENCLAW, openclaw_file),
     (HERMES_YAML, hermes_yaml_file),
     (HERMES_TOOLS, hermes_tools_file),
+    (ZIG_OUT, zig_file),
     *skill_copies(),
 ]
 

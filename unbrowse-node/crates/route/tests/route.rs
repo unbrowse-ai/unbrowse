@@ -356,9 +356,12 @@ fn a_signature_over_the_request_is_written_after_the_request_is_built() {
     let in_the_address = built(&step("get", "https://air.example/flights", holes(Place::Query("sign".into()))), &mut world());
     assert_eq!(in_the_address.url.as_str(), format!("https://air.example/flights?q=tokyo&sign={}", Algo::Md5.hash(made_over)));
 
-    // The jar does not hold what it is made over: no signature is guessed, and the step goes a rung down.
-    let no_cookie = stuck(&step("get", "https://air.example/flights", holes(Place::Header("x-sign".into()))), &mut Hand::default().slot("q", "tokyo"));
-    assert!(matches!(no_cookie.why, Why::NotSent(_)), "{no_cookie}");
+    // The jar does not hold a cookie it is made over yet: it is signed over nothing in that cookie's place, as a page's
+    // own code signs before its gateway hands it the token (#705). The site that issues the cookie answers that call with
+    // it, and the call is signed again with what it handed over (`replay::resigned`).
+    let no_cookie = built(&step("get", "https://air.example/flights", holes(Place::Header("x-sign".into()))), &mut Hand { now: 1_794_198_118_858, ..Hand::default() }.slot("q", "tokyo"));
+    assert_eq!(header(&no_cookie, "x-sign"), Some(Algo::Md5.hash("/flights?q=tokyo;GET;-1794198118858-777;;").as_str()));
+    assert_eq!(header(&no_cookie, "cookie"), None, "the blank cookie is what the digest reads, never what is sent");
 }
 
 /// What a digest is made over never reaches the request as itself: only the digest does. A reading of the clock

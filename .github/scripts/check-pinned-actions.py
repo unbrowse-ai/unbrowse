@@ -10,7 +10,10 @@ import atexit
 import shutil
 
 ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW_DIRS = (ROOT / ".github/workflows", ROOT / "unbrowse-browser/.github/workflows")
+# GitHub runs only the workflows in the repository's own .github/workflows. unbrowse-browser/.github is upstream
+# agent-browser's, kept byte for byte (unbrowse-browser/FORK.md: no upstream file is changed), and nothing runs it
+# here: test_pinned_actions.py holds that no workflow or action of ours calls into it.
+WORKFLOW_DIRS = (ROOT / ".github/workflows",)
 PIN = re.compile(r"^[^\s@]+@[0-9a-fA-F]{40}\s+#\s+\S.*$")
 UPSTREAM_REPOS = {}
 atexit.register(lambda: [shutil.rmtree(path, ignore_errors=True) for path, _ in UPSTREAM_REPOS.values() if path])

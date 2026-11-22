@@ -1,0 +1,38 @@
+# A closed pull request's checks stop (UNB-166). A run's concurrency group cancels it only when a newer push to the same
+# pull request starts one, so the runs of a pull request that merged or closed went on waiting for a machine: on 21 Nov
+# 2026 the local pool held 146 waiting jobs, most of them for pull requests already merged. Nothing a closed pull
+# request's run says is read: a merge into staging runs staging's own checks on the push.
+name: Closed pull request
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  stop:
+    name: Stop the closed pull request's checks
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel its queued and running checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          THIS_RUN: ${{ github.run_id }}
+        run: |
+          # A run of this branch's pull request event, for this pull request (a run lists the pull requests it is for;
+          # an empty list is a run GitHub no longer links, still this branch's).
+          for status in queued in_progress waiting; do
+            gh api -X GET "repos/$REPO/actions/runs" -f branch="$BRANCH" -f event=pull_request -f status="$status" -f per_page=100 \
+              --jq ".workflow_runs[] | select(.id != $THIS_RUN) | select((.pull_requests | length) == 0 or any(.pull_requests[]; .number == $NUMBER)) | [.id, .name] | @tsv"
+          done | sort -u | while IFS="$(printf '\t')" read -r id name; do
+            echo "cancel $id ($name)"
+            gh api -X POST "repos/$REPO/actions/runs/$id/cancel" > /dev/null || echo "::warning::run $id ($name) did not cancel"
+          done

@@ -754,4 +754,165 @@ connection: close
         let j = FixedJudge(None);
         assert!(j.ask(Judgment::Relevant { rows: &rows() }).is_none());
     }
+
+    /// A loopback gateway that answers each request with `status` and `body`, keeping every request body it was sent.
+    fn heard_gateway(status: u16, body: String) -> (TypesafeJudge, std::sync::Arc<std::sync::Mutex<Vec<serde_json::Value>>>) {
+        answering_gateway(status, move |_| body.clone())
+    }
+
+    /// The same, answering each request as `answer` reads it: a gateway answers the questions it was asked.
+    fn answering_gateway(status: u16, answer: impl Fn(&serde_json::Value) -> String + Send + 'static) -> (TypesafeJudge, std::sync::Arc<std::sync::Mutex<Vec<serde_json::Value>>>) {
+        use std::io::{BufRead, BufReader, Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let at = l.local_addr().unwrap();
+        let heard = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let keep = heard.clone();
+        std::thread::spawn(move || {
+            for s in l.incoming().flatten() {
+                let mut r = BufReader::new(s.try_clone().unwrap());
+                let mut length = 0usize;
+                loop {
+                    let mut line = String::new();
+                    if r.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                        break;
+                    }
+                    if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                        length = v.trim().parse().unwrap_or(0);
+                    }
+                }
+                let mut sent = vec![0u8; length];
+                let _ = r.read_exact(&mut sent);
+                let sent: serde_json::Value = serde_json::from_slice(&sent).unwrap_or_default();
+                let body = answer(&sent);
+                keep.lock().unwrap().push(sent);
+                let mut s = s;
+                let _ = write!(s, "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+            }
+        });
+        let judge = TypesafeJudge {
+            api_base: format!("http://{at}"),
+            model: "test".into(),
+            api_key: Some("dummy-key".into()),
+            client: crate::tls::blocking().build().unwrap(),
+            probability_bar: 0.7,
+            confidence_bar: 0.5,
+        };
+        (judge, heard)
+    }
+
+    /// Sixty candidates, the same search route seen at #5 and #17 among fifty-eight other calls.
+    fn wide() -> Vec<ExchangeRow> {
+        (0..60)
+            .map(|i| {
+                let path = if i == 5 || i == 17 { "/api/search?q=lamp-SECRET".to_string() } else { format!("/api/other{i}?t=SECRET{i}") };
+                ExchangeRow { index: i, path, ..rows()[1].clone() }
+            })
+            .collect()
+    }
+
+    /// A goal question over more than twelve calls is asked in two stages: a fan-out per call in requests of at most
+    /// fifty, then a choice over the eight that scored highest. The answer is trusted by the fan-out: the picked
+    /// route's mean score is its probability, and its lead over the best other route its confidence.
+    #[test]
+    fn a_wide_goal_question_is_asked_in_two_stages_and_trusted_by_its_fanout() {
+        let (judge, heard) = answering_gateway(200, |asked| {
+            let mut answers = serde_json::Map::new();
+            for id in asked["questions"].as_object().map(|q| q.keys().cloned().collect::<Vec<_>>()).unwrap_or_default() {
+                let answer = match id.as_str() {
+                    "goal" => serde_json::json!({"type": "choice", "choice": "17", "probabilities": {"17": 0.4}, "confidence": 0.2}),
+                    "p5" => serde_json::json!({"type": "noul", "noul": 0.9}),
+                    "p17" => serde_json::json!({"type": "noul", "noul": 0.8}),
+                    "p3" => serde_json::json!({"type": "noul", "noul": 0.3}),
+                    _ => serde_json::json!({"type": "noul", "noul": 0.1}),
+                };
+                answers.insert(id, answer);
+            }
+            serde_json::json!({ "answers": answers }).to_string()
+        });
+        let before = requests_made();
+        let a = judge.ask(Judgment::GoalRequest { goal: "search lamps", candidates: &wide() }).expect("an answer");
+        assert_eq!(a.picked, Some(17));
+        assert!((a.probability - 0.85).abs() < 1e-4, "the route's mean fan-out score: {}", a.probability);
+        assert!((a.confidence - 0.55).abs() < 1e-4, "its lead over the next route: {}", a.confidence);
+        assert!(a.trusted(judge.probability_bar, judge.confidence_bar));
+        assert_eq!(requests_made() - before, 3, "fifty, ten, then the choice");
+        let heard = heard.lock().unwrap();
+        let questions: Vec<usize> = heard.iter().map(|r| r["questions"].as_object().map_or(0, |q| q.len())).collect();
+        assert_eq!(questions, vec![50, 10, 1]);
+        assert_eq!(heard[2]["questions"]["goal"]["criteria"].as_object().unwrap().len(), 8, "the eight best go to the choice");
+        let sent = serde_json::to_string(&*heard).unwrap();
+        assert!(!sent.contains("SECRET"), "no value a call sent reaches the model");
+    }
+
+    /// The choice may only name a call the fan-out put on the shortlist; and with no scores at all there is no
+    /// shortlist and no choice is asked.
+    #[test]
+    fn a_wide_goal_answer_off_the_shortlist_or_unscored_is_no_answer() {
+        let mut answers = serde_json::Map::new();
+        for i in 0..60 {
+            answers.insert(format!("p{i}"), serde_json::json!({"type": "noul", "noul": if i < 8 { 0.9 } else { 0.1 }}));
+        }
+        answers.insert("goal".into(), serde_json::json!({"type": "choice", "choice": "42"}));
+        let (judge, _) = heard_gateway(200, serde_json::json!({ "answers": answers }).to_string());
+        assert!(judge.ask(Judgment::GoalRequest { goal: "search lamps", candidates: &wide() }).is_none(), "#42 was not shortlisted");
+        let (judge, heard) = heard_gateway(200, r#"{"answers":{}}"#.to_string());
+        assert!(judge.ask(Judgment::GoalRequest { goal: "search lamps", candidates: &wide() }).is_none());
+        assert_eq!(heard.lock().unwrap().len(), 2, "two fan-out requests, no choice");
+    }
+
+    /// Whether a call is part of the route is a yes or no read from one score: over a half is yes, and how far it
+    /// stands from a half is how sure it is.
+    #[test]
+    fn a_relevance_score_is_a_yes_or_no_and_how_sure() {
+        let (judge, heard) = heard_gateway(200, r#"{"answers":{"rel-1":{"type":"noul","noul":0.8}}}"#.to_string());
+        let a = judge.ask(Judgment::Relevant { rows: &rows() }).unwrap();
+        assert_eq!((a.picked, a.yes), (None, Some(true)));
+        assert!((a.probability - 0.8).abs() < 1e-6 && (a.confidence - 0.6).abs() < 1e-6, "{a:?}");
+        let sent = &heard.lock().unwrap()[0];
+        assert_eq!(sent["questions"].as_object().unwrap().len(), 2, "one question per call");
+        assert_eq!(sent["questions"]["rel-1"]["type"], "noul");
+        let (judge, _) = heard_gateway(200, r#"{"answers":{"rel-0":{"type":"noul","noul":0.2}}}"#.to_string());
+        let a = judge.ask(Judgment::Relevant { rows: &rows() }).unwrap();
+        assert_eq!(a.yes, Some(false));
+        assert!((a.confidence - 0.6).abs() < 1e-6);
+    }
+
+    /// Which earlier answer made a value is a choice among the candidates offered, by their place in the list.
+    #[test]
+    fn an_origin_is_chosen_among_the_candidates_offered() {
+        let candidates = ["GET /api/session -> token".to_string(), "GET /app -> csrf".to_string()];
+        let (judge, heard) = heard_gateway(200, r#"{"answers":{"origin":{"type":"choice","choice":"1","probabilities":{"0":0.1,"1":0.85},"confidence":0.7}}}"#.to_string());
+        let a = judge.ask(Judgment::Origin { value: "tok", candidates: &candidates }).unwrap();
+        assert_eq!(a.picked, Some(1));
+        assert!((a.probability - 0.85).abs() < 1e-6 && (a.confidence - 0.7).abs() < 1e-6, "{a:?}");
+        let sent = &heard.lock().unwrap()[0];
+        assert_eq!(sent["questions"]["origin"]["criteria"]["0"], candidates[0]);
+        assert_eq!(sent["model"], "test");
+    }
+
+    /// Each piece of a walked address gets its own score; the address reaches the model with its query's names, not
+    /// their values; a piece the model left unscored reads as the site's own (0).
+    #[test]
+    fn each_piece_of_an_address_is_scored_and_its_query_values_stay_here() {
+        let (judge, heard) = heard_gateway(200, r#"{"answers":{"p0":{"type":"noul","noul":0.05},"p1":{"type":"noul","noul":0.92}}}"#.to_string());
+        let pieces = ["s".to_string(), "tokyo".to_string(), "homes".to_string()];
+        let scores = judge.ask_inputs("stays in tokyo", "https://stay.example/s/tokyo/homes?checkin=2026-12-01&adults=2", &pieces).unwrap();
+        assert_eq!(scores, vec![0.05, 0.92, 0.0]);
+        let sent = &heard.lock().unwrap()[0];
+        assert_eq!(sent["state"]["url"], "https://stay.example/s/tokyo/homes?checkin&adults");
+        assert!(!sent.to_string().contains("2026-12-01"));
+    }
+
+    /// An endpoint that refuses, or answers with no answers to read, gives no answer: the rule decides.
+    #[test]
+    fn a_refusing_or_unreadable_endpoint_gives_no_answer() {
+        let (judge, heard) = heard_gateway(503, r#"{"error":"busy"}"#.to_string());
+        assert!(judge.ask(Judgment::Relevant { rows: &rows() }).is_none());
+        assert!(judge.ask_inputs("x", "https://shop.example/a", &["a".to_string()]).is_none());
+        assert_eq!(heard.lock().unwrap().len(), 2, "each was asked once");
+        let (judge, _) = heard_gateway(200, "not json".to_string());
+        assert!(judge.ask(Judgment::Origin { value: "v", candidates: &["a".to_string()] }).is_none());
+        let (judge, _) = heard_gateway(200, r#"{"answers":{"goal":{"type":"choice"}}}"#.to_string());
+        assert!(judge.ask(Judgment::GoalRequest { goal: "list products", candidates: &rows() }).is_none(), "a choice that names nothing");
+    }
 }

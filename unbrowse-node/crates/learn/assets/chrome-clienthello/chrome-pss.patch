@@ -1,0 +1,54 @@
+diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
+--- a/include/openssl/ssl.h
++++ b/include/openssl/ssl.h
+@@ -1141,7 +1141,10 @@
+ #define SSL_SIGN_ECDSA_SECP256R1_SHA256 0x0403
+ #define SSL_SIGN_ECDSA_SECP384R1_SHA384 0x0503
+ #define SSL_SIGN_ECDSA_SECP521R1_SHA512 0x0603
+ #define SSL_SIGN_RSA_PSS_RSAE_SHA256 0x0804
+ #define SSL_SIGN_RSA_PSS_RSAE_SHA384 0x0805
+ #define SSL_SIGN_RSA_PSS_RSAE_SHA512 0x0806
++#define SSL_SIGN_RSA_PSS_PSS_SHA256 0x0904
++#define SSL_SIGN_RSA_PSS_PSS_SHA384 0x0905
++#define SSL_SIGN_RSA_PSS_PSS_SHA512 0x0906
+ #define SSL_SIGN_ED25519 0x0807
+diff --git a/ssl/ssl_privkey.cc b/ssl/ssl_privkey.cc
+--- a/ssl/ssl_privkey.cc
++++ b/ssl/ssl_privkey.cc
+@@ -35,4 +35,4 @@
+ bool ssl_is_key_type_supported(int key_type) {
+-  return key_type == EVP_PKEY_RSA || key_type == EVP_PKEY_EC ||
+-         key_type == EVP_PKEY_ED25519;
++  return key_type == EVP_PKEY_RSA || key_type == EVP_PKEY_RSA_PSS ||
++         key_type == EVP_PKEY_EC || key_type == EVP_PKEY_ED25519;
+ }
+@@ -81,5 +81,21 @@
+     {SSL_SIGN_RSA_PSS_RSAE_SHA512, EVP_PKEY_RSA, NID_undef, &EVP_sha512,
+      /*is_rsa_pss=*/true, /*tls12_ok=*/true, /*tls13_ok=*/true,
+      /*client_only=*/false},
+ 
++    // RSASSA-PSS with an id-RSASSA-PSS certificate key: the code points Chrome
++    // offers (0x0904..0x0906). A door binds its clearance to the ClientHello
++    // that earned it, and the browser offers these; a transport that cannot
++    // offer them presents a JA4 the browser does not have, and the clearance
++    // is refused on replay. Additive: nothing selects them unless asked for
++    // by name in a sigalgs list.
++    {SSL_SIGN_RSA_PSS_PSS_SHA256, EVP_PKEY_RSA_PSS, NID_undef, &EVP_sha256,
++     /*is_rsa_pss=*/true, /*tls12_ok=*/true, /*tls13_ok=*/true,
++     /*client_only=*/false},
++    {SSL_SIGN_RSA_PSS_PSS_SHA384, EVP_PKEY_RSA_PSS, NID_undef, &EVP_sha384,
++     /*is_rsa_pss=*/true, /*tls12_ok=*/true, /*tls13_ok=*/true,
++     /*client_only=*/false},
++    {SSL_SIGN_RSA_PSS_PSS_SHA512, EVP_PKEY_RSA_PSS, NID_undef, &EVP_sha512,
++     /*is_rsa_pss=*/true, /*tls12_ok=*/true, /*tls13_ok=*/true,
++     /*client_only=*/false},
++
+     {SSL_SIGN_ECDSA_SHA1, EVP_PKEY_EC, NID_undef, &EVP_sha1,
+@@ -479,4 +495,7 @@
+     {SSL_SIGN_RSA_PSS_RSAE_SHA256, "rsa_pss_rsae_sha256"},
+     {SSL_SIGN_RSA_PSS_RSAE_SHA384, "rsa_pss_rsae_sha384"},
+     {SSL_SIGN_RSA_PSS_RSAE_SHA512, "rsa_pss_rsae_sha512"},
++    {SSL_SIGN_RSA_PSS_PSS_SHA256, "rsa_pss_pss_sha256"},
++    {SSL_SIGN_RSA_PSS_PSS_SHA384, "rsa_pss_pss_sha384"},
++    {SSL_SIGN_RSA_PSS_PSS_SHA512, "rsa_pss_pss_sha512"},
+     {SSL_SIGN_ED25519, "ed25519"},

@@ -70,6 +70,7 @@ details summary{cursor:pointer;color:var(--mute)}
     <button data-view="all" aria-pressed="true" title="1">All routes</button>
     <button data-view="one" aria-pressed="false" title="2">One route</button>
     <button data-view="side" aria-pressed="false" title="3">Side by side</button>
+    <button data-view="sites" aria-pressed="false" title="4">Across routes</button>
     <label>group <select id="group" aria-label="Group of routes"></select></label>
     <label id="routeL">route <select id="route" aria-label="Route"></select></label>
     <span id="sideCtl"></span>
@@ -581,7 +582,7 @@ function LEG() { return (S.legends && S.legends[UI.group]) || S.legend || {}; }
 function frame() {
   const c = counts();
   $('flags').innerHTML = '<span class="mute small">findings</span>' + (S.levels || []).map(lv => `<button class="flag" data-only="${lv}" aria-pressed="${UI.only === lv}" title="route-xray.py's findings at ${lv}. Click: only routes with one."><span class="lv lv-${lv}">${lv}</span> <b>${c[lv] || 0}</b></button>`).join('') +
-    '<span class="mute small">flags</span>' + S.flags.map(([k, name, why]) => `<button class="flag" data-only="${k}" aria-pressed="${UI.only === k}" title="${E(why)}. Click: only routes with it."><span class="mark m-${k}">${FLAGMARK[k]}</span>${E(name)} <b>${c[k] || 0}</b></button>`).join('');
+    graphCounts() + '<span class="mute small">flags</span>' + S.flags.map(([k, name, why]) => `<button class="flag" data-only="${k}" aria-pressed="${UI.only === k}" title="${E(why)}. Click: only routes with it."><span class="mark m-${k}">${FLAGMARK[k]}</span>${E(name)} <b>${c[k] || 0}</b></button>`).join('');
   // The cost strip: what each home of the group cost, against its budgets (docs/PERFORMANCE.md); a field over budget is red.
   const cost = (S.cost && S.cost[UI.group]) || [];
   $('flags').innerHTML += '<span class="mute small">cost</span>' + cost.map(k => { const over = new Set((k.over || []).map(o => o.field)); const f = (n, v, t) => `<span class="small" style="${over.has(n) ? 'color:var(--bad);font-weight:700' : ''}" title="${E(t + ((k.over || []).find(o => o.field === n) ? ' — over its budget of ' + k.over.find(o => o.field === n).budget : ''))}">${v}</span>`;
@@ -626,7 +627,7 @@ function render() {
   if (!UI.sideA) UI.sideA = UI.group;
   if (!UI.sideB) UI.sideB = (S.groups[1] || S.groups[0] || {}).key;
   const sx = window.scrollX, sy = window.scrollY;
-  const body = UI.view === 'one' ? viewOne() : UI.view === 'side' ? viewSide() : viewAll();
+  const body = UI.view === 'one' ? viewOne() : UI.view === 'side' ? viewSide() : UI.view === 'sites' ? viewSites() : viewAll();
   frame();  // after the view has chosen its route, so the counts at the top are those of what is drawn
   $('view').innerHTML = body;
   window.scrollTo(sx, sy);
@@ -634,6 +635,78 @@ function render() {
   if (S.groups.length) toHash();
   $('filter').value = UI.filter;
   $('status').textContent = (LIVE ? ' · live, ' : ' · snapshot, ') + 'read ' + new Date(S.now * 1000).toLocaleTimeString();
+}
+
+// ---------------------------------------------------------------------------------------------- across routes
+// The graph across the routes of a home (route_graph.py). The overview carries its counts and a line a site; a site's
+// routes and edges are fetched from /graph only when the site is opened, and again only when the group's version moved.
+const GKIND = {cookie: 'var(--session)', session: 'var(--caller)', door: 'var(--bad)', setup: 'var(--person)', stored: 'var(--storage)', feeds: 'var(--mute)'};
+const GSITE = new Map();  // group|site -> [version, graph]
+function GR() { return S.graph || {counts: {}, sites: []}; }
+function graphCounts() {
+  const c = GR().counts || {}; if (!S.graph) return '';
+  const cat = GR().catalogue || {};
+  return '<span class="mute small">across routes</span>' + ['cookie', 'session', 'door', 'setup', 'stored', 'feeds'].map(k => `<span class="flag" title="edges of kind ${k}"><span class="chip" style="background:${GKIND[k]}"></span>${k} <b>${c['edges:' + k] || 0}</b></span>`).join('') +
+    `<span class="flag" title="one call carried by several routes">same step <b>${c.same_step_groups || 0}</b></span><span class="flag" title="routes naming one script's SHA">same script <b>${c.same_script_groups || 0}</b></span><span class="flag" title="cycles over the edges that are dependencies">cycles <b>${c.cycles || 0}</b></span>` +
+    Object.keys(cat).map(k => `<span class="flag" title="${E(cat[k][2])}"><span class="lv lv-${cat[k][0]}">${E(k)}</span> <b>${c['finding:' + k] || 0}</b></span>`).join('');
+}
+function viewSites() {
+  const gr = GR();
+  if (!S.graph) return '<div class="empty">This page was not served with the graph across routes.</div>';
+  const f = UI.filter.toLowerCase(), all = gr.sites.filter(x => !f || x.site.includes(f));
+  const per = PAGE, page = all.slice(UI.page * per, UI.page * per + per);
+  const rows = page.map(x => `<tr><td><a href="#" data-site="${E(x.site)}">${E(x.site)}</a></td><td style="text-align:right">${x.routes}</td><td style="text-align:right">${x.edges}</td><td style="text-align:right">${x.findings}</td></tr>`).join('');
+  const open = UI.site ? siteHtml(UI.site) : '<p class="small mute">Open a site to draw its routes and the edges between them.</p>';
+  return `<p class="small mute">A site is read as ${E(gr.site_rule)}. Every edge is read from the two routes' own files; nothing is stored.</p>` + open +
+    `<table><tr><th>site</th><th>routes</th><th>edges</th><th>findings</th></tr>${rows}</table>` + pager(all.length, per);
+}
+function siteGraph(site) { const h = GSITE.get(UI.group + '|' + site); return h ? h[1] : null; }
+async function openSite(site) {
+  UI.site = site; UI.view = 'sites';
+  const k = UI.group + '|' + site, v = VERS[UI.group];
+  const h = GSITE.get(k);
+  if (LIVE && (!h || h[0] !== v)) {
+    const d = await (await fetch('/graph?group=' + encodeURIComponent(UI.group) + '&site=' + encodeURIComponent(site))).json();
+    GSITE.set(k, [v, d]);
+  }
+  render();
+}
+function nodeName(g, key) { const n = g.nodes.find(n => n.key === key); return n ? cut(n.what || n.id, 30) : key; }
+function siteHtml(site) {
+  const g = siteGraph(site);
+  if (!g) return `<div class="empty">${LIVE ? 'Reading ' + E(site) + '…' : 'A snapshot carries no site graph: serve the page.'}</div>`;
+  const keys = g.nodes.map(n => n.key).concat((g.doors || []).map(d => d.key)), N = keys.length;
+  const W = 640, H = Math.max(220, Math.min(640, 60 + N * 16)), cx = W / 2, cy = H / 2, R = Math.min(cx, cy) - 40;
+  const at = {}; keys.forEach((k, i) => { const a = 2 * Math.PI * i / Math.max(1, N) - Math.PI / 2; at[k] = [cx + R * Math.cos(a), cy + R * Math.sin(a)]; });
+  const lines = g.edges.map((e, i) => { const [x1, y1] = at[e.from], [x2, y2] = at[e.to]; return `<line data-gedge="${i}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${GKIND[e.kind] || 'var(--mute)'}" stroke-width="${e.kind === 'feeds' ? 1 : 2.5}" ${e.kind === 'feeds' ? 'stroke-dasharray="4 3"' : ''} marker-end="url(#ah)" style="cursor:pointer"><title>${E(e.kind + ': ' + e.names.join(', '))}</title></line>`; }).join('');
+  const dots = keys.map(k => { const n = g.nodes.find(n => n.key === k), [x, y] = at[k]; const col = !n ? 'var(--bad)' : n.state === 'failing' ? 'var(--bad)' : n.state === 'provisional' ? 'var(--warn)' : 'var(--answer)';
+    return `<g data-gnode="${E(k)}" style="cursor:pointer"><circle cx="${x}" cy="${y}" r="7" fill="${col}"${n && n.findings.length ? ' stroke="var(--bad)" stroke-width="2"' : ''}></circle><text x="${x + 10}" y="${y + 4}" font-size="11" fill="currentColor">${E(n ? cut(n.what || n.id, 28) : k.startsWith('setup:') ? 'kept ' + k.split(':')[2] : 'the door')}</text></g>`; }).join('');
+  const svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${W}px" role="img" aria-label="${E(site)}: routes and edges"><defs><marker id="ah" viewBox="0 0 10 10" refX="16" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--mute)"></path></marker></defs>${lines}${dots}</svg>`;
+  const steps = g.same_step.map(x => `<li><code>${E(x.key.method)} ${E(x.key.site + x.key.shape)}</code> in ${x.n} routes: ${x.routes.map(r => `<a href="#" data-one="${E(r)}">${E(nodeName(g, r))}</a> #${x.steps[r]}`).join(', ')}</li>`).join('');
+  const scripts = g.same_script.map(x => `<li>script <code>${E(x.key.sha256.slice(0, 12))}…</code> in ${x.n} routes: ${x.routes.map(r => `<a href="#" data-one="${E(r)}">${E(nodeName(g, r))}</a>`).join(', ')}</li>`).join('');
+  const fs = g.nodes.flatMap(n => n.findings.map(f => `<li><span class="lv lv-${f.level}">${E(f.id)}</span> <a href="#" data-one="${E(n.key)}">${E(nodeName(g, n.key))}</a>: ${E(f.evidence)}</li>`)).join('');
+  return `<div class="card"><h3>${E(site)} <span class="mute small">${g.nodes.length} route(s), ${g.edges.length} edge(s), ${g.cycles.length} cycle(s). Click an edge for the two routes' holes, a route for what it gives and takes.</span></h3>${svg}` +
+    `<div class="leg">${Object.entries(GKIND).map(([k, c]) => `<span><span class="sw" style="background:${c}"></span>${k}</span>`).join('')}<span>dot: green passing · amber provisional · red failing or the door</span></div>` +
+    (fs ? `<h4>Findings</h4><ul class="small">${fs}</ul>` : '') + (steps ? `<h4>The same step in several routes</h4><ul class="small">${steps}</ul>` : '') + (scripts ? `<h4>The same script</h4><ul class="small">${scripts}</ul>` : '') +
+    (g.costs && g.costs.same_step.length ? `<h4>What the shared steps cost</h4><table class="small"><tr><th>step</th><th>routes</th><th>sent today</th><th>once per lifetime</th><th>why</th></tr>${g.costs.same_step.map(c => `<tr><td><code>${E(c.key.method + ' ' + c.key.shape)}</code></td><td>${c.carriers}</td><td>${c.today}</td><td>${c.once_per_lifetime != null ? c.once_per_lifetime : c.at_least != null ? c.at_least + '–' + c.today : '—'}</td><td class="mute">${E(c.why || '')}</td></tr>`).join('')}</table>` : '') +
+    (g.cycles.length ? `<h4>Cycles</h4><ul class="small">${g.cycles.map(c => '<li>' + c.map(k => E(nodeName(g, k))).join(' → ') + '</li>').join('')}</ul>` : '') +
+    `<details><summary>what the files do not record</summary><ul class="small">${g.not_recorded.map(x => '<li>' + E(x) + '</li>').join('')}</ul></details></div>`;
+}
+function thingRow(x) { return `<tr><td>${E(x.kind)}</td><td><code>${E(x.name)}</code></td><td>${(x.steps || []).map(n => '#' + n).join(' ')}</td><td class="small mute">${E(x.place || x.why || '')}${x.how ? ' (' + E(x.how) + ')' : ''}</td></tr>`; }
+function openEdge(i) {
+  const g = siteGraph(UI.site); if (!g) return; const e = g.edges[i];
+  const ev = e.evidence.map(x => `<tr><td><code>${E(x.name)}</code></td><td>${x.giver_step == null ? '' : '#' + x.giver_step} ${E(x.why || '')}</td><td>#${E(x.taker_step)} ${E(x.at || '')}${x.how ? ' (' + E(x.how) + ')' : ''}</td></tr>`).join('');
+  $('dbody').innerHTML = `<h3>${E(e.kind)} edge</h3><p><a href="#" data-one="${E(e.from)}">${E(nodeName(g, e.from))}</a> gives what <a href="#" data-one="${E(e.to)}">${E(nodeName(g, e.to))}</a> takes${e.same_jar === false ? ' — <b>in another jar</b>: the given cookie does not reach this taker today' : ''}.</p>` +
+    `<table><tr><th>name</th><th>the giver's step</th><th>the taker's hole</th></tr>${ev}</table>`;
+  $('drawer').classList.add('on');
+}
+function openGNode(k) {
+  const g = siteGraph(UI.site); if (!g) return; const n = g.nodes.find(n => n.key === k);
+  if (!n) { const d = (g.doors || []).find(d => d.key === k) || {}; $('dbody').innerHTML = d.kind === 'setup' ? `<h3>The ${E(d.setup === 'sign_in' ? 'sign-in' : 'choice')} kept for ${E(d.site)}</h3><p>Done in the site's browser; ${d.setup === 'sign_in' ? 'it gives the session' : 'it earns ' + E((d.credential || []).join(', ') || 'no named cookie')}.</p>` : `<h3>The door of ${E(d.site)}</h3><p>Met by ${(d.met_by || []).length} route(s); it issues ${E((d.credential || []).join(', ') || 'no named credential')}; earned by ${E((d.earn || []).join(', ') || 'the browser')}.</p>`; $('drawer').classList.add('on'); return; }
+  $('dbody').innerHTML = `<h3>${E(n.what || n.id)} <span class="tag">${E(n.state)}</span></h3><p><a href="#" data-one="${E(n.key)}">open its holes</a></p>` +
+    `<h4>Gives</h4><table>${n.gives.map(thingRow).join('') || '<tr><td class="mute">nothing a route records</td></tr>'}</table><h4>Takes</h4><table>${n.takes.filter(x => !x.outside).map(thingRow).join('') || '<tr><td class="mute">nothing another route gives</td></tr>'}</table>` +
+    (n.takes.some(x => x.outside) ? `<h4>From outside the home</h4><p class="small mute">the jar, the mint or a person: nothing in the home gives these</p><table>${n.takes.filter(x => x.outside).map(thingRow).join('')}</table>` : '');
+  $('drawer').classList.add('on');
 }
 
 // ---------------------------------------------------------------------------------------------- live
@@ -668,6 +741,8 @@ setInterval(() => { // let a lit hole go dark again
 
 // ---------------------------------------------------------------------------------------------- input
 document.addEventListener('click', ev => {
+  const g = ev.target.closest('[data-site],[data-gedge],[data-gnode]');
+  if (g) { ev.preventDefault(); if (g.dataset.site !== undefined) return openSite(g.dataset.site); if (g.dataset.gedge !== undefined) return openEdge(+g.dataset.gedge); return openGNode(g.dataset.gnode); }
   const t = ev.target.closest('[data-view],[data-hole],[data-fold],[data-one],[data-only],[data-finding],[data-stepf],[data-pickf],[data-page],[data-expand],[data-more],[data-wire],#close,#theme');
   if (!t) return;
   if (t.dataset.wire) { ev.preventDefault(); return openWire(t.dataset.wire); }
@@ -689,7 +764,7 @@ document.addEventListener('keydown', ev => {
   if (ev.key === 'Escape') { $('drawer').classList.remove('on'); return; }
   if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.closest && ev.target.closest('[data-hole],[data-fold],[data-one]')) { ev.preventDefault(); ev.target.closest('[data-hole],[data-fold],[data-one]').dispatchEvent(new MouseEvent('click', {bubbles: true})); return; }
   if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT') return;
-  if (ev.key === '1' || ev.key === '2' || ev.key === '3') { UI.view = ['all', 'one', 'side'][+ev.key - 1]; go(); }
+  if (ev.key >= '1' && ev.key <= '4') { UI.view = ['all', 'one', 'side', 'sites'][+ev.key - 1]; go(); }
 });
 document.addEventListener('change', ev => {
   const id = ev.target.id;
@@ -713,10 +788,10 @@ async function go() {
 }
 function fromHash() {
   const q = new URLSearchParams(location.hash.slice(1));
-  for (const k of ['view', 'group', 'route', 'sideMode', 'sideA', 'sideB', 'filter', 'only', 'hole']) if (q.get(k)) UI[k] = q.get(k);
+  for (const k of ['view', 'group', 'route', 'sideMode', 'sideA', 'sideB', 'filter', 'only', 'hole', 'site']) if (q.get(k)) UI[k] = q.get(k);
 }
 function toHash() {
-  const q = new URLSearchParams(); for (const k of ['view', 'group', 'route', 'sideMode', 'sideA', 'sideB', 'filter', 'only']) if (UI[k]) q.set(k, UI[k]);
+  const q = new URLSearchParams(); for (const k of ['view', 'group', 'route', 'sideMode', 'sideA', 'sideB', 'filter', 'only', 'site']) if (UI[k]) q.set(k, UI[k]);
   history.replaceState(null, '', '#' + q);
 }
 (async () => {

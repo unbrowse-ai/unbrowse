@@ -47,14 +47,14 @@ test('a reply holding the data answers; a page that needs hands or a failed call
   expect(failedRoute(CALLED)).toBe(false)
 })
 
-test('the receipt says how, where, how long, what was paid and the tokens not read', () => {
+test('the receipt says how, where, how long, what was paid and the tokens saved', () => {
   const r = receiptFrom(CALLED, 'https://hn.algolia.com/?q=rust', 'webfetch')!
   expect(r.site).toBe('hn.algolia.com')
   expect(r.answerChars).toBe(JSON.stringify(CALLED.result.data).length)
   expect(cardText(r).rest).toBe('hn.algolia.com · hn-search · 84 ms · no browser · free · in place of WebFetch')
   const measured = { ...r, pageChars: 400_000 }
   expect(savedTokens(measured)).toBe(Math.round((400_000 - r.answerChars) / 4))
-  expect(cardText(measured).rest).toContain('≈100k tokens not read')
+  expect(cardText(measured).rest).toContain('≈100k tokens saved')
   expect(cardText(receiptFrom(NETWORK, 'https://example.com/x', 'tool')!).rest).toBe('example.com · net-7 · 120 ms · no browser · paid $0.002')
 })
 
@@ -204,7 +204,7 @@ test('a receipt card sits under Claude\'s own unbrowse_do call', async ($, on) =
   }
 })
 
-test('the band shows calls, payments and tokens not read', async ($, on) => {
+test('the band shows calls, payments and tokens saved', async ($, on) => {
   const l: Ledger = { calls: 12, browserless: 11, paidUsdc: 0.004, answerChars: 9_000, measuredPageChars: 1_000_000, measuredAnswerChars: 8_000, since: 1 }
   on('state.get', ((_: unknown, e: { key: string }) => {
     if (e.key === 'session') return { value: { value: { shape: 'ledger-1', value: l }, version: 1 } }
@@ -219,7 +219,7 @@ test('the band shows calls, payments and tokens not read', async ($, on) => {
   expect(all).toContain('12 calls')
   expect(all).toContain('11 no browser')
   expect(all).toContain('paid $0.004')
-  expect(all).toContain('≈248k tokens not read')
+  expect(all).toContain('≈248k tokens saved')
   expect(all).toContain('286 routes')
   await ui.unmount()
 })

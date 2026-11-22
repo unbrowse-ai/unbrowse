@@ -14,6 +14,12 @@
 //! (`unbrowse-telemetry/schema.json` holds both sides' copy). No URL, host, page, body, cookie, credential, passkey,
 //! vault entry, name or address can be one of those values.
 //!
+//! `node_start` alone may also carry `from`: the source tag the node was first started with (`unbrowse start --from
+//! <tag>` or `UNBROWSE_FROM`), such as `hn-c`. The tag is chosen by whoever wrote the install line, is visible in it,
+//! and is shared by everyone who copied that line: it says where an install came from, never who made it. The first
+//! tag seen is kept in `from.json` and never replaced ([`keep_from`]); a tag of any other shape ([`is_from`]) is ignored
+//! with a warning.
+//!
 //! It never holds anything up. Recording is a non-blocking push onto a queue of [`BUFFER`] events; when the queue is
 //! full the event is dropped. One thread sends what's queued in batches, each with a short timeout and no retry: a
 //! batch the worker didn't take is dropped, so a worker that is down, slow or refusing costs a dropped batch and
@@ -34,7 +40,11 @@ use crate::store;
 pub const ENDPOINT: &str = "https://telemetry.unbrowse.ai/v1/events";
 
 /// Every field an event may carry. Anything else is refused here and at the worker.
-pub const FIELDS: &[&str] = &["event", "version", "os", "install_id", "tool", "outcome", "duration_ms", "error_class"];
+pub const FIELDS: &[&str] = &["event", "version", "os", "install_id", "tool", "outcome", "duration_ms", "error_class", "from"];
+/// The one event that may carry `from`.
+pub const FROM_EVENT: &str = "node_start";
+/// The longest source tag.
+pub const FROM_MAX: usize = 40;
 /// The fields every event carries.
 const REQUIRED: &[&str] = &["event", "version", "os", "install_id", "outcome"];
 pub const EVENTS: &[&str] = &["node_start", "tool_call", "route_failed", "fetch_failed"];
@@ -106,6 +116,9 @@ pub struct Event {
     pub duration_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error_class: Option<&'static str>,
+    /// The source tag, on `node_start` only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
 }
 
 /// Whether a value looks like an address of any kind: a URL, a host name, a host and port, an email or an IP
@@ -135,18 +148,29 @@ pub fn is_version(s: &str) -> bool {
         && pre.is_none_or(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-'))
 }
 
+/// A source tag's shape: `^[a-z0-9][a-z0-9-]{0,39}$`, a lowercase letter or digit, then up to 39 more of those or dashes.
+pub fn is_from(s: &str) -> bool {
+    let mut chars = s.chars();
+    chars.next().is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        && s.len() <= FROM_MAX
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
 fn is_install_id(s: &str) -> bool {
     s.len() == 32 && s.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f'))
 }
 
 /// Checks an event as it will be sent: only the allowed fields, every required one, every value from its list or of
-/// its shape, nothing that looks like an address.
+/// its shape, nothing that looks like an address. `from` goes on `node_start` alone.
 pub fn check(v: &Value) -> Result<(), String> {
     let o = v.as_object().ok_or("an event is an object")?;
     for k in o.keys() {
         if !FIELDS.contains(&k.as_str()) {
             return Err(format!("field not allowed: {k}"));
         }
+    }
+    if o.contains_key("from") && o.get("event").and_then(Value::as_str) != Some(FROM_EVENT) {
+        return Err(format!("from goes on {FROM_EVENT} only"));
     }
     for k in REQUIRED {
         if !o.contains_key(*k) {
@@ -172,6 +196,7 @@ pub fn check(v: &Value) -> Result<(), String> {
             "os" => OSES.contains(&s),
             "version" => is_version(s),
             "install_id" => is_install_id(s),
+            "from" => is_from(s),
             _ => false,
         };
         if !fits {
@@ -259,8 +284,9 @@ pub fn outcome(r: &Result<Value, (StatusCode, String)>) -> (&'static str, Option
 
 // ---- the owner's choice ----
 
-/// What `telemetry.json` keeps: whether it's on, and a random id for this install that is drawn once and tied to
-/// nothing else (not the identity, the wallet, the machine or its name).
+/// What `telemetry.json` keeps: whether it's on, and a random id for this install that is drawn once and names no
+/// person, machine or name. Linking a wallet sends it with that wallet on the node's signed events to the site
+/// (`link::tell`), which joins this install's counts to the wallet; the telemetry events themselves never carry one.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Saved {
     pub on: bool,
@@ -273,6 +299,53 @@ pub struct Saved {
 
 fn path() -> std::path::PathBuf {
     store::home().join("telemetry.json")
+}
+
+/// What `from.json` keeps: the first source tag the node was started with.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FromTag {
+    pub from: String,
+}
+
+fn from_path() -> std::path::PathBuf {
+    store::home().join("from.json")
+}
+
+/// The source tag a start offers, from `--from` (which wins) or `UNBROWSE_FROM`, and a one-line warning when what was
+/// given is not a tag. An empty `UNBROWSE_FROM` is no tag, not a wrong one.
+pub fn offered_from(arg: Option<&str>, env: Option<&str>) -> (Option<String>, Option<String>) {
+    let (given, by) = match (arg, env.filter(|e| !e.trim().is_empty())) {
+        (Some(a), _) => (a, "--from"),
+        (None, Some(e)) => (e, "UNBROWSE_FROM"),
+        (None, None) => return (None, None),
+    };
+    if is_from(given) {
+        (Some(given.to_string()), None)
+    } else {
+        let shown: String = given.chars().take(FROM_MAX).collect();
+        (None, Some(format!("unbrowse-node: {by} {shown:?} ignored: a source tag is 1 to {FROM_MAX} lowercase letters, digits and dashes, starting with a letter or digit")))
+    }
+}
+
+/// The source tag this node keeps: the first one it was ever given, kept in `path`. A later tag never replaces it. A
+/// kept file that doesn't read (damaged, or a newer node's) is left as it is, and no tag is sent.
+pub fn keep_from(path: &std::path::Path, offered: Option<&str>) -> Option<String> {
+    match unbrowse_files::FROM.read_at::<FromTag>(path) {
+        Ok(Some(kept)) if is_from(&kept.from) => Some(kept.from),
+        Ok(Some(_)) => None,
+        Ok(None) => {
+            let tag = offered.filter(|t| is_from(t))?;
+            let kept = FromTag { from: tag.to_string() };
+            if let Err(e) = store::write_json(path, &unbrowse_files::FROM, &kept) {
+                eprintln!("unbrowse-node: keeping the source tag: {e}");
+            }
+            Some(kept.from)
+        }
+        Err(r) => {
+            eprintln!("{}", r.message(path));
+            None
+        }
+    }
 }
 
 fn new_install_id() -> String {
@@ -302,7 +375,7 @@ pub fn load_or_create(path: &std::path::Path) -> (Saved, bool) {
     }
 }
 
-/// This install's random id, made on first use (bug reports use it for the relay's daily count, never to name you).
+/// This install's random id, made on first use. Bug reports use it for the relay's daily count; a linked node's events to the site (`link::tell`) carry it, so the owner's sign-in joins it to their wallet (UNB-179).
 pub fn install_id() -> String {
     load_or_create(&path()).0.install_id
 }
@@ -345,9 +418,11 @@ pub fn decide(env: Option<bool>, saved_on: bool, dev: bool) -> bool {
 }
 
 /// What's sent, in one line, for the first-run notice and `unbrowse-node telemetry`.
-pub const WHAT: &str = "which agent tool ran, whether it worked, how long it took, how a route call or a paid fetch failed (its kind of \
-failure alone), the node's version and OS, and a random install id. \
-Never a URL, site, page, request or answer, cookie, password, passkey, vault entry, name or IP address";
+pub const WHAT: &str = "which agent tool ran, whether it worked, how long it took, how a route call or a paid fetch failed (its kind \
+of failure alone), the node's version and OS, a random install id drawn once that names no person (though \
+linking a wallet sends it with that wallet to the website, joining this install's counts to that wallet), and \
+on start the source tag the node was first started with (`--from`), if any. Never a URL, site, page, request \
+or answer, cookie, password, passkey, vault entry, name or IP address";
 pub const HOW_TO_STOP: &str = "turn it off with `unbrowse-node telemetry off` or UNBROWSE_TELEMETRY=0";
 
 /// `unbrowse-node telemetry [on|off]`.
@@ -420,6 +495,8 @@ pub struct Telemetry {
     queue: Option<SyncSender<Event>>,
     version: String,
     install_id: String,
+    /// The kept source tag, sent on `node_start`.
+    from: Option<String>,
     /// Events dropped because the queue was full or the sender had stopped.
     pub dropped: AtomicU64,
 }
@@ -427,7 +504,7 @@ pub struct Telemetry {
 impl Telemetry {
     /// Sends nothing.
     pub fn off() -> Self {
-        Self { queue: None, version: String::new(), install_id: String::new(), dropped: AtomicU64::new(0) }
+        Self { queue: None, version: String::new(), install_id: String::new(), from: None, dropped: AtomicU64::new(0) }
     }
 
     /// On, with its sender running; or off, with nothing started.
@@ -441,8 +518,15 @@ impl Telemetry {
             queue: started.is_ok().then_some(tx),
             version: version.into(),
             install_id: install_id.into(),
+            from: None,
             dropped: AtomicU64::new(0),
         }
+    }
+
+    /// The same, sending `from` on `node_start`.
+    pub fn with_from(mut self, from: Option<String>) -> Self {
+        self.from = from;
+        self
     }
 
     pub fn on(&self) -> bool {
@@ -461,6 +545,7 @@ impl Telemetry {
             outcome,
             duration_ms: took.map(|d| (d.as_millis() as u64).min(MAX_MS)),
             error_class: class,
+            from: if event == FROM_EVENT { self.from.clone() } else { None },
         };
         if serde_json::to_value(&e).ok().is_none_or(|v| check(&v).is_err()) {
             return;
@@ -520,11 +605,17 @@ fn ship(rx: mpsc::Receiver<Event>, config: Config) {
 static GLOBAL: OnceLock<Telemetry> = OnceLock::new();
 
 /// Starts the node's telemetry from the owner's choice, and says on stderr whether it's on, what it sends and how to
-/// turn it off: in full the first time, in a line after that.
-pub fn start(version: &str, dev: bool) {
+/// turn it off: in full the first time, in a line after that. `from` is the source tag the start was given (`--from`),
+/// else `UNBROWSE_FROM`'s; the first ever given is kept, whether telemetry is on or not.
+pub fn start(version: &str, dev: bool, from: Option<&str>) {
+    let (offered, warning) = offered_from(from, std::env::var("UNBROWSE_FROM").ok().as_deref());
+    if let Some(w) = warning {
+        eprintln!("{w}");
+    }
+    let from = keep_from(&from_path(), offered.as_deref());
     let (mut saved, _) = load_or_create(&path());
     let on = decide(env_choice(std::env::var("UNBROWSE_TELEMETRY").ok().as_deref()), saved.on, dev);
-    let t = Telemetry::new(on, &saved.install_id, version, Config::default());
+    let t = Telemetry::new(on, &saved.install_id, version, Config::default()).with_from(from);
     if t.on() {
         if !saved.told {
             eprintln!("telemetry: while the node is on the network, it sends Unbrowse usage counts: {WHAT}. Off the network it sends nothing.");
@@ -672,14 +763,110 @@ mod tests {
             outcome: "error",
             duration_ms: Some(3),
             error_class: Some("not_found"),
+            from: None,
         })
         .unwrap();
         assert_eq!(check(&sent), Ok(()));
-        let mut keys: Vec<&str> = sent.as_object().unwrap().keys().map(String::as_str).collect();
+        // With `from`, which only a start carries, that is every field.
+        let mut keys: Vec<&str> = sent.as_object().unwrap().keys().map(String::as_str).chain(["from"]).collect();
         keys.sort();
         let mut fields = FIELDS.to_vec();
         fields.sort();
         assert_eq!(keys, fields);
+    }
+
+    #[test]
+    fn a_source_tag_has_one_shape() {
+        for ok in ["hn", "hn-c", "x", "0", "ai-chatgpt-b", "door-7", "a-", &"a".repeat(40)] {
+            assert!(is_from(ok), "{ok}");
+        }
+        for bad in [
+            "",
+            "-hn",
+            "HN",
+            // An upper-case first letter alone: the first character has its own check.
+            "H",
+            "Hn",
+            "hn_c",
+            "hn.c",
+            "hn c",
+            "hn.com",
+            "lewis@unbrowse.ai",
+            "https://x.com",
+            "10.0.0.1",
+            "é",
+            &"a".repeat(41),
+        ] {
+            assert!(!is_from(bad), "{bad:?}");
+        }
+    }
+
+    /// `from` goes on `node_start` and nowhere else, and only in a tag's shape.
+    #[test]
+    fn from_rides_on_node_start_only() {
+        let start = json!({ "event": "node_start", "version": "1.4.2", "os": "linux", "install_id": ID, "outcome": "ok", "from": "hn-c" });
+        assert_eq!(check(&start), Ok(()));
+        let mut e = event();
+        e["from"] = json!("hn-c");
+        assert_eq!(check(&e), Err("from goes on node_start only".into()));
+        for (bad, why) in [("hn.example.com", "from looks like an address"), ("lewis@unbrowse.ai", "from looks like an address"), ("HN", "from is not an allowed value"), ("hn_c", "from is not an allowed value")] {
+            let mut s = start.clone();
+            s["from"] = json!(bad);
+            assert_eq!(check(&s), Err(why.into()), "{bad}");
+        }
+        let mut s = start.clone();
+        s["from"] = json!(7);
+        assert!(check(&s).is_err());
+
+        // Sent as the node records it: on its start, not on its calls.
+        let (url, got) = worker();
+        let t = Telemetry::new(true, ID, "1.4.2", fast(url)).with_from(Some("hn-c".into()));
+        t.record("node_start", None, "ok", None, None);
+        t.tool_call("unbrowse_do", Duration::from_millis(5), &Ok(json!({ "ok": true })));
+        t.failed_use(false, None, "door");
+        wait_for(&got, 1);
+        let got = got.locked();
+        let events: Vec<&Value> = got.iter().flat_map(|b| b["events"].as_array().unwrap()).collect();
+        assert_eq!(events.len(), 3, "{events:?}");
+        for e in &events {
+            assert_eq!(check(e), Ok(()));
+            assert_eq!(e.get("from").and_then(Value::as_str), (e["event"] == "node_start").then_some("hn-c"), "{e}");
+        }
+    }
+
+    /// `--from` wins over `UNBROWSE_FROM`; anything not in a tag's shape is ignored, with a line saying why.
+    #[test]
+    fn a_wrong_tag_is_ignored_with_a_warning() {
+        assert_eq!(offered_from(Some("hn-c"), Some("x")), (Some("hn-c".into()), None));
+        assert_eq!(offered_from(None, Some("reddit")), (Some("reddit".into()), None));
+        assert_eq!(offered_from(None, None), (None, None));
+        assert_eq!(offered_from(None, Some("  ")), (None, None), "an empty variable is no tag");
+        for (arg, env, by) in [(Some("https://evil.example/?q=1"), None, "--from"), (Some(""), Some("x"), "--from"), (None, Some("Me@Home"), "UNBROWSE_FROM")] {
+            let (tag, warning) = offered_from(arg, env);
+            assert_eq!(tag, None, "{arg:?} {env:?}");
+            let w = warning.expect("a warning");
+            assert!(w.contains(by) && w.contains("ignored") && !w.contains('\n'), "{w}");
+        }
+    }
+
+    /// The first tag a node is given is the one it keeps: a later start's tag, right or wrong, never replaces it.
+    #[test]
+    fn the_first_tag_is_kept() {
+        let dir = store::scratch_home("telemetry-from");
+        let file = dir.join("from.json");
+        assert_eq!(keep_from(&file, None), None, "no tag, nothing kept");
+        assert!(!file.exists());
+        assert_eq!(keep_from(&file, Some("BAD")), None, "a wrong tag is not kept");
+        assert!(!file.exists());
+        assert_eq!(keep_from(&file, Some("hn-c")), Some("hn-c".into()));
+        assert_eq!(keep_from(&file, Some("reddit")), Some("hn-c".into()), "first write wins");
+        assert_eq!(keep_from(&file, None), Some("hn-c".into()));
+        let kept: Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+        assert_eq!(kept["from"], "hn-c");
+        // A file that doesn't read is left alone, and sends no tag.
+        std::fs::write(&file, "{ torn").unwrap();
+        assert_eq!(keep_from(&file, Some("reddit")), None);
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "{ torn");
     }
 
     #[test]
@@ -863,6 +1050,7 @@ mod tests {
                     outcome: "failed",
                     duration_ms: Some(40),
                     error_class: Some(class),
+                    from: None,
                 };
                 let v = serde_json::to_value(&e).unwrap();
                 assert_eq!(check(&v), Ok(()), "{v}");

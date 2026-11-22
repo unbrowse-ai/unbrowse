@@ -30,7 +30,8 @@ pub fn jar_of(walk: &Walk, at: usize) -> std::collections::HashMap<String, Strin
 }
 
 impl Walk<'_> {
-    fn words(&self) -> Vec<&str> {
+    /// What the page was asked, the words only: a caller's word, never the site's own.
+    pub(crate) fn words(&self) -> Vec<&str> {
         self.asked.iter().map(|(_, v)| v.as_str()).collect()
     }
 }
@@ -216,7 +217,8 @@ pub fn answered(e: &Exchange) -> bool {
 /// another method at the same address (`method=photos.search` with its own keys, beside `tags.getRelated`) is another
 /// call. A later page may add the cursor or session token the previous answer handed it (`feedSessionId`, `next`): a
 /// key one of them sends and the other not, whose value is no word, does not tell them apart; one whose value is a
-/// word does.
+/// word does, but where the other alone sends a cursor in its place: a first page asks once for what it shows beside
+/// the list (its facets), and its later pages send the cursor instead.
 ///
 /// The node's `learn.rs` holds the same reading (`same_operation`, which its callers hold to one address themselves),
 /// and is the copy to point at this one when `app/` is next touched. Two walks' calls are paired by another question,
@@ -234,7 +236,11 @@ pub fn made_again(a: &Exchange, b: &Exchange, asked: &[&str]) -> bool {
             return false;
         }
         let only = |x: &std::collections::BTreeMap<String, String>, y: &std::collections::BTreeMap<String, String>| x.iter().filter(|(k, _)| !y.contains_key(*k)).all(|(_, v)| !name(v));
-        if !(only(&qa, &qb) && only(&qb, &qa)) {
+        // A first page also asks for what it shows once beside the list (`aggregations[...]=category.slug`, words),
+        // which its later pages leave out, sending the cursor they were handed in their place.
+        let a_cursor = |x: &std::collections::BTreeMap<String, String>, y: &std::collections::BTreeMap<String, String>| x.iter().any(|(k, v)| !y.contains_key(k) && !name(v) && v.chars().count() >= 8);
+        let read_on = |x: &std::collections::BTreeMap<String, String>, y: &std::collections::BTreeMap<String, String>| only(x, y) && a_cursor(x, y);
+        if !(only(&qa, &qb) && only(&qb, &qa)) && !read_on(&qa, &qb) && !read_on(&qb, &qa) {
             return false;
         }
     }
@@ -277,6 +283,17 @@ pub(crate) mod tests {
         let found = at("https://a.example/s?q=lamp", "https://a.example/s?q=%22desk%20lamp%22");
         assert_eq!((found[0].first.as_str(), found[0].second.as_str()), ("lamp", "\"desk lamp\""));
         assert!(at("https://a.example/s/a/b", "https://a.example/s/a").is_empty(), "pieces at no common place are not compared");
+    }
+
+    /// A first page that asks once for its facets (words) and a later page that sends the cursor it was handed instead
+    /// are one call made again; a filter's word with no cursor beside it is another (WordPress.com, UNB-208 step 8).
+    #[test]
+    fn a_first_page_that_asks_for_its_facets_once_is_made_again_by_its_later_pages() {
+        let first = call("GET", "https://api.shop.example/search?query=lamp&aggregations%5Bt0%5D%5Bfield%5D=category.slug", &[], None, r#"{"page_handle":"ZnJvbT0xMCZhbGc9"}"#);
+        let later = call("GET", "https://api.shop.example/search?query=lamp&page_handle=ZnJvbT0xMCZhbGc9", &[], None, "{}");
+        assert!(made_again(&first, &later, &["lamp"]) && made_again(&later, &first, &["lamp"]));
+        let filter = call("GET", "https://api.shop.example/search?query=lamp&aggregations%5Bt0%5D%5Bfield%5D=category.slug&brand=ikea", &[], None, "{}");
+        assert!(!made_again(&first, &filter, &["lamp"]), "a filter's word is another call");
     }
 
     pub(crate) fn call(method: &str, url: &str, headers: &[(&str, &str)], body: Option<&str>, reply: &str) -> Exchange {
@@ -464,5 +481,36 @@ pub(crate) mod tests {
         assert_eq!(axes(&words), Axes { word: true, session: false }, "two walks of one learn share a session");
         let sessions = [walk(&t, &[("q", "lamp")]), Walk { session: 2, ..walk(&t, &[("q", "lamp")]) }];
         assert_eq!(axes(&sessions), Axes { word: false, session: true });
+    }
+
+    /// The second address's value at a place is said whole as the first's is: its marks around the word it was asked.
+    #[test]
+    fn each_addresss_value_is_said_whole_with_the_pages_marks_around_it() {
+        let found = apart(&"https://a.example/search/chicken-?tab=all".parse().unwrap(), &"https://a.example/search/pasta-?tab=all".parse().unwrap());
+        assert_eq!(found.len(), 1);
+        assert_eq!((found[0].first_whole().as_str(), found[0].second_whole().as_str()), ("chicken-", "pasta-"));
+        assert_eq!(within_marks("-pasta-"), ("-", "pasta", "-"));
+        assert_eq!(within_marks("--"), ("", "--", ""), "a piece of marks alone is all word");
+    }
+
+    /// A call's place is its method, host and path, read as a person reads them: the path in small letters and decoded,
+    /// what its walk was asked struck out of it when that is a word of two letters or more.
+    #[test]
+    fn a_calls_place_strikes_what_its_walk_was_asked_out_of_the_path() {
+        let e = call("GET", "https://Shop.example/Find/Desk%20Lamp/all?page=2", &[], None, "{}");
+        assert_eq!(place(&e, &["desk lamp"]), "GET shop.example/find/\u{a7}/all");
+        assert_eq!(place(&e, &[]), "GET shop.example/find/desk lamp/all");
+        assert_eq!(place(&e, &["d"]), "GET shop.example/find/desk lamp/all", "one letter is not a word to strike out");
+    }
+
+    /// A call the first walk never made has no sighting in any walk, and no walks have none to give.
+    #[test]
+    fn a_call_the_first_walk_never_made_is_sighted_nowhere() {
+        let first = trace(vec![call("GET", "https://shop.example/a", &[], None, "{}")]);
+        let second = trace(vec![call("GET", "https://shop.example/a", &[], None, "{}")]);
+        let walks = [walk(&first, &[("q", "lamp")]), walk(&second, &[("q", "desk")])];
+        assert_eq!(sightings(&walks, 5), [None, None]);
+        assert_eq!(sightings(&walks, 0), [Some(0), Some(0)]);
+        assert!(sightings(&[], 0).is_empty());
     }
 }

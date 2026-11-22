@@ -85,6 +85,12 @@ def run_tool(node: UnbrowseNode, spec: Dict[str, Any], given: Optional[Dict[str,
         for k in spec["input_schema"].get("required", []):
             if args.get(k) in (None, ""):
                 return {"error": f"{spec['name']} needs {k}", "code": "bad_request"}
+        # And one of the argument sets the call takes one of in full (a goal, or an ask to collect): with none, the
+        # first set's first missing name, as the MCP server says it.
+        groups = spec.get("needs_one_of") or []
+        if groups and not any(all(args.get(k) not in (None, "") for k in g) for g in groups):
+            k = next(k for k in groups[0] if args.get(k) in (None, ""))
+            return {"error": f"{spec['name']} needs {k}", "code": "bad_request"}
         # Every page this client opens is in its own session, as the MCP server keeps each client's: a session the
         # model names is one of this client's.
         if "session" in props:

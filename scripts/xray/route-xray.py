@@ -44,6 +44,8 @@ CATALOGUE = {
                          "An id made at the walk from the clock, or one the site minted then. It is the session's, or made fresh for each call (`Class::Fresh`; `Expr::Fresh`), and here it is neither."),
     'dangling': ('break', 'A value is read from a step the route does not have',
                  "A step was dropped and what read from it was not rewired. The value cannot be filled."),
+    'bad-origin': ('break', 'A value is read from an origin that cannot be read',
+                   "The origin of a derived value is not a step and a place: the route cannot fill it, and a node reading it fails where this reader reports it."),
     'backwards': ('break', 'A value is read from a step that runs at or after its own',
                   "The order of steps does not follow what feeds what."),
     'deaf': ('break', 'The site was shown deaf to an input',
@@ -68,15 +70,21 @@ CATALOGUE = {
     'text-cut': ('note', 'A value is cut from text between two markers', "It breaks when the page's text around it moves."),
     'header-tie': ('note', 'A header is read from an earlier answer', "Often a tracing or request id that the site does not check."),
     'place-name': ('note', 'An input is named for its place', "An address piece taken for a caller's value, or a value nobody named (`trial::the_address_left`; a proposer's `called`)."),
+    'redirected-piece': ('risk', "A piece the site's redirect put in the page's address is kept as fixed text",
+                         "The step reads the page at the address the walk landed on, not the one it asked: a piece the asked address did not have (an item's name after its id, a setting the site added) is fixed, so a call for another value sends this one's piece. Ask the page at its own address and follow the redirect, as a plain page read does (`learn_plain`), or make the piece the caller's."),
     'off-site-step': ('note', 'A step goes to another site', "Check that the answer needs it."),
     'post-in-read': ('note', 'A step that is not a GET, in a route not marked as a write', "It is sent again on every call: right for a search that posts, wrong for anything that changes the site."),
     'no-shape': ('note', 'The answer has no recorded shape', "A call's answer cannot be held to what the walk's was."),
     'refused-when-learned': ('note', 'A step was not answered 2xx when it was learned', "It is expected to be refused again."),
     'unheard': ('note', 'No record that a second value was ever asked', "The route was kept on one page load's word."),
     'no-fields': ('note', "The answer's fields are not named", "They are chosen by rule at each call (`fields::defaults_on`), from the fields' names."),
+    'related-list': ('risk', "The answer is a list of other records for the page's item, and never names the item",
+                     "The page's address names one item and the call sends it, but the answer is records beside it (a list keyed by the page: related, similar, also bought), with nothing that names the item and no second value said back. The pick holds the goal's fields and not what the page is about (`fails_goal`)."),
     'no-page': ('note', 'No page is kept to learn it again from', "A failed route cannot be learned again as itself."),
     'never-called': ('note', 'Never called since it was learned', ""),
     'long-chain': ('note', 'More than three steps', "Each is an ask of the site on every call."),
+    'fixed-cookie': ('risk', "A cookie is sent as the walk's fixed text",
+                     "A session's cookie is the jar's: earned by the call that set it (`Class::Derived`) or carried from the walk's browser (`Class::Minted`). Kept as text in the step, every caller sends the walk's own session, which the site ends or counts as one visitor."),
     'walked-header': ('note', "The caller's walked word rides in a header as walked", "Usually the page's own address sent along: harmless, and untidy."),
     # Said by the node's own log of the learn (xray_log).
     'picked-without-fields': ('risk', "The call picked as the answer holds none of the goal's fields", "The engine's own reason for its pick says so. On a page read that lists its records as text this is expected; with a second word unanswered beside it, the pick is a shell. Read the candidates it held back."),
@@ -171,6 +179,99 @@ def leaves(o, p=''):
     elif isinstance(o, str): yield p, o
 
 
+def a_setting(v):
+    """Whether a cookie's value reads as a setting the page wrote (a short word, a flag, a small number) rather than a
+    session's: a setting is the same for every caller, a session's value is not."""
+    return re.fullmatch(r'[A-Za-z_-]{0,12}|\d{1,3}|true|false', str(v if v is not None else '')) is not None
+
+
+def cookie_values(header):
+    """The values of a Cookie header's pairs."""
+    return [p.split('=', 1)[1].strip() if '=' in p else p.strip() for p in str(header or '').split(';') if p.strip()]
+
+
+def id_like(v):
+    """A value that names one thing: a long number, a long hex id, a uuid."""
+    s = str(v)
+    return bool(re.fullmatch(r'\d{5,}|[0-9a-fA-F]{16,}', s)) or shape(s) == 'a uuid'
+
+
+def records_only(sh):
+    """Whether an answer's shape is records in a list and nothing that is one record of its own: a list at the top, or
+    beside counts and flags, or under one key that holds only that."""
+    if isinstance(sh, list): return bool(sh) and isinstance(sh[0], dict)
+    if not isinstance(sh, dict): return False
+    lists = [v for v in sh.values() if isinstance(v, list) and v and isinstance(v[0], dict)]
+    ones = [v for v in sh.values() if isinstance(v, dict)]
+    if lists: return not ones
+    return len(sh) == 1 and len(ones) == 1 and records_only(ones[0])
+
+
+def shape_keys(sh):
+    if isinstance(sh, dict):
+        for k, v in sh.items():
+            yield str(k).lower()
+            yield from shape_keys(v)
+    elif isinstance(sh, list):
+        for v in sh: yield from shape_keys(v)
+
+
+def beside_the_item(route, inputs, last):
+    """(input, the place it is sent at) when the page's own address names one item by its id, the answer's call sends
+    it, and the answer is only a list of records, none of which names that place: records beside the item, not the
+    item. None otherwise."""
+    root = U.urlsplit(str(route.get('root') or ''))
+    pieces = [U.unquote(p) for p in root.path.split('/') if p]
+    sh = last.get('response_shape')
+    if not records_only(sh): return None
+    keys = set(shape_keys(sh))
+    for i in inputs:
+        if not (i.get('default') and str(i['default']) in pieces and id_like(i['default'])): continue
+        for f in last.get('fields') or []:
+            loc = f.get('loc') or {}
+            if f.get('class') == 'input' and f.get('name') == i['name'] and str(loc.get('key') or '').lower() not in keys:
+                return i['name'], place(loc)
+    return None
+
+
+def redirected(route, s, inputs):
+    """The places of a step that reads the page where the page's address, as the walk asked it, did not have that
+    fixed text: a path piece after or in place of the asked one's (beside the caller's values, which stay in their
+    holes), or a query key the asked address did not send. The site put them there when it moved the page."""
+    if not s.get('reads_page'): return []
+    asked_url = U.urlsplit(str(route.get('root') or ''))
+    url = str(s.get('url') or '')
+    if not asked_url.hostname or site_of(host_of(url)) != site_of(asked_url.hostname): return []
+    sent_url = U.urlsplit(url.replace('{', '%7B').replace('}', '%7D'))
+    asked = [U.unquote(p) for p in asked_url.path.split('/') if p]
+    sent = [U.unquote(p) for p in sent_url.path.split('/') if p]
+    callers = {str(i['default']) for i in inputs if i.get('default') is not None}
+    hole = lambda p: re.fullmatch(r'\{[^}]*\}', p) is not None
+    # The caller's values sit in holes where the asked address had them; anything else that moved is the site's.
+    if any(hole(p) and not (n < len(asked) and asked[n] in callers) for n, p in enumerate(sent)): return []
+    out = ['path piece %d' % n for n, p in enumerate(sent) if not hole(p) and not (n < len(asked) and p.lower() == asked[n].lower())]
+    asked_keys = {k for k, _ in U.parse_qsl(asked_url.query, keep_blank_values=True)}
+    out += ['query:%s' % k for k, v in U.parse_qsl(sent_url.query, keep_blank_values=True) if k not in asked_keys and not hole(v)]
+    return out
+
+
+def well_formed(origin):
+    """Whether a derived value's origin is one the reader can follow: a record whose step is a number and whose place,
+    if given, is a record too. Absent pieces are read as missing (a step the route lacks), not as malformed."""
+    if origin is None: return True
+    if not isinstance(origin, dict): return False
+    ex = origin.get('exchange')
+    if ex is not None and (isinstance(ex, bool) or not isinstance(ex, int)): return False
+    return origin.get('at') is None or isinstance(origin.get('at'), dict)
+
+
+def origin_shape(origin):
+    """What is wrong with an origin, by its shape and never its value."""
+    if not isinstance(origin, dict): return 'the origin is %s, not a record' % type(origin).__name__
+    if origin.get('at') is not None and not isinstance(origin.get('at'), dict): return 'its place is %s, not a record' % type(origin['at']).__name__
+    return 'its step is %s, not a number' % type(origin.get('exchange')).__name__
+
+
 def written_ways(word):
     w = word.lower()
     return {w, U.quote(w), U.quote_plus(w), w.replace(' ', '-'), w.replace(' ', '+'), w.replace(' ', '%20')}
@@ -218,6 +319,11 @@ def xray(route):
                 if re.fullmatch(r'part\d+', f.get('name') or ''): flag('place-name', f.get('name'))
             elif cls == 'piece':
                 hole['src'], hole['comp'] = ('caller', f.get('input')), 'a piece of it'
+            elif cls == 'derived' and not well_formed(f.get('origin')):
+                # An origin the reader cannot read (not a record, or a place that is not one) says no step to fill it
+                # from: a finding, never a traceback that stops every other route being read.
+                hole['src'] = ('step', None, None, '')
+                flag('bad-origin', origin_shape(f.get('origin')))
             elif cls == 'derived':
                 o = f.get('origin') or {}
                 j = index_of.get(o.get('exchange'))
@@ -253,6 +359,10 @@ def xray(route):
                 swapped = next((name for at_h, name in held if at_h == at), None)
                 if swapped: hole['src'] = ('caller', swapped)
                 if cls == 'unconfirmed' and where != 'cookie' and not swapped: flag('open', hole['shape'])
+                # A cookie written into the step as text, or a Cookie header kept whole: the jar never fills it.
+                if where == 'cookie' and not a_setting(v): flag('fixed-cookie', hole['shape'])
+                elif where == 'header' and str(loc.get('key') or '').lower() == 'cookie' and not all(a_setting(c) for c in cookie_values(v)):
+                    flag('fixed-cookie', '%d cookie(s) in one header' % len(cookie_values(v)))
                 if where != 'cookie':
                     when = time_of_walk(v, learned_at)
                     if when == 'whole': flag('frozen-clock', hole['shape'])
@@ -291,6 +401,10 @@ def xray(route):
                     find('baked-word', n + 1, hole['at'], 'input %s' % name)
                     holes.append(hole)
                     break
+        for piece in redirected(route, s, inputs):
+            hole = {'at': piece, 'in': 'template', 'class': 'template', 'src': ('fixed',), 'comp': None, 'shape': 'fixed text', 'findings': ['redirected-piece']}
+            find('redirected-piece', n + 1, piece)
+            holes.append(hole)
         last = n == len(steps) - 1
         off = site_of(host_of(s.get('url') or '')) != home
         marks = []
@@ -324,6 +438,9 @@ def xray(route):
     if steps and not heard.get('said_back') and not heard.get('probed'): find('unheard')
     if steps and not route.get('fields'): find('no-fields')
     if steps and not g.get('page'): find('no-page')
+    if steps and not heard.get('said_back'):
+        item = beside_the_item(route, inputs, steps[-1])
+        if item: find('related-list', len(steps), None, 'input %s, sent as %s' % item)
     stats = route.get('stats') or {}
     if stats.get('last_error'): find('failing', None, None, shape_of_error(stats['last_error']))
     if not stats.get('calls'): find('never-called')

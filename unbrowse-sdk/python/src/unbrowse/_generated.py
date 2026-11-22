@@ -27,7 +27,7 @@ ERRORS: Tuple[Tuple[str, int, str, str], ...] = (
     ("not_found", 404, "NotFoundError", "no such route, owner command or walk picture; or nothing does the goal yet and no url was given"),
     ("conflict", 409, "ConflictError", "routes on more than one site do the goal: give url to say which"),
     ("unprocessable", 422, "UnprocessableEntityError", "the browser or the learner couldn't do it; the message says why"),
-    ("browser_missing", 422, "BrowserMissingError", "the goal needs the node's browser and the node has none (or the call said browser=\"never\"); the error says what's missing and how to get it"),
+    ("browser_missing", 422, "BrowserMissingError", "the goal needs the node's browser and the node has none, and the error says what's missing and how to get it; or the call said browser=\"never\", and the error says it was declined (declined: true, outcome browser_declined), with nothing to install"),
     ("bad_gateway", 502, "", "the site, or the network a call went through, failed"),
     ("unavailable", 503, "NodeUnavailableError", "the node is paused by its owner, waiting for Keychain access, or unable to read the sessions it holds to keep them out of an answer"),
     ("unreachable", 0, "NodeConnectionError", "the node isn't running, or nothing answers at its address"),
@@ -75,6 +75,47 @@ class Agent(_AgentRequired, total=False):
     auto: bool
     cap_set: bool
     payers: List[List[Any]]
+    gateway: Optional[str]
+    """The gateway a remote key opens the node through (its host); none for a key of the node's own door."""
+
+
+class AgentClientsResult(TypedDict):
+    clients: List[AgentClientsResultClientsItem]
+
+
+class _AgentClientsResultClientsItemRequired(TypedDict):
+    id: str
+    name: str
+    found: bool
+    connected: bool
+    path: str
+
+
+class AgentClientsResultClientsItem(_AgentClientsResultClientsItemRequired, total=False):
+    note: str
+    manual: bool
+
+
+class AgentConnectResult(TypedDict):
+    results: List[AgentConnectResultResultsItem]
+
+
+class AgentConnectResultResultsItem(TypedDict):
+    id: str
+    name: str
+    ok: bool
+    restart_needed: bool
+    error: Optional[str]
+
+
+class AgentConnectUndoResult(TypedDict):
+    restored: List[AgentConnectUndoResultRestoredItem]
+
+
+class AgentConnectUndoResultRestoredItem(TypedDict):
+    id: str
+    name: str
+    path: str
 
 
 class AgentSpend(TypedDict):
@@ -156,16 +197,15 @@ class BountyView(_BountyViewRequired, total=False):
 
 class _BrowseArgsRequired(TypedDict):
     do: List[str]
-    """The command and its arguments, e.g. ["open", "https://example.com"], ["snapshot", "-i"], ["fill", "@e4", "hello"]"""
 
 
 class BrowseArgs(_BrowseArgsRequired, total=False):
     site: str
-    """Which site's browser, when you have several open; defaults to the last one used."""
     goal: str
-    """What you're doing here, e.g. 'post a listing': the node names what it learns from this browsing after it."""
     session: str
-    """Which of your browsing sessions this is: each session has its own tab in a site's browser, so agents browsing the same site at once each read and drive their own page. Over MCP your client's session is used already; name one to keep several pages apart, or (over HTTP) to keep your page apart from other agents on your key. The SDKs send one per client."""
+    """One tab each; MCP uses your client's. Name one to keep pages apart (over HTTP, from other agents on your key). The SDKs send one per client."""
+    wait_ms: int
+    """ask_owner: ms before still_working; 45000 unsaid."""
 
 
 class _BrowseReplyRequired(TypedDict):
@@ -181,7 +221,10 @@ class BrowseReply(_BrowseReplyRequired, total=False):
     url: str
     waited_s: int
     needs_owner: bool
-    next: List[str]
+    outcome: Outcome
+    outcome_from: str
+    next: Next
+    ask: str
 
 
 class BrowserFound(TypedDict):
@@ -208,7 +251,6 @@ class _CallArgsRequired(TypedDict):
 class CallArgs(_CallArgsRequired, total=False):
     inputs: Dict[str, str]
     fields: List[str]
-    """Fields of the answer to get besides the ones a call hands back by default, by the paths in the result's fields.more (e.g. ["items[].rating"]; a path ending in a list or an object brings all of it), or ["*"] for the whole answer. By default a call hands back the fields its goal names and each record's name, and lists the rest in fields.more: ask only for what you need."""
 
 
 class _CallResultRequired(TypedDict):
@@ -235,6 +277,10 @@ class CallResult(_CallResultRequired, total=False):
     """How many records the answer holds where a confirming browse saw this route's records, read on the answer whole before the reply chose its fields or cut it: 0 is the site finding nothing, null an answer without that place. Absent where no place was seen."""
     bounties: BountyAsks
     browser: bool
+    outcome: Outcome
+    outcome_from: str
+    next: Next
+    ask: str
     network: CallResultNetwork
 
 
@@ -290,31 +336,25 @@ class ChainStatus(TypedDict):
 
 
 class _ChallengeArgsRequired(TypedDict):
-    action: Literal["look", "click", "drag", "type", "press", "wait", "done"]
-    """The step: look (show the page), click, drag, type, press, wait, or done (the page should have stopped asking)."""
+    action: Literal["look", "click", "drag", "hold", "type", "press", "wait", "done"]
 
 
 class ChallengeArgs(_ChallengeArgsRequired, total=False):
     url: str
-    """A page to open in the session before looking, e.g. https://example.com/verify. Leave it out to meet the page already open."""
+    """Opened first; omit for the open page."""
     site: str
-    """Which site's browser, when several are open; defaults to the last one used."""
     session: str
-    """Which of your browsing sessions this is (as for unbrowse_browse)."""
     x: float
-    """The click's, or the drag's start, x in CSS pixels of the picture."""
     y: float
-    """The click's, or the drag's start, y."""
     to_x: float
-    """The drag's end x."""
     to_y: float
-    """The drag's end y."""
     text: str
-    """What to type into the focused field."""
     key: Literal["Enter", "Tab", "Escape", "Backspace"]
-    """The key to press."""
     ms: int
-    """How long a wait is, up to 20000. 1000 by default."""
+    quick: bool
+    """A hand step (click/drag/type/press) with no picture or read after it, to beat a short timer when you hold the grid already; look afterwards."""
+    steps: List[Dict[str, Any]]
+    """Hand steps ({action,x,y,...}) landed in one go, no picture between: a grid's clicks and Confirm inside a short timer. Overrides action."""
 
 
 class _ChallengeReplyRequired(TypedDict):
@@ -332,6 +372,10 @@ class ChallengeReply(_ChallengeReplyRequired, total=False):
     h: float
     mime: str
     note: str
+    outcome: Outcome
+    outcome_from: str
+    next: Next
+    ask: str
 
 
 class CheckoutHoldsResultItem(TypedDict):
@@ -403,26 +447,25 @@ class Deployment(TypedDict):
     code: str
 
 
-class _DoArgsRequired(TypedDict):
+class DoArgs(TypedDict, total=False):
     goal: str
-    """What you want, in plain words, e.g. 'search Hacker News stories' or 'send a chat message'. The same words find the same route next time."""
-
-
-class DoArgs(_DoArgsRequired, total=False):
+    """Plain words; the same ones find the same route. Needed unless ask."""
+    wait_ms: int
+    """ms; default 45000, max 300000. Then, still working (learning, waiting for the site's browser): outcome still_working with ask and next; work goes on."""
+    ask: str
+    """From a still_working reply: collects the answer, waiting up to wait_ms again. Kept 5 min after the work ends. Alone: it holds the rest."""
     url: str
-    """A page that does it, e.g. https://hn.algolia.com/?q=rust. Needed only when no route does it yet; its query values become inputs."""
     inputs: Dict[str, str]
-    """Values by the route's input names (route.inputs in a reply); they win over the url's. A name the route doesn't take comes back in the result's ignored_inputs and isn't sent."""
+    """By route.inputs names; win over the url's."""
     session: str
-    """The browsing session a page this opens for you belongs to (see unbrowse_browse): carry on in it with unbrowse_browse and the same session."""
     fields: List[str]
-    """Fields of the answer to get besides the ones a call hands back by default, by the paths in the result's fields.more (e.g. ["items[].rating"]; a path ending in a list or an object brings all of it), or ["*"] for the whole answer. By default a call hands back the fields its goal names and each record's name, and lists the rest in fields.more: ask only for what you need."""
+    """Extra paths from result.fields.more (items[].rating; a list or object brings all of it), or ["*"]. Default: the goal's fields and each record's name. Ask only for what you need."""
     pages: List[DoArgsPagesItem]
-    """Several pages at once, in place of url, e.g. [{"url": "https://example.com/prices/bitcoin"}, {"url": "https://example.com/prices/ether"}] (a url alone, as a string, is fine too): the node does each as it does one url, all side by side, and answers how: pages, with each page's how, ms and data (or error), in the order given; fields lists the fields each route can add, once per route. A page's own goal and inputs win over the call's. Within a site its first page goes first, so a route learned there answers the site's other pages in one call each. A page that needs clicks or typing says so (how: browse) and isn't opened: ask for it alone. The reply comes within 40 seconds: pages still being learned then are listed in pending and go on learning, so ask again for them and they come back at once. At most 100."""
+    """Instead of url, max 100 (objects or url strings), side by side; a page's goal and inputs win. Reply how: pages, each page's how, ms, data or error, in order. A site's first page goes first; its route answers the rest. A how: browse page isn't opened: ask it alone. Past wait_ms (40 s unsaid), pages still learning are in pending (how: working); the batch's ask (in next) collects all, a page's own ask that page."""
     browser: Literal["auto", "if_present", "never"]
-    """Whether this may use the node's browser. auto (the default): when the goal needs it, fetched first if the node lacks it and its owner lets it. if_present: only a browser the node has already. never: only a route, another contributor's route or a plain request. When the goal needs a browser this rules out, or the node lacks, the answer is the error browser_missing, saying what's missing and how to get it."""
+    """auto (default): when needed, fetched if missing and the owner allows; if_present: only one present; never: routes, network routes, plain requests only. Missing: outcome browser_missing, saying how to get it; ruled out: outcome browser_declined, declined: true, next: the call with browser auto."""
     budget_usdc: float
-    """The most this task pays to fetch one route another contributor lists, in USDC, e.g. 0.01. A route whose fee is over it is passed over, as one over the owner's per-fetch maximum is, and network_skipped says so. It only lowers the owner's maximum: leave it out to pay up to that."""
+    """USDC this task pays at most to fetch one network route (e.g. 0.01); a fee over it is passed over (network_skipped). Only lowers the owner's max."""
 
 
 class _DoArgsPagesItemRequired(TypedDict):
@@ -439,10 +482,14 @@ class _DoResultBrowseRequired(TypedDict):
     site: str
     page: str
     why: str
-    next: str
+    next: Next
 
 
 class DoResultBrowse(_DoResultBrowseRequired, total=False):
+    note: str
+    outcome: Outcome
+    outcome_from: str
+    ask: str
     route_failed: RouteFailure
     network_skipped: NetworkSkipped
     network_offers: NetworkOffers
@@ -457,6 +504,11 @@ class _DoResultCalledRequired(TypedDict):
 
 class DoResultCalled(_DoResultCalledRequired, total=False):
     picked_by: str
+    outcome: Outcome
+    outcome_from: str
+    next: Next
+    ask: str
+    notes: List[str]
     route_failed: RouteFailure
     network_skipped: NetworkSkipped
     network_offers: NetworkOffers
@@ -472,6 +524,10 @@ class _DoResultNetworkRequired(TypedDict):
 class DoResultNetwork(_DoResultNetworkRequired, total=False):
     route_failed: RouteFailure
     explored: bool
+    outcome: Outcome
+    outcome_from: str
+    next: Next
+    ask: str
 
 
 class _DoResultPagesRequired(TypedDict):
@@ -484,7 +540,24 @@ class _DoResultPagesRequired(TypedDict):
 
 class DoResultPages(_DoResultPagesRequired, total=False):
     pending: List[str]
-    next: str
+    note: str
+    outcome: Outcome
+    outcome_from: str
+    next: Next
+    ask: str
+
+
+class _DoResultWorkingRequired(TypedDict):
+    how: Literal["working"]
+    ask: str
+    phase: str
+    outcome: Outcome
+    outcome_from: str
+    next: Next
+
+
+class DoResultWorking(_DoResultWorkingRequired, total=False):
+    note: str
 
 
 class DomainStatus(TypedDict):
@@ -538,6 +611,7 @@ class _FieldsRequired(TypedDict):
 
 class Fields(_FieldsRequired, total=False):
     add: str
+    copies: List[str]
 
 
 class FirstBuy(TypedDict):
@@ -584,6 +658,12 @@ class Hands(TypedDict):
     watching: Optional[str]
 
 
+class HandsAnswerResult(TypedDict):
+    site: str
+    answered: int
+    field: str
+
+
 class _HandsAskRequired(TypedDict):
     id: str
     site: str
@@ -595,6 +675,12 @@ class _HandsAskRequired(TypedDict):
 
 class HandsAsk(_HandsAskRequired, total=False):
     pay: HandsAskPay
+    login: HandsAskLogin
+
+
+class HandsAskLogin(TypedDict):
+    site: str
+    account: str
 
 
 class _HandsAskPayRequired(TypedDict):
@@ -695,7 +781,7 @@ class ImportSessionResult(TypedDict):
 
 class InspectArgs(TypedDict):
     route_id: str
-    """The route, by the id unbrowse_do, unbrowse_call or unbrowse_walk named."""
+    """From unbrowse_do, unbrowse_call or unbrowse_walk."""
 
 
 class InspectResult(TypedDict):
@@ -713,30 +799,23 @@ class InspectResultScripts(TypedDict):
 
 class _JudgeArgsRequired(TypedDict):
     route_id: str
-    """The route, by the id the unbrowse_do or unbrowse_call reply named (route.id, or route_failed.route_id)."""
+    """route.id or route_failed.route_id from a reply."""
     verdict: Literal["right", "wrong"]
-    """wrong: its answer doesn't do the page (url) or isn't what it's named for (what). right: it does; keep fields as its defaults, or take back a wrong for url."""
 
 
 class JudgeArgs(_JudgeArgsRequired, total=False):
     url: str
-    """The page you asked for, as you gave it to unbrowse_do."""
     why: str
-    """What you saw, in a line, for the owner to read: e.g. 'no listings: the page opened on the Certified tab'. Needed with verdict wrong and url."""
     what: str
-    """What the route's answer really is, in plain words, when its name says something else."""
     fields: List[str]
-    """The paths in the answer that are what you asked for (e.g. ["items[].title", "items[].price"]): kept as the route's default fields."""
     links: List[JudgeArgsLinksItem]
-    """How the route's values are wired, as you read it from unbrowse_inspect and the answers: say of each value you would change what it is. fixed: send what the walk sent (a setting, a version, a name). drop: a header the site does not need (tracing, telemetry). session: a header whose value the page keeps in its storage. input:<name>: the value is the caller's, an input the route already takes. from:<step>:<json pointer>: it is read from that earlier step's JSON answer at that pointer (an id for a name, a region for a city), so it is read afresh on every call. keep: leave it. It is a proposal: the node applies it, checks it against the walk the route was learned from, and asks the site, as walked and for a second value (word). Kept only when both answer and the second answer is its own; otherwise nothing changes and the error says why. In a call of its own, with verdict right. Never for a route that writes."""
+    """Rewire values unbrowse_inspect shows. is: fixed (the walk's value), drop (an unneeded header), session (a header from page storage), input:<name> (the caller's input), from:<step>:<json pointer> (read each call from that step's answer), keep. Kept only if the walk and the site both answer, with word too, and word gets its own answer; else unchanged, the error says why. Alone, with verdict right; never on a write."""
     word: str
-    """With links: a second value for the route's searched input, of the kind the site takes there (a code where it takes codes), that the site certainly answers. Left out, the one the node already asked is used."""
+    """With links: another value the site surely answers there; default the one already asked."""
     writes: bool
-    """true when calling the route changes something on the site whatever its method says (a GET that unsubscribes, adds to a cart or sends): it is a write from then on, held to the write rules and never called for a goal that only reads. false takes back an earlier true."""
+    """true: calling changes the site whatever its method (even a GET): a write from then on, held to write rules, never called to read. false undoes it."""
     bounty: int
-    """Your owner's bounty, from result.bounties.confirm, with entry: verdict right says that entry's answer does it, wrong that it doesn't; the node confirms only on your owner's yes."""
     entry: str
-    """The entry that bounty ask named, with bounty."""
 
 
 JudgeArgsLinksItem = TypedDict('JudgeArgsLinksItem', {'step': 'int', 'at': 'str', 'is': 'str'})
@@ -869,18 +948,20 @@ class ListingToSign(TypedDict):
     typed_data: Dict[str, Any]
 
 
-class _LoginRequired(TypedDict):
-    ref: str
-    site: str
+class ListingsSign(TypedDict):
+    url: Optional[str]
+    opened: bool
+    asked: int
 
 
-class Login(_LoginRequired, total=False):
-    code: str
+_LoginRequired = TypedDict('_LoginRequired', {'ref': 'str', 'site': 'str'})
+Login = TypedDict('Login', {'code': 'str', 'from': 'str'}, total=False)  # and _LoginRequired's
 
 
 class LoginsResult(TypedDict):
     logins: List[Login]
     cards: List[Card]
+    sign_up: str
 
 
 class Money(TypedDict):
@@ -957,6 +1038,18 @@ class NewAgent(TypedDict):
     token: str
 
 
+class NewRemoteKey(TypedDict):
+    agent: Agent
+    token: str
+    url: str
+    claude: str
+
+
+class Next(TypedDict):
+    tool: Literal["unbrowse_do", "unbrowse_call", "unbrowse_browse", "unbrowse_challenge", "unbrowse_search"]
+    args: Dict[str, Any]
+
+
 class NodeInfo(TypedDict):
     name: str
     version: str
@@ -967,11 +1060,8 @@ class NodeInfo(TypedDict):
 
 class ObserveArgs(TypedDict, total=False):
     site: str
-    """Which site's browser, when several are open; defaults to the last one used."""
     session: str
-    """Which of your browsing sessions this is (as for unbrowse_browse)."""
     goal: str
-    """What you're doing here, in plain words, so the node can name what the browsing learns."""
 
 
 class ObserveResult(TypedDict):
@@ -994,7 +1084,6 @@ class ObserveResultElementsItem(_ObserveResultElementsItemRequired, total=False)
 
 class OpenArgs(TypedDict):
     link: str
-    """unbrowse://<site>, or unbrowse://<site>/<entry id>"""
 
 
 class OwnerCallResult(TypedDict):
@@ -1031,7 +1120,7 @@ class OwnerNodesKeysItem(TypedDict):
 
 class _PageAnswerRequired(TypedDict):
     url: str
-    how: Literal["called", "learned", "network", "browse", "error"]
+    how: Literal["called", "learned", "network", "browse", "error", "working"]
     ms: int
     ok: bool
 
@@ -1043,8 +1132,11 @@ class PageAnswer(_PageAnswerRequired, total=False):
     truncated: Optional[Truncated]
     fields: List[AnswerField]
     why: str
-    next: str
+    outcome: Outcome
+    outcome_from: str
+    next: Next
     route_failed: RouteFailure
+    ask: str
 
 
 class Passkey(TypedDict):
@@ -1053,7 +1145,8 @@ class Passkey(TypedDict):
     account: str
     created: int
     used: Optional[int]
-    how: Literal["auto", "manual"]
+    how: Literal["auto", "manual", "phone"]
+    approve: bool
 
 
 class PasskeyArmed(TypedDict):
@@ -1095,28 +1188,42 @@ class Pricing(TypedDict):
     lines: int
 
 
+class Remote(TypedDict):
+    on: bool
+    public: bool
+    gateway: str
+    url: Optional[str]
+    account_link: Optional[str]
+    peer: Optional[str]
+    keys: List[Agent]
+
+
+class _RemoteAnswersResultRequired(TypedDict):
+    on: bool
+
+
+class RemoteAnswersResult(_RemoteAnswersResultRequired, total=False):
+    since: int
+
+
 class _ReportArgsRequired(TypedDict):
     kind: Literal["wrong_data", "false_success", "failed", "slow", "confusing", "other"]
-    """wrong_data: a result for another thing than asked. false_success: ok: true with a block, captcha, error page or no data. failed: a call failed or needed a workaround. slow, confusing, other."""
     summary: str
-    """One line: what went wrong, e.g. 'unbrowse_do for github.com/superdesigndev/treg returned firecrawl/firecrawl'."""
+    """One line."""
     expected: str
-    """What you asked for or expected."""
     got: str
-    """What came back instead, trimmed. No personal data."""
+    """Trimmed."""
 
 
 class ReportArgs(_ReportArgsRequired, total=False):
     route_id: str
-    """The route the problem is with, when you have its id."""
     goal: str
-    """The goal you gave unbrowse_do, if it's part of the problem."""
+    """Your unbrowse_do goal, if part of it."""
     url: str
-    """The page you gave; only its scheme, host and path are kept."""
+    """Scheme, host and path kept."""
     tool: Literal["unbrowse_search", "unbrowse_do", "unbrowse_browse", "unbrowse_logins", "unbrowse_call", "unbrowse_whoami"]
-    """The tool whose answer was wrong."""
+    """Whose answer was wrong."""
     error: str
-    """The error the node gave, if there was one."""
 
 
 class _ReportContentsRequired(TypedDict):
@@ -1208,6 +1315,9 @@ class _Route1Required(TypedDict):
 class Route1(_Route1Required, total=False):
     link: str
     also_sends: List[RouteStep]
+    verdict: Literal["agreed", "differed", "failed", "cannot-tell"]
+    why: Optional[str]
+    was: str
 
 
 class _Route2Required(TypedDict):
@@ -1448,7 +1558,7 @@ class ShareStandingFailed(TypedDict):
 
 
 class ShareStandingListed(TypedDict):
-    why: Literal["listed", "off", "opted_out", "not_run_yet", "queued", "preview"]
+    why: Literal["listed", "off", "opted_out", "not_run_yet", "queued", "preview", "unsigned"]
 
 
 class ShareStandingLocal(TypedDict):
@@ -1493,12 +1603,17 @@ class TermsText(TypedDict):
     privacy: str
 
 
-class Truncated(TypedDict):
+class _TruncatedRequired(TypedDict):
     kept_bytes: int
     total_bytes: int
     cuts: List[Cut]
     whole: Optional[str]
     note: str
+
+
+class Truncated(_TruncatedRequired, total=False):
+    left_out: List[str]
+    next_page: Optional[Dict[str, str]]
 
 
 class UpdateStatus(TypedDict):
@@ -1526,6 +1641,7 @@ class VaultImport(TypedDict):
     added: int
     codes: int
     known: int
+    restored: int
     skipped: List[VaultImportSkippedItem]
 
 
@@ -1546,18 +1662,14 @@ class VaultLogin(TypedDict):
 
 class _WalkArgsRequired(TypedDict):
     url: str
-    """The page to walk, e.g. https://example.com/search?q=rust."""
 
 
 class WalkArgs(_WalkArgsRequired, total=False):
     goal: str
-    """What you want from the page, in plain words: with pick and no what, it names the route."""
     pick: int
-    """The candidate's index, as the reply names it: keep that candidate as a route."""
     what: str
-    """Your words for what the picked call is (e.g. 'the flight list'); defaults to goal."""
+    """Your name for the picked call; default goal."""
     session: str
-    """The walk's session, to read a walk you already made in this session rather than walking again."""
 
 
 class _WalkResultRequired(TypedDict):
@@ -1649,6 +1761,7 @@ class _WhoamiRequired(TypedDict):
 class Whoami(_WhoamiRequired, total=False):
     browser: BrowserState
     browser_fetch: bool
+    owner: OwnerReach
 
 
 class WrongPage(TypedDict):
@@ -1659,10 +1772,16 @@ class WrongPage(TypedDict):
 BrowserState = Literal["present", "missing", "installing"]
 
 
-DoResult = Union[DoResultCalled, DoResultNetwork, DoResultBrowse, DoResultPages]
+DoResult = Union[DoResultCalled, DoResultNetwork, DoResultBrowse, DoResultWorking, DoResultPages]
 
 
 HandsInput = Union[HandsInputClick, HandsInputScroll, HandsInputText, HandsInputKey]
+
+
+Outcome = Literal["answered", "answered_empty", "answered_cut", "still_working", "needs_hands", "needs_person", "challenge", "refused", "gone", "not_allowed", "no_route", "call_failed", "browser_declined", "browser_missing", "owner_unavailable", "budget_spent", "paused", "bad_request", "stopped"]
+
+
+OwnerReach = Literal["watching", "can_open", "off"]
 
 
 Retry = Literal["as_is", "check_first", "never"]
@@ -1688,10 +1807,10 @@ ShareStanding = Union[ShareStandingListed, ShareStandingLocal, ShareStandingUnsp
 # Each primitive's route: its method and path, the arguments it takes, and the names `unb` and the SDKs give it.
 PRIMITIVES: Dict[str, Dict[str, Any]] = {
     "unbrowse_search": {"tool": "unbrowse_search", "method": "GET", "path": "/v1/routes", "renamed": [{"http": "q", "tool": "query"}], "args": ["query"], "required": [], "sdk": ["search"], "cli": "search"},
-    "unbrowse_do": {"tool": "unbrowse_do", "method": "POST", "path": "/v1/do", "renamed": [], "args": ["browser", "budget_usdc", "fields", "goal", "inputs", "pages", "session", "url"], "required": ["goal"], "sdk": ["do"], "cli": "do"},
+    "unbrowse_do": {"tool": "unbrowse_do", "method": "POST", "path": "/v1/do", "renamed": [], "args": ["ask", "browser", "budget_usdc", "fields", "goal", "inputs", "pages", "session", "url", "wait_ms"], "required": [], "sdk": ["do"], "cli": "do"},
     "unbrowse_walk": {"tool": "unbrowse_walk", "method": "POST", "path": "/v1/walk", "renamed": [], "args": ["goal", "pick", "session", "url", "what"], "required": ["url"], "sdk": ["walk"], "cli": "walk"},
-    "unbrowse_browse": {"tool": "unbrowse_browse", "method": "POST", "path": "/v1/browse", "renamed": [], "args": ["do", "goal", "session", "site"], "required": ["do"], "sdk": ["browser", "browse"], "cli": "browse"},
-    "unbrowse_challenge": {"tool": "unbrowse_challenge", "method": "POST", "path": "/v1/challenge", "renamed": [], "args": ["action", "key", "ms", "session", "site", "text", "to_x", "to_y", "url", "x", "y"], "required": ["action"], "sdk": ["challenge"], "cli": "challenge"},
+    "unbrowse_browse": {"tool": "unbrowse_browse", "method": "POST", "path": "/v1/browse", "renamed": [], "args": ["do", "goal", "session", "site", "wait_ms"], "required": ["do"], "sdk": ["browser", "browse"], "cli": "browse"},
+    "unbrowse_challenge": {"tool": "unbrowse_challenge", "method": "POST", "path": "/v1/challenge", "renamed": [], "args": ["action", "key", "ms", "quick", "session", "site", "steps", "text", "to_x", "to_y", "url", "x", "y"], "required": ["action"], "sdk": ["challenge"], "cli": "challenge"},
     "unbrowse_observe": {"tool": "unbrowse_observe", "method": "POST", "path": "/v1/observe", "renamed": [], "args": ["goal", "session", "site"], "required": [], "sdk": ["observe"], "cli": "observe"},
     "unbrowse_logins": {"tool": "unbrowse_logins", "method": "GET", "path": "/v1/logins", "renamed": [], "args": [], "required": [], "sdk": ["logins", "cards"], "cli": "logins"},
     "unbrowse_open": {"tool": "unbrowse_open", "method": "GET", "path": "/v1/open", "renamed": [{"http": "q", "tool": "link"}], "args": ["link"], "required": ["link"], "sdk": ["open"], "cli": "open"},
@@ -1756,6 +1875,18 @@ class OwnerCommands:
     def advance_day(self) -> None:
         """Moves the devnet's clock one epoch forward."""
         return self.command("advance_day")
+
+    def agent_clients(self) -> AgentClientsResult:
+        """The MCP clients this machine has (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI, opencode and the others Unbrowse connects): whether each is found and connected to this node, and its config file."""
+        return self.command("agent_clients")
+
+    def agent_connect(self, clients: List[Literal["claude_code", "claude_desktop", "cursor", "codex"]]) -> AgentConnectResult:
+        """Connects the named MCP clients to this node as its first agent: each gets `unb mcp --agent first` in its own config, checked to answer first, its file kept as it was beside it, and no token in it."""
+        return self.command("agent_connect", {"clients": clients})
+
+    def agent_connect_undo(self) -> AgentConnectUndoResult:
+        """Puts back every MCP client config the last agent_connect changed, and answers the files it restored."""
+        return self.command("agent_connect_undo")
 
     def agent_create(self, name: str, cap_usdc: float, days: int, cap_unb: Optional[float] = None) -> NewAgent:
         """Makes an agent key with its cap an epoch in USDC and its lifetime in days, authorises it on the chain, and answers its setup once."""
@@ -1961,6 +2092,10 @@ class OwnerCommands:
         """The sites' browsers the owner can take over, the agents' asks waiting on them, and the site being watched."""
         return self.command("hands")
 
+    def hands_answer(self, site: str, ask: str, text: str, submit: Optional[bool] = None, via: Optional[str] = None) -> HandsAnswerResult:
+        """Answers an agent's ask with what the owner sent from another device (`remote_answers` on): `text`, a two-step code, is typed into the page's code field as the owner's own typing, said as [typed by the owner] in anything the browser returns to an agent and kept out of the walk record, then Enter is pressed (`submit` false skips it) and the page is given back with done. `ask` names the ask (`hands` lists them); one that no longer waits, or is a card payment, is refused and nothing is typed. The code is never logged or answered."""
+        return self.command("hands_answer", _args({"site": site, "ask": ask, "text": text}, submit=submit, via=via))
+
     def hands_give_back(self, site: str, done: Optional[bool] = None, ask: Optional[str] = None, via: Optional[str] = None) -> HandsGiveBackResult:
         """Gives a page back to the agents, telling the one that asked whether the owner did what it needed. `ask` names the ask answered (`hands` lists them): refused when that ask no longer waits, and, with `payment_approver` set to sdk, what lets done approve that ask's card payment without the node's dialog. `via` says where the owner answered ("Telegram"), for the activity they read."""
         return self.command("hands_give_back", _args({"site": site}, done=done, ask=ask, via=via))
@@ -2013,6 +2148,10 @@ class OwnerCommands:
         """Hands the node the owner's wallet's signature of a listing listings_to_sign names, by its id. The node takes only the wallet's own signature, never an agent key's or anyone else's, then puts the listing under a root and spreads it under the wallet's identity. Signing sends no transaction."""
         return self.command("listing_sign", {"id": id, "signature": signature})
 
+    def listings_sign(self) -> ListingsSign:
+        """Has the owner's wallet sign the listings listings_to_sign names, as it sends its grants: opens the sign-in page in the owner's browser in its signing mode, where the wallet's provider signs each one, and takes each signature back through the site's relay. The node keeps only the wallet's own signature. Up to 8 a page; answers the page's url and how many it asks."""
+        return self.command("listings_sign")
+
     def listings_to_sign(self) -> List[ListingToSign]:
         """The listings this node keeps for the owner's wallet to sign. A node linked to the owner's wallet lists under the wallet's one identity, and only the wallet's own key signs a listing, never an agent key (issue #184), so a node that doesn't hold that key asks the owner to sign each one. Each is said in plain words and given as the EIP-712 typed data the wallet signs (eth_signTypedData_v4). Empty when the node lists under its own wallet."""
         return self.command("listings_to_sign")
@@ -2056,6 +2195,26 @@ class OwnerCommands:
     def payment_approver(self, approver: Optional[Literal["dialog", "sdk"]] = None) -> PaymentApprover:
         """Who approves a card payment an agent waits on: `dialog` (the default: the owner's yes in the node's dialog, or by passphrase) or `sdk` (`hands_give_back` naming the ask approves it with no dialog, for an owner who answers on another device, such as the daemon hub's Telegram bot). Card payments only: the recovery phrase, vault passwords, spend caps and wallets still wait on the dialog. Turning `sdk` on asks the owner first, in the dialog; `dialog` asks nothing. `approver` sets it; null only reads it."""
         return self.command("payment_approver", _args({}, approver=approver))
+
+    def remote_answers(self, on: Optional[bool] = None, via: Optional[str] = None) -> RemoteAnswersResult:
+        """Whether an agent's ask for the owner (a sign-in, a two-step code) may be answered from another device through the owner SDK, such as the daemon hub's Telegram bot: off by default. With it on, an ask reaches the owner while such a device keeps calling this command with `via` (within 30 s), though no window is open on the machine, and `hands_answer` types the code they send into the page. Turning it on asks the owner first, in the node's dialog; off asks nothing. `on` sets it; null only reads it. `via` names the device that is there ("Telegram")."""
+        return self.command("remote_answers", _args({}, on=on, via=via))
+
+    def remote_key_create(self, name: Optional[str] = None) -> NewRemoteKey:
+        """Makes a remote key for the gateway, which opens this node only through it, and answers its token once with how an MCP client uses it."""
+        return self.command("remote_key_create", _args({}, name=name))
+
+    def remote_revoke(self) -> Remote:
+        """Revokes every remote key for the gateway."""
+        return self.command("remote_revoke")
+
+    def remote_set(self, on: bool, gateway: Optional[str] = None) -> Remote:
+        """Turns this node's own remote MCP address on or off, at the gateway named or the one it had (https://unbrowse.ai by default). The running node attaches or leaves within a few seconds."""
+        return self.command("remote_set", _args({"on": on}, gateway=gateway))
+
+    def remote_status(self) -> Remote:
+        """This node's own remote MCP address at a gateway: on or off, the URL, and the live remote keys for it."""
+        return self.command("remote_status")
 
     def report_discard(self, fingerprint: str) -> None:
         """Drops an agent's waiting bug report unsent."""

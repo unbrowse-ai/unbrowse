@@ -83,7 +83,7 @@ fn earned(a: *App, c: *ui.Context) void {
         // A new earning counts up to its figure, so the change reads as a change.
         const total = ui.motion.number(c, "earned-total", @floatCast(e.entries), look.change);
         look.stat(c, "", c.print("${s}", .{fmt.usdcd(fa, total, 2)}), "", c.print("Your routes' share of {s} paid uses, all time", .{fmt.count(fa, e.lines)}), true);
-        look.stat(c, "From staking route coins", c.print("${s}", .{fmt.usdcd(fa, e.staking, 2)}), "", "", false);
+        if (e.staking > 0) look.stat(c, "From staking route coins", c.print("${s}", .{fmt.usdcd(fa, e.staking, 2)}), "", "", false);
     }
     if (a.store.err(.wallet)) |msg| if (w == null and !a.store.keychain) look.small(c, msg);
     if (e.by_day.len > 0) {
@@ -96,7 +96,7 @@ fn earned(a: *App, c: *ui.Context) void {
             labels[i] = fmt.day(fa, d[0] * 86400);
         }
         look.bars(c, vals, labels, 110);
-    } else look.body(c, c.print("Nothing earned yet. Routes your agents learn can be listed on My routes; each passed fetch another agent pays for sends {d}% of the fee to the route's coin, or to you while it has none.", .{(if (w) |x| x.split else @import("../types.zig").Split{}).contributor}));
+    } else look.body(c, c.print("Nothing earned yet. Share the routes your agents learn on My routes: each time another agent pays for a call on one and it passes, you earn {d}% of the fee, unless the route has a coin (Money, Advanced).", .{(if (w) |x| x.split else @import("../types.zig").Split{}).contributor}));
 }
 
 fn learned(a: *App, c: *ui.Context) void {
@@ -166,8 +166,13 @@ fn needs(a: *App, c: *ui.Context) void {
         if (look.primary(c, "Open", .{ .size = .xs })) a.show(k.site);
     }
     if (asks.len > 0) c.frameIn(1);
-    // A failed route says why in a line, and offers the next step: call it again with its inputs.
+    // A failed route says why in a line, and offers the next step: call it again with its inputs. Five to a page: a
+    // node with many has them a page at a time, its asks always above them.
+    const shown = look.pageRowsBy(&a.needs_page, failing, needs_per_page);
+    var at: usize = 0;
     for (rs) |r| if (r.broken()) {
+        defer at += 1;
+        if (at < shown.from or at >= shown.to) continue;
         sep(c, &first);
         const it = look.item(c, r.id, c.print("{s} failed its last call", .{r.what}), look.clipTo(c, r.stats.last_error orelse "", 140));
         defer it.end();
@@ -191,7 +196,16 @@ fn needs(a: *App, c: *ui.Context) void {
         it.end();
     }
     if (total == 0) look.empty(c, "Nothing needs you right now.");
+    if (look.pagesBy(failing, needs_per_page) > 1) {
+        look.rule(c);
+        const pg = look.pad(c);
+        defer pg.end();
+        look.pagerBy(c, "needs-pages", &a.needs_page, shown, failing, needs_per_page);
+    }
 }
+
+/// The failed routes "Needs a look" shows at a time.
+const needs_per_page = 5;
 
 /// Once, on the first run with sharing on: the node shares what it learns, and where to turn that off.
 fn notice(a: *App, c: *ui.Context) void {
@@ -244,7 +258,7 @@ fn nodeAddress(a: *App, c: *ui.Context) void {
     ui.key(c, "funds-address");
     const r = ui.div(c).row().gap(8).itemsCenter();
     defer r.end();
-    ui.text(c, "Send USDC on Arc to", .{ .size = 12.5, .weight = .medium });
+    ui.text(c, "Send only USDC on Arc to", .{ .size = 12.5, .weight = .medium });
     look.mono(c, me, null);
     wallet.copyButton(a, c, "Copy", me, "Copied the node's address");
 }

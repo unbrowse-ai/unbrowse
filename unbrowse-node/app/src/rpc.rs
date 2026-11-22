@@ -54,8 +54,8 @@ pub const SETTLED: alloy::eips::BlockId = alloy::eips::BlockId::Number(BlockNumb
 /// many windows meets that limit in bursts. Without this, one refusal failed the whole read, and the reader went on with
 /// nothing (first contact found no seeds, so the node met no one). A refused request did nothing, so sending it again is
 /// safe, a signed write included: the same raw transaction twice is one transaction.
-const RATE_LIMIT_RETRIES: u32 = 10;
-const RATE_LIMIT_BACKOFF_MS: u64 = 1_000;
+pub(crate) const RATE_LIMIT_RETRIES: u32 = 10;
+pub(crate) const RATE_LIMIT_BACKOFF_MS: u64 = 1_000;
 /// The rate the retries are spaced for, in alloy's compute units a second (about 20 a request): ten requests a second.
 const RATE_LIMIT_UNITS_PER_SECOND: u64 = 200;
 
@@ -336,7 +336,8 @@ pub async fn receipt_of<P: Provider>(p: &P, tx: alloy::primitives::B256, wait: D
 /// Proves the final `receipt` of the node's `tx` against its block and settles the day's gas count by what the proof
 /// says it cost; a receipt that can't be proven leaves the write's most counted. A proof the RPC's answers contradict
 /// (a receipt that isn't the block's, a block the second RPC hashes otherwise) stops every write (`halt`), and is an
-/// error: what the receipt says can't be acted on.
+/// error: what the receipt says can't be acted on. A proof the RPC didn't answer (a refusal, a rate limit) is an error
+/// too, and stops nothing: the write is read again.
 pub async fn settle_proven<P: Provider>(p: &P, spend: Spend, tx: alloy::primitives::B256, receipt: &TransactionReceipt, signed: Option<(u128, u128)>) -> Result<Option<crate::proof::Proven>, String> {
     let at = receipt.block_number.ok_or("the receipt names no block")?;
     match crate::proof::prove_on(p, tx, at, signed).await {
@@ -354,10 +355,9 @@ pub async fn settle_proven<P: Provider>(p: &P, spend: Spend, tx: alloy::primitiv
             crate::store::tell_once(&crate::chain::dir().join("unprovable"), &format!("The node can't prove its writes' receipts on this chain ({why}): it counts each write's gas at its most, and lets a kept write go only on the slower rules"));
             Ok(None)
         }
-        Err(e) => {
-            halt(&e);
-            Err(e)
-        }
+        // A proof that couldn't be read (the RPC refused, rate-limited or timed out) proves nothing either way: the
+        // write stays unsettled and is read again. What contradicts has stopped writes where it was found.
+        Err(e) => Err(e),
     }
 }
 
@@ -569,9 +569,10 @@ pub fn halted() -> Option<String> {
 
 /// The URL of the second RPC the owner named to check the first against (`check_rpc`), if any. A value that isn't an
 /// http(s) URL, or names the node's own RPC, is an error, never taken as no second RPC: a second check the owner
-/// asked for is never quietly dropped.
+/// asked for is never quietly dropped. With none named, a node reading through Unbrowse's gateway checks against the
+/// network's public RPC (`gateways_second`).
 pub fn second_url() -> Result<Option<reqwest::Url>, String> {
-    let Some(named) = crate::store::load_settings().check_rpc.filter(|v| !v.trim().is_empty()) else { return Ok(None) };
+    let Some(named) = crate::store::load_settings().check_rpc.filter(|v| !v.trim().is_empty()) else { return Ok(gateways_second()) };
     let url: reqwest::Url = named.trim().parse().map_err(|e| format!("the second RPC named in check_rpc, {named:?}, isn't a URL ({e}): no write goes out until it is one"))?;
     if !matches!(url.scheme(), "http" | "https") {
         return Err(format!("the second RPC named in check_rpc, {named:?}, isn't http or https: no write goes out until it is"));
@@ -581,6 +582,13 @@ pub fn second_url() -> Result<Option<reqwest::Url>, String> {
         return Err(format!("the second RPC named in check_rpc, {named:?}, is the node's own RPC: name another endpoint, or no write goes out"));
     }
     Ok(Some(url))
+}
+
+/// The second RPC a node reading through Unbrowse's gateway has when its owner names none: the network's public RPC,
+/// run by the network's operator, not the gateway's (`gateway`). Any other node has none until its owner names one.
+fn gateways_second() -> Option<reqwest::Url> {
+    let live = crate::chain::live()?;
+    crate::gateway::is_gateway(live.rpc.as_str()).then(|| live.net.rpc.parse().ok()).flatten()
 }
 
 /// The second RPC the owner named, as a provider (`second_url`).
@@ -1648,6 +1656,62 @@ pub(crate) mod tests {
         assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 3, "an HTTP 429 and a JSON-RPC rate-limit error, each sent again");
     }
 
+    /// The node's bounded reads (`proof::fetch`: the headers between finalized heads, a window of logs) are held to the
+    /// same rule as a provider's request: a refusal for the RPC's rate is waited out, and only another refusal is the
+    /// answer. One rate-limited header used to fail a whole link between heads.
+    #[tokio::test]
+    async fn a_bounded_read_turned_away_for_the_rpcs_rate_is_sent_again() {
+        let limited = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32005,"message":"rate limit exceeded"}}"#.to_string();
+        let answer = r#"{"jsonrpc":"2.0","id":1,"result":"0x2a"}"#.to_string();
+        let (url, taken) = scripted_rpc(vec![(429, limited.clone()), (200, limited), (200, answer)]).await;
+        let got = crate::proof::fetch(&url, "eth_blockNumber", serde_json::json!([]), 1024).await.unwrap();
+        assert!(matches!(got, crate::proof::Answer::Value(ref v) if v == "0x2a"), "{got:?}");
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 3, "an HTTP 429 and a JSON-RPC rate-limit error, each sent again");
+
+        let reverted = r#"{"jsonrpc":"2.0","id":1,"error":{"code":3,"message":"execution reverted"}}"#.to_string();
+        let (url, taken) = scripted_rpc(vec![(200, reverted)]).await;
+        let got = crate::proof::fetch(&url, "eth_call", serde_json::json!([]), 1024).await.unwrap();
+        assert!(matches!(got, crate::proof::Answer::Refused(_)), "{got:?}");
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 1, "any other refusal is the answer, sent once");
+    }
+
+    /// An RPC that compresses its answers (said in `content-encoding`) is read, in gzip or brotli: some providers
+    /// compress every answer whether or not the request asked, in whichever encoding their cache holds (Blockdaemon's
+    /// Arc testnet answers brotli to a request that asked for gzip), and a body the node can't decode is no answer.
+    #[tokio::test]
+    async fn an_rpc_that_compresses_its_answer_is_read() {
+        use std::io::Write as _;
+        let json = br#"{"jsonrpc":"2.0","id":0,"result":"0x4cef52"}"#;
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        gz.write_all(json).unwrap();
+        read_in("gzip", gz.finish().unwrap()).await;
+        let mut br = Vec::new();
+        brotli::BrotliCompress(&mut &json[..], &mut br, &brotli::enc::BrotliEncoderParams::default()).unwrap();
+        read_in("br", br).await;
+    }
+
+    /// A provider's request and a bounded read each read `body`, sent as `encoding`.
+    async fn read_in(encoding: &'static str, body: Vec<u8>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url: reqwest::Url = format!("http://{}", listener.local_addr().unwrap()).parse().unwrap();
+        tokio::spawn(async move {
+            for _ in 0..2 {
+                let Ok((mut conn, _)) = listener.accept().await else { return };
+                let mut buf = vec![0u8; 64 * 1024];
+                let _ = conn.read(&mut buf).await;
+                let head = format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-encoding: {encoding}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", body.len());
+                let _ = conn.write_all(head.as_bytes()).await;
+                let _ = conn.write_all(&body).await;
+                let _ = conn.shutdown().await;
+            }
+        });
+        let p = ProviderBuilder::new().connect_http(url.clone());
+        assert_eq!(p.get_chain_id().await.unwrap(), 5042002, "a provider's request, in {encoding}");
+        let got = crate::proof::fetch(&url, "eth_chainId", serde_json::json!([]), 1024).await.unwrap();
+        assert!(matches!(got, crate::proof::Answer::Value(ref v) if v == "0x4cef52"), "a bounded read, in {encoding}: {got:?}");
+    }
+
     /// A load-balanced RPC can answer from a node a block behind the one that mined a write; the read is sent again
     /// rather than failing the write that waits on it.
     #[tokio::test]
@@ -1856,5 +1920,322 @@ pub(crate) mod tests {
 
         drop(n);
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    // ---- on scripted RPCs: what the node's chain layer does with what an RPC says ----
+
+    fn ok(result: &str) -> (u16, String) {
+        (200, format!(r#"{{"jsonrpc":"2.0","id":0,"result":{result}}}"#))
+    }
+
+    /// A block as an RPC gives it, and the hash it has. `salt` tells two blocks of one height apart.
+    fn block_json(number: u64, base_fee: Option<u64>, salt: u64) -> (String, alloy::primitives::B256) {
+        let head = alloy::consensus::Header { number, base_fee_per_gas: base_fee, timestamp: salt, ..Default::default() };
+        let sealed = alloy::rpc::types::Header::new(head);
+        let hash = sealed.hash;
+        (serde_json::to_string(&alloy::rpc::types::Block::<alloy::rpc::types::Transaction>::new(sealed, alloy::rpc::types::BlockTransactions::Hashes(vec![]))).unwrap(), hash)
+    }
+
+    /// A receipt as an RPC gives it for `tx`, in the block `number` with `hash` (null when it names none).
+    fn receipt_json(tx: alloy::primitives::B256, in_block: Option<(u64, alloy::primitives::B256)>) -> String {
+        let (number, hash) = match in_block {
+            Some((n, h)) => (format!("\"{n:#x}\""), format!("\"{h:#x}\"")),
+            None => ("null".into(), "null".into()),
+        };
+        format!(
+            r#"{{"transactionHash":"{tx:#x}","transactionIndex":"0x0","blockHash":{hash},"blockNumber":{number},"from":"0x{z40}","to":"0x{z40}","cumulativeGasUsed":"0x5208","gasUsed":"0x5208","contractAddress":null,"logs":[],"logsBloom":"0x{}","status":"0x1","effectiveGasPrice":"0x1","type":"0x2"}}"#,
+            "0".repeat(512),
+            z40 = "0".repeat(40)
+        )
+    }
+
+    /// A head the node followed is read at only while it lives, and counts as witnessed only when more than the node's one
+    /// RPC stands behind it; with a second RPC named, an agreed read is made only at a head that second stood behind. A
+    /// head with no witness reads nothing, and a live head is not followed again.
+    #[tokio::test]
+    async fn a_followed_head_is_read_at_only_while_it_lives_and_only_where_a_second_stands_behind_it() {
+        use crate::anchor::Witness;
+        let _home = crate::store::scratch_home("head-rules");
+        let now = Some(std::time::Instant::now());
+        let none = Head::default();
+        assert!(!none.live() && none.witnessed_at().is_none() && none.latest().is_none());
+        assert!(none.agreed_at().is_err_and(|e| e.contains("older than a head is kept")), "a head never followed is not one to read at");
+        let one = Head { followed: Some((100, Witness::One)), second_at: None, taken: now };
+        assert!(one.live());
+        assert_eq!((one.witnessed_at(), one.latest()), (None, None), "one RPC's word witnesses nothing");
+        assert_eq!(one.agreed_at(), Ok(100), "with no second RPC named, the one RPC's head is the one to read at");
+        let second = Head { followed: Some((100, Witness::Second)), second_at: Some(103), taken: now };
+        assert_eq!(second.latest(), Some(103), "the later of the two heads, where a stale one would help");
+        assert_eq!(Head { second_at: Some(98), ..second }.latest(), Some(100));
+        assert_eq!(Head { followed: Some((100, Witness::Here)), second_at: None, taken: now }.latest(), Some(100), "a chain on this machine is its owner's own");
+        assert!(Head { followed: None, taken: now, ..Head::default() }.agreed_at().is_err_and(|e| e.contains("can't follow")));
+        // No witness, no reading, and nothing is asked of the RPC (this one answers nothing).
+        let (url, taken) = scripted_rpc(vec![]).await;
+        let p = ProviderBuilder::new().connect_http(url);
+        let data = alloy::primitives::Bytes::from_static(&[1]);
+        assert_eq!(one.read(&p, Address::ZERO, data.clone()).await, Ok(None), "one RPC's word is no witnessed reading");
+        assert!(Head::default().read_agreed(&p, Address::ZERO, data).await.is_err(), "and a head past its life is no head to agree on");
+        let mut live = one;
+        live.renew(&p).await.unwrap();
+        assert_eq!(live.followed, one.followed, "a head still alive is not followed again");
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 0);
+        // With a second named, a head only the one RPC stood behind is not one an agreed read is made at.
+        crate::store::save_settings(&crate::store::Settings { check_rpc: Some("https://second.example/".into()), ..crate::store::Settings::default() }).unwrap();
+        assert!(one.agreed_at().is_err_and(|e| e.contains("second RPC stands behind")));
+        assert_eq!(second.agreed_at(), Ok(100));
+    }
+
+    /// A write is signed only within the budget its task was given: what doesn't fit isn't signed and takes nothing from
+    /// it, what fits is counted, and a write outside any budget is held to none.
+    #[tokio::test]
+    async fn a_write_that_doesnt_fit_the_budget_it_runs_in_is_refused_and_takes_nothing() {
+        let u = alloy::primitives::U256::from;
+        assert!(take_sub_budget(alloy::primitives::U256::MAX).is_ok(), "outside any budget nothing is held");
+        let (out, spent) = within_budget(u(100), async {
+            assert!(take_sub_budget(u(60)).is_ok());
+            let refused = take_sub_budget(u(41)).unwrap_err();
+            assert!(refused.contains("more than the") && refused.contains("left of the budget"), "{refused}");
+            assert!(take_sub_budget(u(40)).is_ok(), "the refused write took nothing: exactly what was left fits");
+            assert!(take_sub_budget(u(1)).is_err(), "and now nothing does");
+            "done"
+        })
+        .await;
+        assert_eq!((out, spent), ("done", u(100)));
+        let (_, none) = within_budget(u(5), async {}).await;
+        assert_eq!(none, u(0), "a task that wrote nothing spent nothing");
+    }
+
+    /// A write's receipt is waited for only as long as asked: one the RPC has is given, one it hasn't ends in an error
+    /// naming the write, and an RPC that refuses is an error.
+    #[tokio::test]
+    async fn a_receipt_is_waited_for_only_as_long_as_asked() {
+        let tx = alloy::primitives::B256::repeat_byte(0xaa);
+        let (url, _) = scripted_rpc(vec![ok(&receipt_json(tx, Some((5, alloy::primitives::B256::repeat_byte(1)))))]).await;
+        let got = receipt_of(&ProviderBuilder::new().connect_http(url), tx, Duration::from_secs(5)).await.unwrap();
+        assert_eq!((got.transaction_hash, got.block_number), (tx, Some(5)));
+        let (url, _) = scripted_rpc(vec![ok("null")]).await;
+        let e = receipt_of(&ProviderBuilder::new().connect_http(url), tx, Duration::ZERO).await.unwrap_err();
+        assert!(e.contains("no receipt for") && e.contains(&format!("{tx:#x}")), "{e}");
+        let (url, _) = scripted_rpc(vec![(500, "no".into())]).await;
+        assert!(receipt_of(&ProviderBuilder::new().connect_http(url), tx, Duration::from_secs(5)).await.is_err());
+    }
+
+    /// A write counts once its block is the chain's own and final: a receipt in a final block that is still the block at
+    /// its height lands; a chain that names no final block, a receipt that names no block, and a block a reorg dropped
+    /// with the write in it are each an error, so nothing is recorded for a write that may not have happened.
+    #[tokio::test]
+    async fn a_write_lands_only_in_a_final_block_the_chain_still_has() {
+        let tx = alloy::primitives::B256::repeat_byte(0xaa);
+        let (head, _) = block_json(9, None, 0);
+        let (mined_at, mined_hash) = block_json(5, None, 1);
+        let mined: TransactionReceipt = serde_json::from_str(&receipt_json(tx, Some((5, mined_hash)))).unwrap();
+        // Final at 9, the receipt still in block 5 and block 5 still the chain's own: landed.
+        let (url, _) = scripted_rpc(vec![ok(&head), ok(&receipt_json(tx, Some((5, mined_hash)))), ok(&mined_at)]).await;
+        let landed = finalized(&ProviderBuilder::new().connect_http(url), mined.clone()).await.unwrap();
+        assert_eq!((landed.block_number, landed.block_hash), (Some(5), Some(mined_hash)));
+        // The chain's own block 5 isn't the one it was mined in, and the chain neither has a receipt nor holds the write.
+        let (other_at, _) = block_json(5, None, 2);
+        let (url, _) = scripted_rpc(vec![ok(&head), ok("null"), ok(&other_at), ok("null")]).await;
+        let e = finalized(&ProviderBuilder::new().connect_http(url), mined.clone()).await.unwrap_err();
+        assert!(e.contains("a reorg dropped that block"), "{e}");
+        // No final block at all.
+        let (url, _) = scripted_rpc(vec![ok("null")]).await;
+        let e = finalized(&ProviderBuilder::new().connect_http(url), mined).await.unwrap_err();
+        assert!(e.contains("doesn't say which of its blocks are final"), "{e}");
+        // A receipt that names no block can't be waited on.
+        let unplaced: TransactionReceipt = serde_json::from_str(&receipt_json(tx, None)).unwrap();
+        let (url, _) = scripted_rpc(vec![]).await;
+        assert!(finalized(&ProviderBuilder::new().connect_http(url), unplaced).await.unwrap_err().contains("names no block"));
+    }
+
+    /// A write is priced from the chain's base fee and the tip it suggests, never above what a second RPC says when one is
+    /// named, and never past the owner's cap; an RPC that can't say what the head costs prices nothing.
+    #[tokio::test]
+    async fn a_write_is_priced_from_the_chains_own_fees_and_the_lower_of_two_rpcs() {
+        let _home = crate::store::scratch_home("priced");
+        let gwei = 1_000_000_000u64;
+        let tip = |g: u64| format!("\"{:#x}\"", g * gwei);
+        let (first, _) = scripted_rpc(vec![ok(&block_json(8, Some(gwei), 0).0), ok(&tip(5))]).await;
+        let got = priced(&ProviderBuilder::new().connect_http(first), 21_000).await.unwrap();
+        assert_eq!(got, Priced { gas: 21_000, max_fee: 7 * u128::from(gwei), tip: 5 * u128::from(gwei) }, "twice the base fee and the tip");
+        // A second RPC naming a lower tip lowers what is paid.
+        let (first, _) = scripted_rpc(vec![ok(&block_json(8, Some(gwei), 0).0), ok(&tip(5))]).await;
+        let (second, _) = scripted_rpc(vec![ok(&block_json(8, Some(gwei), 0).0), ok(&tip(2))]).await;
+        crate::store::save_settings(&crate::store::Settings { check_rpc: Some(second.to_string()), ..crate::store::Settings::default() }).unwrap();
+        let got = priced(&ProviderBuilder::new().connect_http(first), 21_000).await.unwrap();
+        assert_eq!((got.max_fee, got.tip), (4 * u128::from(gwei), 2 * u128::from(gwei)), "the second's tip");
+        crate::store::save_settings(&crate::store::Settings::default()).unwrap();
+        // A base fee past the owner's cap is refused, and so is a head the RPC won't give.
+        let (first, _) = scripted_rpc(vec![ok(&block_json(8, Some(u64::MAX / 2), 0).0), ok(&tip(1))]).await;
+        assert!(priced(&ProviderBuilder::new().connect_http(first), 21_000).await.unwrap_err().contains("base fee"));
+        let (first, _) = scripted_rpc(vec![(500, "no".into())]).await;
+        assert!(priced(&ProviderBuilder::new().connect_http(first), 21_000).await.unwrap_err().contains("reading the chain's head"));
+    }
+
+    /// A write goes out only on the chain the node runs: an RPC that says it is another chain, or doesn't answer, is
+    /// refused; one the node has no chain pinned for, off a live network, is taken at its word. A second RPC that says it
+    /// is another chain stops every write.
+    #[tokio::test]
+    async fn an_rpc_that_is_another_chain_is_refused_and_a_second_that_is_stops_every_write() {
+        // It stops every write in the process for a moment: no other test that writes runs meanwhile.
+        let _one = crate::testchain::one_at_a_time().await;
+        let _home = crate::store::scratch_home("same-chain");
+        let chain = |said: &str| ok(&format!("\"{said}\""));
+        let (url, _) = scripted_rpc(vec![chain("0x539"), chain("0x539"), chain("0x539"), (500, "no".into())]).await;
+        let p = ProviderBuilder::new().connect_http(url);
+        assert_eq!(same_chain(&p, Some(1337)).await, Ok(1337));
+        assert!(same_chain(&p, Some(1)).await.unwrap_err().contains("this node runs on chain 1"));
+        assert_eq!(same_chain(&p, None).await, Ok(1337), "no chain pinned, none live: the RPC's word");
+        assert!(same_chain(&p, Some(1337)).await.unwrap_err().contains("asking the RPC which chain it is"));
+        let (first, _) = scripted_rpc(vec![chain("0x539")]).await;
+        let (second, _) = scripted_rpc(vec![chain("0x1")]).await;
+        crate::store::save_settings(&crate::store::Settings { check_rpc: Some(second.to_string()), ..crate::store::Settings::default() }).unwrap();
+        let e = same_chain(&ProviderBuilder::new().connect_http(first), Some(1337)).await.unwrap_err();
+        assert!(e.contains("the second RPC says it is chain 1, not 1337"), "{e}");
+        assert!(halted().is_some_and(|w| w.contains("second RPC says it is chain 1")), "every write stops");
+        unhalt();
+        // Two RPCs that read the same thing differently are the same contradiction.
+        assert!(second_agrees("a balance", 7, &5u8, &5u8).is_ok() && halted().is_none());
+        let e = second_agrees("a balance", 7, &5u8, &6u8).unwrap_err();
+        assert_eq!(e, "the second RPC says a balance at block 7 is 6, the first 5");
+        assert!(halted().is_some());
+        unhalt();
+    }
+
+    /// The day's gas count follows what writes cost: one that never left gives its whole place back, one proven by more
+    /// than the one RPC is brought to what it cost, and one only an RPC's receipt speaks for stays counted at its most.
+    #[test]
+    fn the_days_gas_count_is_given_back_only_for_what_is_proven() {
+        let _home = crate::store::scratch_home("gas-give-back");
+        let u = alloy::primitives::U256::from;
+        let day = crate::store::now() / 86_400;
+        let spent = || crate::store::read_json_strict::<GasSpent>(&gas_spent_path(), &unbrowse_files::GAS_SPENT).unwrap().spent;
+        let proven = |cost: u64, agreed: bool| crate::proof::Proven { ran: true, gas_used: 1, cost: Some(u(cost)), block: 1, block_hash: alloy::primitives::B256::ZERO, agreed };
+        // Off a live network the devnet's gas is the devnet's own: nothing is reserved.
+        let free = Spend::reserve(&Priced { gas: 21_000, max_fee: 1, tip: 1 }).unwrap();
+        assert!(!free.counted);
+        free.release();
+        reserve_in(&gas_spent_path(), day, u(70), u(1_000)).unwrap();
+        Spend { most: u(70), counted: false }.release();
+        assert_eq!(spent(), u(70), "a write not counted gives nothing back");
+        Spend { most: u(70), counted: true }.release();
+        assert_eq!(spent(), u(0), "a write that never left costs nothing");
+        reserve_in(&gas_spent_path(), day, u(60), u(1_000)).unwrap();
+        Spend { most: u(60), counted: true }.settle(Some(&proven(25, true)));
+        assert_eq!(spent(), u(25), "brought to what it cost");
+        reserve_in(&gas_spent_path(), day, u(10), u(1_000)).unwrap();
+        Spend { most: u(10), counted: true }.settle(Some(&proven(1, false)));
+        Spend { most: u(10), counted: true }.settle(None);
+        assert_eq!(spent(), u(35), "a cost one RPC alone stood behind, or none, gives nothing back");
+    }
+
+    /// A chain's own cheat reaches the chain on this machine and says what it answered, or why not.
+    #[tokio::test]
+    async fn a_local_chains_cheat_answers_with_its_result_or_its_error() {
+        let _one = crate::testchain::one_at_a_time().await;
+        let _home = crate::testchain::home("cheat");
+        let bad = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"method not found"}}"#.to_string();
+        let (url, _) = scripted_rpc(vec![ok("\"0x2a\""), (200, bad), (200, "not json".into())]).await;
+        let _env = crate::testchain::Env::set(&[("UNBROWSE_DEVNET_PORT", url.port().unwrap().to_string())]);
+        assert_eq!(devnet_cheat("anvil_mine", serde_json::json!(["0x1"])).await, Ok(serde_json::json!("0x2a")));
+        let e = devnet_cheat("anvil_nope", serde_json::json!([])).await.unwrap_err();
+        assert!(e.starts_with("anvil_nope:") && e.contains("method not found"), "{e}");
+        assert!(devnet_cheat("anvil_mine", serde_json::json!([])).await.unwrap_err().starts_with("anvil_mine:"), "an answer that isn't JSON-RPC");
+    }
+
+    /// The second RPC's own finalized block is what an expiry is held to when one is named; with none named and the chain
+    /// on this machine, nothing is read; a second with no finalized block, or that doesn't answer, is an error.
+    #[tokio::test]
+    async fn the_finalized_height_comes_from_the_second_rpc_when_one_is_named() {
+        let _one = crate::testchain::one_at_a_time().await;
+        let _home = crate::testchain::home("finalized-now");
+        let _env = crate::testchain::Env::set(&[("UNBROWSE_DEVNET_PORT", crate::testchain::free_port().to_string())]);
+        assert!(second_finalized().await.unwrap_err().contains("no second RPC is named"));
+        assert_eq!(finalized_now().await, Ok(None), "a chain on this machine is followed by the node itself");
+        let named = |url: &reqwest::Url| crate::store::save_settings(&crate::store::Settings { check_rpc: Some(url.to_string()), ..crate::store::Settings::default() }).unwrap();
+        let (second, _) = scripted_rpc(vec![ok(&block_json(42, None, 0).0), ok(&block_json(43, None, 0).0)]).await;
+        named(&second);
+        assert_eq!(second_finalized().await, Ok(42));
+        assert_eq!(finalized_now().await, Ok(Some(43)));
+        let (second, _) = scripted_rpc(vec![ok("null"), (500, "no".into()), ok("{}")]).await;
+        named(&second);
+        assert!(second_finalized().await.unwrap_err().contains("no finalized block"));
+        assert!(second_finalized().await.unwrap_err().contains("didn't answer"));
+        assert!(second_finalized().await.unwrap_err().contains("names no number"));
+    }
+
+    /// A signing provider signs as the key it was made from, names no chain for an RPC that isn't the node's own, and
+    /// holds a signer for no other address; a write of no calls is sent as nothing.
+    #[tokio::test]
+    async fn a_signing_provider_signs_as_its_key_alone_and_a_batch_of_nothing_sends_nothing() {
+        let key = PrivateKeySigner::random();
+        let (url, taken) = scripted_rpc(vec![]).await;
+        let p = ProviderBuilder::new().wallet(key.clone()).connect_http(url);
+        let wallet = p.wallet();
+        assert_eq!((wallet.key().address(), wallet.chain()), (key.address(), None));
+        assert_eq!(NetworkWallet::<Ethereum>::default_signer_address(wallet), key.address());
+        assert!(NetworkWallet::<Ethereum>::has_signer_for(wallet, &key.address()) && !NetworkWallet::<Ethereum>::has_signer_for(wallet, &Address::ZERO));
+        assert_eq!(NetworkWallet::<Ethereum>::signer_addresses(wallet).collect::<Vec<_>>(), [key.address()]);
+        assert_eq!(batch(&p, Vec::new(), "nothing").await.unwrap().len(), 0);
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 0);
+    }
+
+    /// A write the signer's chain has mined all of is not stuck, and a kept write that is young, another signer's, or
+    /// already has a receipt is not replaced: nothing is sent for any of them.
+    #[tokio::test]
+    async fn a_write_that_is_only_slow_is_not_replaced() {
+        let _home = crate::store::scratch_home("unstick");
+        let key = PrivateKeySigner::random();
+        let count = |n: u64| ok(&format!("\"{n:#x}\""));
+        let (url, taken) = scripted_rpc(vec![count(5), count(5)]).await;
+        let p = ProviderBuilder::new().wallet(key.clone()).connect_http(url);
+        assert_eq!(unstick(&p).await, Ok(None), "nothing pending");
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 2);
+        let kept = |signer: Address, at: u64, tx: u8| crate::inflight::Sending {
+            key: format!("k{tx}"),
+            what: "a deposit".into(),
+            signer,
+            nonce: 5,
+            tx: alloy::primitives::B256::repeat_byte(tx),
+            raw: alloy::primitives::Bytes::new(),
+            at,
+            amount: 1.0,
+            book: None,
+            others: Vec::new(),
+            told: false,
+            watch: None,
+        };
+        crate::inflight::keep_for_test(kept(key.address(), crate::store::now(), 1));
+        crate::inflight::keep_for_test(kept(Address::repeat_byte(9), 1, 2));
+        let (url, taken) = scripted_rpc(vec![count(5), count(5)]).await;
+        assert_eq!(unstick(&ProviderBuilder::new().wallet(key.clone()).connect_http(url)).await, Ok(None), "one signed a moment ago, one by another signer");
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 2);
+        crate::inflight::keep_for_test(kept(key.address(), 1, 3));
+        let tx = alloy::primitives::B256::repeat_byte(3);
+        let (url, taken) = scripted_rpc(vec![count(5), count(5), ok(&receipt_json(tx, Some((5, tx))))]).await;
+        assert_eq!(unstick(&ProviderBuilder::new().wallet(key).connect_http(url)).await, Ok(None), "an old write the chain does have a receipt for");
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 3);
+    }
+
+    /// An error says what the write was, and whether it may still land: only a write that left the node and was never
+    /// seen to fail does.
+    #[test]
+    fn an_error_says_whether_the_write_may_still_land() {
+        assert_eq!(not_sent("a deposit", "max fee too low".into()), "a deposit: max fee too low");
+        assert!(!unsettled(&not_sent("a deposit", "nonce too low".into())), "refused before it left");
+        let e = unsettled_error("a deposit", "no receipt");
+        assert!(e.starts_with("a deposit: ") && unsettled(&e) && e.contains("no receipt"), "{e}");
+    }
+
+    /// Writes go one at a time: a second waits for the first's turn to end, and goes then.
+    #[tokio::test]
+    async fn a_second_write_waits_for_the_first_ones_turn() {
+        let _one = crate::testchain::one_at_a_time().await;
+        let first = write_turn().await;
+        let waiter = tokio::spawn(async { drop(write_turn().await) });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(!waiter.is_finished(), "it waits while the first holds its turn");
+        drop(first);
+        tokio::time::timeout(Duration::from_secs(5), waiter).await.expect("it goes once the turn is free").unwrap();
     }
 }

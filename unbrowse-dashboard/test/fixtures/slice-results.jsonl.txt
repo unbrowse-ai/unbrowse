@@ -1,0 +1,3 @@
+{"id":"u6:customs-broker-1","outcome":"right","meta":{"total_cost_usd":0.1070786},"judge_meta":{"total_cost_usd":0.020729499999999998}}
+{"id":"u6:patent-analyst-1","outcome":"confidently_wrong","meta":{"total_cost_usd":0.0518281},"judge_meta":{"total_cost_usd":0.0211575}}
+{"id":"u6:airline-revenue-4","outcome":"right","meta":{"total_cost_usd":0.061632299999999994},"judge_meta":{"total_cost_usd":0.0158135}}

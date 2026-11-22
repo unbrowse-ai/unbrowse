@@ -1,3 +1,8 @@
+# Every job here runs on a fresh machine, never on the local runner pool (UNB-166): the pool runs pull-request code
+# and shares a cargo cache across jobs, so nothing built or signed for users runs there. Blacksmith gives each job a
+# fresh VM (UNB-224). Only `updates`, which publishes to npm by trusted publishing, runs on GitHub's own machines:
+# npm's trusted publishing works from cloud-hosted runners only.
+#
 # The update metadata between releases (.github/scripts/updates.mjs): a fresh timestamp every day, so nodes can tell
 # metadata a mirror keeps serving from what is current (a timestamp lasts a week), and canary's release promoted to
 # stable once it has run two days unhalted. Run it by hand to promote a release now, set the canary share, or halt and

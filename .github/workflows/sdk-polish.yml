@@ -29,6 +29,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
+  # machine that starts at once, so a Mac that is asleep or busy never holds a run up. The summary says why for each
+  # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
+  place:
+    name: Where the agent jobs run
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      polish: ${{ steps.place.outputs.polish }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/place_jobs.py
+          sparse-checkout-cone-mode: false
+      - id: place
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+          MAC_POOL: ${{ vars.MAC_RUNNER }}
+          LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
+        run: python3 -I .github/scripts/place_jobs.py polish=linux
+
   # claude-code-action runs only on events it knows (workflow_dispatch, not push), so a push that changes the spec
   # hands over to a dispatch of this workflow. A dispatch made with the workflow's own token still starts a run, as the
   # github-actions bot, which the polish step has to allow.
@@ -45,8 +71,9 @@ jobs:
         run: gh workflow run sdk-polish.yml --repo "$GITHUB_REPOSITORY" --ref staging -f before="$BEFORE"
 
   polish:
+    needs: place
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ${{ fromJSON(needs.place.outputs.polish) }}
     permissions:
       contents: read
     steps:
@@ -188,6 +215,12 @@ jobs:
           git checkout -b "$branch"
           git add -A
           git commit -q -m "sdk: polish for the agent API change in ${SHA:0:12}"
-          git push origin "refs/heads/$branch:refs/heads/$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base staging --head "$branch" --draft \
-            --title "sdk: polish for the agent API change in ${SHA:0:12}" --body-file "$RUNNER_TEMP/pr.md"
+          # The branch is this workflow's own, one per agent API change: a run again (a retry, a rerun) replaces it
+          # rather than failing on the copy an earlier attempt pushed, and opens the pull request only if none is open.
+          git push --force origin "refs/heads/$branch:refs/heads/$branch"
+          if [ -n "$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state open --json number --jq '.[].number')" ]; then
+            echo "A pull request for $branch is open already: its branch is updated."
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base staging --head "$branch" --draft \
+              --title "sdk: polish for the agent API change in ${SHA:0:12}" --body-file "$RUNNER_TEMP/pr.md"
+          fi

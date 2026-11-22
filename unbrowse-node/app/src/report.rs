@@ -14,10 +14,10 @@
 //! names, the write flag and its step count, never an input's value, a cookie, a header or a body. Nothing a site said
 //! goes in a report the node makes: a failure is its variant and status ([`crate::run::failure_variant`]).
 //!
-//! Reports are off until the owner turns them on (`unbrowse-node reports on`, or `UNBROWSE_REPORTS=1`): each becomes a
-//! public issue. They also follow telemetry: off with telemetry, off in a dev build unless `UNBROWSE_REPORTS=1`, and off with
-//! `unbrowse-node reports off` (kept in `reports.json`, and read before each send, so a running node stops at once) or
-//! `UNBROWSE_REPORTS=0`. A report the relay can't take now is
+//! Reports are on unless the owner turns them off, as telemetry is: each becomes a public issue, scrubbed as above, and an
+//! agent's waits for the owner to send it (below). They follow telemetry: off with telemetry, off in a dev build unless
+//! `UNBROWSE_REPORTS=1`, and off with `unbrowse-node reports off` (kept in `reports.json`, and read before each send, so
+//! a running node stops at once) or `UNBROWSE_REPORTS=0`. A report the relay can't take now is
 //! kept in `reports-queue.json` and sent later. One problem (one [`fingerprint`]) is sent at most once a day.
 //!
 //! An agent's report carries the agent's own words, and an agent can be steered by a page it read: so what it writes
@@ -749,7 +749,7 @@ impl Known {
 
     /// `text` with every known word replaced; the longest first, so a home folder goes before the user name in it.
     pub fn apply(&self, text: &str, c: &mut Counts) -> String {
-        let mut words: Vec<&(String, &'static str)> = self.0.iter().filter(|(w, _)| w.chars().count() >= 4 && w != "/").collect();
+        let mut words: Vec<&(String, &'static str)> = self.0.iter().filter(|(w, _)| w.chars().count() >= 4 && w != "/" && !a_reports_own_word(w)).collect();
         words.sort_by_key(|(w, _)| std::cmp::Reverse(w.len()));
         let mut out = text.to_string();
         for (w, with) in words {
@@ -757,6 +757,15 @@ impl Known {
         }
         out
     }
+}
+
+/// Whether `word` is one every report may hold, so no one's name: a value JSON writes (`true`, `false`, `null`), or a
+/// word a report is built from (its fields, kinds, sources and tools, a route's parts and methods). A vault account
+/// named `false` turned every "asks: false" an agent wrote into "asks: [account]", and the report read wrong.
+fn a_reports_own_word(word: &str) -> bool {
+    let w = word.to_ascii_lowercase();
+    ["true", "false", "null"].contains(&w.as_str())
+        || [FIELDS, KINDS, SOURCES, TOOLS, METHODS, ROUTE_FIELDS, LAST_ERROR_FIELDS].iter().any(|words| words.iter().any(|k| k.eq_ignore_ascii_case(&w)))
 }
 
 /// `text` with `needle` replaced, in any case, where neither side of it continues a word (a path's own `/` is an
@@ -1082,12 +1091,14 @@ fn saved_path() -> std::path::PathBuf {
     store::home().join("reports.json")
 }
 
-/// The owner's choice; off when there is none, since a report becomes a public issue: only the owner turns them on
-/// (`unbrowse-node reports on`). One a newer node saved reads as off: this node can't tell what it says.
+/// The owner's choice; on when there is none, as telemetry is: what a report holds is scrubbed, an agent's waits for the
+/// owner to send it, and `unbrowse-node reports off` stops them. One that can't be read (a newer node's) reads as off:
+/// this node can't tell what it says, and an owner's off must never be read as on.
 fn load_saved() -> Saved {
     match unbrowse_files::REPORTS.read_at(&saved_path()) {
         Ok(Some(s)) => s,
-        _ => Saved { on: false },
+        Ok(None) => Saved { on: true },
+        Err(_) => Saved { on: false },
     }
 }
 
@@ -1116,6 +1127,8 @@ the status or kind of the agent's last error (never what the site said), the nod
 a route call or paid fetch of another contributor's route that failed, by its kind of failure, step and status and the route's shape. \
 It becomes a public GitHub issue on unbrowse-ai/unbrowse";
 pub const HOW_TO_STOP: &str = "turn them off with `unbrowse-node reports off` or UNBROWSE_REPORTS=0 (telemetry off turns them off too)";
+/// What an owner with reports off runs to send them: said where a report was not sent, never `HOW_TO_STOP`.
+pub const HOW_TO_START: &str = "the owner turns them on with `unbrowse-node reports on` (telemetry on too)";
 
 /// `unbrowse-node reports [on|off]`.
 pub fn cli(args: &[String]) -> i32 {
@@ -1128,7 +1141,7 @@ pub fn cli(args: &[String]) -> i32 {
             let on = decide(env, saved.on, tel, cfg!(debug_assertions));
             println!("bug reports: {}{}", if on { "on" } else { "off" }, if !tel { " (telemetry is off)" } else if env.is_some() { " (set by UNBROWSE_REPORTS)" } else { "" });
             println!("a report holds: {WHAT}");
-            println!("{}", if on { HOW_TO_STOP } else { "turn them on with `unbrowse-node reports on` (and telemetry on)" });
+            println!("{}", if on { HOW_TO_STOP } else { HOW_TO_START });
             0
         }
         Some(c @ ("on" | "off")) => {
@@ -1473,7 +1486,7 @@ pub async fn file(cfg: &Config, report: Value, counts: Counts, source: &'static 
     }
     if !still_on(cfg) {
         out["report"] = json!("off");
-        out["why"] = json!(format!("the owner has bug reports off; nothing was sent. {HOW_TO_STOP}"));
+        out["why"] = json!(format!("the owner has bug reports off; nothing was sent. {HOW_TO_START}"));
         return out;
     }
     {
@@ -2008,6 +2021,17 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 
+    /// A vault account named like a word every report holds (`false`, a kind, a field) is no one's name: it is left
+    /// where it stands, and a real account name is still masked. The run that exposed it: an agent's "asks: false"
+    /// went out as "asks: [account]" on 2026-11-19, from a vault holding a login whose account is `false`.
+    #[test]
+    fn a_word_every_report_holds_is_never_taken_for_an_account() {
+        let known = Known::of(&[("false", "[account]"), ("failed", "[account]"), ("alice_gh", "[account]")]);
+        let mut c = Counts::default();
+        let out = known.apply("asks: false while the box showed; the call failed; login alice_gh", &mut c);
+        assert_eq!(out, "asks: false while the box showed; the call failed; login [account]");
+    }
+
     #[test]
     fn an_agents_report_is_scrubbed_before_it_leaves() {
         let home = store::scratch_home("report-scrub");
@@ -2108,19 +2132,24 @@ mod tests {
         assert!(!decide(None, false, true, false), "the file's off");
         assert!(!decide(None, true, true, true), "a dev build sends only when asked");
         assert!(decide(Some(true), false, true, true), "the environment's on, in a dev build with telemetry on");
-        assert!(decide(None, true, true, false), "on in a release with telemetry on, once the owner turned them on");
+        assert!(decide(None, true, true, false), "on in a release with telemetry on, unless the owner turned them off");
     }
 
-    /// A report becomes a public issue, so a node sends none until its owner turns them on: with no saved choice the
-    /// choice is off, and a release with telemetry on still sends nothing.
+    /// Reports are on by default, as telemetry is (Lewis, 2026-11-19: "make bug reports opt in by default too"): with no
+    /// saved choice a release with telemetry on sends them, and the owner's `reports off` is kept and wins. A dev build
+    /// still sends none unless asked, and a choice this node can't read is never taken for on.
     #[test]
-    fn reports_are_off_until_the_owner_turns_them_on() {
+    fn reports_are_on_until_the_owner_turns_them_off() {
         let home = store::scratch_home("reports-default");
         store::use_home(&home);
-        assert!(!load_saved().on, "no choice saved: off");
-        assert!(!decide(None, load_saved().on, true, false), "a release with telemetry on sends nothing by default");
-        store::write_json(&saved_path(), &unbrowse_files::REPORTS, &Saved { on: true }).unwrap();
-        assert!(load_saved().on, "the owner turned them on");
+        assert!(load_saved().on, "no choice saved: on");
+        assert!(decide(None, load_saved().on, true, false), "a release with telemetry on sends by default");
+        assert!(!decide(None, load_saved().on, true, true), "a dev build sends only when asked");
+        assert!(!decide(None, load_saved().on, false, false), "telemetry off turns them off");
+        store::write_json(&saved_path(), &unbrowse_files::REPORTS, &Saved { on: false }).unwrap();
+        assert!(!load_saved().on, "the owner turned them off");
+        std::fs::write(saved_path(), "{ not json").unwrap();
+        assert!(!load_saved().on, "a choice that can't be read is not taken for on");
         let _ = std::fs::remove_dir_all(home);
     }
 

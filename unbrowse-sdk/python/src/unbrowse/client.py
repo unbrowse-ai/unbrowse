@@ -5,6 +5,7 @@ import json
 import os
 import socket
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -280,7 +281,7 @@ class UnbrowseNode:
         """Which agent key this client holds, and the node it's live on. A cheap way to check the setup."""
         r: wire.Whoami = self._primitive("unbrowse_whoami", {})
         fetch = r.get("browser_fetch")
-        return Whoami(agent=r.get("agent", ""), address=r.get("address", ""), node=r.get("node", ""), browser=r.get("browser"), browser_fetch=fetch if isinstance(fetch, bool) else None)
+        return Whoami(agent=r.get("agent", ""), address=r.get("address", ""), node=r.get("node", ""), browser=r.get("browser"), browser_fetch=fetch if isinstance(fetch, bool) else None, owner=r.get("owner"))
 
     def capabilities(self) -> Capabilities:
         """What the node can do now: whether it has its browser (``present``, ``missing``, ``installing``, or
@@ -309,14 +310,18 @@ class UnbrowseNode:
         text: Optional[str] = None,
         key: Optional[str] = None,
         ms: Optional[int] = None,
+        quick: Optional[bool] = None,
+        steps: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """A page that asks for a person, met with your own eyes: ``look`` shows it as a picture (``image``, at ``w`` x
         ``h`` CSS pixels) with its text and ``asks`` (whether it still asks), and ``click``, ``drag``, ``type``,
         ``press``, ``wait`` or ``done`` take one step. Every reply is the page again, so you see what your step did;
-        ``asks`` is the page's own answer."""
+        ``asks`` is the page's own answer. For a short challenge timer, ``quick=True`` lands a hand step with no
+        picture after it, and ``steps`` lands a batch of hand steps (``{action, x, y, ...}``) over one browser
+        attachment (it overrides ``action``); ``look`` afterwards."""
         return self._primitive(
             "unbrowse_challenge",
-            {"action": action, "url": url, "site": site, "session": session, "x": x, "y": y, "to_x": to_x, "to_y": to_y, "text": text, "key": key, "ms": ms},
+            {"action": action, "url": url, "site": site, "session": session, "x": x, "y": y, "to_x": to_x, "to_y": to_y, "text": text, "key": key, "ms": ms, "quick": quick, "steps": steps},
         )
 
     def inspect(self, route_id: str) -> Dict[str, Any]:
@@ -352,6 +357,8 @@ class UnbrowseNode:
         *,
         browser: Optional[str] = None,
         fields: Optional[Sequence[str]] = None,
+        wait_ms: Optional[int] = None,
+        ask: Optional[str] = None,
         pays_usd: Optional[float] = None,
         pays: bool = False,
     ) -> DoResult:
@@ -378,9 +385,19 @@ class UnbrowseNode:
         ``fields`` are the answer's fields to get besides the ones a call hands back by default (the goal's fields and
         each record's name), by the paths ``result.fields.more`` lists, or ``["*"]`` for the whole answer.
 
+        ``wait_ms`` is how long the node waits for the answer (its default 45 s, at most 300 s): when its work goes on
+        past that (learning the page, waiting for the site's browser), the answer is ``still_working`` (``how ==
+        "working"``) with its ``ask``, and the work goes on: ``do("", ask=r.ask)`` collects it, waiting again. Without
+        ``wait_ms`` the client collects it itself, within its own wait, so a caller sees the answer as before.
+
         ``pays_usd`` and ``pays`` are accepted from older code and ignored: nothing is sent for them.
         """
         _ignored(pays_usd, pays)
+        if ask:
+            collect: Dict[str, Any] = {"ask": ask, "session": self.session}
+            if wait_ms is not None:
+                collect["wait_ms"] = int(wait_ms)
+            return self._collected(self._primitive("unbrowse_do", collect), wait_ms)
         if browser not in (None, "auto", "if_present", "never"):
             raise ValueError(f"browser is auto, if_present or never, not {browser!r}")
         if browser == "never":
@@ -394,7 +411,17 @@ class UnbrowseNode:
             args["browser"] = browser  # type: ignore[typeddict-item]
         if fields:
             args["fields"] = list(fields)  # type: ignore[typeddict-item]
-        return DoResult.of(self._primitive("unbrowse_do", dict(args)))
+        if wait_ms is not None:
+            args["wait_ms"] = int(wait_ms)  # type: ignore[typeddict-item]
+        return self._collected(self._primitive("unbrowse_do", dict(args)), wait_ms)
+
+    def _collected(self, r: Any, wait_ms: Optional[int]) -> DoResult:
+        """A do's answer: as the node gave it when the caller said how long to wait; else, while the node is still
+        working on it, collected by its ask until the work ends or the client's own wait runs out."""
+        until = time.monotonic() + self.timeout
+        while wait_ms is None and isinstance(r, dict) and r.get("how") == "working" and r.get("ask") and time.monotonic() < until:
+            r = self._primitive("unbrowse_do", {"ask": r["ask"], "session": self.session})
+        return DoResult.of(r)
 
     def do_pages(
         self,
@@ -404,6 +431,8 @@ class UnbrowseNode:
         *,
         browser: Optional[str] = None,
         fields: Optional[Sequence[str]] = None,
+        wait_ms: Optional[int] = None,
+        ask: Optional[str] = None,
     ) -> PagesResult:
         """Several pages at once, each done as ``do`` does one url, side by side on the node.
 
@@ -412,7 +441,20 @@ class UnbrowseNode:
         site's other pages (another coin's, item's or user's) in one call each. Each answer is cut to how it went, its
         time and its data; a page that needs clicks or typing says so (``how == "browse"``) and isn't opened: ask
         ``do`` for it alone. At most 100 pages. ``browser`` and ``fields`` are as for ``do``.
+
+        The batch is one ask (``ask``) and each page an ask of its own (each page's ``ask``). Answered within ``wait_ms``
+        (the node's 40 s unsaid) while pages are still being learned, it says ``still_working``, with the pages answered
+        so far and the rest ``how == "working"``, listed in ``pending``: ``do_pages("", [], ask=r.ask)`` collects the
+        whole batch, and ``do("", ask=page.ask)`` that page alone.
         """
+        if ask:
+            collect: Dict[str, Any] = {"ask": ask, "session": self.session}
+            if wait_ms is not None:
+                collect["wait_ms"] = int(wait_ms)
+            r = self._primitive("unbrowse_do", collect)
+            if (r or {}).get("how") != "pages":
+                raise error_for("this ask is not a batch of pages: collect it with do", 0, "unsupported")
+            return PagesResult.of(r)
         if browser not in (None, "auto", "if_present", "never"):
             raise ValueError(f"browser is auto, if_present or never, not {browser!r}")
         asked: List[Dict[str, Any]] = []
@@ -431,6 +473,8 @@ class UnbrowseNode:
             args["browser"] = browser
         if fields:
             args["fields"] = list(fields)
+        if wait_ms is not None:
+            args["wait_ms"] = int(wait_ms)
         r = self._primitive("unbrowse_do", args)
         if (r or {}).get("how") != "pages":
             raise error_for("this node is from before do's pages: update it, or ask for each page with do", 0, "unsupported")
@@ -470,7 +514,7 @@ class UnbrowseNode:
     def logins(self) -> List[Login]:
         """Logins saved on the node, as references (``vault:<site>:<account>``). Values never leave the node."""
         r: wire.LoginsResult = self._primitive("unbrowse_logins", {})
-        return [Login(ref=x.get("ref", ""), site=x.get("site", ""), code=x.get("code")) for x in (r or {}).get("logins") or []]
+        return [Login(ref=x.get("ref", ""), site=x.get("site", ""), code=x.get("code"), from_=x.get("from")) for x in (r or {}).get("logins") or []]
 
     def cards(self) -> List[Card]:
         """Payment cards saved on the node, each by its label and last four digits, with a reference for every field a

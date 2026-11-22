@@ -164,6 +164,15 @@ export type DoOptions = CallOptions & {
    * refuses to send it there rather than let that node open its browser.
    */
   browser?: BrowserUse;
+  /**
+   * How long the node waits for the answer, in milliseconds (its default 45 000, at most 300 000). When its work goes
+   * on past that (learning the page, waiting for the site's browser), the answer is still working (`how: "working"`)
+   * with its `ask`, and the work goes on: `do("", { ask })` collects it. Without `waitMs` the client collects it itself,
+   * within its own wait, so a caller sees the answer as before.
+   */
+  waitMs?: number;
+  /** The ask a still-working answer named: collects its answer, waiting again (up to `waitMs`). */
+  ask?: string;
 };
 
 /** One page of several asked at once (`doPages`): a url, or a url with its own goal and inputs. */
@@ -174,12 +183,17 @@ export type DoPagesOptions = CallOptions & {
   inputs?: Record<string, string | number | boolean>;
   /** As `DoOptions.browser`. */
   browser?: BrowserUse;
+  /** How long the node waits for the batch, in milliseconds (its 40 s unsaid, at most 300000). */
+  waitMs?: number;
+  /** A batch's `ask` (a reply that said `stillWorking`): collects the whole batch; goal and pages are the ask's already. */
+  ask?: string;
 };
 
 /** One page's answer among several: how it went, its time, and its data, or why it has none. */
 export type PageAnswer<T = Json> = {
   url: string;
-  how: "called" | "learned" | "network" | "browse" | "error";
+  /** `working`: still being learned when the reply came; `do("", { ask })` with its `ask` collects it alone. */
+  how: "called" | "learned" | "network" | "browse" | "error" | "working";
   ms: number;
   ok: boolean;
   routeId: string | null;
@@ -188,6 +202,8 @@ export type PageAnswer<T = Json> = {
   /** For `browse`: why the page needs clicks or typing. Ask `do` for it alone to open it. */
   why: string | null;
   routeFailed: RouteFailure | null;
+  /** The page's own ask: collects it alone, and a `do` of this page alone joins its walk. Null from an older node. */
+  ask: string | null;
 };
 
 /** What `doPages` did: each page's answer in the order asked, how many went each way, and the whole run's time. */
@@ -199,6 +215,10 @@ export type PagesResult<T = Json> = {
   fields: Record<string, { path: string; kind: string; example?: string }[]>;
   /** Pages still being learned when the reply came (within 40 seconds): they go on learning, so ask again for them. */
   pending: string[];
+  /** The batch's ask: `doPages("", [], { ask })` collects the whole batch. Null from an older node. */
+  ask: string | null;
+  /** Whether pages were still being learned when the reply came (`outcome: still_working`). */
+  stillWorking: boolean;
 };
 
 /** How a call may use the node's browser (`DoOptions.browser`). */
@@ -273,6 +293,15 @@ export type DoResult<T = Json> =
       networkSkipped: NetworkSkipped | null;
       networkOffers: NetworkOffers | null;
       paymentRefused: PaymentRefused | null;
+    }
+  /**
+   * Still working: the node answered before its work ended, and the work goes on. `do("", { ask })` collects the
+   * answer; `phase` says what the node is doing now.
+   */
+  | {
+      how: "working";
+      ask: string;
+      phase: string;
     };
 
 /** A route that browsing has learned, as a browse reply names it. */
@@ -394,6 +423,12 @@ export type Whoami = {
   browser?: BrowserState;
   /** Whether the node fetches its browser itself the first time a goal needs it. Absent from an older node. */
   browserFetch?: boolean;
+  /**
+   * Whether the owner can be asked on a page (browse's `ask_owner`): `watching` (a window of theirs is open),
+   * `can_open` (none is, and the node opens one at the ask) or `off` (the owner keeps windows off this node, and an
+   * ask is refused at once). Absent from an older node.
+   */
+  owner?: "watching" | "can_open" | "off";
 };
 
 /** What the node can do now (`capabilities()`). */
@@ -416,6 +451,8 @@ export type Login = {
   site: string;
   /** `vault:code:<site>:<account>`, when the vault makes this login's two-step codes. */
   code?: string;
+  /** `"login keychain"` for a login saved in the owner's macOS login keychain that the vault keeps on its first use. */
+  from?: string;
 };
 
 /** A payment card in the node's vault: what tells it apart, and a reference for each field a checkout asks for. */

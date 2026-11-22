@@ -67,6 +67,7 @@ use crate::dial::OwnPort;
 use crate::budget::{self, Asked, Budget, Gated, KadGate, Payers, PerPeer, Slot, Slots, BODY_RATE, LISTINGS_RATE, SLOT_WAIT, STRANGERS_BODIES, STRANGERS_LISTINGS};
 use crate::changes::{self, Change, Heard};
 use crate::tower::{self, Desk, HandError, NoTowers, TowerAnswer, TowerCodec, Towers, TOWER_TIMEOUT};
+use crate::mcp::{self, McpAnswer, McpAsk, McpCodec, McpDoor};
 use crate::wire::{self, Speaks};
 use crate::{reach, site};
 
@@ -116,7 +117,8 @@ const UNREAD_RETRY: Duration = Duration::from_secs(5);
 const UNREAD_RETRY_MAX: Duration = Duration::from_secs(300);
 /// How long a peer the registry doesn't list yet stays turned away, at first and at most, before it is asked again
 /// while still connected. A node meets others before its metadata lands (its network starts first), so "not listed"
-/// is often "not listed yet": it stands seconds, rising to minutes, never as long as a refusal the registry made.
+/// is often "not listed yet": it stands seconds, rising to minutes, never as long as a refusal the registry made. The
+/// first wait is `Config::unlisted_retry`, this unless a test on one machine passes a shorter one.
 const UNLISTED_RETRY: Duration = Duration::from_secs(3);
 const UNLISTED_RETRY_MAX: Duration = Duration::from_secs(300);
 /// How soon after a peer is first admitted the node announces again what it provides, so admissions that come
@@ -207,8 +209,13 @@ pub struct Config {
     pub admission_ttl: Duration,
     /// How long a refusal the registry made stands (a peer placed where its identity's node can't sit, an index past
     /// the identity's nodes, a release too old). A peer the registry doesn't list under its identity is refused only
-    /// seconds to minutes (`UNLISTED_RETRY`): its metadata may not have landed yet.
+    /// seconds to minutes (`unlisted_retry`): its metadata may not have landed yet.
     pub refusal_ttl: Duration,
+    /// How long a peer the registry doesn't list yet stays turned away the first time, before it is asked again while
+    /// still connected; the wait doubles each time it is still unlisted, to five minutes at most.
+    pub unlisted_retry: Duration,
+    /// How long the registry's answer about one identity stands before it is read again.
+    pub registry_fresh: Duration,
     /// How long reading a peer's identity from the registry may take. Past it the peer isn't judged, and is asked
     /// again soon: a read that hangs never keeps a peer out for good.
     pub registry_timeout: Duration,
@@ -225,6 +232,9 @@ pub struct Config {
     /// The versions of each wire protocol the node speaks, newest first (`wire.rs`): this release's, unless a test
     /// stands up a node of another.
     pub speaks: Speaks,
+    /// What answers the MCP asks clients send this node over the network (`mcp`, graph `gateway.direct`): none, the
+    /// default, refuses every one.
+    pub mcp: McpDoor,
 }
 
 impl Config {
@@ -252,6 +262,8 @@ impl Config {
             goodbye_within: Duration::from_secs(2),
             admission_ttl: day,
             refusal_ttl: Duration::from_secs(600),
+            unlisted_retry: UNLISTED_RETRY,
+            registry_fresh: REGISTRY_FRESH,
             registry_timeout: Duration::from_secs(30),
             saved: None,
             version: env!("CARGO_PKG_VERSION").into(),
@@ -259,6 +271,7 @@ impl Config {
             slots: budget::SLOTS,
             slots_per_peer: budget::SLOTS_PER_PEER,
             speaks: Speaks::default(),
+            mcp: McpDoor::default(),
         }
     }
 }
@@ -363,6 +376,7 @@ mod derived {
         pub(super) listings: OwnPort<request_response::json::Behaviour<ListingsAsk, ListingsAnswer>>,
         pub(super) body: OwnPort<request_response::Behaviour<BodyCodec>>,
         pub(super) tower: OwnPort<request_response::Behaviour<TowerCodec>>,
+        pub(super) mcp: OwnPort<request_response::Behaviour<McpCodec>>,
         pub(super) leaving: OwnPort<request_response::json::Behaviour<Leaving, Left>>,
         pub(super) gossip: gossipsub::Behaviour,
         pub(super) ping: ping::Behaviour,
@@ -422,6 +436,7 @@ enum Cmd {
     Fetch(PeerId, String, oneshot::Sender<Result<Vec<Listing>, String>>),
     FetchBody(PeerId, Vec<Multiaddr>, BodyAsk, oneshot::Sender<Result<BodyAnswer, request_response::OutboundFailure>>),
     HandOver(PeerId, Vec<Multiaddr>, Vec<u8>, tower::Handing),
+    AskMcp(PeerId, Vec<Multiaddr>, McpAsk, mcp::Asking),
     Dial(Option<PeerId>, Vec<Multiaddr>),
     Table(oneshot::Sender<Vec<(PeerId, Vec<Multiaddr>)>>),
     Listening(oneshot::Sender<Vec<Multiaddr>>),
@@ -485,6 +500,7 @@ enum Inner {
     /// An ask that waited for a slot under this ticket has waited `SLOT_WAIT`: listings (true) or bodies.
     Waited(bool, u64),
     Tower(ResponseChannel<TowerAnswer>, TowerAnswer),
+    Mcp(ResponseChannel<McpAnswer>, McpAnswer),
     /// A notice whose source wasn't judged when it came, and the verdict since: its id, who forwarded it, its source.
     Vouched(MessageId, PeerId, PeerId, Change, Standing),
 }
@@ -629,6 +645,7 @@ impl Net {
                     speaks.protocols(wire::TOWER),
                     request_response::Config::default().with_request_timeout(TOWER_TIMEOUT).with_max_concurrent_streams(MAX_ANSWERING),
                 )),
+                mcp: OwnPort::new(mcp::behaviour(speaks.protocols(wire::MCP))),
                 leaving: OwnPort::new(request_response::json::Behaviour::with_codec(
                     request_response::json::codec::Codec::default().set_request_size_maximum(MAX_ASK_BYTES).set_response_size_maximum(MAX_ASK_BYTES),
                     speaks.protocols(wire::LEAVING),
@@ -663,7 +680,8 @@ impl Net {
         let (heard_tx, heard_rx) = mpsc::channel(MAX_HEARD);
         let state = State::new(&cfg, kad_proto, signer, gate, heard_tx);
         serve_as(&mut swarm, &state);
-        tokio::spawn(run(swarm, state, registry.clone(), listings, bodies, towers, rx, itx, irx));
+        let door = cfg.mcp.clone();
+        tokio::spawn(run(swarm, state, registry.clone(), listings, bodies, towers, door, rx, itx, irx));
         let net = Net { tx, heard: Arc::new(std::sync::Mutex::new(Some(heard_rx))), peer_id, sources: cfg.listing_sources, connect_timeout: cfg.connect_timeout, goodbye_within: cfg.goodbye_within };
         tokio::spawn(join(net.clone(), registry, cfg.saved.clone()));
         tokio::spawn(watching(net.clone()));
@@ -862,6 +880,17 @@ impl Net {
             Ok(Ok(answer)) => answer,
             Ok(Err(_)) => Err(request_response::OutboundFailure::ConnectionClosed),
             Err(_) => Err(request_response::OutboundFailure::Timeout),
+        }
+    }
+
+    /// Asks node `peer` an MCP request over the network (`mcp`, graph `gateway.direct`), dialling `addrs` and any
+    /// address the table knows, and waits for its answer.
+    pub async fn ask_mcp(&self, peer: PeerId, addrs: Vec<Multiaddr>, ask: McpAsk) -> Result<McpAnswer, String> {
+        match tokio::time::timeout(mcp::MCP_TIMEOUT + Duration::from_secs(5), self.ask(|r| Cmd::AskMcp(peer, addrs, ask, r))).await {
+            Ok(Ok(Ok(answer))) => Ok(answer),
+            Ok(Ok(Err(e))) => Err(format!("the node didn't answer: {e}")),
+            Ok(Err(_)) => Err("the network stopped".into()),
+            Err(_) => Err("the node didn't answer in time".into()),
         }
     }
 
@@ -1368,7 +1397,8 @@ impl Lookups {
 
 /// How long the registry's answer about one identity stands before it is read again: short, so a node its identity
 /// has just added is admitted soon after, and long enough that peers naming one identity again and again (retries,
-/// several nodes, fresh keys) cost one read.
+/// several nodes, fresh keys) cost one read. `Config::registry_fresh`, this unless a test on one machine passes a
+/// shorter one.
 const REGISTRY_FRESH: Duration = Duration::from_secs(10);
 /// Identities whose answers are remembered, at most.
 const REGISTRY_REMEMBERED: usize = 4096;
@@ -1391,6 +1421,8 @@ struct Reads {
     tokens: f64,
     at: Instant,
     sources: HashMap<Source, (f64, Instant)>,
+    /// How long an answer stands (`Config::registry_fresh`).
+    fresh: Duration,
 }
 
 #[derive(Debug)]
@@ -1404,13 +1436,13 @@ enum Answer {
 }
 
 impl Reads {
-    fn new(now: Instant) -> Reads {
-        Reads { answers: HashMap::new(), tokens: REGISTRY_READ_BURST, at: now, sources: HashMap::new() }
+    fn new(now: Instant, fresh: Duration) -> Reads {
+        Reads { answers: HashMap::new(), tokens: REGISTRY_READ_BURST, at: now, sources: HashMap::new(), fresh }
     }
 
     fn known(&self, id: &str, now: Instant) -> Option<Option<Identity>> {
         let (at, answer) = self.answers.get(id)?;
-        (now.saturating_duration_since(*at) < REGISTRY_FRESH).then(|| answer.clone())
+        (now.saturating_duration_since(*at) < self.fresh).then(|| answer.clone())
     }
 
     /// The node's allowance and `source`'s at `now`.
@@ -1450,7 +1482,8 @@ impl Reads {
     /// Keeps what the registry answered for `id`. A failed read is never kept: it said nothing.
     fn answered(&mut self, id: String, answer: Option<Identity>, now: Instant) {
         if !self.answers.contains_key(&id) && self.answers.len() >= REGISTRY_REMEMBERED {
-            self.answers.retain(|_, (at, _)| now.saturating_duration_since(*at) < REGISTRY_FRESH);
+            let fresh = self.fresh;
+            self.answers.retain(|_, (at, _)| now.saturating_duration_since(*at) < fresh);
             if self.answers.len() >= REGISTRY_REMEMBERED {
                 return;
             }
@@ -1547,6 +1580,7 @@ struct State {
     rules: Rules,
     admission_ttl: Duration,
     refusal_ttl: Duration,
+    unlisted_retry: Duration,
     registry_timeout: Duration,
     /// The registry reads for hellos, running and waiting (`Lookups`).
     lookups: Lookups,
@@ -1571,7 +1605,7 @@ struct State {
     /// Peers turned away, when, and for how long.
     refused: HashMap<PeerId, (Instant, Duration)>,
     /// Peers the registry didn't list under the identity they named, and how many times in a row: each is asked again
-    /// while connected, later each time (`UNLISTED_RETRY`).
+    /// while connected, later each time (`Config::unlisted_retry`, doubling).
     unlisted: HashMap<PeerId, u32>,
     /// Peers per bucket: a table holding fewer is small, and re-announces on admissions and on `REANNOUNCE_EVERY`.
     k: usize,
@@ -1613,6 +1647,7 @@ struct State {
     change_rate: PerPeer,
     heard: mpsc::Sender<Heard>,
     tower: Desk,
+    mcp: mcp::Desk,
     provider_ttl: Duration,
     connect_timeout: Duration,
     check_after: Duration,
@@ -1646,9 +1681,10 @@ impl State {
             rules: cfg.rules,
             admission_ttl: cfg.admission_ttl,
             refusal_ttl: cfg.refusal_ttl,
+            unlisted_retry: cfg.unlisted_retry,
             registry_timeout: cfg.registry_timeout,
             lookups: Lookups::default(),
-            reads: Arc::new(std::sync::Mutex::new(Reads::new(Instant::now()))),
+            reads: Arc::new(std::sync::Mutex::new(Reads::new(Instant::now(), cfg.registry_fresh))),
             reads_wake: false,
             sources: HashMap::new(),
             announce_listen: cfg.announce_listen,
@@ -1688,6 +1724,7 @@ impl State {
             change_rate: PerPeer::new(changes::CHANGE_RATE),
             heard,
             tower: Desk::new(),
+            mcp: mcp::Desk::new(),
             provider_ttl: cfg.provider_ttl,
             connect_timeout: cfg.connect_timeout,
             check_after: cfg.check_after,
@@ -1857,6 +1894,7 @@ async fn run<R: Registry, L: Listings, B: Bodies, T: Towers>(
     listings: Arc<L>,
     bodies: Arc<B>,
     towers: Arc<T>,
+    door: McpDoor,
     mut rx: mpsc::Receiver<Cmd>,
     itx: mpsc::UnboundedSender<Inner>,
     mut irx: mpsc::UnboundedReceiver<Inner>,
@@ -1959,12 +1997,20 @@ async fn run<R: Registry, L: Listings, B: Bodies, T: Towers>(
                     st.tower.answered();
                     let _ = swarm.behaviour_mut().tower.send_response(channel, answer);
                 }
+                Inner::Mcp(channel, answer) => {
+                    st.mcp.answered();
+                    let _ = swarm.behaviour_mut().mcp.send_response(channel, answer);
+                }
                 Inner::Vouched(id, from, source, change, s) => vouched(&mut swarm, &mut st, id, from, source, change, s),
             },
             event = swarm.select_next_some() => match event {
                 SwarmEvent::Behaviour(BehaviourEvent::Tower(e)) => {
                     let itx = itx.clone();
                     tower::event(&mut swarm.behaviour_mut().tower, &mut st.tower, &towers, move |c, a| { let _ = itx.send(Inner::Tower(c, a)); }, e);
+                }
+                SwarmEvent::Behaviour(BehaviourEvent::Mcp(e)) => {
+                    let itx = itx.clone();
+                    mcp::event(&mut swarm.behaviour_mut().mcp, &mut st.mcp, &door, move |c, a| { let _ = itx.send(Inner::Mcp(c, a)); }, e);
                 }
                 event => event_of(&mut swarm, &mut st, &registry, &listings, &bodies, &itx, event),
             },
@@ -2008,6 +2054,13 @@ fn command(swarm: &mut Swarm<Behaviour>, st: &mut State, cmd: Cmd) -> bool {
             }
             let id = swarm.behaviour_mut().body.send_request(&peer, ask);
             st.fetching_bodies.insert(id, reply);
+        }
+        Cmd::AskMcp(peer, addrs, ask, reply) => {
+            for a in addrs {
+                swarm.add_peer_address(peer, a);
+            }
+            let id = swarm.behaviour_mut().mcp.send_request(&peer, ask);
+            st.mcp.asking.insert(id, reply);
         }
         Cmd::HandOver(peer, addrs, handed, reply) => {
             for a in addrs {
@@ -2356,7 +2409,7 @@ fn judged(swarm: &mut Swarm<Behaviour>, st: &mut State, itx: &mpsc::UnboundedSen
         Err(Refusal::Unregistered | Refusal::NotItsNode) => {
             let tries = st.unlisted.entry(peer).or_insert(0);
             *tries += 1;
-            let wait = UNLISTED_RETRY.saturating_mul(1 << (*tries - 1).min(16)).min(UNLISTED_RETRY_MAX);
+            let wait = st.unlisted_retry.saturating_mul(1 << (*tries - 1).min(16)).min(UNLISTED_RETRY_MAX);
             st.refused.insert(peer, (Instant::now(), wait));
             st.admitted.remove(&peer);
             recount(swarm, st, &peer);
@@ -2909,7 +2962,7 @@ mod tests {
     #[test]
     fn peers_cannot_make_the_node_read_the_registry_past_its_rate() {
         let t = Instant::now();
-        let mut reads = Reads::new(t);
+        let mut reads = Reads::new(t, REGISTRY_FRESH);
         let fresh_ids: Vec<Answer> = (0..1000).map(|n| reads.ask(&n.to_string(), alone(PeerId::random()), t)).collect();
         assert_eq!(fresh_ids.iter().filter(|r| matches!(r, Answer::Read)).count(), REGISTRY_READ_BURST as usize, "a burst, then nothing");
         assert!(matches!(reads.ask("7", alone(PeerId::random()), t + Duration::from_millis(500)), Answer::Later));
@@ -2940,7 +2993,7 @@ mod tests {
     fn churn(machines: u8, arrives: Duration, secs: u64) -> (Option<Duration>, usize, usize) {
         let t0 = Instant::now();
         let mut lookups = Lookups::default();
-        let mut reads = Reads::new(t0);
+        let mut reads = Reads::new(t0, REGISTRY_FRESH);
         let attackers: Vec<(PeerId, Source)> = (0..machines).map(|m| (PeerId::random(), Source::Ip(std::net::Ipv4Addr::new(203, 0, 113, m).into()))).collect();
         let honest = PeerId::random();
         let honest_from = Source::Ip(std::net::Ipv4Addr::new(198, 51, 100, 1).into());

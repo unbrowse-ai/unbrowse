@@ -172,7 +172,7 @@ The spec text in `papers/` carries the same change (unbrowse-papers PR 111): §4
 | Rule | What it asks (under 15 words) | Status | Where |
 |---|---|---|---|
 | rank.score | Rank each entry by S = √(Q·M), nothing else entering. | built | `rank/coin.rs` `score`, fed by `chain/coins.rs` `rank_of` |
-| rank.counted-stake | Count stake only from checked wallets whose latest paid call passed. | built | `rank/coin.rs` `StakeBook.counts`, `counted_stake` over `Checked` and `LineNoted` events |
+| rank.counted-stake | Count stake only from checked wallets whose latest paid call passed. | partly | `rank/coin.rs` `StakeBook.counts`, `counted_stake` over `Checked` and `LineNoted` events. A failed line is never claimed (`decide.failed-fetch-always-free`), so the flag clears only by the payer's own `reportFailed`: the node sends it after a failed call on a fetched route where its own wallet holds counted stake (`api/call.rs` `report_failed_stake`, `chain/coins.rs` `report_failed`). Not cleared: a payer that is the owner's linked wallet (no key here), and a holder that never calls the route again |
 | rank.exit-delay | Holder picks an exit delay, stake earns nothing during it, Q weights by delay. | built | `CoinStakes.requestUnstake` and `DEFAULT_DELAY`, `rank/coin.rs` `exit_delay_weight` (delay over delay plus a one-day median, the model's curve) |
 | rank.collateral | Value counted stake in UNB at min of TWAP and last-out value. | built | `rank/coin.rs` `collateral` |
 | rank.twap-cap | Value each stake at min(24-hour TWAP, last-out sale value). | built | `rank/coin.rs` `collateral`, `RANK_PRICE_WINDOW`, `chain/coins.rs` `twap` over `RouteCoins.observe` |

@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Unbrowse answer</title>
+<style>
+  /* One template for every site (UNB-234): it draws the answer's shape, never a site. System font and system colours
+     only (OpenAI's app UI guidelines); the host's own variables win where it sends them. */
+  :root { color-scheme: light dark; --fg: CanvasText; --bg: Canvas; --muted: color-mix(in srgb, CanvasText 62%, Canvas);
+    --line: color-mix(in srgb, CanvasText 14%, Canvas); --tile: color-mix(in srgb, CanvasText 5%, Canvas); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: transparent; color: var(--color-text-primary, var(--fg));
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { padding: 8px 2px; }
+  .row { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; }
+  .card { flex: 0 0 176px; scroll-snap-align: start; display: flex; flex-direction: column;
+    border: 1px solid var(--color-border-primary, var(--line)); border-radius: 12px; overflow: hidden; }
+  .pic { aspect-ratio: 1 / 1; width: 100%; object-fit: contain; background: var(--tile); display: block; }
+  .ph { aspect-ratio: 1 / 1; display: grid; place-items: center; background: var(--tile); font-size: 2em; color: var(--muted); }
+  .body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .title { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .meta { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { align-self: flex-start; font-weight: 600; }
+  .cta { margin-top: auto; padding-top: 6px; }
+  button, a.btn { font: inherit; color: inherit; background: none; border: 1px solid var(--line); border-radius: 999px;
+    padding: 4px 12px; cursor: pointer; text-decoration: none; display: inline-block; }
+  button:focus-visible, a.btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+  table { border-collapse: collapse; width: 100%; }
+  .wrap { overflow-x: auto; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top;
+    max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+  .foot { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main id="app" data-layout="waiting" aria-live="polite"></main>
+<script>
+"use strict";
+// Picks a layout from the answer's shape: cards (3 to 8, each with its picture) when at least three items carry pictures, a table for rows without, text
+// otherwise. Speaks the MCP Apps view protocol (ui/initialize, ui/notifications/tool-result, ui/open-link,
+// ui/notifications/size-changed); a host that only sets window.openai (ChatGPT's older bridge) is read as well.
+const app = document.getElementById("app");
+const MAX_CARDS = 8, MAX_ROWS = 10, MAX_COLS = 5;
+const IMG_KEY = /(^|_|-)(image|images|img|thumb|thumbnail|thumbnails|photo|photos|picture|cover|avatar|logo|poster|banner|icon)(s)?($|_|-|url|uri|src)|imageurl|thumbnailurl|^src$/i;
+const IMG_EXT = /\.(jpe?g|png|webp|gif|avif|svg)(\?|#|$)/i;
+const TITLE_KEYS = ["title", "name", "product_name", "productName", "headline", "label", "display_name", "displayName", "full_name", "fullName", "symbol", "text"];
+const PRICE_KEY = /(^|_)(price|cost|amount|fee|current_price)(s)?($|_)|price/i;
+const LINK_KEY = /^(url|link|href|permalink|web_url|html_url|product_url|productUrl|page|share_url)$/i;
+const isUrl = (v) => typeof v === "string" && /^https:\/\/[^\s]+$/i.test(v);
+const scalar = (v) => v === null || ["string", "number", "boolean"].includes(typeof v);
+
+function imageOf(o) {
+  const pick = (v) => {
+    if (isUrl(v)) return v;
+    if (typeof v === "string" && v.startsWith("//") && IMG_EXT.test(v)) return "https:" + v;
+    if (Array.isArray(v)) { for (const x of v) { const u = pick(x); if (u) return u; } }
+    else if (v && typeof v === "object") { for (const k of ["url", "src", "href", "large", "medium", "small", "thumbnail"]) { const u = pick(v[k]); if (u) return u; } }
+    return null;
+  };
+  for (const [k, v] of Object.entries(o)) if (IMG_KEY.test(k)) { const u = pick(v); if (u) return u; }
+  for (const v of Object.values(o)) if (isUrl(v) && IMG_EXT.test(v)) return v;
+  return null;
+}
+function titleOf(o) {
+  for (const k of TITLE_KEYS) if (typeof o[k] === "string" && o[k].trim()) return o[k].trim();
+  for (const v of Object.values(o)) if (typeof v === "string" && v.trim() && !isUrl(v) && v.length <= 120) return v.trim();
+  return null;
+}
+function priceOf(o) {
+  for (const [k, v] of Object.entries(o)) {
+    if (!PRICE_KEY.test(k)) continue;
+    if (typeof v === "number" || (typeof v === "string" && /\d/.test(v) && v.length <= 24)) return String(v);
+    if (v && typeof v === "object") for (const x of ["formatted", "display", "text", "value", "amount", "current"]) if (scalar(v[x]) && v[x] !== null) return String(v[x]);
+  }
+  return null;
+}
+function linkOf(o, image) {
+  for (const [k, v] of Object.entries(o)) if (LINK_KEY.test(k) && isUrl(v) && v !== image) return v;
+  for (const v of Object.values(o)) if (isUrl(v) && v !== image && !IMG_EXT.test(v)) return v;
+  return null;
+}
+function metaOf(o, used) {
+  for (const [k, v] of Object.entries(o)) {
+    if (typeof v !== "string" && typeof v !== "number") continue;
+    const s = String(v).trim();
+    if (!s || used.has(s) || isUrl(s) || s.length > 80 || /^(id|_id|uuid|sku)$/i.test(k)) continue;
+    return s;
+  }
+  return null;
+}
+
+// The data an answer carries: a call's result.data, each page's data for many pages, or the answer itself.
+function dataOf(a) {
+  if (a == null || typeof a !== "object") return a;
+  if (a.result && "data" in a.result) return a.result.data;
+  if (Array.isArray(a.pages)) {
+    const all = [];
+    for (const p of a.pages) { const d = p && p.data; if (Array.isArray(d)) all.push(...d); else if (d != null) all.push(d); }
+    return all;
+  }
+  if ("data" in a && a.data !== undefined) return a.data;
+  return a;
+}
+// The biggest list of objects in the data, a few levels down, the shallower on a tie.
+function listOf(d) {
+  let best = null;
+  const walk = (v, depth) => {
+    if (depth > 4 || v == null || typeof v !== "object") return;
+    if (Array.isArray(v)) {
+      const objs = v.filter((x) => x && typeof x === "object" && !Array.isArray(x));
+      if (objs.length && objs.length >= v.length / 2 && (!best || objs.length > best.length)) best = objs;
+      for (const x of v.slice(0, 3)) walk(x, depth + 1);
+      return;
+    }
+    for (const x of Object.values(v)) walk(x, depth + 1);
+  };
+  walk(d, 0);
+  return best;
+}
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) (k === "text" ? (e.textContent = v) : e.setAttribute(k, v));
+  for (const k of kids) if (k) e.append(k);
+  return e;
+}
+function openLink(url) {
+  if (window.openai && typeof window.openai.openExternal === "function") { window.openai.openExternal({ href: url }); return; }
+  request("ui/open-link", { url }).catch(() => window.open(url, "_blank", "noopener"));
+}
+function linkButton(url, label) {
+  const b = el("button", { type: "button", text: label, "aria-label": label });
+  b.addEventListener("click", () => openLink(url));
+  return b;
+}
+function picture(src, alt) {
+  const ph = () => el("div", { class: "ph", role: "img", "aria-label": alt, text: (alt || "?").trim().charAt(0).toUpperCase() });
+  if (!src) return ph();
+  const img = el("img", { class: "pic", src, alt, loading: "lazy", referrerpolicy: "no-referrer" });
+  img.addEventListener("error", () => img.replaceWith(ph()));
+  return img;
+}
+
+function cards(items) {
+  const shown = items.slice(0, MAX_CARDS);
+  const row = el("div", { class: "row", role: "list" });
+  for (const it of shown) {
+    const title = it.title || "Untitled";
+    const used = new Set([title, it.price].filter(Boolean));
+    const meta = metaOf(it.o, used);
+    const card = el("article", { class: "card", role: "listitem" },
+      picture(it.image, title),
+      el("div", { class: "body" },
+        el("div", { class: "title", text: title, title }),
+        it.price ? el("div", { class: "badge", text: it.price }) : null,
+        meta ? el("div", { class: "meta", text: meta }) : null,
+        it.link ? el("div", { class: "cta" }, linkButton(it.link, "Open")) : null));
+    row.append(card);
+  }
+  const out = [row];
+  if (items.length > shown.length) out.push(el("div", { class: "foot", text: `${shown.length} of ${items.length} shown` }));
+  return out;
+}
+
+function table(list) {
+  const counts = new Map();
+  for (const o of list) for (const [k, v] of Object.entries(o)) if (scalar(v) && v !== null && v !== "") counts.set(k, (counts.get(k) || 0) + 1);
+  const cols = [...counts.entries()].filter(([, n]) => n >= list.length / 2).sort((a, b) => b[1] - a[1]).slice(0, MAX_COLS).map(([k]) => k);
+  const wrap = el("div", { class: "wrap" });
+  const t = el("table");
+  t.append(el("thead", {}, el("tr", {}, ...cols.map((c) => el("th", { scope: "col", text: c })))));
+  const body = el("tbody");
+  const draw = (n) => {
+    body.replaceChildren();
+    for (const o of list.slice(0, n)) {
+      body.append(el("tr", {}, ...cols.map((c) => {
+        const v = o[c];
+        const s = v == null ? "" : String(v);
+        return el("td", { class: typeof v === "number" ? "n" : null, text: s, title: s.length > 30 ? s : null });
+      })));
+    }
+  };
+  draw(MAX_ROWS);
+  t.append(body);
+  wrap.append(t);
+  const out = [wrap];
+  if (list.length > MAX_ROWS) {
+    const more = el("button", { type: "button", text: `Show all ${list.length}` });
+    more.addEventListener("click", () => { draw(list.length); more.remove(); resized(); });
+    out.push(el("div", { class: "foot" }, more));
+  }
+  return { nodes: out, cols };
+}
+
+function words(a, d) {
+  if (typeof d === "string") return d;
+  if (a && typeof a === "object") {
+    for (const k of ["why", "error", "message", "note", "summary"]) if (typeof a[k] === "string" && a[k]) return a[k];
+    if (a.result && typeof a.result.error === "string" && a.result.error) return a.result.error;
+  }
+  if (d && typeof d === "object" && !Array.isArray(d)) {
+    const lines = Object.entries(d).filter(([, v]) => scalar(v) && v !== null && v !== "").slice(0, 12).map(([k, v]) => `${k}: ${v}`);
+    if (lines.length) return lines.join("\n");
+  }
+  if (d == null) return "No answer.";
+  return JSON.stringify(d, null, 1).slice(0, 2000);
+}
+
+// Draws one answer. Exposed for tests as window.unbrowseRender.
+function render(answer, isError) {
+  const d = isError ? null : dataOf(answer);
+  const list = isError ? null : listOf(d);
+  let layout = "text", nodes;
+  if (list && list.length) {
+    const items = list.map((o) => { const image = imageOf(o); return { o, image, title: titleOf(o), price: priceOf(o), link: linkOf(o, image) }; });
+    const pictured = items.filter((i) => i.image);
+    if (pictured.length >= 3) { layout = "cards"; nodes = cards(pictured); }
+    else { const t = table(list); if (t.cols.length) { layout = "table"; nodes = t.nodes; } }
+  }
+  if (layout === "text") nodes = [el("p", { class: "text", text: words(answer, d) })];
+  app.dataset.layout = layout;
+  app.replaceChildren(...nodes);
+  resized();
+  return layout;
+}
+window.unbrowseRender = render;
+
+function answerOf(result) {
+  if (!result) return null;
+  if (result.structuredContent && typeof result.structuredContent === "object") return result.structuredContent;
+  const t = (result.content || []).find((c) => c && c.type === "text");
+  if (t) { try { return JSON.parse(t.text); } catch { return t.text; } }
+  return result;
+}
+
+// ---- the MCP Apps view protocol (JSON-RPC over postMessage to the host) ----
+let nextId = 1;
+const pending = new Map();
+function send(msg) { window.parent.postMessage(Object.assign({ jsonrpc: "2.0" }, msg), "*"); }
+function request(method, params) {
+  const id = nextId++;
+  return new Promise((resolve, reject) => { pending.set(id, { resolve, reject }); send({ id, method, params }); });
+}
+let lastH = 0;
+function resized() {
+  const h = Math.ceil(document.documentElement.getBoundingClientRect().height);
+  if (h === lastH) return;
+  lastH = h;
+  send({ method: "ui/notifications/size-changed", params: { width: Math.ceil(document.documentElement.scrollWidth), height: h } });
+  if (window.openai && typeof window.openai.notifyIntrinsicHeight === "function") window.openai.notifyIntrinsicHeight(h);
+}
+function applyContext(ctx) {
+  if (!ctx) return;
+  if (ctx.theme === "light" || ctx.theme === "dark") document.documentElement.style.colorScheme = ctx.theme;
+  const vars = ctx.styles && ctx.styles.variables;
+  if (vars) for (const [k, v] of Object.entries(vars)) if (k.startsWith("--") && typeof v === "string") document.documentElement.style.setProperty(k, v);
+}
+window.addEventListener("message", (ev) => {
+  if (ev.source !== window.parent) return;
+  const m = ev.data;
+  if (!m || m.jsonrpc !== "2.0") return;
+  if (m.id != null && pending.has(m.id) && !m.method) {
+    const p = pending.get(m.id); pending.delete(m.id);
+    m.error ? p.reject(m.error) : p.resolve(m.result);
+    return;
+  }
+  if (m.method === "ui/notifications/tool-result") render(answerOf(m.params), !!(m.params && m.params.isError));
+  else if (m.method === "ui/notifications/host-context-changed") applyContext(m.params);
+  else if (m.method === "ui/resource-teardown" && m.id != null) send({ id: m.id, result: {} });
+  else if (m.id != null && m.method) send({ id: m.id, error: { code: -32601, message: `not handled: ${m.method}` } });
+});
+new ResizeObserver(resized).observe(document.documentElement);
+
+request("ui/initialize", { protocolVersion: "2026-01-26", appInfo: { name: "unbrowse-answer", version: "1" }, clientInfo: { name: "unbrowse-answer", version: "1" }, appCapabilities: {} })
+  .then((r) => { applyContext(r && r.hostContext); send({ method: "ui/notifications/initialized", params: {} }); })
+  .catch(() => {});
+
+// ChatGPT's own bridge, when it is the one set.
+function fromOpenai() {
+  const o = window.openai;
+  if (o && o.toolOutput && app.dataset.layout === "waiting") render(o.toolOutput, false);
+  if (o && o.theme) applyContext({ theme: o.theme });
+}
+window.addEventListener("openai:set_globals", fromOpenai);
+fromOpenai();
+</script>
+</body>
+</html>

@@ -402,4 +402,61 @@ mod tests {
         assert!(site.asked.is_empty(), "asked {:?}", site.asked);
         assert!(checking.said.contains("writes") && checking.route.checked.is_none(), "{}", checking.said);
     }
+
+    /// A shop on this machine that answers each word of a search with records of its own, and a nonsense word with
+    /// an empty list. Counts what it is asked.
+    fn a_shop() -> (u16, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let seen = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = seen.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut buf = [0u8; 8192];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).to_string();
+                counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let target = request.split_whitespace().nth(1).unwrap_or("").to_string();
+                let word = url::Url::parse(&format!("http://shop.example{target}")).ok().and_then(|u| u.query_pairs().find(|(k, _)| k == "q").map(|(_, v)| v.into_owned())).unwrap_or_default();
+                let body = if word.chars().any(|c| "aeiou".contains(c)) { records(&word) } else { r#"{"results":[]}"#.to_string() };
+                let _ = write!(stream, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+            }
+        });
+        (port, seen)
+    }
+
+    /// The route is checked by the live site over the route's own transport: the four tests are asked of the shop, the
+    /// answer is kept on the route, and what the shop was asked stays within the budget.
+    #[test]
+    fn a_route_is_checked_by_the_site_over_its_own_transport() {
+        let _old = crate::learn::own_asks::as_the_old_node();
+        store::scratch_home("checked-live");
+        let (port, seen) = a_shop();
+        let mut route = learned("live.shop.example", &|word| vec![walked("GET", &format!("https://live.shop.example/api/search?q={word}"), &[], &records(word), false)]);
+        let text = serde_json::to_string(&route.graph).unwrap().replace("https://live.shop.example", &format!("http://127.0.0.1:{port}"));
+        route.graph = serde_json::from_str(&text).unwrap();
+        let checking = checked_by_the_site(&route, None, &[]);
+        let checked = checking.route.checked.clone().expect("what the site said is kept");
+        assert!(checking.said.starts_with("[verify] by example: the four tests held"), "{}", checking.said);
+        assert!(checked.asks >= 3 && checked.asks <= CHECK_ASKS, "{}", checked.asks);
+        assert_eq!(seen.load(std::sync::atomic::Ordering::SeqCst), checked.asks, "every ask went to the shop, once");
+    }
+
+    /// A route that sends a secret is not checked (a learn does not open the vault), and with shrinking held the site
+    /// is asked nothing; each says why.
+    #[test]
+    fn a_route_with_a_secret_or_a_held_shrink_is_not_checked() {
+        store::scratch_home("checked-secret");
+        let mut route = learned("secret.shop.example", &|word| vec![walked("GET", &format!("https://secret.shop.example/api/search?q={word}"), &[], &records(word), false)]);
+        let mut site = Shop { needs: |_: &unbrowse_learn::route::Built| true, asked: Vec::new() };
+        let (held, said) = crate::learn::own_asks::holding(crate::learn::own_asks::Ask::Shrink, || checked_with(&route, &[], &HashMap::new(), 1, &mut site));
+        assert!(held.said.contains("shrinking is held") && held.route.checked.is_none(), "{}", held.said);
+        assert_eq!(said, vec!["   [own-ask] held: shrink at learn::checked::checked_with".to_string()]);
+        route.inputs[0].secret = true;
+        let checking = checked_with(&route, &[], &HashMap::new(), 1, &mut site);
+        assert!(checking.said.contains("sends a secret") && checking.route.checked.is_none(), "{}", checking.said);
+        assert!(site.asked.is_empty(), "asked {:?}", site.asked);
+    }
 }

@@ -50,6 +50,7 @@ fn checks() -> Vec<Check> {
         Check { format: &f::CARDS, at: "cards.json", round: round::<Vec<crate::vault::CardInfo>>, found: |v| v[0]["last4"] == "4242" },
         Check { format: &f::PASSKEYS, at: "passkeys.json", round: round::<Vec<crate::passkey::Passkey>>, found: |v| v[0]["id"] == "0123456789ab" && v[0]["how"] == "manual" },
         Check { format: &f::TELEMETRY, at: "telemetry.json", round: round::<crate::telemetry::Saved>, found: |v| v["on"] == false },
+        Check { format: &f::FROM, at: "from.json", round: round::<crate::telemetry::FromTag>, found: |v| v["from"] == "hn-c" },
         Check { format: &f::LINK, at: "owner.json", round: round::<crate::link::Link>, found: |v| v["nonce"] == "n-1" },
         Check { format: &f::JOINED, at: "joined.json", round: round::<crate::link::Joined>, found: |v| v["since"] == 1_700_000_000 },
         Check { format: &f::BROWSER, at: "browser.json", round: round::<crate::browsers::Choice>, found: |v| v["path"].as_str().is_some_and(|p| p.ends_with("Chromium")) },
@@ -89,6 +90,7 @@ fn checks() -> Vec<Check> {
         Check { format: &f::HANDED, at: "devnet/handed.json", round: round::<Vec<crate::watchtower::Mark>>, found: |v| v[0][0] == 1 && v[0][1] == 3 },
         Check { format: &f::ERC8004, at: "erc8004-0x2222222222222222222222222222222222222222.json", round: round::<crate::erc8004::Registration>, found: |v| v["agent_id"] == "7" },
         Check { format: &f::PEER_KEY, at: "peer-key.json", round: round::<crate::peers::PeerKey>, found: |v| v["bits"] == 8 },
+        Check { format: &f::REMOTE, at: "remote.json", round: round::<crate::remote::Remote>, found: |v| v["gateway"] == "https://unbrowse.ai" && v["on"] == true },
         Check { format: &f::PEER_PORT, at: "peer-port.json", round: round::<crate::peers::PeerPort>, found: |v| v["port"] == 47123 },
         Check { format: &f::PEER_PUBLISHED, at: "peer-published.json", round: round::<crate::peers::Published>, found: |v| v["addrs"][0] == "/ip4/127.0.0.1/tcp/47123" },
         // The peer table and the set-aside providers are the network crate's: their own tests read them there

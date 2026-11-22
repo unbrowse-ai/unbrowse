@@ -88,10 +88,10 @@ line from the node's reply: how it went (`called`, `network`, `learned`, `browse
 own time as the node measured it, whether the browser was used, what was paid, and the tokens Claude did not read:
 
 ```
-  ▌ unbrowse called · hn.algolia.com · hn-search · 84 ms · no browser · free · ≈96k tokens not read · in place of WebFetch
+  ▌ unbrowse called · hn.algolia.com · hn-search · 84 ms · no browser · free · ≈96k tokens saved · in place of WebFetch
 ```
 
-Tokens not read is the page against the answer that stood for it, at about four characters a token: the plugin
+Tokens saved is the page against the answer that stood for it, at about four characters a token: the plugin
 fetches the page once after the answer (cached per address for the session) and counts its characters. It's a
 measure of what reading the page would have cost, not of what any one tool would have sent Claude. Set Tokens saved
 to `off` to skip the fetch; the figure is then left out.
@@ -99,7 +99,7 @@ to `off` to skip the fetch; the figure is then left out.
 Above the prompt, this session's totals, and the node's route count:
 
 ```
-▌ unb · 12 calls · 11 no browser · paid $0.004 · ≈248k tokens not read · 286 routes
+▌ unb · 12 calls · 11 no browser · paid $0.004 · ≈248k tokens saved · 286 routes
 ```
 
 `/unb` opens a pane with the ledger for this session and all time (kept in the plugin's store), the node's routes by

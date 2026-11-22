@@ -577,4 +577,81 @@ mod tests {
         assert_eq!(next_value(&plain.exchanges, &[("date".into(), "2026-03-04".into())]), None, "sent as asked: nothing to separate");
         assert_eq!(next_value(&walked.exchanges, &[("q".into(), "kettle".into())]), None);
     }
+
+    /// What a reading sends for another value is worked out from the value alone: a source that is no value of the caller
+    /// (a cookie, an earlier reply, a file) sends nothing, so a reading built on one is never mistaken for one that
+    /// rebuilds the sighting; a stamp and an id made for the call are as the world with no clock and no chance makes
+    /// them.
+    #[test]
+    fn a_reading_sends_only_what_the_callers_value_makes() {
+        let slot = || Box::new(Expr::Slot { name: "date".into(), or: None, optional: false });
+        assert_eq!(sends(&slot(), "date", "2026-03-14").as_deref(), Some("2026-03-14"));
+        assert_eq!(sends(&slot(), "other", "2026-03-14"), None, "a slot the caller gave no value for sends nothing");
+        assert_eq!(sends(&Expr::Cookie { name: "sid".into(), here: false }, "date", "x"), None, "no session in hand");
+        assert_eq!(sends(&Expr::Read { step: "x0".into(), at: route::At::Json { pointer: "/token".into() } }, "date", "x"), None, "no earlier reply in hand");
+        assert_eq!(sends(&Expr::File { slot: "date".into(), fact: route::FileFact::Name }, "date", "x"), None, "no file in hand");
+        assert_eq!(sends(&Expr::Fresh { id: "req".into(), clock: route::Clock::Millis }, "date", "x").as_deref(), Some("req"));
+        assert_eq!(sends(&Expr::Stamp { form: "t{ms}s{s}r{d4}".into() }, "date", "x").as_deref(), Some("t0s0r0000"), "no clock and no chance");
+    }
+
+    /// A run of digits is a date's part by its length: one digit a month, day or hour written without a nought, ten
+    /// the seconds since 1970 and thirteen the milliseconds, each read only as a moment that is real.
+    #[test]
+    fn a_run_of_digits_is_read_as_a_part_of_a_date_by_its_length() {
+        assert!(time_reads("2026-3-4").contains(&"{yyyy}-{m}-{d}".to_string()), "{:?}", time_reads("2026-3-4"));
+        assert_eq!(time_reads("1773446400"), vec!["{s}".to_string()]);
+        assert_eq!(time_reads("1773446400000"), vec!["{ms}".to_string()]);
+        assert!(time_reads("12345678").is_empty(), "eight digits are no part of a date");
+        let at_the_second = Moment::read("1773446400", "{s}").expect("the seconds read");
+        assert_eq!(at_the_second.write("{yyyy}-{mm}-{dd}").as_deref(), Some("2026-03-14"));
+    }
+
+    /// Another value of a number's kind, for a next walk, is one with a fraction and one in the thousands, written in the
+    /// point and the group the walk read; a value that is the walked one is not offered back.
+    #[test]
+    fn another_number_for_a_next_walk_has_a_fraction_and_thousands_in_the_walks_own_form() {
+        let money = Pattern::Number { point: ".".into(), group: ",".into(), places: None };
+        assert_eq!(others_of_its_kind("15.50", &money), vec!["1,234.5".to_string(), "2,750".to_string()]);
+        assert_eq!(others_of_its_kind("2,750", &money), vec!["1,234.5".to_string()], "the walked value is not offered back");
+        let european = Pattern::Number { point: ",".into(), group: ".".into(), places: None };
+        assert_eq!(others_of_its_kind("15,5", &european), vec!["1.234,5".to_string(), "2.750".to_string()]);
+    }
+
+    /// A call sends an asked value in a format of the site's, whether a date within a longer text or a number as the
+    /// place's whole value: a date asked `2026-03-04` and sent `04/03/2026` does; the date as asked, a word, and a short
+    /// number inside a bigger text do not.
+    #[test]
+    fn a_call_sends_an_asked_value_in_a_format_when_a_place_holds_it_written_another_way() {
+        use crate::lab::sighting::tests::call;
+        let get = |url: &str| call("GET", url, &[], None, "{}");
+        assert!(sent_in_a_format(&get("https://shop.example/api/slots?d=04%2F03%2F2026"), "2026-03-04"), "a date written day first");
+        assert!(sent_in_a_format(&get("https://shop.example/api/slots?range=from%2004.03.26%20on"), "2026-03-04"), "a date inside a longer text");
+        assert!(sent_in_a_format(&get("https://shop.example/api/price?max=1%2C500.00"), "1500"), "a number as the place's whole value");
+        assert!(!sent_in_a_format(&get("https://shop.example/api/slots?d=2026-03-04"), "2026-03-04"), "as asked is no format");
+        assert!(!sent_in_a_format(&get("https://shop.example/api/slots?d=04%2F03%2F2026"), "kettle"), "a word is no date or number");
+        assert!(!sent_in_a_format(&get("https://shop.example/api/price?max=7.0"), "7"), "a short number is any number");
+        assert!(!sent_in_a_format(&get("https://shop.example/api/price?note=about%201%2C500.00%20or%20so"), "1500"), "a number inside a text is a number of the text's own");
+    }
+
+    /// A price the call sends with thousands and two places is asked again as another number, never the walked one: the
+    /// next walk is given a figure to tell the readings of the number apart.
+    #[test]
+    fn a_number_sent_in_a_format_names_another_number_for_the_next_walk() {
+        use crate::lab::sighting::tests::{call, trace};
+        let walked = trace(vec![call("GET", "https://shop.example/api/price?max=1%2C500.00&n=2", &[], None, "{}")]);
+        let (was, next) = next_value(&walked.exchanges, &[("max".into(), "1500".into())]).expect("a next value");
+        assert_eq!(was, "1500");
+        assert_ne!(next, "1500");
+        assert!(next.chars().all(|c| c.is_ascii_digit() || c == ',' || c == '.'), "a number: {next}");
+        assert!(next.parse::<f64>().is_ok() || next.contains(','), "a number: {next}");
+    }
+
+    /// A date sent as seconds since 1970 has one reading, with no day that could be a month, so the next walk is asked
+    /// another date in the form the first was asked in: the same month, a day above twelve.
+    #[test]
+    fn a_date_sent_as_seconds_has_one_reading_and_the_next_walk_asks_another_date() {
+        use crate::lab::sighting::tests::{call, trace};
+        let walked = trace(vec![call("GET", "https://shop.example/api/slots?from=1773446400", &[], None, "{}")]);
+        assert_eq!(next_value(&walked.exchanges, &[("date".into(), "2026-03-14".into())]), Some(("2026-03-14".into(), "2026-03-25".into())));
+    }
 }

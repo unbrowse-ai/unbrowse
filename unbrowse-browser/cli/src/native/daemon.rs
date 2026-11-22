@@ -7,48 +7,50 @@ use std::process;
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::signal;
 use tokio::sync::{Notify, RwLock};
 
 use super::actions::{
     auto_save_restore_state, close_all_browser_backends, close_current_browser, execute_command,
-    maybe_autosave_restore_state, DaemonState, WhileBusy,
+    maybe_autosave_restore_state, DaemonState,
 };
 use super::cdp::client::CdpClient;
 use super::state;
 use super::stream::{IdleActivity, StreamServer};
-use crate::connection::{claim_session, remove_session_files, SessionClaim, INTERNAL_DAEMON_SHUTDOWN_ACTION};
+use crate::connection::INTERNAL_DAEMON_SHUTDOWN_ACTION;
+use crate::session_files::{owns_session, remove_daemon_files, SessionFile};
+use crate::session_settings::{FsStore, Running, SecurityView, Store, DEFAULT_IDLE_TIMEOUT_MS};
+use crate::validation::{is_valid_session_name, session_name_error};
 
-/// How long a starting daemon waits for a session: the other process may only be looking, or a last daemon leaving.
-const CLAIM_WAIT: Duration = Duration::from_millis(1_000);
-
-async fn wait_for_session(session: &str) -> Option<SessionClaim> {
-    let deadline = tokio::time::Instant::now() + CLAIM_WAIT;
-    loop {
-        if let Some(claim) = claim_session(session) {
-            return Some(claim);
-        }
-        if tokio::time::Instant::now() >= deadline {
-            return None;
-        }
-        tokio::time::sleep(Duration::from_millis(25)).await;
-    }
+/// What the daemon starts a session with: its settings and where the security
+/// part of them is kept.
+pub(super) struct Startup {
+    pub settings: Running,
+    pub store: Arc<dyn Store>,
 }
 
 pub async fn run_daemon(session: &str) {
+    if !is_valid_session_name(session) {
+        eprintln!("{}", session_name_error(session));
+        process::exit(1);
+    }
+
     let socket_dir = get_daemon_socket_dir();
     if !socket_dir.exists() {
         let _ = fs::create_dir_all(&socket_dir);
     }
-    // The door, the stream secret, the capture's sidecars and the logs live here: the owner's alone.
-    crate::owner_only::narrow_dir(&socket_dir);
 
-    // Everything this process does to the session's files below, it does as the session's owner. One that doesn't own
-    // it leaves before touching any of them, saying so where the CLI that started it is listening.
-    let Some(_claim) = wait_for_session(session).await else {
-        let _ = writeln!(std::io::stderr(), "Failed to bind: session '{}' already has a daemon", session);
-        process::exit(1);
+    // Settings are read before stderr goes away and before any file marks this
+    // daemon as running: a stored security setting that cannot be used must
+    // stop the start with a message the parent can show.
+    let store: Arc<dyn Store> = Arc::new(FsStore::new(&socket_dir, session));
+    let settings = match Running::boot(store.as_ref(), session) {
+        Ok(settings) => settings,
+        Err(e) => {
+            eprintln!("{}", e);
+            process::exit(1);
+        }
     };
 
     // When debug mode is on, redirect stderr to a log file so daemon
@@ -56,7 +58,7 @@ pub async fn run_daemon(session: &str) {
     // parent which drops the read end after startup).
     #[cfg(unix)]
     if env::var("AGENT_BROWSER_DEBUG").is_ok() {
-        let log_path = socket_dir.join(format!("{}.log", session));
+        let log_path = SessionFile::Log.path_in(&socket_dir, session);
         if let Ok(file) = fs::File::create(&log_path) {
             use std::os::unix::io::IntoRawFd;
             let fd = file.into_raw_fd();
@@ -70,28 +72,49 @@ pub async fn run_daemon(session: &str) {
                 session
             );
         }
+    } else {
+        // Redirect stderr to /dev/null to prevent daemon crash when the
+        // parent CLI drops the piped stderr handle after startup.  Cloud
+        // providers (AgentCore, Browserbase, etc.) may write to stderr
+        // during connection setup; a broken pipe would kill the daemon.
+        #[cfg(unix)]
+        {
+            use std::os::unix::io::IntoRawFd;
+            if let Ok(devnull) = fs::File::create("/dev/null") {
+                let fd = devnull.into_raw_fd();
+                unsafe {
+                    libc::dup2(fd, 2);
+                    libc::close(fd);
+                }
+            }
+        }
     }
 
-    // What an earlier daemon left, now that this one owns the session.
-    remove_session_files(session);
-
-    let pid_path = socket_dir.join(format!("{}.pid", session));
+    let pid_path = SessionFile::Pid.path_in(&socket_dir, session);
     let _ = fs::write(&pid_path, process::id().to_string());
-    // Which process this pid is: what lets another process stop this daemon and never a later one given its number.
-    crate::connection::record_process(process::id(), &socket_dir.join(format!("{}.started", session)));
 
-    let version_path = socket_dir.join(format!("{}.version", session));
+    let version_path = SessionFile::Version.path_in(&socket_dir, session);
     let _ = fs::write(&version_path, env!("CARGO_PKG_VERSION"));
-
-    if let Ok(fingerprint) = env::var(crate::connection::DAEMON_CONFIG_ENV) {
-        let _ = fs::write(socket_dir.join(format!("{}.config", session)), fingerprint);
-    }
 
     // On Unix the daemon listens on a Unix domain socket; on Windows it uses
     // TCP, so there is no .sock file — only a .port file written by the server.
-    let socket_path = socket_dir.join(format!("{}.sock", session));
+    let socket_path = SessionFile::Socket.path_in(&socket_dir, session);
 
-    let stream_path = socket_dir.join(format!("{}.stream", session));
+    #[cfg(unix)]
+    if socket_path.exists() {
+        let _ = fs::remove_file(&socket_path);
+    }
+
+    #[cfg(windows)]
+    {
+        let _ = fs::remove_file(SessionFile::Port.path_in(&socket_dir, session));
+    }
+
+    let stream_path = SessionFile::Stream.path_in(&socket_dir, session);
+    let _ = fs::remove_file(&stream_path);
+    let _ = fs::remove_file(SessionFile::Engine.path_in(&socket_dir, session));
+    let _ = fs::remove_file(SessionFile::Provider.path_in(&socket_dir, session));
+    let _ = fs::remove_file(SessionFile::Extensions.path_in(&socket_dir, session));
 
     if let Ok(days_str) = env::var("AGENT_BROWSER_STATE_EXPIRE_DAYS") {
         if let Ok(days) = days_str.parse::<u64>() {
@@ -118,11 +141,6 @@ pub async fn run_daemon(session: &str) {
     {
         Ok((stream_server, client_slot)) => {
             stream_client = Some(client_slot.clone());
-            // The secret goes down before the port, so whoever finds the port
-            // can find the secret (the owner alone can read it).
-            if let Err(e) = super::stream::write_stream_token_file(session) {
-                let _ = writeln!(std::io::stderr(), "Failed to write .stream-token file: {}", e);
-            }
             if let Err(e) = fs::write(&stream_path, stream_server.port().to_string()) {
                 let _ = writeln!(std::io::stderr(), "Failed to write .stream file: {}", e);
             }
@@ -133,12 +151,6 @@ pub async fn run_daemon(session: &str) {
         }
     }
 
-    // Auto-shutdown the daemon after this many ms of inactivity (no commands
-    // or dashboard input received). Applies a default when
-    // AGENT_BROWSER_IDLE_TIMEOUT_MS is unset; an explicit 0 disables idle
-    // shutdown entirely.
-    let idle_timeout = resolve_idle_timeout(env::var("AGENT_BROWSER_IDLE_TIMEOUT_MS").ok());
-
     let autosave_interval_ms = autosave_interval_ms_from_env();
 
     let result = run_socket_server(
@@ -147,15 +159,16 @@ pub async fn run_daemon(session: &str) {
         stream_client,
         stream_server_instance,
         idle_activity,
-        idle_timeout,
         autosave_interval_ms,
+        Startup { settings, store },
     )
     .await;
 
-    remove_session_files(session);
-    // Unreachable now, so a new command starts a new daemon, which finds a browser this one launched and still
-    // serves for another: the browser lives as long as this process, which waits until the last of them has gone.
-    let _ = tokio::task::spawn_blocking(super::cdp::chrome::serve_kept_browsers).await;
+    // Leave the files alone if a replacement daemon for this session has
+    // already taken over.
+    if owns_session(&socket_dir, session, process::id()) {
+        remove_daemon_files(&socket_dir, session);
+    }
 
     if let Err(e) = result {
         let _ = writeln!(std::io::stderr(), "Daemon error: {}", e);
@@ -163,90 +176,27 @@ pub async fn run_daemon(session: &str) {
     }
 }
 
-/// Stops writing to the CLI that started this daemon, once it is listening: the CLI drops its end of the pipe then.
-/// Cloud providers (AgentCore, Browserbase, etc.) may write to stderr during connection setup, and a broken pipe would
-/// kill the daemon. Not before the socket is bound: what stops a daemon starting is said here, and only the CLI that
-/// started it can tell the person. From here on the daemon's log hears it: a panic in a session is otherwise the one
-/// thing about it nobody can ever read. In debug mode stderr is a log file already, and stays one.
-#[cfg(unix)]
-fn stop_talking_to_the_cli() {
-    use std::os::unix::io::IntoRawFd;
-    if env::var("AGENT_BROWSER_DEBUG").is_ok() {
-        return;
-    }
-    if let Ok(sink) = crate::open_daemon_log().or_else(|_| fs::File::create("/dev/null")) {
-        let fd = sink.into_raw_fd();
-        unsafe {
-            libc::dup2(fd, 2);
-            libc::close(fd);
-        }
-    }
-}
-
-/// Whether a daemon can still be found: a CLI reaches it at its socket (a port on Windows), `close --all` lists it by its
-/// pid file, and a pid file naming another process isn't this daemon's.
-fn findable(pid_file: Option<&str>, address_there: bool, me: u32) -> bool {
-    address_there && pid_file.is_some_and(|pid| pid.trim().parse() == Ok(me))
-}
-
-fn can_be_found(session: &str) -> bool {
-    let dir = get_daemon_socket_dir();
-    let address = if cfg!(windows) { "port" } else { "sock" };
-    findable(
-        fs::read_to_string(dir.join(format!("{session}.pid"))).ok().as_deref(),
-        dir.join(format!("{session}.{address}")).exists(),
-        process::id(),
-    )
-}
-
-/// Whether the default idle timeout waits on for a browser it won't pull from under a person. A daemon whose files have
-/// gone is the exception: nothing can reach it to close it, so waiting for a person to finish makes it permanent,
-/// holding its session and its browser until the machine restarts. An hour without a command is the time it has had.
-fn idle_daemon_waits(default_timeout: bool, browser_blocks: bool, findable: bool) -> bool {
-    default_timeout && browser_blocks && findable
-}
-
-/// Idle timeout applied when AGENT_BROWSER_IDLE_TIMEOUT_MS is unset, so an
-/// integration that dies without calling `close` cannot leak the daemon and
-/// its Chrome tree indefinitely (issue: leaked daemons observed running for
-/// days). Socket commands and dashboard input reset the timer. Unlike an
-/// explicit timeout, the default never closes a headed browser (including
-/// Safari and iOS WebDriver sessions) or a user-attached browser because those
-/// may be in direct human use that the daemon cannot observe. Provider-owned
-/// CDP browsers remain eligible for cleanup.
-pub const DEFAULT_IDLE_TIMEOUT_MS: u64 = 60 * 60 * 1000;
-
-#[derive(Clone, Copy)]
-struct IdleTimeout {
-    ms: u64,
-    /// True when the value came from DEFAULT_IDLE_TIMEOUT_MS rather than an
-    /// explicit AGENT_BROWSER_IDLE_TIMEOUT_MS. Only the default exempts
-    /// headed and user-attached browsers from shutdown.
-    is_default: bool,
-}
-
-/// Resolve AGENT_BROWSER_IDLE_TIMEOUT_MS into an effective idle timeout:
-/// unset or unparseable → the default; explicit 0 → disabled (None);
-/// any other value → that many milliseconds.
-fn resolve_idle_timeout(raw: Option<String>) -> Option<IdleTimeout> {
-    match raw.as_deref().map(str::trim).map(str::parse::<u64>) {
-        Some(Ok(0)) => None,
-        Some(Ok(ms)) => Some(IdleTimeout {
-            ms,
-            is_default: false,
-        }),
-        // Unparseable values are validated (with a warning) at the flags
-        // layer; falling back to the default here keeps the leak backstop
-        // in place rather than silently disabling it.
-        Some(Err(_)) | None => Some(IdleTimeout {
-            ms: DEFAULT_IDLE_TIMEOUT_MS,
-            is_default: true,
-        }),
+/// Stores the security settings again once the daemon is reachable. A
+/// `close --all` that swept the file between this daemon reading it and
+/// becoming visible (pid and socket) would otherwise leave a contained
+/// session with nothing stored.
+fn repair_stored_security(store: &dyn Store, security: &SecurityView) {
+    if *security != SecurityView::default() {
+        let _ = store.save(security);
     }
 }
 
 fn remaining_idle_timeout(activity: &IdleActivity, timeout_ms: u64) -> Option<Duration> {
     Duration::from_millis(timeout_ms).checked_sub(activity.elapsed())
+}
+
+/// Arms the idle timer from the timeout in effect now and the last activity.
+/// A session setting can change the timeout while the daemon runs, so the
+/// timer is never re-armed from a value read earlier.
+fn arm_idle_sleep(activity: &IdleActivity) -> Option<std::pin::Pin<Box<tokio::time::Sleep>>> {
+    let timeout = activity.timeout()?;
+    let remaining = remaining_idle_timeout(activity, timeout.ms).unwrap_or_default();
+    Some(Box::pin(tokio::time::sleep(remaining)))
 }
 
 /// Minimum ms between periodic session autosaves while the browser is open.
@@ -261,41 +211,43 @@ fn autosave_interval_ms_from_env() -> u64 {
 #[cfg(unix)]
 async fn run_socket_server(
     socket_path: &PathBuf,
-    session: &str,
+    _session: &str,
     stream_client: Option<Arc<RwLock<Option<Arc<CdpClient>>>>>,
     stream_server: Option<Arc<StreamServer>>,
     idle_activity: Arc<IdleActivity>,
-    idle_timeout: Option<IdleTimeout>,
     autosave_interval_ms: u64,
+    startup: Startup,
 ) -> Result<(), String> {
     use tokio::net::UnixListener;
 
+    // Auto-shutdown the daemon after this many ms of inactivity (no commands
+    // or dashboard input received). Applies a default when
+    // AGENT_BROWSER_IDLE_TIMEOUT_MS is unset; an explicit 0 disables idle
+    // shutdown entirely.
+    let idle_timeout = startup.settings.idle_timeout();
+    let security = startup.settings.security();
+    let store = startup.store.clone();
+    idle_activity.set_timeout(idle_timeout);
     let idle_timeout_ms = idle_timeout.map(|t| t.ms);
 
     let listener =
         UnixListener::bind(socket_path).map_err(|e| format!("Failed to bind socket: {}", e))?;
-    // Only the owner may connect: the socket's own mode, under a folder that is the owner's alone.
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(socket_path, fs::Permissions::from_mode(0o600));
-    }
-    stop_talking_to_the_cli();
+    repair_stored_security(store.as_ref(), &security);
 
-    let stream_file: Option<PathBuf> = if stream_server.is_some() {
-        let dir = socket_path.parent().unwrap_or(std::path::Path::new("."));
-        Some(dir.join(format!("{}.stream", session)))
-    } else {
-        None
-    };
-    let daemon_state = DaemonState::new_with_stream(stream_client, stream_server, idle_activity.clone());
-    let while_busy = daemon_state.while_busy.clone();
     let state: std::sync::Arc<tokio::sync::Mutex<DaemonState>> =
-        std::sync::Arc::new(tokio::sync::Mutex::new(daemon_state));
+        std::sync::Arc::new(tokio::sync::Mutex::new(DaemonState::new_with_stream(
+            startup.settings,
+            startup.store,
+            stream_client,
+            stream_server,
+            idle_activity.clone(),
+        )));
 
-    // Notifier used by handle_connection to signal the daemon loop to exit
-    // after a "close" command, instead of calling process::exit() which skips
-    // destructors and can leave Chrome processes orphaned (issue #1113).
-    let close_notify = Arc::new(Notify::new());
+    // Lets handle_connection end the daemon loop after a "close" command,
+    // instead of calling process::exit() which skips destructors and can
+    // leave Chrome processes orphaned (issue #1113).
+    let close = Arc::new(CloseHandshake::default());
+    let mut closed_by_command = false;
 
     let mut drain_interval = tokio::time::interval(Duration::from_millis(100));
     drain_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -305,17 +257,17 @@ async fn run_socket_server(
     let mut idle_lock: Option<IdleLock> = None;
 
     loop {
+        let idle_timeout = idle_activity.timeout();
+        let idle_timeout_ms = idle_timeout.map(|t| t.ms);
         tokio::select! {
             accept_result = listener.accept() => {
                 match accept_result {
                     Ok((stream, _)) => {
                         let state = state.clone();
-                        let while_busy = while_busy.clone();
                         let idle_activity = idle_activity.clone();
-                        let sf = stream_file.clone();
-                        let cn = close_notify.clone();
+                        let close = close.clone();
                         tokio::spawn(async move {
-                            handle_connection(stream, state, while_busy, idle_activity, sf, cn, None).await;
+                            handle_connection(stream, state, idle_activity, close).await;
                         });
                     }
                     Err(e) => {
@@ -339,11 +291,16 @@ async fn run_socket_server(
             s = async { idle_lock.as_mut().expect("idle lock armed").await }, if idle_lock.is_some() => {
                 idle_lock = None;
                 let mut s = s;
+                let idle_timeout = idle_activity.timeout();
+                let Some(timeout_ms) = idle_timeout.map(|t| t.ms) else {
+                    idle_sleep_pin = None;
+                    continue;
+                };
                 // The timer may have expired while a command held the state
                 // lock. Command completion refreshes the shared activity
                 // clock before releasing that lock, so re-check it here.
                 if let Some(remaining) =
-                    remaining_idle_timeout(&idle_activity, idle_timeout_ms.unwrap_or_default())
+                    remaining_idle_timeout(&idle_activity, timeout_ms)
                 {
                     idle_sleep_pin = Some(Box::pin(tokio::time::sleep(remaining)));
                     continue;
@@ -351,13 +308,11 @@ async fn run_socket_server(
                 // The default timeout is a leak backstop, not a lifecycle
                 // policy: never pull a headed, WebDriver, or attached browser
                 // out from under a human. Re-arm and keep waiting instead.
-                if idle_daemon_waits(
-                    idle_timeout.is_some_and(|t| t.is_default),
-                    s.blocks_default_idle_shutdown(),
-                    can_be_found(session),
-                ) {
-                    idle_sleep_pin = idle_timeout_ms
-                        .map(|ms| Box::pin(tokio::time::sleep(Duration::from_millis(ms))));
+                if idle_timeout.is_some_and(|t| t.is_default)
+                    && s.blocks_default_idle_shutdown()
+                {
+                    idle_sleep_pin =
+                        Some(Box::pin(tokio::time::sleep(Duration::from_millis(timeout_ms))));
                     continue;
                 }
                 if idle_timeout.is_some_and(|t| t.is_default) {
@@ -371,15 +326,15 @@ async fn run_socket_server(
                 let _ = close_all_browser_backends(&mut s).await;
                 break;
             }
-            _ = idle_activity.notified(), if idle_timeout_ms.is_some() => {
-                idle_sleep_pin = idle_timeout_ms
-                    .map(|ms| Box::pin(tokio::time::sleep(Duration::from_millis(ms))));
+            _ = idle_activity.notified() => {
+                idle_sleep_pin = arm_idle_sleep(&idle_activity);
                 continue;
             }
-            _ = close_notify.notified() => {
+            _ = close.requested.notified() => {
                 // "close" command was handled; browser already closed by
                 // handle_close(). Break to run cleanup and exit gracefully
                 // so destructors fire.
+                closed_by_command = true;
                 break;
             }
             _ = shutdown_signal() => {
@@ -396,6 +351,10 @@ async fn run_socket_server(
         }
     }
 
+    if closed_by_command {
+        close.finish(listener).await;
+    }
+
     Ok(())
 }
 
@@ -406,11 +365,19 @@ async fn run_socket_server(
     stream_client: Option<Arc<RwLock<Option<Arc<CdpClient>>>>>,
     stream_server: Option<Arc<StreamServer>>,
     idle_activity: Arc<IdleActivity>,
-    idle_timeout: Option<IdleTimeout>,
     autosave_interval_ms: u64,
+    startup: Startup,
 ) -> Result<(), String> {
     use tokio::net::TcpListener;
 
+    // Auto-shutdown the daemon after this many ms of inactivity (no commands
+    // or dashboard input received). Applies a default when
+    // AGENT_BROWSER_IDLE_TIMEOUT_MS is unset; an explicit 0 disables idle
+    // shutdown entirely.
+    let idle_timeout = startup.settings.idle_timeout();
+    let security = startup.settings.security();
+    let store = startup.store.clone();
+    idle_activity.set_timeout(idle_timeout);
     let idle_timeout_ms = idle_timeout.map(|t| t.ms);
 
     let preferred_port = get_port_for_session(session);
@@ -428,26 +395,21 @@ async fn run_socket_server(
         .port();
 
     let socket_dir = socket_path.parent().unwrap_or(std::path::Path::new("."));
-    // A loopback port is anyone's on the machine: the door takes a command only with this secret, which the owner alone
-    // can read. Written before the port file, so a client that finds the port finds the key.
-    let door_key: Arc<str> = Arc::from(crate::owner_only::new_key().as_str());
-    let key_path = socket_dir.join(format!("{}.key", session));
-    crate::owner_only::write(&key_path, door_key.as_bytes())
-        .map_err(|e| format!("Failed to write the daemon's key: {}", e))?;
-    let port_path = socket_dir.join(format!("{}.port", session));
+    let port_path = SessionFile::Port.path_in(socket_dir, session);
     let _ = fs::write(&port_path, actual_port.to_string());
+    repair_stored_security(store.as_ref(), &security);
 
-    let stream_file: Option<PathBuf> = if stream_server.is_some() {
-        Some(socket_dir.join(format!("{}.stream", session)))
-    } else {
-        None
-    };
-    let daemon_state = DaemonState::new_with_stream(stream_client, stream_server, idle_activity.clone());
-    let while_busy = daemon_state.while_busy.clone();
     let state: std::sync::Arc<tokio::sync::Mutex<DaemonState>> =
-        std::sync::Arc::new(tokio::sync::Mutex::new(daemon_state));
+        std::sync::Arc::new(tokio::sync::Mutex::new(DaemonState::new_with_stream(
+            startup.settings,
+            startup.store,
+            stream_client,
+            stream_server,
+            idle_activity.clone(),
+        )));
 
-    let close_notify = Arc::new(Notify::new());
+    let close = Arc::new(CloseHandshake::default());
+    let mut closed_by_command = false;
 
     let idle_sleep = idle_timeout_ms.map(|ms| tokio::time::sleep(Duration::from_millis(ms)));
     let mut idle_sleep_pin = idle_sleep.map(Box::pin);
@@ -460,18 +422,17 @@ async fn run_socket_server(
     drain_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     loop {
+        let idle_timeout = idle_activity.timeout();
+        let idle_timeout_ms = idle_timeout.map(|t| t.ms);
         tokio::select! {
             accept_result = listener.accept() => {
                 match accept_result {
                     Ok((stream, _)) => {
                         let state = state.clone();
-                        let while_busy = while_busy.clone();
                         let idle_activity = idle_activity.clone();
-                        let sf = stream_file.clone();
-                        let cn = close_notify.clone();
-                        let key = door_key.clone();
+                        let close = close.clone();
                         tokio::spawn(async move {
-                            handle_connection(stream, state, while_busy, idle_activity, sf, cn, Some(key)).await;
+                            handle_connection(stream, state, idle_activity, close).await;
                         });
                     }
                     Err(e) => {
@@ -495,8 +456,13 @@ async fn run_socket_server(
             s = async { idle_lock.as_mut().expect("idle lock armed").await }, if idle_lock.is_some() => {
                 idle_lock = None;
                 let mut s = s;
+                let idle_timeout = idle_activity.timeout();
+                let Some(timeout_ms) = idle_timeout.map(|t| t.ms) else {
+                    idle_sleep_pin = None;
+                    continue;
+                };
                 if let Some(remaining) =
-                    remaining_idle_timeout(&idle_activity, idle_timeout_ms.unwrap_or_default())
+                    remaining_idle_timeout(&idle_activity, timeout_ms)
                 {
                     idle_sleep_pin = Some(Box::pin(tokio::time::sleep(remaining)));
                     continue;
@@ -504,13 +470,11 @@ async fn run_socket_server(
                 // The default timeout is a leak backstop, not a lifecycle
                 // policy: never pull a headed, WebDriver, or attached browser
                 // out from under a human. Re-arm and keep waiting instead.
-                if idle_daemon_waits(
-                    idle_timeout.is_some_and(|t| t.is_default),
-                    s.blocks_default_idle_shutdown(),
-                    can_be_found(session),
-                ) {
-                    idle_sleep_pin = idle_timeout_ms
-                        .map(|ms| Box::pin(tokio::time::sleep(Duration::from_millis(ms))));
+                if idle_timeout.is_some_and(|t| t.is_default)
+                    && s.blocks_default_idle_shutdown()
+                {
+                    idle_sleep_pin =
+                        Some(Box::pin(tokio::time::sleep(Duration::from_millis(timeout_ms))));
                     continue;
                 }
                 if idle_timeout.is_some_and(|t| t.is_default) {
@@ -522,18 +486,14 @@ async fn run_socket_server(
                 }
                 let _ = auto_save_restore_state(&mut s).await;
                 let _ = close_all_browser_backends(&mut s).await;
-                let _ = fs::remove_file(&port_path);
-                let _ = fs::remove_file(&key_path);
                 break;
             }
-            _ = idle_activity.notified(), if idle_timeout_ms.is_some() => {
-                idle_sleep_pin = idle_timeout_ms
-                    .map(|ms| Box::pin(tokio::time::sleep(Duration::from_millis(ms))));
+            _ = idle_activity.notified() => {
+                idle_sleep_pin = arm_idle_sleep(&idle_activity);
                 continue;
             }
-            _ = close_notify.notified() => {
-                let _ = fs::remove_file(&port_path);
-                let _ = fs::remove_file(&key_path);
+            _ = close.requested.notified() => {
+                closed_by_command = true;
                 break;
             }
             _ = shutdown_signal() => {
@@ -545,11 +505,13 @@ async fn run_socket_server(
                 };
                 let _ = auto_save_restore_state(&mut s).await;
                 let _ = close_all_browser_backends(&mut s).await;
-                let _ = fs::remove_file(&port_path);
-                let _ = fs::remove_file(&key_path);
                 break;
             }
         }
+    }
+
+    if closed_by_command {
+        close.finish(listener).await;
     }
 
     Ok(())
@@ -587,26 +549,35 @@ fn spawn_background_tick_if_idle(
             } else {
                 maybe_autosave_restore_state(&mut state, autosave_interval_ms).await;
             }
-            state.notice_ended_take().await;
-            let while_busy = state.while_busy.clone();
-            while_busy.publish(&state);
         }
     });
     true
 }
 
-/// The longest command line a keyed door (the Windows loopback port) reads before it checks the line's key. A command
-/// carries a page's HTML or a file's path at most; nothing an owner sends comes near it.
-const PRE_KEY_LINE_LIMIT: u64 = 64 * 1024 * 1024;
+/// Orders a `close` between the connection that handled it and the accept
+/// loop: the loop stops listening first and only then is the reply sent, so a
+/// command issued right after `close` returns is refused and starts a fresh
+/// daemon instead of reaching this exiting one (issue #2134).
+#[derive(Default)]
+struct CloseHandshake {
+    requested: Notify,
+    listener_closed: Notify,
+    replied: Notify,
+}
+
+impl CloseHandshake {
+    async fn finish<L>(&self, listener: L) {
+        drop(listener);
+        self.listener_closed.notify_one();
+        let _ = tokio::time::timeout(Duration::from_secs(1), self.replied.notified()).await;
+    }
+}
 
 async fn handle_connection<S>(
     stream: S,
     state: std::sync::Arc<tokio::sync::Mutex<DaemonState>>,
-    while_busy: Arc<WhileBusy>,
     idle_activity: Arc<IdleActivity>,
-    stream_file_cleanup: Option<PathBuf>,
-    close_notify: Arc<Notify>,
-    door_key: Option<Arc<str>>,
+    close: Arc<CloseHandshake>,
 ) where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
@@ -616,19 +587,7 @@ async fn handle_connection<S>(
 
     loop {
         line.clear();
-        // A door anyone on the machine can reach (a key's) reads a bounded line before the key is checked, so a caller
-        // without it can't make the daemon hold an endless one.
-        let read = if door_key.is_some() {
-            let mut bounded = (&mut buf_reader).take(PRE_KEY_LINE_LIMIT);
-            let got = bounded.read_line(&mut line).await;
-            if matches!(got, Ok(n) if n as u64 == PRE_KEY_LINE_LIMIT && !line.ends_with('\n')) {
-                break;
-            }
-            got
-        } else {
-            buf_reader.read_line(&mut line).await
-        };
-        match read {
+        match buf_reader.read_line(&mut line).await {
             Ok(0) => break,
             Ok(_) => {
                 let trimmed = line.trim();
@@ -640,10 +599,8 @@ async fn handle_connection<S>(
                     break;
                 }
 
-                let mut cmd: Value = match serde_json::from_str(trimmed) {
+                let cmd: Value = match serde_json::from_str(trimmed) {
                     Ok(v) => v,
-                    // At a keyed door, a line that isn't a command is answered with nothing: no conversation before the key.
-                    Err(_) if door_key.is_some() => break,
                     Err(e) => {
                         let err = serde_json::json!({
                             "success": false,
@@ -656,20 +613,6 @@ async fn handle_connection<S>(
                     }
                 };
 
-                // A door anyone on the machine can reach takes only its owner's commands: no key, no answer.
-                if !crate::owner_only::admit(&mut cmd, door_key.as_deref()) {
-                    let refusal = serde_json::json!({
-                        "id": cmd.get("id").cloned().unwrap_or(Value::Null),
-                        "success": false,
-                        "error": "This daemon takes commands only from its owner.",
-                        "code": "not_owner",
-                    });
-                    let mut resp = serde_json::to_string(&refusal).unwrap_or_default();
-                    resp.push('\n');
-                    let _ = writer.write_all(resp.as_bytes()).await;
-                    break;
-                }
-
                 idle_activity.mark();
 
                 let action = cmd
@@ -678,52 +621,40 @@ async fn handle_connection<S>(
                     .unwrap_or_default()
                     .to_string();
 
-                // Unbrowse fork: while another command holds the state (a long script, a slow
-                // page), the node's own housekeeping (a secret to forget, the tab list, the
-                // DevTools address) is answered without it ([`WhileBusy`]).
-                let busy = match state.try_lock() {
-                    Ok(guard) => Err(guard),
-                    Err(_) => Ok(while_busy.answer(&cmd)),
+                // Unbrowse fork: the node's own questions are answered while a command holds the state.
+                let response = if let Some(answer) = super::unbrowse::busy::while_held(&state, &cmd) {
+                    answer
+                } else {
+                    let mut s = state.lock().await;
+                    let response = execute_command(&cmd, &mut s).await;
+                    // Refresh while the state lock is still held. An idle
+                    // timer waiting on this command will observe the updated
+                    // clock as soon as it acquires the lock.
+                    idle_activity.mark();
+                    response
                 };
-                let response = match busy {
-                    Ok(Some(answer)) => answer,
-                    busy => {
-                        let mut s = match busy {
-                            Err(guard) => guard,
-                            Ok(_) => state.lock().await,
-                        };
-                        let response = if s.closing {
-                            closing_refusal(&cmd)
-                        } else {
-                            execute_command(&cmd, &mut s).await
-                        };
-                        // Before the lock goes: a command waiting on it comes next, and the daemon is leaving.
-                        s.closing |= close_completed_response(&action, &response);
-                        while_busy.publish(&s);
-                        // Refresh while the state lock is still held. An idle
-                        // timer waiting on this command will observe the updated
-                        // clock as soon as it acquires the lock.
-                        idle_activity.mark();
-                        response
+
+                let closing = close_completed_response(&action, &response);
+                if closing {
+                    close.requested.notify_one();
+                    close.listener_closed.notified().await;
+                }
+                if response.get("code").and_then(Value::as_str) == Some("page_wedged") {
+                    if let Some(id) = response.get("id").and_then(Value::as_str) {
+                        state.lock().await.wedge_report_delivered(id);
                     }
-                };
+                }
 
                 let mut resp = serde_json::to_string(&response).unwrap_or_default();
                 resp.push('\n');
-                if writer.write_all(resp.as_bytes()).await.is_err() {
-                    break;
-                }
-
-                if close_completed_response(&action, &response) {
-                    if let Some(ref path) = stream_file_cleanup {
-                        let _ = fs::remove_file(path);
-                    }
-                    // Signal the daemon loop to exit gracefully instead of
-                    // calling process::exit(), which skips destructors and
-                    // can leave Chrome processes orphaned (issue #1113).
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    close_notify.notify_one();
+                let written = writer.write_all(resp.as_bytes()).await.is_ok();
+                if closing {
+                    let _ = writer.flush().await;
+                    close.replied.notify_one();
                     return;
+                }
+                if !written {
+                    break;
                 }
             }
             Err(_) => break,
@@ -736,17 +667,6 @@ fn looks_like_http(line: &str) -> bool {
         "GET ", "POST ", "PUT ", "DELETE ", "PATCH ", "HEAD ", "OPTIONS ", "CONNECT ", "TRACE ",
     ];
     prefixes.iter().any(|p| line.starts_with(p))
-}
-
-/// The answer to a command that came in behind a close. It is plain that nothing ran, so a caller can ask again: the next
-/// daemon takes it.
-fn closing_refusal(cmd: &Value) -> Value {
-    serde_json::json!({
-        "id": cmd.get("id").cloned().unwrap_or(Value::Null),
-        "success": false,
-        "error": "This session is closing: the command did not run. Run it again to start a new session.",
-        "code": "session_closing",
-    })
 }
 
 fn close_completed_response(action: &str, response: &Value) -> bool {
@@ -836,6 +756,28 @@ fn get_port_for_session(session: &str) -> u16 {
 mod tests {
     #[allow(unused_imports)]
     use super::*;
+    use crate::session_settings::{resolve_idle_timeout, IdleTimeout, MemStore};
+
+    #[test]
+    fn test_a_ready_daemon_restores_settings_a_sweep_removed() {
+        let store = MemStore::default();
+        let security = SecurityView {
+            allowed_domains: Some(vec!["example.com".into()]),
+            ..SecurityView::default()
+        };
+        assert_eq!(store.stored(), None);
+
+        repair_stored_security(&store, &security);
+
+        assert_eq!(store.stored(), Some(security));
+    }
+
+    #[test]
+    fn test_a_ready_daemon_without_security_settings_stores_nothing() {
+        let store = MemStore::default();
+        repair_stored_security(&store, &SecurityView::default());
+        assert_eq!(store.stored(), None);
+    }
 
     #[test]
     fn test_resolve_idle_timeout_unset_applies_default() {
@@ -876,81 +818,6 @@ mod tests {
         assert!(state.blocks_default_idle_shutdown());
     }
 
-    /// Once a close has gone through, this daemon is on its way out, and what comes in then has a moment to get in: its
-    /// socket is still there. A command run now would launch a browser for a process about to exit, which leaves it
-    /// running with nobody holding it.
-    #[tokio::test]
-    async fn a_command_after_a_close_is_refused_not_run() {
-        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-        let state = Arc::new(tokio::sync::Mutex::new(DaemonState::new()));
-        let while_busy = state.lock().await.while_busy.clone();
-        let activity = Arc::new(IdleActivity::new());
-        let notify = Arc::new(Notify::new());
-        let ask = |line: &'static str| {
-            let (state, while_busy, activity, notify) = (state.clone(), while_busy.clone(), activity.clone(), notify.clone());
-            async move {
-                let (mut ours, theirs) = tokio::io::duplex(4096);
-                tokio::spawn(handle_connection(theirs, state, while_busy, activity, None, notify, None));
-                ours.write_all(line.as_bytes()).await.unwrap();
-                let mut answer = String::new();
-                BufReader::new(ours).read_line(&mut answer).await.unwrap();
-                serde_json::from_str::<Value>(&answer).unwrap()
-            }
-        };
-
-        let closed = ask("{\"id\":\"1\",\"action\":\"close\"}\n").await;
-        assert_eq!(closed["success"], true, "{closed}");
-        let late = ask("{\"id\":\"2\",\"action\":\"state_list\"}\n").await;
-        assert_eq!(late["success"], false, "{late}");
-        assert_eq!(late["code"], "session_closing", "{late}");
-        assert_eq!(late["id"], "2", "{late}");
-    }
-
-    /// What a session daemon says once its CLI has stopped listening has to land somewhere. This test is its own
-    /// daemon: run again with `HOME` in a temp dir, it panics where a daemon would, and what it said is looked for.
-    #[cfg(unix)]
-    #[test]
-    fn a_panic_after_the_cli_has_gone_is_kept() {
-        const NAME: &str = "native::daemon::tests::a_panic_after_the_cli_has_gone_is_kept";
-        if env::var_os("A_DAEMON_THAT_PANICS").is_some() {
-            stop_talking_to_the_cli();
-            panic!("the daemon fell over");
-        }
-        let home = tempfile::tempdir().unwrap();
-        let ran = std::process::Command::new(env::current_exe().unwrap())
-            .args([NAME, "--exact", "--nocapture"])
-            .env("A_DAEMON_THAT_PANICS", "1")
-            .env("HOME", home.path())
-            .env_remove("AGENT_BROWSER_DEBUG")
-            .output()
-            .unwrap();
-        assert!(!ran.status.success());
-        let said: String = fs::read_dir(home.path().join(".agent-browser/logs"))
-            .into_iter()
-            .flatten()
-            .flatten()
-            .filter_map(|log| fs::read_to_string(log.path()).ok())
-            .collect();
-        assert!(said.contains("the daemon fell over"), "kept: {said:?}");
-    }
-
-    #[test]
-    fn a_daemon_nobody_can_find_stops_waiting_for_a_person() {
-        assert!(idle_daemon_waits(true, true, true), "a window may be in use");
-        assert!(!idle_daemon_waits(true, true, false), "nothing can ever close it");
-        assert!(!idle_daemon_waits(true, false, true));
-        assert!(!idle_daemon_waits(false, true, true), "an explicit timeout applies regardless");
-    }
-
-    #[test]
-    fn a_daemon_is_found_by_its_address_and_its_own_pid_file() {
-        assert!(findable(Some("41\n"), true, 41));
-        assert!(!findable(None, true, 41), "close --all can't list it");
-        assert!(!findable(Some("41"), false, 41), "no CLI can reach it");
-        assert!(!findable(Some("42"), true, 41), "the files are another process's");
-        assert!(!findable(Some("garbage"), true, 41));
-    }
-
     #[tokio::test]
     async fn test_idle_activity_receives_dashboard_activity() {
         let activity = Arc::new(IdleActivity::new());
@@ -959,6 +826,29 @@ mod tests {
         tokio::time::timeout(Duration::from_millis(100), activity.notified())
             .await
             .expect("dashboard input notification should wake the idle loop");
+    }
+
+    #[tokio::test]
+    async fn test_idle_timer_rearms_from_the_timeout_in_effect_now() {
+        let activity = IdleActivity::new();
+        assert!(arm_idle_sleep(&activity).is_none(), "no timeout, no timer");
+
+        activity.set_timeout(Some(IdleTimeout {
+            ms: 3_600_000,
+            is_default: false,
+        }));
+        activity.mark();
+        // A command lowers the timeout live; the re-armed timer must use it.
+        activity.set_timeout(Some(IdleTimeout {
+            ms: 50,
+            is_default: false,
+        }));
+        let sleep = arm_idle_sleep(&activity).expect("timer armed");
+        let left = sleep.deadline() - tokio::time::Instant::now();
+        assert!(left <= Duration::from_millis(50), "re-armed for {left:?}");
+
+        activity.set_timeout(None);
+        assert!(arm_idle_sleep(&activity).is_none(), "disabled live");
     }
 
     #[tokio::test]
@@ -1009,25 +899,6 @@ mod tests {
         assert_eq!(get_port_for_session("my-session"), 63105);
         assert_eq!(get_port_for_session("work"), 51184);
         assert_eq!(get_port_for_session(""), 49152);
-    }
-
-    /// A keyed door (Windows' loopback port) answers a caller without its key nothing: a line that isn't a command, or
-    /// one without the key, ends the connection, and a line longer than any command is never held whole.
-    #[tokio::test]
-    async fn a_keyed_door_talks_to_no_one_before_the_key() {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        let state = std::sync::Arc::new(tokio::sync::Mutex::new(DaemonState::new()));
-        let while_busy = state.lock().await.while_busy.clone();
-        for line in ["not json\n".to_string(), "{\"id\":\"1\",\"action\":\"url\"}\n".to_string()] {
-            let (mut ours, theirs) = tokio::io::duplex(1 << 16);
-            let conn = tokio::spawn(handle_connection(theirs, state.clone(), while_busy.clone(), Arc::new(IdleActivity::new()), None, Arc::new(Notify::new()), Some(Arc::from("k"))));
-            ours.write_all(line.as_bytes()).await.unwrap();
-            let mut said = String::new();
-            let _ = tokio::time::timeout(Duration::from_secs(5), ours.read_to_string(&mut said)).await;
-            assert!(!said.contains("Invalid JSON") && !said.contains("\"success\":true"), "{line}: {said}");
-            tokio::time::timeout(Duration::from_secs(5), conn).await.unwrap().unwrap();
-        }
-        assert!(PRE_KEY_LINE_LIMIT >= 1 << 20);
     }
 
     #[test]
@@ -1086,52 +957,6 @@ mod tests {
         let _ = tokio::time::timeout(Duration::from_secs(1), state.lock())
             .await
             .expect("background tick should release the state lock");
-    }
-
-    /// Unbrowse fork: while a command holds the daemon's state (a script given minutes), a value the
-    /// node asks the capture to forget is answered at once and named before anything else is written,
-    /// and the tab list and DevTools address are answered as they were after the last command.
-    #[tokio::test]
-    async fn a_busy_daemon_still_forgets_a_secret_and_lists_its_tabs() {
-        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-        let dir = std::env::temp_dir().join(format!("busy-forget-{}-{}", std::process::id(), super::super::capture::now_secs()));
-        let mut daemon_state = DaemonState::new();
-        let mut log = super::super::capture::CaptureLog::open_in(&dir, "s").expect("capture log");
-        log.write(serde_json::json!({ "type": "exchange", "entry": { "request": { "url": "https://a.example/login", "postData": { "text": "pw=Owner-Typed-77" } } } }));
-        daemon_state.capture = Some(log);
-        let while_busy = daemon_state.while_busy.clone();
-        while_busy.seen(Some((vec![serde_json::json!({ "label": "ua", "targetId": "T1" })], "ws://127.0.0.1:1/devtools/browser/x".into())));
-        let state = Arc::new(tokio::sync::Mutex::new(daemon_state));
-        let held = state.lock().await;
-
-        let (client, server) = tokio::io::duplex(1 << 16);
-        let conn = tokio::spawn(handle_connection(server, state.clone(), while_busy.clone(), Arc::new(IdleActivity::new()), None, Arc::new(Notify::new()), None));
-        let (read, mut write) = tokio::io::split(client);
-        let mut lines = BufReader::new(read).lines();
-        let mut answers = Vec::new();
-        for line in [
-            r#"{"id":"f1","action":"capture_forget","value":"Owner-Typed-77"}"#,
-            r#"{"id":"t1","action":"tab_list"}"#,
-            r#"{"id":"c1","action":"cdp_url"}"#,
-        ] {
-            write.write_all(format!("{line}\n").as_bytes()).await.unwrap();
-            let answer = tokio::time::timeout(Duration::from_secs(2), lines.next_line()).await.expect("answered while busy").unwrap().unwrap();
-            answers.push(serde_json::from_str::<Value>(&answer).unwrap());
-        }
-        assert_eq!(answers[0]["success"], true, "{}", answers[0]);
-        assert_eq!(answers[0]["data"]["queued"], true, "{}", answers[0]);
-        assert_eq!(answers[1]["data"]["tabs"][0]["label"], "ua", "{}", answers[1]);
-        assert_eq!(answers[2]["data"]["cdpUrl"], "ws://127.0.0.1:1/devtools/browser/x", "{}", answers[2]);
-
-        // The command holding the state ends; the next write names the secret, in what the log holds too.
-        let mut s = held;
-        super::super::capture::flush(&mut s, false);
-        drop(s);
-        let written = std::fs::read_to_string(dir.join("s.jsonl")).unwrap();
-        assert!(!written.contains("Owner-Typed-77"), "{written}");
-        assert!(written.contains("secret:"), "{written}");
-        conn.abort();
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Guard against re-introducing `waitpid(-1)` in daemon code.

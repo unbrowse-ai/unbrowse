@@ -82,9 +82,17 @@ impl ClientHints {
 }
 
 
-/// Whether this build's TLS stack accepts Chrome 155's RSA-PSS-PSS signature algorithms: asked once per process, so a
-/// stack without them (`vendor/btls-sys` not patched) costs one failed build, not one per call.
+/// Whether this build's TLS stack accepts the RSA-PSS-PSS signature algorithms the minting browser offers: asked once
+/// per process, so a stack without them (`vendor/btls-sys` not patched with `chrome-pss.patch`) costs one failed build,
+/// not one per call.
 static SIGALGS_HELD: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/// Whether the transport's TLS stack held the browser's RSA-PSS-PSS set. A build that fell back presents a ClientHello
+/// the minting browser does not have, and a clearance bound to the browser's handshake is refused on replay; the test
+/// below holds every build to the patched stack instead of letting the fallback pass silently.
+pub fn sigalgs_held() -> bool {
+    *SIGALGS_HELD.get().unwrap_or(&false)
+}
 
 impl ChromeFetch {
     pub fn new() -> Result<Self, ReplayError> {
@@ -109,16 +117,20 @@ impl ChromeFetch {
         let rt = tokio::runtime::Runtime::new().map_err(|e| ReplayError::BadUrl(e.to_string()))?;
         // The latest Chrome profile the crate ships, then aligned with the
         // browser actually minting our sessions: measured against the minting
-        // Chrome 155 (tls.peet.ws, in-browser), its ClientHello carries 18
-        // counted extensions against the profile's 16 — the two it adds are
-        // ECH GREASE and ALPS. A clearance is bound to the client that earned
-        // it, so the set has to match, not merely resemble.
+        // Chrome 157 (tls.peet.ws, in-browser, 2026-11-20), its ClientHello
+        // carries 18 counted extensions against the profile's 16 — the two it
+        // adds are ECH GREASE and ALPS. A clearance is bound to the client that
+        // earned it, so the set has to match, not merely resemble.
         let mut emulation = wreq_util::emulate::Emulation::Chrome149.into_emulation();
         if std::env::var("UNBROWSE_TLS_DEBUG").is_ok() {
             eprintln!("[tls] tls_options present: {}", emulation.tls_options.is_some());
         }
         if let Some(mut tls) = emulation.tls_options.take() {
             tls.enable_ech_grease = true;
+            // Chrome sends a GREASE signature algorithm ahead of its real ones (peetprint's sigalgs field reads
+            // `GREASE-2308-2309-2310-…`); the explicit sigalgs list below carries none, so peetprint differed from the
+            // browser's by that one GREASE token even with JA4 equal. RFC 8701 GREASE puts it back (measured 2026-11-20).
+            tls.grease_enabled = Some(true);
             // Chrome sends both ALPS codepoints while the new one rolls out;
             // the profile defaults to one, which leaves it an extension short.
             tls.alps_use_new_codepoint = std::env::var("UNBROWSE_ALPS_OLD").is_err();
@@ -127,11 +139,14 @@ impl ChromeFetch {
                     wreq::tls::AlpsProtocol::HTTP2,
                 ]));
             }
-            // Chrome 155's signature algorithms, measured from the minting browser against `tls.peet.ws` (its `ja4_r`
-            // is `…_0904,0905,0906,0403,0804,0401,0503,0805,0501,0806,0601`), begin with the RSA-PSS-PSS trio. Every
-            // other part of the ClientHello already matches (ciphers, extension set and order, HTTP/2 settings and
-            // frame order); these three are what the vendored BoringSSL is patched to offer (`vendor/btls-sys`), so
-            // that a clearance bound to the browser's ClientHello can be spent.
+            // Chrome 157's signature algorithms, measured from the minting browser against `tls.peet.ws`
+            // (2026-11-20; its `ja4_r` ends `…_0904,0905,0906,0403,0804,0401,0503,0805,0501,0806,0601`), begin
+            // with the RSA-PSS-PSS trio. Every other part of the ClientHello already matches (ciphers, extension
+            // set and order, HTTP/2 settings and frame order); these three are what `chrome-pss.patch`
+            // (`crates/learn/assets/chrome-clienthello/`, vendored by `scripts/apply-tls-patch.sh`) adds to the
+            // fork's BoringSSL, so that a clearance bound to the browser's ClientHello can be spent. Without the
+            // patch the stack refuses the set and falls back, and the transport's JA4 is not the browser's
+            // (measured: `…_f9a770a73cc2` against the browser's `…_4980c97edce0`); `sigalgs_held()` is the alarm.
             if *SIGALGS_HELD.get().unwrap_or(&true) {
             tls.sigalgs_list = Some(std::borrow::Cow::Borrowed(
                 "rsa_pss_pss_sha256:rsa_pss_pss_sha384:rsa_pss_pss_sha512:ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha512",
@@ -316,6 +331,78 @@ pub fn agreeing_user_agent(headers: &[(String, String)], named: Option<&str>) ->
     Some(format!("Mozilla/5.0 ({system}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{version}.0.0.0 Safari/537.36"))
 }
 
+/// Whether a request says it is a navigation: the browser's own words for it, read from the request, never from a
+/// host. A page asked for as a page (`script_shape`'s `as_a_page`) carries these; a script's fetch does not.
+fn is_navigation(headers: &[(String, String)]) -> bool {
+    let says = |name: &str, word: &str| {
+        headers.iter().any(|(k, v)| k.eq_ignore_ascii_case(name) && v.trim().eq_ignore_ascii_case(word))
+    };
+    says("sec-fetch-mode", "navigate") || says("sec-fetch-dest", "document")
+}
+
+/// The order Chrome sends a navigation's headers in, measured from the minting Chrome 157's own wire
+/// (net-export, 2026-11-20, a profile with the site's client hints cached). A door reads the order as part of the
+/// client's shape; a transport that claims the browser's identity sends the browser's order, not the order a route's
+/// fields happen to be stored in. The hint siblings marked *inferred* were not in the measured capture's hint set;
+/// they sit with their measured family until a walk that carries them measures them too.
+const CHROME_NAVIGATION_ORDER: &[&str] = &[
+    "sec-ch-device-memory",
+    "sec-ch-ua",
+    "sec-ch-ua-mobile",
+    "sec-ch-ua-arch",
+    "sec-ch-ua-bitness", // *inferred: with arch
+    "sec-ch-ua-platform",
+    "sec-ch-ua-platform-version",
+    "sec-ch-ua-model",
+    "sec-ch-ua-full-version-list",
+    "sec-ch-ua-form-factors",
+    "sec-ch-dpr", // *inferred: the hint block
+    "dpr",
+    "ect",
+    "rtt",
+    "downlink",
+    "upgrade-insecure-requests",
+    "user-agent",
+    "accept",
+    "sec-fetch-site",
+    "sec-fetch-mode",
+    "sec-fetch-user",
+    "sec-fetch-dest",
+    "accept-encoding",
+    "accept-language",
+    "cookie",
+    "priority",
+];
+
+/// A navigation's headers as the browser sends them: the measured order, the user agent the hints agree with placed
+/// in its slot, and the two defaults a navigation always carries (`accept-encoding`, `priority`) when the route did
+/// not record them. Values are the route's own; only their order and the missing defaults are the browser's. A
+/// request that is no navigation is left exactly as it was.
+fn as_the_browser_sends(mut headers: Vec<(String, String)>, ua: Option<String>) -> Vec<(String, String)> {
+    if !is_navigation(&headers) {
+        return headers;
+    }
+    let has_encoding = headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("accept-encoding"));
+    let has_priority = headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("priority"));
+    if let Some(ua) = ua {
+        headers.retain(|(k, _)| !k.eq_ignore_ascii_case("user-agent"));
+        headers.push(("user-agent".to_string(), ua));
+    }
+    if !has_encoding {
+        headers.push(("accept-encoding".to_string(), "gzip, deflate, br, zstd".to_string()));
+    }
+    if !has_priority {
+        headers.push(("priority".to_string(), "u=0, i".to_string()));
+    }
+    let rank = |k: &str| {
+        CHROME_NAVIGATION_ORDER.iter().position(|n| n.eq_ignore_ascii_case(k))
+            .unwrap_or(CHROME_NAVIGATION_ORDER.len())
+    };
+    // Stable: a header the order does not name keeps its place beside its own kind, after the named ones.
+    headers.sort_by_key(|(k, _)| rank(k));
+    headers
+}
+
 impl Fetch for ChromeFetch {
     fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
         self.send(req, true, None)
@@ -471,9 +558,21 @@ impl ChromeFetch {
         // Held here, where every request leaves, so no caller can send the two apart (`agreeing_user_agent`).
         let named = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("user-agent")).map(|(_, v)| v.as_str()).or(self.user_agent.as_deref());
         let agreed = agreeing_user_agent(&headers, named);
+        // A navigation leaves in the browser's own header order, its user agent in its slot; a script's call keeps
+        // the order it was built in. The order is part of the shape a door reads (`as_the_browser_sends`).
+        let nav = is_navigation(&headers);
+        if nav {
+            let ua = agreed.clone().or_else(|| self.user_agent.clone());
+            headers = as_the_browser_sends(headers, ua);
+            // A navigation carries the browser's complete shape; the client's own defaults (its emulation's user
+            // agent beside the one placed here, its own accept-encoding) would ride beside it and double it. The
+            // browser sends one of each, in its order (`as_the_browser_sends`).
+            builder = builder.default_headers(false);
+        }
         for (k, v) in &headers {
-            // The request's own user agent gives way to the one that agrees, never rides beside it.
-            if agreed.is_some() && k.eq_ignore_ascii_case("user-agent") {
+            // The request's own user agent gives way to the one that agrees, never rides beside it. A navigation's
+            // user agent is already placed in its slot with the agreed value.
+            if !nav && agreed.is_some() && k.eq_ignore_ascii_case("user-agent") {
                 continue;
             }
             if let (Ok(name), Ok(value)) = (
@@ -483,11 +582,13 @@ impl ChromeFetch {
                 builder = builder.header(name, value);
             }
         }
-        match &agreed {
-            Some(ua) => builder = builder.header(wreq::header::USER_AGENT, ua.as_str()),
-            None => {
-                if let Some(ua) = &self.user_agent {
-                    builder = builder.header(wreq::header::USER_AGENT, ua.as_str());
+        if !nav {
+            match &agreed {
+                Some(ua) => builder = builder.header(wreq::header::USER_AGENT, ua.as_str()),
+                None => {
+                    if let Some(ua) = &self.user_agent {
+                        builder = builder.header(wreq::header::USER_AGENT, ua.as_str());
+                    }
                 }
             }
         }
@@ -523,13 +624,16 @@ impl ChromeFetch {
         // One line per request sent, beside `made.jsonl`, where `UNBROWSE_SENT_LOG` names a file: names and shapes
         // only (`sent_line`). Read once per process; unset, a call pays one branch.
         if let Some(path) = sent_log() {
-            // What was handed to the client: a header whose name or value it refuses was never sent, as above.
+            // What was handed to the client, in the order it left: a navigation's headers are already the browser's
+            // whole shape (its user agent in its slot, `as_the_browser_sends`), so they are logged as they are; a
+            // script's call gives its route user agent way to the agreed one, appended as the loop appends it. A
+            // header whose name or value the client refuses was never sent.
             let on_the_wire: Vec<(String, String)> = headers
                 .iter()
-                .filter(|(k, _)| !(agreed.is_some() && k.eq_ignore_ascii_case("user-agent")))
+                .filter(|(k, _)| !(!nav && agreed.is_some() && k.eq_ignore_ascii_case("user-agent")))
                 .filter(|(k, v)| wreq::header::HeaderName::from_bytes(k.as_bytes()).is_ok() && wreq::header::HeaderValue::from_str(v).is_ok())
                 .cloned()
-                .chain(agreed.clone().or_else(|| self.user_agent.clone()).map(|ua| ("user-agent".to_string(), ua)))
+                .chain(if nav { None } else { agreed.clone().or_else(|| self.user_agent.clone()).map(|ua| ("user-agent".to_string(), ua)) })
                 .collect();
             note_sent(path, &sent_line(req, &on_the_wire, status, protocol(resp.version()), now_ms()));
         }
@@ -544,6 +648,7 @@ impl ChromeFetch {
             .get(wreq::header::CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
             .is_some_and(|m| m.to_ascii_lowercase().contains("text/event-stream"));
+        let content_type = resp.headers().get(wreq::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).unwrap_or_default().to_string();
         let binary = resp.headers().get(wreq::header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).filter(|m| unbrowse_route::wire::named(m).is_some()).map(String::from);
         let response_body = if event_stream {
             // The events it has sent are the answer: the stream is the site's to keep open, not the call's to wait on.
@@ -565,7 +670,12 @@ impl ChromeFetch {
                     let bytes = self.shared.rt.block_on(resp.bytes()).map_err(|e| ReplayError::Transport(format!("{e}")))?;
                     unbrowse_route::wire::reply_read(&mime, &bytes)
                 }
-                None => self.shared.rt.block_on(resp.text()).map_err(|e| ReplayError::Transport(format!("{e}")))?,
+                None => {
+                    // Read as the walk records it: a binary answer its content type mislabels (a protobuf body served
+                    // as application/json) is sniffed and read as the JSON it holds, not lossy text (`wire::reply_text`).
+                    let bytes = self.shared.rt.block_on(resp.bytes()).map_err(|e| ReplayError::Transport(format!("{e}")))?;
+                    unbrowse_route::wire::reply_read(&content_type, &bytes)
+                }
             },
             }
         };
@@ -989,6 +1099,56 @@ fn with_causes(e: &dyn std::error::Error) -> String {
 mod tests {
     use super::*;
     use crate::egress::Egress::{Foreign, Own};
+
+    /// The transport's handshake is the minting browser's: a door binds its clearance to the ClientHello that earned
+    /// it, so a transport whose TLS stack cannot offer the browser's RSA-PSS-PSS signature algorithms spends a
+    /// clearance the site refuses. The fallback that keeps unpatched builds calling must not pass silently here.
+    #[test]
+    fn the_transport_holds_the_browsers_pss_pss_signature_algorithms() {
+        let _ = ChromeFetch::new().expect("the transport builds");
+        assert!(
+            sigalgs_held(),
+            "the TLS stack refused the RSA-PSS-PSS set the minting browser offers: a door-bound clearance would be \
+             refused on replay. Run scripts/apply-tls-patch.sh, and clear the btls-sys cmake cache \
+             (target/debug/build/btls-sys-*) so the patched BoringSSL is actually compiled."
+        );
+    }
+
+    /// A navigation is asked in the browser's header order, not the order a route's fields were stored in: the order
+    /// is part of the shape a door reads, measured from the minting browser's own wire.
+    #[test]
+    fn a_navigation_leaves_in_the_browsers_header_order() {
+        // The order a learner's storage happened to keep (the shape a refused replay sent, 2026-11-20).
+        let stored = vec![
+            ("sec-fetch-user", "?1"), ("upgrade-insecure-requests", "1"), ("rtt", "50"),
+            ("sec-ch-ua", "\"Chromium\";v=\"157\""), ("accept", "text/html"), ("sec-fetch-mode", "navigate"),
+            ("sec-fetch-dest", "document"), ("sec-fetch-site", "none"), ("accept-language", "en-US,en;q=0.9"),
+            ("cookie", "datadome=earned"),
+        ].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<Vec<_>>();
+        let sent = as_the_browser_sends(stored, Some("Mozilla/5.0 Chrome/157.0.0.0".into()));
+        let names: Vec<&str> = sent.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(names, vec![
+            "sec-ch-ua", "rtt", "upgrade-insecure-requests", "user-agent", "accept",
+            "sec-fetch-site", "sec-fetch-mode", "sec-fetch-user", "sec-fetch-dest",
+            "accept-encoding", "accept-language", "cookie", "priority",
+        ], "the browser's order, the agent in its slot, the two defaults present: {names:?}");
+        let val = |n: &str| sent.iter().find(|(k, _)| k == n).map(|(_, v)| v.as_str());
+        assert_eq!(val("user-agent"), Some("Mozilla/5.0 Chrome/157.0.0.0"));
+        assert_eq!(val("accept-encoding"), Some("gzip, deflate, br, zstd"));
+        assert_eq!(val("priority"), Some("u=0, i"));
+        assert_eq!(val("cookie"), Some("datadome=earned"), "the route's own values are kept");
+    }
+
+    /// A script's call is no navigation: its order is its own, and nothing is added to it.
+    #[test]
+    fn a_scripts_call_keeps_its_own_order() {
+        let call = vec![
+            ("accept", "application/json"), ("sec-fetch-mode", "cors"), ("sec-fetch-dest", "empty"),
+            ("x-token", "t"),
+        ].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<Vec<_>>();
+        let sent = as_the_browser_sends(call.clone(), Some("ua".into()));
+        assert_eq!(sent, call, "a fetch is not reordered and gains no navigation defaults");
+    }
 
     /// A sent line says what went on the wire by name and shape, and never a value: the session's cookies, a token
     /// header, the body and the caller's word in the address stay out; names keep their order.
@@ -1440,5 +1600,161 @@ mod tests {
             assert!(matches!(e, ReplayError::Refused(_)), "{inside}: {e}");
         }
         assert!(next_hop(Foreign, "shop.example.com", &r, 302, "https://login.example.org/next").is_ok());
+    }
+
+    /// A local site that answers every request with what `answer` makes of its number (from 0) and the request as the
+    /// client sent it, closing after each. Returns its address and the count of requests it has been asked.
+    fn site_that_answers(answer: impl Fn(usize, &str) -> String + Send + 'static) -> (std::net::SocketAddr, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use std::io::{Read, Write};
+        let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let at = site.local_addr().unwrap();
+        let asked = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = asked.clone();
+        std::thread::spawn(move || {
+            for s in site.incoming() {
+                let Ok(mut s) = s else { continue };
+                let mut buf = vec![0u8; 8192];
+                let n = s.read(&mut buf).unwrap_or(0);
+                let said = String::from_utf8_lossy(&buf[..n]).into_owned();
+                let number = counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let _ = s.write_all(answer(number, &said).as_bytes());
+            }
+        });
+        (at, asked)
+    }
+
+    /// Over the wire: a site that redirects to itself forever, one of them setting a fresh cookie on every hop so the
+    /// cookie handling can't be what ends it, is followed for the hops a call is allowed and no more: the fetch ends
+    /// as a transport failure that says so, the site was asked once for the first request and once for each hop
+    /// (`MAX_REDIRECTS` + 1), and the call returns rather than hanging.
+    #[test]
+    fn a_site_that_redirects_to_itself_forever_is_followed_only_so_far() {
+        let ends = |at: std::net::SocketAddr| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let before = sent_here();
+                let mut chrome = ChromeFetch::new().unwrap();
+                let got = Fetch::fetch(&mut chrome, &req("GET", &format!("http://{at}/loop"), None));
+                let _ = tx.send((got, sent_here() - before));
+            });
+            rx.recv_timeout(std::time::Duration::from_secs(60)).expect("the fetch returned: the hops are bounded")
+        };
+        let hops = crate::egress::MAX_REDIRECTS + 1;
+        let (plain, plain_asked) = site_that_answers(|_, _| "HTTP/1.1 302 Found\r\nlocation: /loop\r\ncontent-length: 0\r\nconnection: close\r\n\r\n".to_string());
+        let (cookies, cookies_asked) = site_that_answers(|n, _| format!("HTTP/1.1 302 Found\r\nlocation: /loop\r\nset-cookie: hop{n}=1; Path=/\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"));
+        for (at, asked) in [(plain, plain_asked), (cookies, cookies_asked)] {
+            let (got, sent) = ends(at);
+            assert!(matches!(&got, Err(ReplayError::Transport(why)) if why.contains("too many redirects")), "{got:?}");
+            assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), hops, "the site was asked once per hop and no more");
+            assert_eq!(sent, hops as u64, "and the node counts what it sent the same");
+        }
+    }
+
+    /// A check that asks where a page lands gets the redirect itself, not the page after it: one request, the answer
+    /// is the 302 with its location.
+    #[test]
+    fn a_check_for_where_a_page_lands_is_answered_by_the_redirect_itself() {
+        let (at, asked) = site_that_answers(|_, _| "HTTP/1.1 302 Found\r\nlocation: /elsewhere\r\ncontent-length: 0\r\nconnection: close\r\n\r\n".to_string());
+        let mut chrome = ChromeFetch::new().unwrap();
+        let ex = chrome.fetch_unredirected(&req("GET", &format!("http://{at}/start"), None)).unwrap();
+        assert_eq!(ex.status, 302);
+        assert!(ex.response_headers.iter().any(|(k, v)| k.eq_ignore_ascii_case("location") && v == "/elsewhere"), "{:?}", ex.response_headers);
+        assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 1, "the redirect was not followed");
+    }
+
+    /// The browserless transport mints no cookie of its own, and says before anything is sent whether its rule lets a
+    /// request go: this machine's own address is the owner's to ask for, never someone else's route's.
+    #[test]
+    fn the_browserless_transport_mints_nothing_and_asks_its_rule_first() {
+        let own = ChromeFetch::new().unwrap();
+        assert_eq!(own.minted("sid"), None);
+        let local = req("GET", "http://127.0.0.1:9/x", None);
+        assert!(own.allows(&local).is_ok());
+        let foreign = ChromeFetch::held_to(Foreign).unwrap();
+        assert!(matches!(foreign.allows(&local), Err(ReplayError::Refused(_))));
+    }
+
+    /// Every method a route can carry goes out as itself: the site is asked with the verb the call named, including
+    /// one the transport has no name for, and a verb that can't be one is refused before anything is sent.
+    #[test]
+    fn a_calls_method_goes_out_as_itself() {
+        let (at, asked) = site_that_answers(|_, said| {
+            let verb = said.split(' ').next().unwrap_or_default();
+            format!("HTTP/1.1 200 OK\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{verb}", verb.len())
+        });
+        let mut chrome = ChromeFetch::new().unwrap();
+        for verb in ["PUT", "DELETE", "PATCH", "OPTIONS", "PROPFIND"] {
+            let ex = Fetch::fetch(&mut chrome, &req(verb, &format!("http://{at}/x"), None)).unwrap();
+            assert_eq!(ex.response_body.as_deref(), Some(verb), "the site saw the verb the call named");
+        }
+        let before = asked.load(std::sync::atomic::Ordering::SeqCst);
+        let got = Fetch::fetch(&mut chrome, &req("NOT A VERB", &format!("http://{at}/x"), None));
+        assert!(matches!(got, Err(ReplayError::BadUrl(_))), "{got:?}");
+        assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), before, "nothing was sent");
+    }
+
+    /// A read of kept walks or routes (`offline`) asks no site: the request is refused with the reason before a
+    /// connection is opened, and the site hears nothing.
+    #[test]
+    fn an_offline_read_asks_no_site() {
+        let (at, asked) = site_that_answers(|_, _| "HTTP/1.1 200 OK\r\ncontent-length: 0\r\nconnection: close\r\n\r\n".to_string());
+        let mut chrome = ChromeFetch::new().unwrap();
+        let held = offline();
+        let before = sent_here();
+        let got = Fetch::fetch(&mut chrome, &req("GET", &format!("http://{at}/x"), None));
+        assert!(matches!(&got, Err(ReplayError::Refused(why)) if why == OFFLINE_WHY), "{got:?}");
+        assert_eq!(sent_here(), before, "nothing was handed to the wire");
+        drop(held);
+        assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 0, "the site was never asked");
+    }
+
+    /// An event stream's answer is what it has said so far, over the wire: the events up to `[DONE]` come back, and
+    /// what the site goes on to send after it does not.
+    #[test]
+    fn an_event_stream_over_the_wire_answers_with_the_events_before_done() {
+        use std::io::{Read, Write};
+        let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let at = site.local_addr().unwrap();
+        std::thread::spawn(move || {
+            if let Ok((mut s, _)) = site.accept() {
+                let _ = s.read(&mut [0u8; 4096]);
+                let _ = s.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\ndata: {\"a\":1}\n\ndata: [DONE]\n\n");
+                let _ = s.flush();
+                std::thread::sleep(std::time::Duration::from_millis(400));
+                let _ = s.write_all(b"data: after\n\n");
+            }
+        });
+        let mut chrome = ChromeFetch::new().unwrap();
+        let ex = Fetch::fetch(&mut chrome, &req("GET", &format!("http://{at}/events"), None)).unwrap();
+        assert_eq!(ex.response_body.as_deref(), Some("data: {\"a\":1}\n\ndata: [DONE]\n\n"));
+    }
+
+    /// A binary answer of a codec the engine reads comes back as the JSON it holds, as a walk records it.
+    #[test]
+    fn a_msgpack_answer_comes_back_as_the_json_it_holds() {
+        use std::io::{Read, Write};
+        let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let at = site.local_addr().unwrap();
+        std::thread::spawn(move || {
+            if let Ok((mut s, _)) = site.accept() {
+                let _ = s.read(&mut [0u8; 4096]);
+                let _ = s.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: application/msgpack\r\ncontent-length: 5\r\nconnection: close\r\n\r\n\x81\xa2ok\xc3");
+            }
+        });
+        let mut chrome = ChromeFetch::new().unwrap();
+        let ex = Fetch::fetch(&mut chrome, &req("GET", &format!("http://{at}/m"), None)).unwrap();
+        assert_eq!(ex.response_body.as_deref(), Some(r#"{"ok":true}"#));
+    }
+
+    /// The count of what this process has sent only grows with each answered request, and the clock a sent line is
+    /// stamped with is the real one.
+    #[test]
+    fn the_process_counts_what_it_sent_and_stamps_it_with_the_clock() {
+        let (at, _) = site_that_answers(|_, _| "HTTP/1.1 200 OK\r\ncontent-length: 0\r\nconnection: close\r\n\r\n".to_string());
+        let before = sent_so_far();
+        let mut chrome = ChromeFetch::new().unwrap();
+        Fetch::fetch(&mut chrome, &req("GET", &format!("http://{at}/x"), None)).unwrap();
+        assert!(sent_so_far() > before, "an answered request was counted");
+        assert!(now_ms() > 1_700_000_000_000, "milliseconds since the epoch");
     }
 }

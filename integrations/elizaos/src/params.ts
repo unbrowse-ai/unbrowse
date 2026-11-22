@@ -12,14 +12,18 @@ export type Param = {
 
 const KINDS: Record<string, Param["kind"]> = { string: "string", number: "number", integer: "number", boolean: "boolean", object: "object", array: "list" };
 
-/** A tool's input schema as the parameters its action reads off the conversation. */
-export function paramsOf(schema: InputSchema): Param[] {
+/**
+ * A tool's input schema as the parameters its action reads off the conversation. The first of the argument sets a
+ * call takes one of in full (`needsOneOf`: a goal, or an ask to collect) is said as required: it is what the model
+ * reads off a conversation; `missing` lets any one set through.
+ */
+export function paramsOf(schema: InputSchema, needsOneOf: string[][] = []): Param[] {
   return Object.entries(schema.properties).map(([name, p]) => {
     const kind = KINDS[String(p.type)] ?? "string";
     const said = typeof p.description === "string" ? asActions(p.description) : name.replace(/_/g, " ");
     const choices = Array.isArray(p.enum) ? ` One of: ${p.enum.join(", ")}.` : "";
     const shape = kind === "object" ? " A JSON object of strings." : kind === "list" ? " A JSON array." : "";
-    return { name, kind, required: schema.required.includes(name), description: `${said}${choices}${shape}` };
+    return { name, kind, required: schema.required.includes(name) || (needsOneOf[0] ?? []).includes(name), description: `${said}${choices}${shape}` };
   });
 }
 
@@ -125,7 +129,14 @@ export async function extract(runtime: IAgentRuntime, message: Memory, state: St
   return values;
 }
 
-/** The required parameters with no value. */
-export function missing(params: Param[], values: Values): string[] {
-  return params.filter((p) => p.required && values[p.name] === undefined).map((p) => p.name);
+/**
+ * The required parameters with no value; with none of those, the first missing names of the first of the sets the call
+ * takes one of in full (`needsOneOf`: a goal, or an ask to collect) when it has none of them.
+ */
+export function missing(params: Param[], values: Values, needsOneOf: string[][] = []): string[] {
+  const inASet = (name: string) => needsOneOf.some((g) => g.includes(name));
+  const required = params.filter((p) => p.required && !inASet(p.name) && values[p.name] === undefined).map((p) => p.name);
+  if (required.length || !needsOneOf.length) return required;
+  const absent = (k: string) => values[k] === undefined || values[k] === "";
+  return needsOneOf.some((g) => g.every((k) => !absent(k))) ? [] : needsOneOf[0].filter(absent);
 }

@@ -1,0 +1,189 @@
+{
+  "about": "Sites Unbrowse can't get past yet (Lewis, 25 Oct 2026): every one goes here; one is pinned as the next target; when a measured run passes it without a browser it is marked won, with that run, and the next is pinned. scripts/rules/test_release_gates.py holds these rules. Copied on 19 Nov 2026 from the ledger kept until then outside the repository (UNB-208).",
+  "sites": [
+    {
+      "site": "etsy.com",
+      "gate": "DataDome",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20: a headed browser walk passes DataDome (no captcha; clean Chrome 157 fingerprint earns datadome), route b5be27988f8a6723 (/search page state, 14 records with price). Warm call answers BROWSERLESS (browser:false, 200, 1.96 s, 23 cookies) for a second term (wooden cutting board: Handmade Walnut End Grain Cutting Board). Enabled by chrome-pss.patch (JA4 = the browser's) + as_the_browser_sends (navigation header order). Headless walk still captcha'd; the earn is the engine's headed door-pass. UNB-241.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "g2.com",
+      "gate": "DataDome (behind Cloudflare CDN)",
+      "status": "open",
+      "pinned": false,
+      "seen": "2026-11-20 CAPTCHA SOLVED BY EYE but IP-GATED (proven): unbrowse_challenge (url opens tab; persisted MCP session) showed DataDome slider 'Slide right'; drag 528,487->757,487 -> green check success; page then 'Access is temporarily restricted' = IP reputation block despite solved captcha. Needs cooled IP/residential egress (environment), not captcha or engine. TLS matches Chrome157.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "uniqlo.com/sg",
+      "gate": "Akamai + queue-it",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20: browser walk learns /sg/en/search (route 8987202624836778, real SGD prices), warm call answers browserless (browser:false, 200, 1.3 s, 21 cookies) for a second term (jeans: Wide Fit Straight Jeans S$24.90, Barrel Leg Jeans). Enabled by chrome-pss.patch + as_the_browser_sends. The 25 Oct velocity block (Access Denied after ~6 walks/20 min) did not recur on a paced single-site drive.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "redfin.com",
+      "gate": "AWS WAF captcha",
+      "status": "open",
+      "pinned": true,
+      "seen": "2026-11-20: AWS WAF grid captcha PROVEN solvable by eye across 3 grids (chairs/buckets/hats all correctly selected via fast_challenge.py persistent-session burst) but ~5s WAF timer expires during turn latency ('Time limit exceeded'). Automated in-timer vision+click subagent attempted, no pass yet. Needs a vision model running in-process within the timer (tooling), not user. Fresh load (challenge look url) resets to Begin + new random grid.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "skyscanner.net",
+      "gate": "PerimeterX",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20: headed walk learns route 3fca7de4a72de91c (origin/destination inputs); warm calls BROWSERLESS (browser:false ok:true rung:0, SIN->BKK 117 ms / SIN->KUL 154 ms) returning real flight price data (flights.days[].price S$40.96-105.96, low/medium/high groups). The 25 Oct POST-body-capture gap is resolved - a replayable route is kept and spends. Surface is the price calendar; full airline listings are a route-pick refinement.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "booking.com",
+      "gate": "AWS WAF challenge",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20 (walked destination): headed walk earns aws-waf-token; graphql Search route 8e2b3e1460ce8ec4 answers BROWSERLESS (browser:false ok:true 3.1 s, 20 real Singapore hotels - Orchard, Robertson Quay, Sentosa Island, Bencoolen). Fixed by provenance::volatile_key_match (per-load UUID key matches by stable prefix/suffix) + unique_leaf_named (volatile container absent -> unique leaf name); both red-first tested, 30 provenance tests green. Refinement: Tokyo fails honestly - its pageViewId is generated by page JS, not present in the SSR HTML a browserless fetch reads; cross-destination robustness needs the signing sandbox to run booking's page JS (the walmart-class capability follow-up).",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "stackoverflow.com/search",
+      "gate": "Cloudflare captcha",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20 on TAG pages (the /search captcha surface remains): headed walk learns /questions/tagged/<tag> (route 02ff322da3d0b8f8, real question titles e.g. 'How do I get the number of elements in a list in Python?'); warm call BROWSERLESS (made.jsonl browser:false ok:true 561 ms; wire 200, 16 cookies) for a second tag (javascript). Enabled by chrome-pss.patch + as_the_browser_sends. Cloudflare clearance spends browserless here (unlike g2's dual Cloudflare+DataDome).",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "dexscreener.com",
+      "gate": "Cloudflare + binary protobuf API",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20: route c5ec9af5b493eb9b (io.dexscreener.com/dex/search/v12/pairs?q={q}) answers BROWSERLESS (browser:false ok:true, pepe 366ms / bitcoin 357ms) with real token-pair data (pepe: Pepe/WETH Uniswap v2 ethereum 0xA43fe...; bitcoin: Bitcoin/BTC, Tether/USDT price 61929.29, Sunswap v2 tron, Uniswap v4 Robinhood/MSTR). Two fixes: wire::reply_text sniffs a mislabeled binary codec (protobuf served as application/json, commit 9b4951e4) AND http.rs call path reads bytes via reply_read consistently with the walk (was resp.text() lossy garbage for non-named mime). Data is schemaless protobuf (n/msg/text fields) with names+prices. The user-goal price-shape pick (bare-decimal money()) is a refinement; the route spends real data.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "propertyguru.com.sg",
+      "gate": "Cloudflare",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20: headed walk learns the listings route efc75000d21b7cac (Cloudflare passes); TWO warm calls BROWSERLESS (made.jsonl browser:false ok:true rung:0, sale 1342 ms / rent 2175 ms, wire 200 with 29 cookies) for two listing_type values. The 25 Oct off-intent HTML concern is resolved - the answer-reader accepts the listings (title+price). Enabled by chrome-pss.patch + as_the_browser_sends.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "reddit.com",
+      "gate": "bot/login challenge",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20 (re-test with improved engine, NO user action): route c0e54bc7f6bf04f5 (GET /svc/shreddit/community-more-posts/top/, inputs r/t) answers BROWSERLESS (browser:false ok:true, r/programming 998ms / r/rust 1906ms) with real subreddit-specific posts: r/programming 'PostgreSQL 19 Released!' (domain postgresql.org, id t3_1y0aow0, created 2026-11-19); r/rust 'Jiff 1.0: A datetime library for Rust'. Data is shreddit HTML fragments with post-title/domain/timestamp/id; ratelimit header 217 left confirms a real API answer. The earlier 'wall holds' was resolved by this session's transport/door improvements (Chrome-157 TLS fidelity + headed door-pass), not a credential. Twelfth browserless win.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "zara.com/sg",
+      "gate": "Akamai (soft)",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20: the Akamai door passes; the /api/storefront/2/stores/11728/grids/search route 925d4b36b7d75e58 (2 steps: page -> grid) answers BROWSERLESS (browser:false ok:true, t-shirt 895 ms / jeans 1953 ms) with real products + prices (CROPPED LACE T-SHIRT; ZW COLLECTION MID-WAIST BARREL JEANS 10900 SGD, LOOSE FOLDED FIT LOW-RISE TRF JEANS 7590 SGD). Fixed by goal::amount - a numeric minor-unit price nested as pricing.price.current.value with sibling currency.code is now a price, so the grid scores shapes=true answers=true (was 'holds no price', page shell won). Secondary refinement: the 't-shirts name+price' goal pick still drops the grid on 'records never name search'; the grid route is learned and spends.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "opentable.sg",
+      "gate": "Akamai",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20 on www.opentable.com (same Akamai edge): a headed browser walk passes the edge and earns _abck (route 76ab2e6e54de73fd, /s page state), then warm calls answer browserless (browser:false, 200, 1.3-2.1 s, 26 cookies) with real restaurants for two more terms (Japanese: Nobu Singapore, Takemitsu Omakase; French: Bistro Du Vin, Les Ducs). Enabled by chrome-pss.patch (JA4 = the browser's) + as_the_browser_sends (navigation header order). Headless walk still refused; the earn is the engine's headed door-pass. x-ray 0 breaks; HN control passes.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "sg.trip.com flights",
+      "gate": "signed replay (React page signature)",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20: route 51ebb0ad845fe6b1 (POST /restapi/soa2/14427/GetLowPriceInCalender, page-signed) answers BROWSERLESS (browser:false ok:true, sin->bkk 5354ms / sin->tyo 6210ms) with real route-specific prices: sin->bkk currencyPrice [460,232,218,215,180,176] lowest 115; sin->tyo [656,308,290,213...] lowest 177. Input moves the answer. URL /flights/showfarefirst?dcity=sin&acity=bkk&ddate=... (listing 404s). TWO general signing-sandbox DOM fixes: (1) 8a69d085 created+inserted nodes findable by id (createElement/appendChild register into searchable 'created' list); (2) 1eb78f7d parsed element holds ownerDocument - elementOf's Object.assign(out,dom(),out) dropped dom()'s non-enumerable ownerDocument getter, and React createRoot's listenToAllSupportedEvents reads node.ownerDocument (var t=nodeType===9?node:node.ownerDocument; t[marker]) -> 'reading _reactListening of undefined' -> app never mounted. trip.com mounts into getElementById('main') (parsed). Fix re-holds ownerDocument as a getter on the merged element (NOT enumerable: that evaluates the getter during g.document init when g is in TDZ -> ReferenceError, broke 30 tests). Red-first both, 1066 learn tests green. Sandbox now signs the call with w-payload-source/x-ctx-wclient-req/x-ctx-* headers. Eleventh browserless win. Refinement: GetLowPriceInCalender is the price calendar; airline/flight detail is FlightListSearchSSE. Remaining sandbox noise (not blocking): ipoll-sdk script timeout 2000ms, RLIMIT_FSIZE=0 confinement -> page telemetry EFBIG, a list-ssr-gateway 'reading add' error.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "google.com/maps reviews",
+      "gate": "signed-out limited view",
+      "status": "open",
+      "pinned": false,
+      "seen": "Search reviews never opens its box signed out",
+      "date": "2026-11-08"
+    },
+    {
+      "site": "walmart.com search",
+      "gate": "PerimeterX (was 412 /blocked)",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20: route ddbc53a49a2c9295 (the SSR /search page, steps:1) answers BROWSERLESS (browser:false ok:true, laptop 3746ms / desktop 3924ms) with real name+price: laptop 'HP 14-inch HD Windows 11 Laptop Intel N150 4GB RAM 128GB Tranquil Pink 14-ep2111wm $199.00 Was $259.00' (100 prices); desktop 'Intel Core i5-1334U 8GB RAM 512GB NVMe SSD White $669.00 Was $749.99' (66 prices). The page-2 URL trigger made the SSR results visible so the learner picked the page itself (40 records with price, 984KB) - no graphql/partytown/correlation signing needed for this route. SEPARATE general fix landed: fresh::a_random_id now reads UUID+W3C traceparent+base64url random ids (commit 19eb38a8, 1063 tests red-first green) - addresses the 4-step graphql route's signing gap (correlation headers are per-call crypto.randomUUID/traceparent, were misclassified page_signed because the reader knew only canonical UUID). Remaining graphql-route gap if SSR unavailable: feeds_later header-read blindness FIXED (commit 473a3b8f, red-first, 1064 tests green) - a Class::Derived value read from a response needs its source however the later step is made; plus partytown browser diversion. Tenth browserless win.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "x.com search",
+      "gate": "X login wall",
+      "status": "open",
+      "pinned": false,
+      "seen": "signed-out search redirects to /i/jf/onboarding/web; profiles and single posts work signed out",
+      "date": "2026-11-11"
+    },
+    {
+      "site": "usecarly.com",
+      "gate": "Vercel Security Checkpoint",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20 via Vercel door fix (commit 8e6ab387, general engine, no user action): route 1ac65e8c8839bd3a (GET /) answers BROWSERLESS browser:false ok:true (58ms/52ms, two calls) with real content 'AI Personal Assistant / Email Carly to create AI agents that handle scheduling, email, CRM / What can Carly handle? Sort my emails, Pick up phone calls'. The 429 Vercel Security Checkpoint is now a recognized door (DoorKind::Vercel, _vcrcs device-bound); the door-pass earns the clearance and the replay passes. Thirteenth browserless win.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "search.brave.com",
+      "gate": "rate limit / bot wall",
+      "status": "open",
+      "pinned": false,
+      "seen": "2026-11-20 RE-TRY after cooldown: walk loads CDN assets but search page refused (mint unresolved refused) = IP rate limit; also '[door] its page's scripts are not run (UNBROWSE_DOOR_PASS=1 turns the door pass on)' - door-pass flag off in scratch launch. Environment-gated (IP) + needs UNBROWSE_DOOR_PASS=1. No route.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "adobe.com",
+      "gate": "challenge_or_denial (HTTP pass)",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20 (wave2, 48-challenge pool): headed walk passes (no 403/captcha); plans.html prices client-rendered (no answer call) but homepage SSR answers 'Adobe products and what they do'. Route 6213d73ae141e717 (2 steps) BROWSERLESS browser:false ok:true (126/307ms, two calls). Fourteenth browserless win.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "nytimes.com",
+      "gate": "challenge_or_denial (HTTP pass)",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20 (wave2): headed walk passes; headlines via samizdat-graphql.nytimes.com API. Route 16e7ba197232f6c5 (2 steps) BROWSERLESS browser:false ok:true (679/751ms, two calls, made.jsonl). Fifteenth browserless win.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "forbes.com",
+      "gate": "challenge_or_denial (HTTP pass)",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20 (wave2): headlines via recommendation.forbes.com API. Route f422e06a1bff7674 BROWSERLESS browser:false ok:true (95/42ms, two calls, made.jsonl). Sixteenth browserless win.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "indeed.com",
+      "gate": "challenge_or_denial (HTTP pass)",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20 (wave2): job listings via www.indeed.com search. Route 506b534902047704 BROWSERLESS browser:false ok:true (1011ms, made.jsonl). Seventeenth browserless win.",
+      "date": "2026-11-20"
+    },
+    {
+      "site": "mayoclinic.org",
+      "gate": "challenge_or_denial (HTTP pass)",
+      "status": "open",
+      "pinned": false,
+      "seen": "OPEN again 2026-11-21: the pass described below was by hand on the Deck, with no build or run recorded, so it is not marked won until a run is (won: date, build, run, browserless true; scripts/rules/test_release_gates.py). WON 2026-11-20 (wave2): diabetes symptoms-causes page SSR. Route f90ead4ebdc3ef30 BROWSERLESS browser:false ok:true (835ms + warm, 364KB content). Eighteenth browserless win.",
+      "date": "2026-11-20"
+    }
+  ]
+}

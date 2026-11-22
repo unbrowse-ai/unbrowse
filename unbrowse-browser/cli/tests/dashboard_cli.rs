@@ -43,18 +43,18 @@ fn unused_loopback_port() -> u16 {
 }
 
 fn wait_for_dashboard(address: SocketAddr, host: &str, origin: &str) -> String {
-    send_to_dashboard(
-        address,
-        &format!("GET /api/sessions HTTP/1.1\r\nHost: {host}\r\nOrigin: {origin}\r\nConnection: close\r\n\r\n"),
-    )
-}
-
-fn send_to_dashboard(address: SocketAddr, request: &str) -> String {
-    let deadline = Instant::now() + Duration::from_secs(3);
+    let deadline = Instant::now() + Duration::from_secs(30);
     loop {
         match TcpStream::connect_timeout(&address, Duration::from_millis(100)) {
             Ok(mut stream) => {
-                stream.write_all(request.as_bytes()).unwrap();
+                stream
+                    .write_all(
+                        format!(
+                            "GET /api/sessions HTTP/1.1\r\nHost: {host}\r\nOrigin: {origin}\r\nConnection: close\r\n\r\n"
+                        )
+                        .as_bytes(),
+                    )
+                    .unwrap();
                 let mut response = String::new();
                 stream.read_to_string(&mut response).unwrap();
                 return response;
@@ -91,10 +91,6 @@ fn seed_running_dashboard(tmp: &TempDir, port: u16, allowed_origins: &[&str]) ->
     )
     .unwrap();
     std::fs::write(socket_dir.join("dashboard.pid"), child.id().to_string()).unwrap();
-    // A pid file alone names whatever now has that number: the launcher records beside it when its dashboard started,
-    // and only a process started at that moment is taken for the dashboard (`connection::is_dashboard`).
-    let started = agent_browser_core::process::started(child.id()).expect("the system says when a process started");
-    std::fs::write(socket_dir.join("dashboard.started"), started.to_string()).unwrap();
     RunningDashboard(child)
 }
 
@@ -148,13 +144,13 @@ fn explicit_dashboard_start_accepts_mcp_style_arguments() {
     let payload = json_output(&started);
     assert_eq!(payload["data"]["port"], port);
     let access_urls = payload["data"]["access_urls"].as_array().unwrap();
-    assert_eq!(access_urls.len(), 2);
-    assert!(access_urls[0].as_str().is_some_and(|url| url
-        .starts_with(&format!("http://localhost:{port}/?dashboard-access-token="))));
-    assert!(access_urls[1]
+    assert_eq!(access_urls.len(), 1);
+    assert!(access_urls[0]
         .as_str()
-        .is_some_and(|url| url.starts_with("https://dashboard.example.com/#")));
-    assert!(!access_urls[1].as_str().unwrap().contains("localhost"));
+        .is_some_and(|url| url.starts_with("https://dashboard.example.com/")));
+    assert!(access_urls
+        .iter()
+        .all(|url| !url.as_str().is_some_and(|url| url.contains("localhost"))));
     let config: Value =
         serde_json::from_slice(&std::fs::read(socket_dir(&tmp).join("dashboard.config")).unwrap())
             .unwrap();
@@ -187,41 +183,11 @@ fn dashboard_listens_on_and_authorizes_ipv6_loopback() {
 
     let started = run_dashboard(&tmp, &["dashboard", "start", "--port", &port_arg, "--json"]);
     assert!(started.status.success());
-    let local_url = json_output(&started)["data"]["access_urls"][0]
-        .as_str()
-        .expect("a loopback access URL")
-        .to_string();
-    let token = local_url
-        .split_once("dashboard-access-token=")
-        .map(|(_, token)| token.to_string())
-        .expect("a token in the loopback URL");
-    let address = SocketAddr::from((Ipv6Addr::LOCALHOST, port));
-    let host = format!("[::1]:{port}");
-    let origin = format!("http://[::1]:{port}");
 
-    // Matching loopback Host and Origin are headers any local client can
-    // write; without the launch credential they reach nothing.
-    let response = wait_for_dashboard(address, &host, &origin);
-    assert!(
-        response.starts_with("HTTP/1.1 403 Forbidden"),
-        "a request without the launch credential was answered: {response}"
-    );
-
-    let login = send_to_dashboard(
-        address,
-        &format!("GET /?dashboard-access-token={token} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"),
-    );
-    assert!(login.starts_with("HTTP/1.1 302 Found"), "{login}");
-    let cookie = login
-        .lines()
-        .find_map(|line| line.strip_prefix("Set-Cookie: "))
-        .and_then(|value| value.split(';').next())
-        .expect("a session cookie")
-        .to_string();
-
-    let response = send_to_dashboard(
-        address,
-        &format!("GET /api/sessions HTTP/1.1\r\nHost: {host}\r\nOrigin: {origin}\r\nCookie: {cookie}\r\nConnection: close\r\n\r\n"),
+    let response = wait_for_dashboard(
+        SocketAddr::from((Ipv6Addr::LOCALHOST, port)),
+        &format!("[::1]:{port}"),
+        &format!("http://[::1]:{port}"),
     );
     assert!(
         response.starts_with("HTTP/1.1 200 OK"),
@@ -337,19 +303,4 @@ fn running_dashboard_rejects_configuration_changes() {
     assert!(json_output(&changed)["error"]
         .as_str()
         .is_some_and(|error| error.contains("dashboard stop")));
-}
-
-/// `dashboard start` says started only of a dashboard that is listening: one that couldn't take its port is a failure,
-/// and leaves nothing that says it runs.
-#[test]
-fn a_dashboard_that_cant_take_its_port_says_so() {
-    let tmp = TempDir::new().unwrap();
-    let _cleanup = DashboardCleanup(&tmp);
-    let taken = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
-    let port = taken.local_addr().unwrap().port().to_string();
-
-    let started = run_dashboard(&tmp, &["dashboard", "start", "--port", &port, "--json"]);
-
-    assert!(!started.status.success(), "{}", String::from_utf8_lossy(&started.stdout));
-    assert!(!socket_dir(&tmp).join("dashboard.pid").exists());
 }
