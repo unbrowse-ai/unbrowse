@@ -53,7 +53,7 @@ class AppTeamPin(unittest.TestCase):
     def test_the_signing_jobs_team_is_pinned_in_the_mac_package(self):
         run, out = self.pack({"arm64": "ABCDE12345", "x64": "ABCDE12345"})
         self.assertEqual(run.returncode, 0, run.stderr + run.stdout)
-        for platform in ("darwin-arm64", "darwin-x64"):
+        for platform in ("darwin-arm64",):
             self.assertEqual(packed(out, platform)["unbrowseAppTeam"], "ABCDE12345")
 
     def test_an_app_signed_ad_hoc_pins_no_team(self):

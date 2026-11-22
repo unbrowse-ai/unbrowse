@@ -25,7 +25,6 @@ Download the app for your computer:
 | Your computer | Download |
 |---|---|
 | Mac with Apple silicon | [Unbrowse-13.21.0-installers.3-macos-arm64.dmg](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-macos-arm64.dmg) |
-| Mac with Intel | [Unbrowse-13.21.0-installers.3-macos-x64.dmg](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-macos-x64.dmg) |
 | Windows (x64) | [Unbrowse-13.21.0-installers.3-windows-x64-setup.exe](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-windows-x64-setup.exe) |
 | Linux, Debian or Ubuntu (x64) | [unbrowse_13.21.0-installers.3_amd64.deb](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_amd64.deb) |
 | Linux, Debian or Ubuntu (ARM) | [unbrowse_13.21.0-installers.3_arm64.deb](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_arm64.deb) |
@@ -58,7 +57,7 @@ unbrowse connect
 something from a website. `unbrowse app` opens the window; `unbrowse start` runs the node without it. For Codex,
 Cursor, VS Code, Gemini, Zed and other agents, see [Install the Unbrowse MCP](docs/install-mcp.md).
 
-npm fetches the programs for the machine it installs on: macOS (Apple silicon and Intel), Linux (x64 and arm64, glibc
+npm fetches the programs for the machine it installs on: macOS (Apple silicon), Linux (x64 and arm64, glibc
 2.35 or later) and Windows (x64). That brings the app, the node, `unb`, the agent skill and the client, and no browser:
 the node fetches its browser the first time a goal needs one (or `unbrowse browser install` fetches it now;
 [docs/guides/the-browser.md](docs/guides/the-browser.md)). A full release, from npm or the

@@ -14,9 +14,9 @@ const scripts = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("every package a release publishes is asked about, from the machines the release packs", () => {
   const machines = machinesIn(readFileSync(join(scripts, "pack-platforms.sh"), "utf8"));
-  assert.deepEqual(machines, ["darwin-arm64", "darwin-x64", "linux-x64", "linux-arm64", "win32-x64"]);
+  assert.deepEqual(machines, ["darwin-arm64", "linux-x64", "linux-arm64", "win32-x64"]);
   const names = packagesOf(machines);
-  assert.equal(names.length, 12);
+  assert.equal(names.length, 10);
   for (const n of ["unbrowse", "@unbrowse/updates", "@unbrowse/darwin-arm64", "@unbrowse/browser-win32-x64"]) assert.ok(names.includes(n), n);
 });
 
@@ -75,8 +75,8 @@ async function run(has, versions = [], ...args) {
 test("the script fails with the whole list when npm lacks packages, and passes once it has them", async () => {
   const bare = await run((n) => n === "unbrowse");
   assert.equal(bare.code, 1, bare.out);
-  assert.equal(bare.asked.length, 12);
-  assert.match(bare.out, /\(11 packages\)/);
+  assert.equal(bare.asked.length, 10);
+  assert.match(bare.out, /\(9 packages\)/);
   const ready = await run(() => true);
   assert.equal(ready.code, 0, ready.out);
   assert.doesNotMatch(ready.out, /::error::/);
