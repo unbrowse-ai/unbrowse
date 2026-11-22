@@ -113,6 +113,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CHANNEL: ${{ steps.next.outputs.channel }}
+          VERSION: ${{ steps.next.outputs.version }}
           DRY_RUN: ${{ inputs.dry_run == true }}
         run: |
           status=0
