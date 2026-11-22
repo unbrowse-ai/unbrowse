@@ -1,9 +1,9 @@
 # Contributing
 
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit, with diagrams, and [AGENTS.md](AGENTS.md):
-the pipeline, and the rules learned building it. When something breaks locally, start with
-[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md). Then
-[CLAUDE.md](CLAUDE.md), which every change follows:
+the pipeline, and the rules learned building it (root [CLAUDE.md](CLAUDE.md) is the same file, byte for byte). When
+something breaks locally, start with [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md). The one rule every change
+follows:
 
 **Fixes are general, never written for one site.** A site that breaks is a case of a class. State the fix as a
 property of the walk ("a call that sends the walked page's own address is reporting the page"), never as a host,
@@ -19,8 +19,8 @@ Each part builds and tests on its own. CI runs the same commands ([.github/workf
 
 | Part | Test |
 |---|---|
-| Browser engine | `cargo test --manifest-path unbrowse-browser/core/Cargo.toml` |
-| Browser CLI | `cargo test --manifest-path unbrowse-browser/cli/Cargo.toml` (see [FORK.md](unbrowse-browser/FORK.md) for tests that fail by design) |
+| Browser engine | `cargo test --manifest-path unbrowse-node/crates/browser/Cargo.toml` |
+| Browser CLI | `cargo test --manifest-path unbrowse-browser/cli/Cargo.toml` (upstream's suite and the fork's module; see [FORK.md](unbrowse-browser/FORK.md)) |
 | Browser dashboard | `cd unbrowse-browser/packages/dashboard && bun test src` |
 | Node | `cd unbrowse-node && sh scripts/apply-tls-patch.sh && cargo test --workspace` (macOS, Linux, Windows) |
 | Window | `cd unbrowse-node/window && zig build test` (Zig 0.17; native on macOS, Linux, Windows) |
@@ -84,8 +84,8 @@ of returns and no claim the code doesn't make good.
 
 Every pull request that isn't a draft gets two more checks, beside CI:
 
-- **Claude review** ([claude-review.yml](.github/workflows/claude-review.yml)) reads the change for bugs and comments
-  on the lines concerned. It reads code; it doesn't run it.
+- **Claude review** ([claude-review.yml](.github/workflows/claude-review.yml)) reads the change for bugs once it is
+  merged into staging, and posts what it finds as one comment on the pull request. It reads code; it doesn't run it.
 - **Claude QA** ([qa.yml](.github/workflows/qa.yml)) runs it. A node built from the pull request starts on a Mac, and
   Claude uses it as an agent would, through its MCP tools, working through
   [.github/qa/checklist.md](.github/qa/checklist.md). It learns and calls a route, browses a page that needs hands,

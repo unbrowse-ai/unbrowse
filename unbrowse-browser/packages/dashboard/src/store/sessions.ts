@@ -1,24 +1,14 @@
 "use client";
 
-import { type Setter, atom } from "jotai";
+import { atom } from "jotai";
 import { useCallback, useEffect, useRef } from "react";
 import { useAtomCallback } from "jotai/utils";
 import type { SessionInfo } from "@/types";
 import { type ExecResult, execCommand, killSession, sessionArgs } from "@/lib/exec";
 import { getDashboardApiPath, getSessionTabsPath } from "@/lib/dashboard-routes";
 import { tabCacheAtom, engineCacheAtom } from "@/store/tabs";
+import { disposeChat } from "@/store/chat";
 import { streamTabsAtom, streamEngineAtom } from "@/store/stream";
-import { forgetChatFor } from "@/store/chat-book";
-import {
-  type ClosingSessions,
-  type PendingSession,
-  endSession,
-  nextActivePort,
-  omitPorts,
-  settleClosing,
-  settlePending,
-  stalePorts,
-} from "@/lib/session-lifecycle";
 
 function getPort(): number {
   if (typeof window === "undefined") return 0;
@@ -42,12 +32,11 @@ export const activePortAtom = atom(getPort());
 
 export const polledSessionsAtom = atom<SessionInfo[]>([]);
 
-export const pendingSessionsAtom = atom<PendingSession[]>([]);
+export const pendingSessionsAtom = atom<{ session: string; engine: string; provider?: string }[]>(
+  [],
+);
 
-export const closingSessionsAtom = atom<ClosingSessions>({});
-
-/** Why the last close or kill was refused. */
-export const sessionErrorAtom = atom("");
+export const closingSessionsAtom = atom<Set<string>>(new Set<string>());
 
 // ---------------------------------------------------------------------------
 // Derived atoms
@@ -69,7 +58,7 @@ export const sessionsAtom = atom((get) => {
       pending: true as const,
     }));
   const merged = polled.map((s) =>
-    s.session in closing ? { ...s, closing: true as const } : s,
+    closing.has(s.session) ? { ...s, closing: true as const } : s,
   );
   return [...merged, ...pendingEntries];
 });
@@ -102,10 +91,7 @@ export const createSessionAtom = atom(
     set,
     { name, engine, provider }: { name: string; engine: string; provider?: string },
   ): Promise<string | null> => {
-    set(pendingSessionsAtom, (prev) => [
-      ...prev,
-      { session: name, engine, provider, since: Date.now() },
-    ]);
+    set(pendingSessionsAtom, (prev) => [...prev, { session: name, engine, provider }]);
     const args = ["--session", name];
     if (provider) {
       args.push("--provider", provider);
@@ -119,10 +105,6 @@ export const createSessionAtom = atom(
       killSession(name);
       return parseExecError(result) || "Failed to create session";
     }
-    const answeredAt = Date.now();
-    set(pendingSessionsAtom, (prev) =>
-      prev.map((p) => (p.session === name ? { ...p, answeredAt } : p)),
-    );
     return null;
   },
 );
@@ -140,56 +122,33 @@ function parseExecError(result: ExecResult): string {
   return "";
 }
 
-/** Runs a close or kill, leaving "Closing..." only while it can still be true. */
-function endNamedSession(
-  set: Setter,
-  name: string,
-  end: () => Promise<{ ok: boolean; error?: string }>,
-): Promise<void> {
-  const unmark = (prev: ClosingSessions) => {
-    const { [name]: _gone, ...rest } = prev;
-    return rest;
-  };
-  return endSession(end, {
-    started: () => {
-      set(sessionErrorAtom, "");
-      set(closingSessionsAtom, (prev) => ({ ...prev, [name]: Date.now() }));
-    },
-    refused: (why) => {
-      set(closingSessionsAtom, unmark);
-      set(sessionErrorAtom, `${name}: ${why}`);
-    },
-    ended: () => forgetChatFor(name),
-  });
-}
-
-const closeCommand = (name: string) => async () => {
-  const result = await execCommand(sessionArgs(name, "close"));
-  return { ok: result.success, error: parseExecError(result) };
-};
-
-const killCommand = (name: string) => async () => {
-  const result = await killSession(name);
-  return { ok: result.success === true, error: result.error };
-};
-
 export const closeSessionAtom = atom(null, (get, set, port: number) => {
   const sessions = get(sessionsAtom);
   const s = sessions.find((x) => x.port === port)?.session;
-  if (s) endNamedSession(set, s, closeCommand(s));
+  if (s) {
+    set(closingSessionsAtom, (prev) => new Set(prev).add(s));
+    disposeChat(s);
+    execCommand(sessionArgs(s, "close"));
+  }
 });
 
 export const killSessionAtom = atom(null, (get, set, port: number) => {
   const sessions = get(sessionsAtom);
   const s = sessions.find((x) => x.port === port)?.session;
-  if (s) endNamedSession(set, s, killCommand(s));
+  if (s) {
+    set(closingSessionsAtom, (prev) => new Set(prev).add(s));
+    disposeChat(s);
+    killSession(s);
+  }
 });
 
 export const closeAllSessionsAtom = atom(null, (get, set) => {
   const sessions = get(sessionsAtom);
   for (const s of sessions) {
     if (!s.pending && !s.closing) {
-      endNamedSession(set, s.session, closeCommand(s.session));
+      set(closingSessionsAtom, (prev) => new Set(prev).add(s.session));
+      disposeChat(s.session);
+      execCommand(sessionArgs(s.session, "close"));
     }
   }
 });
@@ -218,15 +177,27 @@ export const switchTabAtom = atom(
   },
 );
 
-/**
- * Prunes pending/closing by what the poll saw, or by time alone when `listed`
- * is null because the poll failed.
- */
-const reconcileSessionsAtom = atom(null, (_get, set, listed: Set<string> | null) => {
-  const now = Date.now();
-  set(pendingSessionsAtom, (prev) => settlePending(prev, listed, now));
-  set(closingSessionsAtom, (prev) => settleClosing(prev, listed, now));
-});
+/** Prune pending/closing once the polled list confirms them */
+const reconcileSessionsAtom = atom(
+  null,
+  (get, set) => {
+    const polled = get(polledSessionsAtom);
+    const polledNames = new Set(polled.map((s) => s.session));
+
+    set(pendingSessionsAtom, (prev) => {
+      const next = prev.filter((p) => !polledNames.has(p.session));
+      return next.length === prev.length ? prev : next;
+    });
+
+    set(closingSessionsAtom, (prev) => {
+      const next = new Set(prev);
+      for (const name of prev) {
+        if (!polledNames.has(name)) next.delete(name);
+      }
+      return next.size === prev.size ? prev : next;
+    });
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Sync hook
@@ -235,11 +206,10 @@ const reconcileSessionsAtom = atom(null, (_get, set, listed: Set<string> | null)
 export function useSessionsSync(pollInterval = 5000) {
   const failCountRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const portOwnersRef = useRef<Record<number, string>>({});
 
   const reconcile = useAtomCallback(
-    useCallback((_get, set, listed: Set<string> | null) => {
-      set(reconcileSessionsAtom, listed);
+    useCallback((_get, set) => {
+      set(reconcileSessionsAtom);
     }, []),
   );
 
@@ -252,18 +222,14 @@ export function useSessionsSync(pollInterval = 5000) {
             failCountRef.current = 0;
             const data: SessionInfo[] = await resp.json();
             data.sort((a, b) => a.session.localeCompare(b.session));
+            const names = new Set(data.map((x) => x.session));
+            for (const prev of get(polledSessionsAtom)) {
+              if (!names.has(prev.session)) disposeChat(prev.session);
+            }
             set(polledSessionsAtom, data);
 
             // Reconcile pending/closing
-            reconcile(new Set(data.map((s) => s.session)));
-
-            // What was cached for a port that changed hands isn't this session's
-            const { owners, stale } = stalePorts(portOwnersRef.current, data);
-            portOwnersRef.current = owners;
-            if (stale.length > 0) {
-              set(tabCacheAtom, (prev) => omitPorts(prev, stale));
-              set(engineCacheAtom, (prev) => omitPorts(prev, stale));
-            }
+            reconcile();
 
             // Seed engine cache from session list
             const engineCache = get(engineCacheAtom);
@@ -279,8 +245,10 @@ export function useSessionsSync(pollInterval = 5000) {
 
             // Auto-select first session if current port is not in list
             const activePort = get(activePortAtom);
-            const nextPort = nextActivePort(activePort, get(sessionsAtom));
-            if (nextPort !== activePort) set(activePortAtom, nextPort);
+            const sessions = get(sessionsAtom);
+            if (sessions.length > 0 && !sessions.some((s) => s.port === activePort)) {
+              set(activePortAtom, sessions[0].port);
+            }
 
             // Poll tabs for all sessions
             for (const s of data) {
@@ -290,7 +258,7 @@ export function useSessionsSync(pollInterval = 5000) {
                 );
                 if (tabsResp?.ok) {
                   const tabs = await tabsResp.json();
-                  if (Array.isArray(tabs)) {
+                  if (tabs.length > 0) {
                     set(tabCacheAtom, (prev) => ({ ...prev, [s.port]: tabs }));
                   }
                 }
@@ -306,7 +274,6 @@ export function useSessionsSync(pollInterval = 5000) {
         }
         failCountRef.current++;
         if (failCountRef.current >= 2) set(polledSessionsAtom, []);
-        reconcile(null);
       },
       [reconcile],
     ),

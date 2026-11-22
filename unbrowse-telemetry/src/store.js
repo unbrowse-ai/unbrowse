@@ -3,13 +3,14 @@
 
 import { DurableObject } from "cloudflare:workers";
 import SCHEMA from "../schema.sql";
-import { execute } from "./sql.js";
+import { execute, migrate } from "./sql.js";
 
 export class TelemetryStore extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
       ctx.storage.sql.exec(SCHEMA);
+      migrate((sql, ...v) => ctx.storage.sql.exec(sql, ...v));
     });
   }
 

@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
@@ -542,15 +542,12 @@ pub struct RecordingState {
     pub contact_sheet: bool,
     pub contact_sheet_threshold: f64,
     pub contact_sheet_path: Option<String>,
-    /// How the last take ended when no `record stop` was there to hear it.
-    pub ended: Option<EndedTake>,
-}
-
-/// A take that ended by itself, or with its browser, kept for the next response and the next `record stop`.
-pub struct EndedTake {
-    pub outcome: Result<Value, String>,
-    /// Whether a response has said so yet.
-    pub told: bool,
+    /// The page's `devicePixelRatio` when the take started.
+    pub device_scale: f64,
+    /// Whether the take captured full-density screenshots instead of the
+    /// screencast, because the screencast was below the page's device scale.
+    pub screenshot_capture: bool,
+    pub shared_screenshot_capture: Option<Arc<AtomicBool>>,
 }
 
 impl RecordingState {
@@ -574,43 +571,10 @@ impl RecordingState {
             contact_sheet: false,
             contact_sheet_threshold: DEFAULT_CONTACT_SHEET_THRESHOLD,
             contact_sheet_path: None,
-            ended: None,
+            device_scale: 1.0,
+            screenshot_capture: false,
+            shared_screenshot_capture: None,
         }
-    }
-
-    /// `active` says a take was started and not yet closed. The capture task can end long before that, when ffmpeg dies,
-    /// the encoder falls behind or the page closes, and then nothing is being recorded.
-    pub fn take_has_ended(&self) -> bool {
-        self.active
-            && self
-                .capture_task
-                .as_ref()
-                .is_some_and(tokio::task::JoinHandle::is_finished)
-    }
-}
-
-/// What a closed take comes to. A capture task that failed with frames already in the file left a video, cut short.
-pub fn take_outcome(task: Result<(), String>, stopped: Result<Value, String>) -> Result<Value, String> {
-    match (task, stopped) {
-        (Ok(()), stopped) => stopped,
-        (Err(why), Ok(mut take)) => {
-            take["cutShort"] = json!(why);
-            Ok(take)
-        }
-        (Err(why), Err(_)) => Err(why),
-    }
-}
-
-/// The line a response carries about a take that ended with nobody asking.
-pub fn ended_take_warning(outcome: &Result<Value, String>) -> String {
-    let take = match outcome {
-        Ok(take) => take,
-        Err(why) => return format!("The recording stopped and saved nothing: {why}"),
-    };
-    let saved = format!("{} frames saved to {}", take["frames"], take["path"].as_str().unwrap_or_default());
-    match take["cutShort"].as_str() {
-        Some(why) => format!("The recording stopped early ({why}): {saved}"),
-        None => format!("The recording ended with its page or browser: {saved}"),
     }
 }
 
@@ -690,6 +654,8 @@ pub fn recording_start(
     state.frame_count = 0;
     state.captured_count = 0;
     state.contact_sheet_frame_count = 0;
+    state.device_scale = 1.0;
+    state.screenshot_capture = false;
     state.cursor = options.cursor;
     if let Ok(mut cursor) = state.shared_cursor.lock() {
         *cursor = RecordingCursorHistory {
@@ -737,11 +703,44 @@ pub fn recording_stop(state: &mut RecordingState) -> Result<Value, String> {
         result["contactSheetFrames"] = json!(state.contact_sheet_frame_count);
         result["contactSheetThreshold"] = json!(state.contact_sheet_threshold);
     }
+    if state.screenshot_capture {
+        result["capture"] = json!("screenshots");
+        result["deviceScaleFactor"] = json!(state.device_scale);
+    }
     Ok(result)
 }
 
+/// The width and height a PNG's IHDR chunk declares, without decoding it.
+fn png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    const SIGNATURE: &[u8] = b"\x89PNG\r\n\x1a\n";
+    if bytes.len() < 24 || &bytes[..8] != SIGNATURE || &bytes[12..16] != b"IHDR" {
+        return None;
+    }
+    let width = u32::from_be_bytes(bytes[16..20].try_into().ok()?);
+    let height = u32::from_be_bytes(bytes[20..24].try_into().ok()?);
+    Some((width, height))
+}
+
+/// Device pixels per CSS pixel in an encoded frame, when both are known.
+fn frame_scale(image_data: &[u8], css_width: f64) -> Option<f64> {
+    let (width, _) = png_dimensions(image_data)?;
+    (css_width.is_finite() && css_width > 0.0).then(|| width as f64 / css_width)
+}
+
+fn ffmpeg_command() -> tokio::process::Command {
+    let cmd = tokio::process::Command::new("ffmpeg");
+    #[cfg(windows)]
+    let cmd = {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let mut cmd = cmd;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        cmd
+    };
+    cmd
+}
+
 fn build_ffmpeg_command(output_path: &str, fps: u32, cursor: bool) -> tokio::process::Command {
-    let mut cmd = tokio::process::Command::new("ffmpeg");
+    let mut cmd = ffmpeg_command();
     let high_fps = fps > HIGH_FPS_THRESHOLD;
 
     // -hide_banner keeps the version and build banner out of stderr, so a
@@ -1411,7 +1410,7 @@ fn ffmpeg_launch_error(error: impl std::fmt::Display) -> String {
 /// This keeps missing-binary failures ahead of browser attachment while the
 /// real encoder process is deferred until that attachment succeeds.
 pub async fn check_ffmpeg_available() -> Result<(), String> {
-    let status = tokio::process::Command::new("ffmpeg")
+    let status = ffmpeg_command()
         .arg("-version")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -1469,6 +1468,10 @@ pub struct InitialRecordingFrame {
     pub image_data: Vec<u8>,
     pub device_width: f64,
     pub device_height: f64,
+    /// The page's `devicePixelRatio`. Dividing the frame's width by
+    /// `device_width` doesn't give it on a mobile-emulated page without a
+    /// viewport meta tag, whose layout viewport is wider than its screen.
+    pub device_scale: f64,
 }
 
 /// Drain Chrome independently from the encoder so FFmpeg cannot stall frame ACKs.
@@ -1476,6 +1479,7 @@ pub struct InitialRecordingFrame {
 pub fn spawn_recording_task(
     client: Arc<CdpClient>,
     capture_session: String,
+    page_session: String,
     initial_frame: InitialRecordingFrame,
     output_path: String,
     fps: u32,
@@ -1488,6 +1492,7 @@ pub fn spawn_recording_task(
     contact_sheet_path: Option<String>,
     contact_sheet_threshold: f64,
     shared_contact_sheet_count: Arc<AtomicU64>,
+    shared_screenshot_capture: Arc<AtomicBool>,
     cancel_rx: oneshot::Receiver<()>,
 ) -> tokio::task::JoinHandle<Result<(), String>> {
     tokio::spawn(async move {
@@ -1501,7 +1506,13 @@ pub fn spawn_recording_task(
                 return Err(format!("Failed to install recording cursor: {error}"));
             }
         }
-        let events = client.subscribe_session(&capture_session);
+        let mut events = client.subscribe_session(&capture_session);
+        let mut cancel_rx = cancel_rx;
+        let page = PageSize {
+            width: initial_frame.device_width,
+            height: initial_frame.device_height,
+            scale: initial_frame.device_scale,
+        };
         let (frame_tx, frame_rx) = mpsc::channel(ENCODER_FRAME_BUFFER);
         let (contact_tx, mut contact_worker) = if let Some(path) = contact_sheet_path.as_ref() {
             let (tx, rx) = std::sync::mpsc::sync_channel(ENCODER_FRAME_BUFFER);
@@ -1557,21 +1568,60 @@ pub fn spawn_recording_task(
             Err(error) => Err(error),
         };
 
+        let outputs = FrameOutputs {
+            frames: &frame_tx,
+            contact: contact_tx.as_ref(),
+            captured: &shared_captured,
+        };
+        let mut sequence = 1u64;
+        let recording_started = tokio::time::Instant::now();
         let captured = match started {
             Ok(_) => {
-                collect_frames(
+                let screencast = collect_frames(
                     &client,
                     &capture_session,
-                    events,
-                    frame_tx,
-                    contact_tx,
-                    &shared_captured,
-                    cancel_rx,
+                    &mut events,
+                    &outputs,
+                    page,
+                    &mut sequence,
+                    recording_started,
+                    &mut cancel_rx,
                 )
-                .await
+                .await;
+                match screencast {
+                    Ok(Collected::BelowPageScale) => {
+                        // Chrome ignores an emulated device scale in the screencast:
+                        // capture what screenshots render, at full density, instead.
+                        shared_screenshot_capture.store(true, Ordering::Relaxed);
+                        let _ = tokio::time::timeout(
+                            TEARDOWN_TIMEOUT,
+                            client.send_command_no_params(
+                                "Page.stopScreencast",
+                                Some(&capture_session),
+                            ),
+                        )
+                        .await;
+                        collect_screenshots(
+                            &client,
+                            &page_session,
+                            &mut events,
+                            &outputs,
+                            page,
+                            fps,
+                            &mut sequence,
+                            recording_started,
+                            &mut cancel_rx,
+                        )
+                        .await
+                    }
+                    Ok(Collected::Done) => Ok(()),
+                    Err(error) => Err(error),
+                }
             }
             Err(error) => Err(error),
         };
+        drop(frame_tx);
+        drop(contact_tx);
 
         client.unsubscribe_session(&capture_session);
 
@@ -1588,20 +1638,14 @@ pub fn spawn_recording_task(
             if error == "Recording encoder stopped unexpectedly" {
                 return match encoder.await {
                     Ok(Err(encoder_error)) => Err(encoder_error),
-                    Ok(Ok(take)) => {
-                        shared_count.store(take.frames, Ordering::Relaxed);
-                        Err(take.cut_short.unwrap_or(error))
-                    }
+                    Ok(Ok(_)) => Err(error),
                     Err(join_error) => {
                         Err(format!("Recording encoder task failed: {}", join_error))
                     }
                 };
             }
-            // Capture stopped, not the encoder. Its frame channel has closed, so it finishes the file with what it has;
-            // aborting it would kill ffmpeg mid-file and lose the whole take.
-            if let Ok(Ok(take)) = encoder.await {
-                shared_count.store(take.frames, Ordering::Relaxed);
-            }
+            encoder.abort();
+            let _ = encoder.await;
             if error == "Contact sheet analyzer stopped unexpectedly" {
                 return match contact_worker.take() {
                     Some(worker) => match worker.await {
@@ -1616,10 +1660,10 @@ pub fn spawn_recording_task(
             }
             return Err(error);
         }
-        let take = encoder
+        let streamed = encoder
             .await
             .map_err(|e| format!("Recording encoder task failed: {}", e))??;
-        shared_count.store(take.frames, Ordering::Relaxed);
+        shared_count.store(streamed, Ordering::Relaxed);
         let contact_sheet_count = match contact_worker {
             Some(worker) => worker
                 .await
@@ -1628,7 +1672,7 @@ pub fn spawn_recording_task(
         };
         shared_contact_sheet_count.store(contact_sheet_count, Ordering::Relaxed);
 
-        take.cut_short.map_or(Ok(()), Err)
+        Ok(())
     })
 }
 
@@ -1646,22 +1690,28 @@ pub async fn capture_initial_image(
         .send_command(
             "Runtime.evaluate",
             Some(json!({
-                "expression": "[window.innerWidth, window.innerHeight]",
+                "expression": "[window.innerWidth, window.innerHeight, window.devicePixelRatio]",
                 "returnByValue": true,
             })),
             Some(session_id),
         )
         .await
         .map_err(|error| format!("Failed to read initial recording viewport: {error}"))?;
-    let dimensions = viewport
+    let values = viewport
         .pointer("/result/value")
         .and_then(Value::as_array)
-        .filter(|dimensions| dimensions.len() == 2)
-        .and_then(|dimensions| Some((dimensions[0].as_f64()?, dimensions[1].as_f64()?)))
+        .filter(|values| values.len() == 3)
+        .ok_or_else(|| "Initial recording viewport returned invalid dimensions".to_string())?;
+    let dimensions = Some((values[0].as_f64(), values[1].as_f64()))
+        .and_then(|(width, height)| Some((width?, height?)))
         .filter(|(width, height)| {
             width.is_finite() && *width > 0.0 && height.is_finite() && *height > 0.0
         })
         .ok_or_else(|| "Initial recording viewport returned invalid dimensions".to_string())?;
+    let device_scale = values[2]
+        .as_f64()
+        .filter(|scale| scale.is_finite() && *scale > 0.0)
+        .unwrap_or(1.0);
     let result = client
         .send_command(
             "Page.captureScreenshot",
@@ -1676,27 +1726,83 @@ pub async fn capture_initial_image(
         image_data,
         device_width: dimensions.0,
         device_height: dimensions.1,
+        device_scale,
     })
 }
 
+/// The recorded page's CSS size, and its device pixels per CSS pixel from the
+/// full-density first frame.
+#[derive(Clone, Copy, Debug)]
+struct PageSize {
+    width: f64,
+    height: f64,
+    scale: f64,
+}
+
+/// Where captured frames go: the encoder, the contact sheet, and the counters
+/// `record stop` reports.
+struct FrameOutputs<'a> {
+    frames: &'a mpsc::Sender<CapturedVideoFrame>,
+    contact: Option<&'a std::sync::mpsc::SyncSender<CapturedVideoFrame>>,
+    captured: &'a AtomicU64,
+}
+
+impl FrameOutputs<'_> {
+    fn send(&self, frame: CapturedVideoFrame) -> Result<(), String> {
+        self.captured.fetch_add(1, Ordering::Relaxed);
+        self.frames
+            .try_send(frame.clone())
+            .map_err(|error| match error {
+                mpsc::error::TrySendError::Full(_) => format!(
+                    "Recording encoder fell behind by more than {} buffered frames",
+                    ENCODER_FRAME_BUFFER
+                ),
+                mpsc::error::TrySendError::Closed(_) => {
+                    "Recording encoder stopped unexpectedly".to_string()
+                }
+            })?;
+        if let Some(contact) = self.contact {
+            contact.try_send(frame).map_err(|error| match error {
+                std::sync::mpsc::TrySendError::Full(_) => format!(
+                    "Contact sheet analyzer fell behind by more than {} buffered frames",
+                    ENCODER_FRAME_BUFFER
+                ),
+                std::sync::mpsc::TrySendError::Disconnected(_) => {
+                    "Contact sheet analyzer stopped unexpectedly".to_string()
+                }
+            })?;
+        }
+        Ok(())
+    }
+}
+
+/// How a screencast take ended: stopped or closed, or on a frame below the
+/// page's device scale, which screenshots capture at full density instead.
+#[derive(Debug, PartialEq)]
+enum Collected {
+    Done,
+    BelowPageScale,
+}
+
+/// Whether a screencast frame at `scale` holds less detail than the page renders.
+fn below_page_scale(scale: f64, page: PageSize) -> bool {
+    page.scale > scale * 1.05
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn collect_frames(
     client: &CdpClient,
     capture_session: &str,
-    mut events: mpsc::Receiver<super::cdp::types::CdpEvent>,
-    frame_tx: mpsc::Sender<CapturedVideoFrame>,
-    contact_tx: Option<std::sync::mpsc::SyncSender<CapturedVideoFrame>>,
-    shared_captured: &AtomicU64,
-    cancel_rx: oneshot::Receiver<()>,
-) -> Result<(), String> {
-    let mut cancel_rx = std::pin::pin!(cancel_rx);
-    let started = tokio::time::Instant::now();
-    let mut sequence = 1u64;
-
+    events: &mut mpsc::Receiver<super::cdp::types::CdpEvent>,
+    outputs: &FrameOutputs<'_>,
+    page: PageSize,
+    sequence: &mut u64,
+    started: tokio::time::Instant,
+    cancel_rx: &mut oneshot::Receiver<()>,
+) -> Result<Collected, String> {
     loop {
         tokio::select! {
-            _ = &mut cancel_rx => break,
-            // A still page sends no frames, so waiting for the next send would leave a dead encoder unnoticed.
-            _ = frame_tx.closed() => return Err("Recording encoder stopped unexpectedly".to_string()),
+            _ = &mut *cancel_rx => break,
             event = events.recv() => {
                 let Some(event) = event else { break };
                 if event.method == "Page.screencastFrame" {
@@ -1716,42 +1822,112 @@ async fn collect_frames(
                         let timestamp = metadata["timestamp"]
                             .as_f64()
                             .unwrap_or_else(cursor_timestamp);
-                        let frame = CapturedVideoFrame {
-                            sequence,
+                        let device_width = metadata["deviceWidth"].as_f64().unwrap_or(0.0);
+                        if frame_scale(&bytes, device_width)
+                            .is_some_and(|scale| below_page_scale(scale, page))
+                        {
+                            return Ok(Collected::BelowPageScale);
+                        }
+                        outputs.send(CapturedVideoFrame {
+                            sequence: *sequence,
                             image_data: Arc::new(bytes),
                             elapsed,
                             captured_at: tokio::time::Instant::now(),
                             timestamp,
-                            device_width: metadata["deviceWidth"].as_f64().unwrap_or(0.0),
+                            device_width,
                             device_height: metadata["deviceHeight"].as_f64().unwrap_or(0.0),
-                        };
-                        sequence += 1;
-                        shared_captured.fetch_add(1, Ordering::Relaxed);
-                        frame_tx.try_send(frame.clone()).map_err(|error| match error {
-                            mpsc::error::TrySendError::Full(_) => format!(
-                                "Recording encoder fell behind by more than {} buffered frames",
-                                ENCODER_FRAME_BUFFER
-                            ),
-                            mpsc::error::TrySendError::Closed(_) => {
-                                "Recording encoder stopped unexpectedly".to_string()
-                            }
                         })?;
-                        if let Some(contact_tx) = contact_tx.as_ref() {
-                            contact_tx.try_send(frame).map_err(|error| match error {
-                                std::sync::mpsc::TrySendError::Full(_) => format!(
-                                    "Contact sheet analyzer fell behind by more than {} buffered frames",
-                                    ENCODER_FRAME_BUFFER
-                                ),
-                                std::sync::mpsc::TrySendError::Disconnected(_) => {
-                                    "Contact sheet analyzer stopped unexpectedly".to_string()
-                                }
-                            })?;
-                        }
+                        *sequence += 1;
                     }
                 } else if event.method == "Inspector.detached" {
                     // The recorded page was closed; finish the file.
                     break;
                 }
+            }
+        }
+    }
+    Ok(Collected::Done)
+}
+
+/// Screenshots requested at once while capturing at full density: Chrome
+/// renders them one after another, and overlapping requests hide the round
+/// trip, which roughly doubles the rate at a 2x scale.
+const SCREENSHOTS_IN_FLIGHT: usize = 3;
+/// A screenshot that takes longer than this is dropped, as one can during a
+/// navigation; the encoder repeats the previous frame meanwhile.
+const SCREENSHOT_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Capture the page with `Page.captureScreenshot`, which renders at the page's
+/// device scale, emulated or not, at up to `fps` frames a second with a few
+/// requests in flight. Slower pages capture fewer frames, and the encoder
+/// repeats the latest one to keep the video's rate. Screenshots go through the
+/// page's own session, which holds its emulation: the recorder's session
+/// would render at the window's real scale. `events` is still the recorder's,
+/// for when the page closes.
+#[allow(clippy::too_many_arguments)]
+async fn collect_screenshots(
+    client: &CdpClient,
+    page_session: &str,
+    events: &mut mpsc::Receiver<super::cdp::types::CdpEvent>,
+    outputs: &FrameOutputs<'_>,
+    page: PageSize,
+    fps: u32,
+    sequence: &mut u64,
+    started: tokio::time::Instant,
+    cancel_rx: &mut oneshot::Receiver<()>,
+) -> Result<(), String> {
+    use futures_util::stream::{FuturesOrdered, StreamExt};
+    // Each frame is timed when it was asked for, which is when Chrome renders
+    // it, not when its bytes arrive: the cursor drawn at that time then stays on
+    // the page through a drag instead of running ahead by the round trip.
+    let capture = || {
+        let elapsed = started.elapsed();
+        let timestamp = cursor_timestamp();
+        async move {
+            let result = tokio::time::timeout(
+                SCREENSHOT_TIMEOUT,
+                client.send_command(
+                    "Page.captureScreenshot",
+                    Some(json!({ "format": "png", "fromSurface": true, "optimizeForSpeed": true })),
+                    Some(page_session),
+                ),
+            )
+            .await
+            .map_err(|_| "Screenshot timed out".to_string())
+            .and_then(|result| result);
+            (result, elapsed, timestamp)
+        }
+    };
+    let mut pending = FuturesOrdered::new();
+    let mut interval = tokio::time::interval(frame_period(fps));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+    loop {
+        tokio::select! {
+            _ = &mut *cancel_rx => break,
+            event = events.recv() => {
+                match event {
+                    Some(event) if event.method == "Inspector.detached" => break,
+                    Some(_) => {}
+                    None => break,
+                }
+            }
+            _ = interval.tick(), if pending.len() < SCREENSHOTS_IN_FLIGHT => {
+                pending.push_back(capture());
+            }
+            Some((result, elapsed, timestamp)) = pending.next(), if !pending.is_empty() => {
+                let Ok(result) = result else { continue };
+                let Some(bytes) = decode_frame_data(&result) else { continue };
+                outputs.send(CapturedVideoFrame {
+                    sequence: *sequence,
+                    image_data: Arc::new(bytes),
+                    elapsed,
+                    captured_at: tokio::time::Instant::now(),
+                    timestamp,
+                    device_width: page.width,
+                    device_height: page.height,
+                })?;
+                *sequence += 1;
             }
         }
     }
@@ -1859,23 +2035,13 @@ fn render_cursor_frame(
     Ok(bytes)
 }
 
-/// What the encoder saved, and why it stopped before it was told to, if it did.
-struct EncodedTake {
-    frames: u64,
-    cut_short: Option<String>,
-}
-
-const ENCODER_LAG_ERROR: &str = "Recording encoder fell more than 500 ms behind capture";
-
-/// Falling behind ends the take but keeps it: returning there would drop ffmpeg, which kills it before the file is
-/// finished, and a long take would be lost to one stall.
 async fn encode_stream(
     output_path: String,
     fps: u32,
     cursor: bool,
     shared_cursor: SharedRecordingCursor,
     mut frames: mpsc::Receiver<CapturedVideoFrame>,
-) -> Result<EncodedTake, String> {
+) -> Result<u64, String> {
     let mut command = build_ffmpeg_command(&output_path, fps, cursor);
     let mut ffmpeg = spawn_ffmpeg_command(&mut command)?;
     let mut stdin = ffmpeg
@@ -1888,16 +2054,13 @@ async fn encode_stream(
     let mut latest: Option<CapturedVideoFrame> = None;
     let mut decoded = None;
     let mut written = 0u64;
-    let mut cut_short = None;
 
     loop {
         tokio::select! {
             frame = frames.recv() => {
                 let Some(frame) = frame else { break };
                 if frame.captured_at.elapsed() > MAX_ENCODER_LAG {
-                    cut_short = Some(ENCODER_LAG_ERROR.to_string());
-                    latest.get_or_insert(frame);
-                    break;
+                    return Err("Recording encoder fell more than 500 ms behind capture".to_string());
                 }
                 if latest.is_none() {
                     interval.reset_at(frame.captured_at);
@@ -1906,8 +2069,7 @@ async fn encode_stream(
             }
             tick = interval.tick() => {
                 if tick.elapsed() > MAX_ENCODER_LAG && latest.is_some() {
-                    cut_short = Some(ENCODER_LAG_ERROR.to_string());
-                    break;
+                    return Err("Recording encoder fell more than 500 ms behind capture".to_string());
                 }
                 let Some(frame) = latest.as_ref() else { continue };
                 let output_timestamp = cursor_timestamp();
@@ -1953,7 +2115,7 @@ async fn encode_stream(
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!("ffmpeg failed: {}", ffmpeg_error_tail(&stderr)));
     }
-    Ok(EncodedTake { frames: written, cut_short })
+    Ok(written)
 }
 
 fn scale_cursor_dimensions(
@@ -2024,6 +2186,7 @@ pub async fn stop_recording_task(state: &mut RecordingState) -> Result<(), Strin
     let counter = state.shared_frame_count.take();
     let captured = state.shared_captured_count.take();
     let contact_sheet = state.shared_contact_sheet_count.take();
+    let screenshot_capture = state.shared_screenshot_capture.take();
     let handle = state.capture_task.take();
 
     let result = if let Some(h) = handle {
@@ -2045,6 +2208,9 @@ pub async fn stop_recording_task(state: &mut RecordingState) -> Result<(), Strin
     if let Some(c) = contact_sheet {
         state.contact_sheet_frame_count = c.load(Ordering::Relaxed);
     }
+    if let Some(c) = screenshot_capture {
+        state.screenshot_capture = c.load(Ordering::Relaxed);
+    }
     if let Ok(mut guard) = state.capture_session.lock() {
         *guard = None;
     }
@@ -2057,62 +2223,6 @@ pub async fn stop_recording_task(state: &mut RecordingState) -> Result<(), Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// An encoder that falls behind ends the take with the file finished: returning there dropped ffmpeg, which killed it
-    /// mid-file.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn a_take_that_falls_behind_keeps_what_it_has() {
-        use std::os::unix::fs::PermissionsExt;
-        let guard = crate::test_utils::EnvGuard::new(&["PATH"]);
-        let dir = tempfile::tempdir().unwrap();
-        let fake = dir.path().join("ffmpeg");
-        // A test running beside this one may ask for `-version` while PATH points here.
-        std::fs::write(&fake, "#!/bin/sh\n[ \"$1\" = -version ] && exit 0\nfor a; do out=$a; done\ncat > \"$out\"\n").unwrap();
-        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
-        guard.set("PATH", &format!("{}:/usr/bin:/bin", dir.path().display()));
-        let output = dir.path().join("take.webm");
-
-        let frame = |captured_at| CapturedVideoFrame {
-            sequence: 0,
-            image_data: Arc::new(vec![7u8; 16]),
-            elapsed: Duration::ZERO,
-            captured_at,
-            timestamp: 0.0,
-            device_width: 1.0,
-            device_height: 1.0,
-        };
-        let (tx, rx) = mpsc::channel(4);
-        let now = tokio::time::Instant::now();
-        tx.send(frame(now)).await.unwrap();
-        tx.send(frame(now.checked_sub(Duration::from_secs(5)).unwrap())).await.unwrap();
-
-        let take = encode_stream(
-            output.to_string_lossy().into_owned(),
-            DEFAULT_FPS,
-            false,
-            Arc::new(Mutex::new(RecordingCursorHistory::default())),
-            rx,
-        )
-        .await
-        .expect("falling behind must not lose the take");
-
-        assert!(take.frames >= 1);
-        assert_eq!(take.cut_short.as_deref(), Some(ENCODER_LAG_ERROR));
-        assert!(!std::fs::read(&output).unwrap().is_empty(), "the file must be finished");
-    }
-
-    #[test]
-    fn a_closed_take_reads_as_what_it_left() {
-        let saved = json!({ "path": "/t.webm", "frames": 9 });
-        assert_eq!(take_outcome(Ok(()), Ok(saved.clone())).unwrap(), saved);
-        let cut = take_outcome(Err("behind".to_string()), Ok(saved)).unwrap();
-        assert_eq!(cut["cutShort"], "behind");
-        assert!(ended_take_warning(&Ok(cut)).contains("9 frames saved to /t.webm"));
-        let lost = take_outcome(Err("ffmpeg died".to_string()), Err("No frames captured".to_string()));
-        assert_eq!(lost.as_ref().unwrap_err(), "ffmpeg died");
-        assert!(ended_take_warning(&lost).contains("saved nothing: ffmpeg died"));
-    }
 
     #[test]
     fn cursor_history_only_collects_during_cursor_recordings() {
@@ -2476,7 +2586,7 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(400)).await;
             }
             drop(tx);
-            let count = encoder.await.unwrap().unwrap().frames;
+            let count = encoder.await.unwrap().unwrap();
             assert!(count >= 24, "expected repeated frames, got {count}");
             let probe = std::process::Command::new("ffprobe")
                 .args([
@@ -3105,6 +3215,58 @@ mod tests {
         let result = recording_stop(&mut state).unwrap();
         assert_eq!(result["frames"], 120);
         assert_eq!(result["fps"], 60);
+    }
+
+    fn png_header(width: u32, height: u32) -> Vec<u8> {
+        let mut bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR".to_vec();
+        bytes.extend_from_slice(&width.to_be_bytes());
+        bytes.extend_from_slice(&height.to_be_bytes());
+        bytes
+    }
+
+    #[test]
+    fn test_frame_scale_reads_png_dimensions() {
+        assert_eq!(png_dimensions(&png_header(2560, 1600)), Some((2560, 1600)));
+        assert_eq!(frame_scale(&png_header(2560, 1600), 1280.0), Some(2.0));
+        assert_eq!(frame_scale(&png_header(1280, 800), 1280.0), Some(1.0));
+        assert_eq!(frame_scale(&png_header(1280, 800), 0.0), None);
+        assert_eq!(png_dimensions(b"not a png at all, just bytes"), None);
+    }
+
+    #[test]
+    fn test_screencast_below_the_page_scale_switches_to_screenshots() {
+        let page = PageSize {
+            width: 1280.0,
+            height: 800.0,
+            scale: 2.0,
+        };
+        assert!(below_page_scale(1.0, page));
+        assert!(!below_page_scale(2.0, page));
+        let real = PageSize { scale: 1.0, ..page };
+        assert!(!below_page_scale(1.0, real));
+    }
+
+    #[test]
+    fn test_recording_stop_reports_screenshot_capture() {
+        let mut state = RecordingState::new();
+        recording_start(&mut state, "/tmp/test.webm", options(None)).unwrap();
+        state.frame_count = 30;
+        state.device_scale = 2.0;
+        state.screenshot_capture = true;
+        let result = recording_stop(&mut state).unwrap();
+        assert_eq!(result["capture"], "screenshots");
+        assert_eq!(result["deviceScaleFactor"], 2.0);
+    }
+
+    #[test]
+    fn test_recording_stop_leaves_screencast_takes_alone() {
+        let mut state = RecordingState::new();
+        recording_start(&mut state, "/tmp/test.webm", options(None)).unwrap();
+        state.frame_count = 30;
+        state.device_scale = 2.0;
+        let result = recording_stop(&mut state).unwrap();
+        assert!(result.get("capture").is_none());
+        assert!(result.get("deviceScaleFactor").is_none());
     }
 
     #[test]

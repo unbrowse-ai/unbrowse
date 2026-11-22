@@ -379,11 +379,19 @@ fn amount(v: &Value) -> bool {
             _ => false,
         }
     }
-    match v {
-        Value::Object(m) => m.values().any(figure),
-        Value::Array(a) => a.iter().take(4).any(|x| figure(x) || x.as_object().is_some_and(|m| m.values().any(figure))),
-        _ => figure(v),
+    // A figure kept in a part's parts is still an amount: a price nested as `{current: {value: 4990, currency: …}}`
+    // (a storefront's minor-unit amount with a sibling currency code), not only one at the object's first level.
+    fn deep(v: &Value, depth: usize) -> bool {
+        if depth > 4 {
+            return false;
+        }
+        match v {
+            Value::Object(m) => m.values().any(|x| figure(x) || deep(x, depth + 1)),
+            Value::Array(a) => a.iter().take(4).any(|x| figure(x) || deep(x, depth + 1)),
+            _ => figure(v),
+        }
     }
+    deep(v, 0)
 }
 
 /// The words of a key's own name: `last_price_dollars` is last, price, dollars; `yesAskDollars` is yes, ask, dollars;
@@ -540,7 +548,40 @@ pub fn opens_with_a_read(goal: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    /// The owner's window says what an answer holds in words: how many records, which of the goal's fields, and
+    /// whether each says back the ask; one record is "1 record".
+    #[test]
+    fn what_an_answer_holds_is_said_in_words() {
+        let none = super::Holding { covered: vec![], shaped: 0, shaped_asked: 1, echoes: false, records: 4 };
+        assert_eq!(none.said(), "its answer holds none of the goal's fields (4 records)");
+        assert!(!none.has_shapes());
+        let one = super::Holding { covered: vec!["price".into(), "name".into()], shaped: 1, shaped_asked: 1, echoes: true, records: 1 };
+        assert_eq!(one.said(), "its answer holds 1 record with price, name, each saying back what was asked");
+        assert!(one.has_shapes());
+        let many = super::Holding { records: 12, echoes: false, ..one };
+        assert_eq!(many.said(), "its answer holds 12 records with price, name");
+    }
+
     use super::*;
+
+    /// A storefront grid keeps each price as a numeric minor-unit amount with a sibling currency
+    /// (`pricing.price.current.value: 4990`, `currency.code: "SGD"`): no single string looks like money, but the
+    /// cost-naming key holds a figure nested in its parts. The answer holds the price.
+    #[test]
+    fn a_numeric_minor_unit_price_with_a_sibling_currency_is_a_price() {
+        let product = |name: &str, cents: u64| serde_json::json!({
+            "name": name,
+            "pricing": {"price": {"current": {"value": cents, "currency": {"code": "SGD", "exponent": -2}}}}
+        });
+        let answer = serde_json::json!({"components": {
+            "1": product("CROPPED LACE T-SHIRT", 2990), "2": product("LINEN SHIRT", 4990),
+            "3": product("WOOL COAT", 9990), "4": product("COTTON HAT", 1990),
+            "5": product("SILK SCARF", 1590), "6": product("ANKLE SOCKS", 990)
+        }});
+        let h = holding(&answer, &fields("t-shirt products with name and price"), &["t-shirt".to_string()]);
+        assert!(h.has_shapes(), "a numeric price nested under a cost-naming key is a price: {}", h.said());
+    }
 
     #[test]
     fn a_goal_opens_with_a_change_by_its_first_word() {

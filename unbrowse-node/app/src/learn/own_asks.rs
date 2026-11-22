@@ -349,4 +349,81 @@ mod tests {
         assert_eq!(said, vec!["   [own-ask] held: second-look at somewhere".to_string()]);
         assert!(!held_here(Ask::SecondLook), "the hold ends with the closure");
     }
+
+    /// Each family is named in the log by its own word; a family that serves the agent's own request is not held by
+    /// default, and where it is asked the log says it was for the agent's request, never as the node's own.
+    #[test]
+    fn every_family_has_its_name_and_one_that_serves_the_agent_is_said_so() {
+        let names: Vec<&str> = EVERY.iter().map(|a| a.family()).collect();
+        assert_eq!(names, ["second-look", "nonsense", "shrink", "try", "paging", "recheck", "heal", "again", "page-values", "rewalk", "setups"]);
+        if std::env::var_os(OWN_ASKS).is_some() || std::env::var_os(ARM_A).is_some() || EVERY.iter().any(|a| std::env::var_os(a.switch()).is_some()) {
+            return;
+        }
+        SAID.with(|s| s.borrow_mut().clear());
+        let serving: Vec<Ask> = EVERY.iter().copied().filter(|a| !a.held_by_default()).collect();
+        assert_eq!(serving, [Ask::Rewalk, Ask::Setups]);
+        for a in &serving {
+            assert!(!held_at(*a, "somewhere"), "{} runs by default", a.family());
+        }
+        let said = SAID.with(|s| std::mem::take(&mut *s.borrow_mut()));
+        assert_eq!(said, vec!["   [own-ask] for the agent's request: rewalk at somewhere".to_string(), "   [own-ask] for the agent's request: setups at somewhere".to_string()]);
+    }
+}
+
+/// This thread's old-node setting (`as_the_old_node`, `asking`), carried to the task or thread an ask's work runs in:
+/// a test holds it on its own thread, and the work behind a reply runs elsewhere. Outside tests there is nothing to
+/// carry, and it does nothing.
+#[derive(Clone, Default)]
+pub struct Carried {
+    #[cfg(test)]
+    asked: std::collections::HashSet<Ask>,
+    #[cfg(test)]
+    off: bool,
+}
+
+/// This thread's setting, to carry.
+pub fn carried() -> Carried {
+    #[cfg(test)]
+    {
+        Carried { asked: ASKED.with(|h| h.borrow().clone()), off: CONFIRM_OFF.with(std::cell::Cell::get) }
+    }
+    #[cfg(not(test))]
+    Carried::default()
+}
+
+impl Carried {
+    /// Runs `f` with this setting on the current thread, and puts back the thread's own after.
+    pub fn over<T>(&self, f: impl FnOnce() -> T) -> T {
+        #[cfg(test)]
+        {
+            let asked = ASKED.with(|h| std::mem::replace(&mut *h.borrow_mut(), self.asked.clone()));
+            let off = CONFIRM_OFF.with(|c| c.replace(self.off));
+            let out = f();
+            ASKED.with(|h| *h.borrow_mut() = asked);
+            CONFIRM_OFF.with(|c| c.set(off));
+            out
+        }
+        #[cfg(not(test))]
+        f()
+    }
+
+    /// `f` with this setting on whichever thread polls it, each time it is polled.
+    pub fn carry<F: std::future::Future>(self, f: F) -> Carry<F> {
+        Carry { f: Box::pin(f), with: self }
+    }
+}
+
+/// A future polled with a carried setting ([`Carried::carry`]).
+pub struct Carry<F> {
+    f: std::pin::Pin<Box<F>>,
+    with: Carried,
+}
+
+impl<F: std::future::Future> std::future::Future for Carry<F> {
+    type Output = F::Output;
+    fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<F::Output> {
+        let this = &mut *self;
+        let (f, with) = (&mut this.f, &this.with);
+        with.over(|| f.as_mut().poll(cx))
+    }
 }

@@ -91,10 +91,124 @@ pub(super) const FIELDS_PER_ROUTE: usize = 6;
 /// How many of one site's pages run at once.
 pub(super) const AT_ONCE_PER_SITE: usize = 8;
 
-/// Several pages at once, each done as `do_goal` does one. Sites run side by side. Within a site the first page goes
-/// first, so a route it learns answers the rest of that site's pages (another coin's, item's or user's page) in one
-/// call each, and those then run side by side. Each page's answer is cut to what an agent reads: how it went, its
-/// time, its data or its error. The fields a route can add are said once per route, not once per page.
+/// Each page of a batch as one `unbrowse_do` of it would be asked: the page's own goal and inputs over the call's.
+fn bodies(body: &DoBody, pages: &[Page]) -> Vec<DoBody> {
+    pages
+        .iter()
+        .map(|p| DoBody {
+            goal: if p.goal.trim().is_empty() { body.goal.clone() } else { p.goal.clone() },
+            url: p.url.clone(),
+            inputs: body.inputs.iter().chain(&p.inputs).map(|(k, v)| (k.clone(), v.clone())).collect(),
+            session: body.session.clone(),
+            browser: body.browser.clone(),
+            fields: body.fields.clone(),
+            many: true,
+            budget_usdc: body.budget_usdc,
+        })
+        .collect()
+}
+
+/// Several pages at once (`unbrowse_do` with `pages`), as an ask, and each page as an ask of its own.
+///
+/// The batch is one ask: it has one caller waiting and one reply, so it is answered within that caller's wait
+/// (`wait_ms`, `ANSWER_WITHIN` unsaid) as one `unbrowse_do` is (`asks::answer_within`), its `ask` collects the whole
+/// batch, and `still_working` is the batch's: the pages answered so far, and the ones still pending. The same batch
+/// asked again joins it in flight. Each page is an ask too (`asks::enlist`, keyed as one `unbrowse_do` of that page
+/// is, `in_flight`), named on its entry in `pages`: a pending page can be collected alone by its ask, a later
+/// `unbrowse_do` of that page alone joins its walk in flight, and a page already being done for this agent (alone, or
+/// in another batch) is joined, never walked twice. A page's ask replies when the batch hears its answer, or, still
+/// working, when the batch replies (or when its walk starts, if that is later), so its work behind that reply is
+/// bounded (`asks::WALL`) as a single do's is.
+pub(super) async fn do_pages_asked(node: &Arc<Node>, a: &Agent, body: DoBody, pages: Vec<Page>, args: &Value) -> Result<Value, Failed> {
+    if pages.len() > MOST_PAGES {
+        return Err(Failed::from((StatusCode::BAD_REQUEST, format!("{} pages: one call takes at most {MOST_PAGES}", pages.len()))));
+    }
+    let key = format!("pages\n{}", bodies(&body, &pages).iter().map(in_flight).collect::<Vec<_>>().join("\n--\n"));
+    let wait = if args.get("wait_ms").is_some_and(|w| !w.is_null()) { asks::wait_of(args) } else { ANSWER_WITHIN };
+    let (n, a2) = (node.clone(), a.clone());
+    asks::answer_within(&a.name, key, wait, move || async move { do_pages(&n, &a2, body, pages).await.map_err(Failed::from) }).await
+}
+
+/// What a batch's work holds while its pages are done: each page's url and ask, its answer once heard, what starts the
+/// pages this batch walks, and the batch's own ask, told what is answered so far.
+struct Batch {
+    urls: Vec<String>,
+    asks: Vec<Arc<asks::Ask>>,
+    done: Vec<tokio::sync::watch::Receiver<Option<Result<Value, Failed>>>>,
+    /// Whether this batch made the page's ask (else it joined another's work): it says when that ask replied.
+    mine: Vec<bool>,
+    starters: std::sync::Mutex<Vec<Option<asks::Starter>>>,
+    heard: std::sync::Mutex<Vec<Option<Done>>>,
+    started: std::time::Instant,
+    batch: Option<Arc<asks::Ask>>,
+}
+
+impl Batch {
+    /// Page `i`'s walk starts, as its ask's work: the batch adopts the ask, so it replies when the batch does, or at
+    /// once if the batch has replied, and its work's wall counts from its own start, never from a turn it waited for.
+    fn started_page(&self, i: usize) {
+        if let Some(batch) = &self.batch {
+            batch.adopt(self.asks[i].clone());
+        }
+    }
+
+    /// Page `i` answered `r` after `took`: kept, its ask told it replied, and the batch's reply so far said again.
+    fn heard(&self, i: usize, took: std::time::Duration, r: Result<Value, Failed>) {
+        if self.mine[i] {
+            let outcome = page_answer(&self.urls[i], took, r.clone())["outcome"].as_str().map(String::from);
+            self.asks[i].replied(outcome.as_deref());
+        }
+        let mut heard = self.heard.locked();
+        heard[i].get_or_insert((took, r));
+        if let Some(batch) = &self.batch {
+            batch.so_far(self.reply(&heard));
+        }
+    }
+
+    /// The batch's reply: each page in the order given, answered or pending, each naming its ask.
+    fn reply(&self, heard: &[Option<Done>]) -> Value {
+        let mut fields = serde_json::Map::new();
+        let mut count: std::collections::BTreeMap<String, usize> = Default::default();
+        let mut pending = Vec::new();
+        let answers: Vec<Value> = (0..self.urls.len())
+            .map(|i| {
+                let ask = self.asks[i].id.clone();
+                let mut v = match &heard[i] {
+                    Some((took, r)) => page_answer(&self.urls[i], *took, r.clone()),
+                    None => {
+                        pending.push(self.urls[i].clone());
+                        let mut v = json!({ "url": self.urls[i], "how": "working", "ms": self.started.elapsed().as_millis() as u64, "ok": false });
+                        crate::outcome::Said::new(crate::outcome::Outcome::StillWorking, "ask.wait").then("unbrowse_do", json!({ "ask": ask })).put(&mut v);
+                        v
+                    }
+                };
+                v["ask"] = json!(ask);
+                *count.entry(v["how"].as_str().unwrap_or_default().to_string()).or_default() += 1;
+                if let (Some(id), Some(f)) = (v["route_id"].as_str().map(String::from), v.as_object_mut().and_then(|o| o.remove("fields"))) {
+                    fields.entry(id).or_insert(f);
+                }
+                v
+            })
+            .collect();
+        let mut reply = json!({ "how": "pages", "ms": self.started.elapsed().as_millis() as u64, "count": count, "pages": answers, "fields": fields });
+        if !pending.is_empty() {
+            reply["pending"] = json!(pending);
+        }
+        // A reply of the pages so far (`still_working`) fits what one answer may carry as the last one does.
+        fit_pages(&mut reply);
+        reply
+    }
+}
+
+/// How long a batch's work waits on its own pages' tasks before it hears the rest from their asks: past the longest
+/// wait a caller may give and the wall behind it, by when each page has answered or been ended.
+const BATCH_WORK: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// Several pages at once, each done as `do_goal` does one, to the last page: the batch's work (`do_pages_asked`).
+/// Sites run side by side. Within a site the first page goes first, so a route it learns answers the rest of that
+/// site's pages (another coin's, item's or user's page) in one call each, and those then run side by side. Each page's
+/// answer is cut to what an agent reads: how it went, its time, its data or its error, and its ask. The fields a route
+/// can add are said once per route, not once per page.
 pub(super) async fn do_pages(node: &Arc<Node>, a: &Agent, body: DoBody, pages: Vec<Page>) -> Result<Value, Fail> {
     if pages.len() > MOST_PAGES {
         return Err((StatusCode::BAD_REQUEST, format!("{} pages: one call takes at most {MOST_PAGES}", pages.len())));
@@ -108,49 +222,76 @@ pub(super) async fn do_pages(node: &Arc<Node>, a: &Agent, body: DoBody, pages: V
             None => sites.push((site, vec![i])),
         }
     }
-    let bodies: Vec<DoBody> = pages
-        .iter()
-        .map(|p| DoBody {
-            goal: if p.goal.trim().is_empty() { body.goal.clone() } else { p.goal.clone() },
-            url: p.url.clone(),
-            inputs: body.inputs.iter().chain(&p.inputs).map(|(k, v)| (k.clone(), v.clone())).collect(),
-            session: body.session.clone(),
-            browser: body.browser.clone(),
-            fields: body.fields.clone(),
-            many: true,
-            budget_usdc: body.budget_usdc,
-        })
-        .collect();
+    let batch_ask = asks::current();
+    let bodies = bodies(&body, &pages);
+    let (bodies_again, node_again, a_again) = (bodies.clone(), node.clone(), a.clone());
+    let enlisted: Vec<asks::Enlisted> = bodies.iter().map(|b| asks::enlist(&a.name, in_flight(b), || asks::Ask::begin("unbrowse_do"))).collect();
+    let mine: Vec<bool> = enlisted.iter().map(|e| e.starter.is_some()).collect();
+    let (mut page_asks, mut done, mut starters) = (Vec::new(), Vec::new(), Vec::new());
+    for e in enlisted {
+        page_asks.push(e.ask);
+        done.push(e.done);
+        starters.push(e.starter);
+    }
+    let batch = Arc::new(Batch {
+        urls: pages.iter().map(|p| p.url.clone()).collect(),
+        asks: page_asks,
+        done,
+        mine,
+        starters: std::sync::Mutex::new(starters),
+        heard: std::sync::Mutex::new(vec![None; pages.len()]),
+        started,
+        batch: batch_ask,
+    });
+    if let Some(b) = &batch.batch {
+        b.so_far(batch.reply(&batch.heard.locked()));
+    }
     let mut bodies: Vec<Option<DoBody>> = bodies.into_iter().map(Some).collect();
     let sites: Vec<Vec<(usize, DoBody)>> =
         sites.into_iter().map(|(_, at)| at.into_iter().map(|i| (i, bodies[i].take().expect("each page once"))).collect()).collect();
-    let (node, a) = (node.clone(), a.clone());
-    let run = move |p: (usize, DoBody)| {
-        let (node, a) = (node.clone(), a.clone());
-        async move { page_run(&node, &a, p).await }
-    };
-    let done = pages_run(sites, ANSWER_WITHIN, &PAGES, run).await;
-    let answered: std::collections::HashSet<usize> = done.iter().map(|(i, _)| *i).collect();
-    let pending: Vec<&str> = (0..pages.len()).filter(|i| !answered.contains(i)).map(|i| pages[i].url.as_str()).collect();
-    let mut done: Vec<(usize, Value)> = done.into_iter().map(|(i, (took, r))| (i, page_answer(&pages[i].url, took, r))).collect();
-    done.sort_by_key(|(i, _)| *i);
-    let mut fields = serde_json::Map::new();
-    let mut count: std::collections::BTreeMap<String, usize> = Default::default();
-    let answers: Vec<Value> = done
-        .into_iter()
-        .map(|(_, mut v)| {
-            *count.entry(v["how"].as_str().unwrap_or_default().to_string()).or_default() += 1;
-            if let (Some(id), Some(f)) = (v["route_id"].as_str().map(String::from), v.as_object_mut().and_then(|o| o.remove("fields"))) {
-                fields.entry(id).or_insert(f);
+    let (node, a, b) = (node.clone(), a.clone(), batch.clone());
+    // A page this batch walks is started as its own ask's work; one another ask is doing is heard from it.
+    let run = move |(i, body): (usize, DoBody)| {
+        let (node, a, b) = (node.clone(), a.clone(), b.clone());
+        async move {
+            let t = std::time::Instant::now();
+            let starter = b.starters.locked()[i].take();
+            if let Some(starter) = starter {
+                b.started_page(i);
+                starter.start(async move { Box::pin(do_goal_said(&node, &a, body)).await });
             }
-            v
-        })
-        .collect();
-    let mut reply = json!({ "how": "pages", "ms": started.elapsed().as_millis() as u64, "count": count, "pages": answers, "fields": fields });
-    if !pending.is_empty() {
-        reply["pending"] = json!(pending);
-        reply["next"] = json!("The pages in pending are still being learned, and go on after this reply: ask again with them (or all the pages) in a few seconds, and each one learned by then comes back at once.");
+            let r = asks::heard(&b.asks[i], b.done[i].clone()).await;
+            b.heard(i, t.elapsed(), r.clone());
+            (i, t.elapsed(), r)
+        }
+    };
+    let ran = pages_run(sites, BATCH_WORK, &PAGES, run).await;
+    // A page answered by an earlier walk of it, kept (`Walks::late`), is this page's answer; one another call walks,
+    // or still going on, is heard from its ask.
+    for (i, (took, r)) in ran.into_iter().filter(|(i, _)| batch.heard.locked()[*i].is_none()) {
+        let starter = batch.starters.locked()[i].take();
+        if let Some(starter) = starter {
+            starter.finish(r.clone());
+        }
+        batch.heard(i, took, r);
     }
+    for (i, body) in bodies_again.into_iter().enumerate() {
+        if batch.heard.locked()[i].is_some() {
+            continue;
+        }
+        // Another agent's batch walks it (`Walks`): its answer is that agent's, and this one walks its own.
+        let starter = batch.starters.locked()[i].take();
+        if let Some(starter) = starter {
+            batch.started_page(i);
+            let (node, a) = (node_again.clone(), a_again.clone());
+            starter.start(async move { Box::pin(do_goal_said(&node, &a, body)).await });
+        }
+        let r = asks::heard(&batch.asks[i], batch.done[i].clone()).await;
+        batch.heard(i, started.elapsed(), r);
+    }
+    let mut reply = batch.reply(&batch.heard.locked());
+    crate::outcome::of_pages(&reply).put(&mut reply);
+    // The outcome said, the whole reply is held to `PAGES_BUDGET` once more.
     fit_pages(&mut reply);
     Ok(reply)
 }
@@ -217,7 +358,7 @@ fn cut_pages(reply: &mut Value, datas: &[Value], sizes: &[(usize, usize)], share
         }
         // `fit_reply` counts plain JSON: the share in plain bytes, as this data's own indenting stretches it.
         let budget = share * plain / shown.max(1);
-        let (kept, cut) = crate::run::fit_reply(datas[i].clone(), budget);
+        let (kept, cut) = crate::run::fit_reply(datas[i].clone(), budget, &[]);
         let Some((kept_bytes, _, mut cuts, _)) = cut else { continue };
         cuts.truncate(CUTS_PER_PAGE);
         let url = page["url"].as_str().unwrap_or_default().to_string();
@@ -253,12 +394,12 @@ fn share_of(sizes: &[usize], room: usize) -> usize {
     usize::MAX
 }
 
-/// How long a call for several pages waits before it answers with the pages done so far: under the minute an MCP
-/// client waits for a tool.
+/// How long a call for several pages waits, when it says no `wait_ms`, before it answers with the pages done so far,
+/// still working: under the minute an MCP client waits for a tool.
 pub(super) const ANSWER_WITHIN: std::time::Duration = std::time::Duration::from_secs(40);
 
 /// A page's outcome: how long it took, and its answer or why it has none.
-pub(super) type Done = (std::time::Duration, Result<Value, Fail>);
+pub(super) type Done = (std::time::Duration, Result<Value, Failed>);
 
 /// The pages being done for calls of several, by goal and url, and the answers of those that finished after their
 /// call had replied. A page asked again while it is still being learned is said to be pending, not walked a second
@@ -338,7 +479,7 @@ impl Drop for Unfinished {
 pub(super) async fn pages_run<R, F>(sites: Vec<Vec<(usize, DoBody)>>, within: std::time::Duration, walks: &'static std::sync::Mutex<Walks>, run: R) -> Vec<(usize, Done)>
 where
     R: Fn((usize, DoBody)) -> F + Clone + Send + Sync + 'static,
-    F: std::future::Future<Output = (usize, std::time::Duration, Result<Value, Fail>)> + Send + 'static,
+    F: std::future::Future<Output = (usize, std::time::Duration, Result<Value, Failed>)> + Send + 'static,
 {
     use futures_util::stream::{self, StreamExt};
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(usize, Done)>();
@@ -405,22 +546,23 @@ where
     done
 }
 
-/// One page of several, done as `do_goal` does it, and how long it took.
-pub(super) async fn page_run(node: &Arc<Node>, a: &Agent, (i, body): (usize, DoBody)) -> (usize, std::time::Duration, Result<Value, Fail>) {
-    let t = std::time::Instant::now();
-    let r = Box::pin(do_goal(node, a, body)).await;
-    (i, t.elapsed(), r)
-}
-
-/// One page's answer among several: `how`, its time, and its data, or why it has none.
-pub(super) fn page_answer(url: &str, took: std::time::Duration, r: Result<Value, Fail>) -> Value {
+/// One page's answer among several: `how`, its time, and its data, or why it has none; and what it came to, as one
+/// unbrowse_do of it says (`outcome::stamp`).
+pub(super) fn page_answer(url: &str, took: std::time::Duration, r: Result<Value, Failed>) -> Value {
     let ms = took.as_millis() as u64;
+    let mut r = r;
+    crate::outcome::stamp("unbrowse_do", &mut r);
     let r = match r {
         Ok(r) => r,
-        Err((_, e)) => return json!({ "url": url, "how": "error", "ms": ms, "ok": false, "error": e }),
+        Err(f) => return crate::outcome::failure_body(json!({ "url": url, "how": "error", "ms": ms, "ok": false, "error": f.error.clone() }), &f),
     };
     let how = r["how"].as_str().unwrap_or_default().to_string();
     let mut out = json!({ "url": url, "how": how, "ms": ms });
+    for k in ["outcome", "outcome_from", "next"] {
+        if let Some(v) = r.get(k) {
+            out[k] = v.clone();
+        }
+    }
     if let Some(id) = r["route"]["id"].as_str().or_else(|| r["entry"]["id"].as_str()) {
         out["route_id"] = json!(id);
     }
@@ -431,7 +573,6 @@ pub(super) fn page_answer(url: &str, took: std::time::Duration, r: Result<Value,
         "browse" => {
             out["ok"] = json!(false);
             out["why"] = r["why"].clone();
-            out["next"] = r["next"].clone();
         }
         _ => {
             let res = &r["result"];
@@ -518,5 +659,24 @@ mod fit_tests {
         }
         assert!(after.len() <= PAGES_BUDGET);
         std::fs::write(format!("{path}.fitted.json"), after).unwrap();
+    }
+
+    /// A batch waits only as long as it was given: pages still being walked when its limit runs out are left to go on, and
+    /// what had finished is all it hands back.
+    #[tokio::test]
+    async fn a_batch_hands_back_what_finished_when_its_limit_runs_out() {
+        static WALKS: std::sync::LazyLock<std::sync::Mutex<Walks>> = std::sync::LazyLock::new(Default::default);
+        let body = |url: &str| DoBody { goal: "list the items".into(), url: url.into(), inputs: HashMap::new(), session: String::new(), browser: String::new(), fields: Vec::new(), many: true, budget_usdc: None };
+        let sites = vec![vec![(0, body("https://slow.example/a"))], vec![(1, body("https://quick.example/b"))]];
+        let run = |(i, page): (usize, DoBody)| async move {
+            if page.url.contains("slow") {
+                tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+            }
+            (i, std::time::Duration::ZERO, Ok::<Value, Failed>(json!({ "how": "called" })))
+        };
+        let began = std::time::Instant::now();
+        let done = pages_run(sites, std::time::Duration::from_millis(500), &WALKS, run).await;
+        assert!(began.elapsed() < std::time::Duration::from_secs(3), "it did not wait for the slow page: {:?}", began.elapsed());
+        assert_eq!(done.iter().map(|(i, _)| *i).collect::<Vec<_>>(), [1], "only the page that finished");
     }
 }

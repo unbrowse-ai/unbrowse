@@ -51,6 +51,8 @@ pub const Net = struct {
     /// When nothing first answered since the node was last reached (seconds;
     /// 0 while it answers).
     down_since: std.atomic.Value(i64) = .init(0),
+    /// The window runs from a place that doesn't last (a disk image): it starts no node from there.
+    hold_node: bool = false,
 
     pub fn init(n: *Net, gpa: std.mem.Allocator, io: std.Io, home: []const u8, exe_dir: []const u8) !void {
         n.* = .{
@@ -240,6 +242,7 @@ pub const Net = struct {
     /// node the window found running, and only once nothing has answered for
     /// a few seconds (`mayStart`).
     pub fn startNode(n: *Net) void {
+        if (n.hold_node) return;
         const now = std.Io.Clock.real.now(n.io).toSeconds();
         _ = n.down_since.cmpxchgStrong(0, now, .acq_rel, .acquire);
         if (!mayStart(n.found.load(.acquire), now - n.down_since.load(.acquire))) return;
@@ -253,9 +256,11 @@ pub const Net = struct {
         const exe = if (std.Io.Dir.cwd().access(n.io, beside, .{}) catch null) |_| beside else name;
         var lbuf: [600]u8 = undefined;
         const log = std.fmt.bufPrint(&lbuf, "{s}/node.log", .{n.dir}) catch return;
+        // A new account has no ~/.unbrowse yet: node.log goes in it, and a shell can't open a file in a folder that
+        // isn't there, so the node would never start.
+        std.Io.Dir.cwd().createDirPath(n.io, n.dir) catch {};
         if (windows) {
             // A child outlives its parent on Windows; it runs without a console window, this run's output in node.log.
-            std.Io.Dir.cwd().createDirPath(n.io, n.dir) catch {};
             const f = std.Io.Dir.cwd().createFile(n.io, log, .{}) catch return;
             defer f.close(n.io);
             _ = std.process.spawn(n.io, .{ .argv = &.{exe}, .stdin = .ignore, .stdout = .{ .file = f }, .stderr = .{ .file = f }, .create_no_window = true }) catch return;

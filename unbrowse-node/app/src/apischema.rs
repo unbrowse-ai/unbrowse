@@ -74,8 +74,12 @@ pub fn types() -> Map<String, Value> {
         (
             "Route",
             json!({ "anyOf": [
+                // `verdict`, `why` and `was`: what a confirming browse or the route's own call said of a route of one
+                // sighting, beside an unbrowse_do reply (`api::goal`). Unpublished, every such reply broke this schema
+                // (QA's MCP check, run 44694418133, UNB-235).
                 obj(json!({ "id": s(), "site": s(), "what": s(), "method": s(), "path": s(), "write": yes(), "listed": yes(), "yours": yes(),
-                    "inputs": list(r("RouteInput")), "link": s(), "also_sends": list(r("RouteStep")) }),
+                    "inputs": list(r("RouteInput")), "link": s(), "also_sends": list(r("RouteStep")),
+                    "verdict": one_of(&["agreed", "differed", "failed", "cannot-tell"]), "why": s_null(), "was": s() }),
                     &["id", "site", "what", "method", "path", "write", "listed", "yours", "inputs"]),
                 obj(json!({ "id": s(), "remote": { "type": "boolean", "enum": [true] }, "contributor": s(), "fee": num(),
                     "listed_as": all(json!({ "site": s(), "what": s() })), "unverified": s(), "over_max": s(), "reputation": r("Reputation"), "link": s() }),
@@ -92,12 +96,16 @@ pub fn types() -> Map<String, Value> {
                 &["link", "site", "routes", "next"]),
         ),
         ("Retry", one_of(&["as_is", "check_first", "never"])),
+        // What a reply of unbrowse_do, unbrowse_call, unbrowse_browse or unbrowse_challenge came to, answered or failed:
+        // one word of a closed set (`outcome::Outcome`), and the call to make next as given, absent when there is none.
+        ("Outcome", one_of(&crate::outcome::Outcome::ALL.map(|o| o.word()))),
+        ("Next", obj(json!({ "tool": one_of(crate::outcome::NEXT_TOOLS), "args": { "type": "object" } }), &["tool", "args"])),
         ("Cut", all(json!({ "at": s(), "kept": int(), "total": int(), "unit": one_of(&["items", "chars"]) }))),
-        ("Truncated", all(json!({ "kept_bytes": int(), "total_bytes": int(), "cuts": list(r("Cut")), "whole": s_null(), "note": s() }))),
+        ("Truncated", obj(json!({ "kept_bytes": int(), "total_bytes": int(), "cuts": list(r("Cut")), "whole": s_null(), "left_out": list(s()), "next_page": or_null(json!({ "type": "object", "additionalProperties": s() })), "note": s() }), &["kept_bytes", "total_bytes", "cuts", "whole", "note"])),
         ("AnswerField", obj(json!({ "path": s(), "kind": one_of(&["text", "long text", "number", "true/false", "money", "link", "date", "address", "list", "object", "empty"]), "example": s() }), &["path", "kind"])),
         (
             "Fields",
-            obj(json!({ "returned": list(s()), "more": list(r("AnswerField")), "more_total": int(), "whole": yes(), "add": s() }), &["returned", "more", "more_total", "whole"]),
+            obj(json!({ "returned": list(s()), "more": list(r("AnswerField")), "more_total": int(), "whole": yes(), "add": s(), "copies": list(s()) }), &["returned", "more", "more_total", "whole"]),
         ),
         (
             "CallResult",
@@ -108,7 +116,7 @@ pub fn types() -> Map<String, Value> {
                     "ignored_inputs": list(s()), "inputs": list(s()), "also_sends": list(r("RouteStep")), "notes": list(s()), "more": { "type": "object", "additionalProperties": s() },
                     "records": { "type": ["integer", "null"], "description": "How many records the answer holds where a confirming browse saw this route's records, read on the answer whole before the reply chose its fields or cut it: 0 is the site finding nothing, null an answer without that place. Absent where no place was seen." },
                     "bounties": r("BountyAsks"),
-                    "browser": yes(), "network": all(json!({ "entry_id": s(), "content_id": s(), "contributor": s_null(), "served_by": s_null(), "cached": yes(),
+                    "browser": yes(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s(), "network": all(json!({ "entry_id": s(), "content_id": s(), "contributor": s_null(), "served_by": s_null(), "cached": yes(),
                         "listed_as": s(), "ran_on": s() })) }),
                 &["ok", "ms", "data", "error", "paid_usdc", "paid_unb", "possible_commit", "retry", "truncated"],
             ),
@@ -127,22 +135,25 @@ pub fn types() -> Map<String, Value> {
         (
             "DoResult",
             json!({ "anyOf": [
-                variant("how", &["called", "learned"], json!({ "route": r("Route"), "result": r("CallResult"), "picked_by": s(),
-                    "route_failed": r("RouteFailure"), "network_skipped": r("NetworkSkipped"), "network_offers": r("NetworkOffers"), "payment_refused": r("PaymentRefused") }), &["route", "result"], true),
-                variant("how", &["network"], json!({ "entry": r("NetworkEntry"), "result": r("CallResult"), "route_failed": r("RouteFailure"), "explored": yes() }),
+                variant("how", &["called", "learned"], json!({ "route": r("Route"), "result": r("CallResult"), "picked_by": s(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s(),
+                    "notes": list(s()), "route_failed": r("RouteFailure"), "network_skipped": r("NetworkSkipped"), "network_offers": r("NetworkOffers"), "payment_refused": r("PaymentRefused") }), &["route", "result"], true),
+                variant("how", &["network"], json!({ "entry": r("NetworkEntry"), "result": r("CallResult"), "route_failed": r("RouteFailure"), "explored": yes(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s() }),
                     &["entry", "result"], true),
-                variant("how", &["browse"], json!({ "site": s(), "page": s(), "why": s(), "next": s(), "route_failed": r("RouteFailure"),
+                variant("how", &["browse"], json!({ "site": s(), "page": s(), "why": s(), "note": s(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s(), "route_failed": r("RouteFailure"),
                     "network_skipped": r("NetworkSkipped"), "network_offers": r("NetworkOffers"), "payment_refused": r("PaymentRefused") }), &["site", "page", "why", "next"], true),
+                // The work goes on behind the reply: `next` collects its answer by `ask` (`asks::answer_within`).
+                variant("how", &["working"], json!({ "ask": s(), "phase": s(), "note": s(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next") }), &["ask", "phase", "outcome", "outcome_from", "next"], true),
                 variant("how", &["pages"], json!({ "ms": int(), "count": { "type": "object", "additionalProperties": int() }, "pages": list(r("PageAnswer")),
-                    "fields": { "type": "object", "additionalProperties": list(r("AnswerField")) }, "pending": list(s()), "next": s() }), &["ms", "count", "pages", "fields"], true),
+                    "fields": { "type": "object", "additionalProperties": list(r("AnswerField")) }, "pending": list(s()), "note": s(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s() }), &["ms", "count", "pages", "fields"], true),
             ] }),
         ),
-        // One page of several asked at once (`do_pages`).
+        // One page of several asked at once (`do_pages`), naming its own ask; one still being done says how: working.
         (
             "PageAnswer",
             obj(
-                json!({ "url": s(), "how": one_of(&["called", "learned", "network", "browse", "error"]), "ms": int(), "ok": yes(), "route_id": s(), "data": {},
-                    "error": s_null(), "truncated": or_null(r("Truncated")), "fields": list(r("AnswerField")), "why": s(), "next": s(), "route_failed": r("RouteFailure") }),
+                json!({ "url": s(), "how": one_of(&["called", "learned", "network", "browse", "error", "working"]), "ms": int(), "ok": yes(), "route_id": s(), "data": {},
+                    "error": s_null(), "truncated": or_null(r("Truncated")), "fields": list(r("AnswerField")), "why": s(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "route_failed": r("RouteFailure"),
+                    "ask": s() }),
                 &["url", "how", "ms", "ok"],
             ),
         ),
@@ -151,7 +162,7 @@ pub fn types() -> Map<String, Value> {
             "BrowseReply",
             obj(
                 json!({ "site": s(), "output": s(), "learned": list(r("LearnedRoute")), "route_for_goal": r("LearnedRoute"), "note": s(),
-                    "owner": one_of(&["done", "declined", "no_answer"]), "url": s(), "waited_s": int(), "needs_owner": yes(), "next": list(s()) }),
+                    "owner": one_of(&["done", "declined", "no_answer"]), "url": s(), "waited_s": int(), "needs_owner": yes(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s() }),
                 &["site", "output"],
             ),
         ),
@@ -160,12 +171,14 @@ pub fn types() -> Map<String, Value> {
         (
             "ChallengeReply",
             obj(
-                json!({ "site": s(), "url": s(), "title": s(), "text": s(), "asks": yes(), "w": num(), "h": num(), "image": { "type": ["string", "null"] }, "mime": s(), "said": list(s()), "note": s() }),
+                json!({ "site": s(), "url": s(), "title": s(), "text": s(), "asks": yes(), "w": num(), "h": num(), "image": { "type": ["string", "null"] }, "mime": s(), "said": list(s()), "note": s(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s() }),
                 &["site", "url", "title", "text", "asks", "image", "said"],
             ),
         ),
         // `browser` and `browser_fetch` are absent from a node older than the browser add-on.
-        ("Whoami", obj(json!({ "agent": s(), "address": s(), "node": s(), "browser": r("BrowserState"), "browser_fetch": yes() }), &["agent", "address", "node"])),
+        ("Whoami", obj(json!({ "agent": s(), "address": s(), "node": s(), "browser": r("BrowserState"), "browser_fetch": yes(), "owner": r("OwnerReach") }), &["agent", "address", "node"])),
+        // Whether `ask_owner` can reach the owner (`hands::owner_reach`); absent from an older node.
+        ("OwnerReach", one_of(&["watching", "can_open", "off"])),
         ("BrowserState", one_of(&["present", "missing", "installing"])),
         // A bug report (`report.rs`): the route's shape and the agent's last error are the node's additions, and
         // `contents` is the report as the relay is sent it, without the install id.
@@ -210,7 +223,7 @@ pub fn types() -> Map<String, Value> {
                 "next": s()
             })),
         ),
-        ("Login", obj(json!({ "ref": s(), "site": s(), "code": s() }), &["ref", "site"])),
+        ("Login", obj(json!({ "ref": s(), "site": s(), "code": s(), "from": s() }), &["ref", "site"])),
         (
             "Card",
             // `cvv` only for a card kept with its security code, which the vault keeps only when the owner chose to (#185).
@@ -257,7 +270,7 @@ pub fn types() -> Map<String, Value> {
         (
             "ShareStanding",
             json!({ "anyOf": [
-                variant("why", &["listed", "off", "opted_out", "not_run_yet", "queued", "preview"], json!({}), &[], false),
+                variant("why", &["listed", "off", "opted_out", "not_run_yet", "queued", "preview", "unsigned"], json!({}), &[], false),
                 variant("why", &["local"], json!({ "signed_in": yes() }), &["signed_in"], false),
                 variant("why", &["unspread"], json!({ "poster": yes() }), &["poster"], false),
                 variant("why", &["excluded"], json!({ "host": s() }), &["host"], false),
@@ -343,18 +356,22 @@ pub fn types() -> Map<String, Value> {
                 json!({ "index": int(), "name": s(), "address": s(), "cap_usdc": { "type": "number", "description": "The most the key spends a day, in USDC." },
                     "cap_unb": { "type": "number", "description": "@deprecated The same as cap_usdc, under its name from before fees were USDC." },
                     "expires": int(), "created": int(), "revoked": yes(), "tx": s_null(),
-                    "salt": s(), "auto": yes(), "cap_set": yes(), "payers": list(json!({ "type": "array" })) }),
+                    "salt": s(), "auto": yes(), "cap_set": yes(), "payers": list(json!({ "type": "array" })),
+                    "gateway": { "type": ["string", "null"], "description": "The gateway a remote key opens the node through (its host); none for a key of the node's own door." } }),
                 &["index", "name", "address", "cap_usdc", "cap_unb", "expires", "created", "revoked", "tx"],
             ),
         ),
         ("NewAgent", all(json!({ "agent": r("Agent"), "setup": s(), "token": s() }))),
+        // This node's own remote MCP address at a gateway (`remote.rs`, graph `gateway.relay-to-own`).
+        ("Remote", all(json!({ "on": yes(), "public": yes(), "gateway": s(), "url": s_null(), "account_link": s_null(), "peer": s_null(), "keys": list(r("Agent")) }))),
+        ("NewRemoteKey", all(json!({ "agent": r("Agent"), "token": s(), "url": s(), "claude": s() }))),
         ("AgentSpend", all(json!({ "index": int(), "spent": num(), "cap": num() }))),
         (
             "VaultLogin",
             all(json!({ "site": s(), "account": s(), "kind": one_of(&["derived", "stored"]), "counter": int(), "created": int(), "code": yes(), "derivation": int() })),
         ),
         ("VaultCard", all(json!({ "label": s(), "last4": s(), "created": int(), "code": yes() }))),
-        ("VaultImport", all(json!({ "added": int(), "codes": int(), "known": int(), "skipped": list(all(json!({ "why": s(), "count": int() }))) }))),
+        ("VaultImport", all(json!({ "added": int(), "codes": int(), "known": int(), "restored": int(), "skipped": list(all(json!({ "why": s(), "count": int() }))) }))),
         ("BrowserFound", all(json!({ "name": s(), "path": s(), "downloaded": yes() }))),
         (
             "Browsers",
@@ -393,9 +410,10 @@ pub fn types() -> Map<String, Value> {
             })),
         ),
         ("ListingSigned", all(json!({ "id": s(), "spread": yes() }))),
+        ("ListingsSign", all(json!({ "url": s_null(), "opened": yes(), "asked": int() }))),
         (
             "Passkey",
-            all(json!({ "id": s(), "site": s(), "account": s(), "created": int(), "used": int_null(), "how": one_of(&["auto", "manual"]) })),
+            all(json!({ "id": s(), "site": s(), "account": s(), "created": int(), "used": int_null(), "how": one_of(&["auto", "manual", "phone"]), "approve": yes() })),
         ),
         ("Passkeys", all(json!({ "on": yes(), "never": list(s()), "passkeys": list(r("Passkey")) }))),
         ("PasskeyArmed", all(json!({ "site": s(), "until": int(), "how": s() }))),
@@ -451,7 +469,10 @@ pub fn types() -> Map<String, Value> {
                     // A payment the owner is asked to approve: the card, where it goes, and for a route call what the
                     // route does and the other values it sends; the amount the agent says it costs, when it says, and
                     // why it asks though a limit is set.
-                    "pay": obj(json!({ "card": s(), "merchant": s(), "route": s(), "inputs": list(s()), "amount": num(), "over": s() }), &["card", "merchant"]) }),
+                    "pay": obj(json!({ "card": s(), "merchant": s(), "route": s(), "inputs": list(s()), "amount": num(), "over": s() }), &["card", "merchant"]),
+                    // A login the owner is asked to add to the vault (`vault:ask:`): its site and account, never a
+                    // password.
+                    "login": all(json!({ "site": s(), "account": s() })) }),
                 &["id", "site", "why", "agent", "asked_at", "expires_at"],
             ),
         ),

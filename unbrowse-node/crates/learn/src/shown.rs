@@ -279,6 +279,33 @@ mod tests {
         (0..LEAST_WORDS).map(|i| format!("word{i}")).collect::<Vec<_>>().join(" ")
     }
 
+    /// A page lists records of what it was asked when the value stands whole at three places or more of what it
+    /// showed; one heading naming it, or the value inside longer words, is no listing.
+    #[test]
+    fn a_page_that_names_the_ask_on_each_line_lists_its_records() {
+        let at = "https://shop.example/c/desks";
+        let listing = Shown::of([&page(&format!("<li>Oak desk, small</li><li>Oak desk, tall</li><li>White oak desk</li>{}", filler()))], &[], at);
+        assert!(listing.lists(&["Oak Desk".to_string()]));
+        assert!(!listing.lists(&["ok".to_string()]), "a value under three letters names nothing");
+        let heading = Shown::of([&page(&format!("<h1>Oak desk</h1><p>Our range</p>{}", filler()))], &[], at);
+        assert!(!heading.lists(&["oak desk".to_string()]), "a heading names it once");
+        let inside = Shown::of([&page(&format!("<p>oakdesks oakdesk oakdesker</p>{}", filler()))], &[], at);
+        assert!(!inside.lists(&["oakdesk".to_string()]), "inside longer words it stands whole once");
+    }
+
+    /// An answer says what a listing page showed when three things it showed are in it besides the ask and its words.
+    #[test]
+    fn an_answer_says_a_listing_by_three_things_it_showed_besides_the_ask() {
+        let shown = Shown::of([&page(&format!("<li>Oak Writing Desk</li><li>Pine Standing Desk</li><li>Walnut Corner Desk</li>{}", filler()))], &[], "https://shop.example/c/desks");
+        let three = exchange("https://api.shop.example/items", "application/json", r#"{"items":[{"name":"Oak Writing Desk"},{"name":"Pine Standing Desk"},{"name":"Walnut Corner Desk"}]}"#);
+        assert!(shown.says_besides(&three, &["desk".to_string()]));
+        assert!(!shown.says_besides(&three, &["Oak Writing Desk".to_string()]), "the ask itself is not one of the three");
+        let one = exchange("https://api.shop.example/items", "application/json", r#"{"query":"desk","items":[{"name":"Oak Writing Desk"}]}"#);
+        assert!(!shown.says_besides(&one, &["desk".to_string()]));
+        let html = exchange("https://api.shop.example/items", "text/html", "<p>Oak Writing Desk</p>");
+        assert!(!shown.says_besides(&html, &[]), "an answer that isn't JSON says nothing here");
+    }
+
     #[test]
     fn a_value_the_page_shows_is_said_and_a_setting_is_not() {
         let shown = Shown::of([&page(&format!("<p>Oak Writing Desk</p><p>1,299 sold</p><p>Shop</p>{}", filler()))], &[], "https://shop.example/c/desks");

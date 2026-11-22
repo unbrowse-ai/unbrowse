@@ -15,6 +15,7 @@ echo "$CLAUDE_CODE_OAUTH_TOKEN" >> "@ASKED@"
 env >> "@SEEN@"
 case "$CLAUDE_CODE_OAUTH_TOKEN" in
   good*) echo '{"is_error":false,"result":"ok"}' ;;
+  silent*) echo "OAuth token has expired: sk-ant-oat01-abcdefXYZ, run claude setup-token" >&2; exit 1 ;;
   *) echo '{"is_error":true,"api_error_status":429,"result":"You have hit your weekly limit"}' ;;
 esac
 """
@@ -47,6 +48,11 @@ class ClaudeCredential(unittest.TestCase):
         named, _, log = self.pick(["A", "B"], A="spent", B="good-b")
         self.assertEqual(named, "name=B")
         self.assertIn("::warning::Claude credential A refuses: You have hit your weekly limit", log)
+
+    def test_a_cli_that_says_why_only_on_stderr_is_quoted_without_the_key(self):
+        _, _, log = self.pick(["A"], A="silent-1")
+        self.assertIn("::warning::Claude credential A refuses: OAuth token has expired: [redacted], run claude setup-token", log)
+        self.assertNotIn("sk-ant-oat01", log)
 
     def test_an_unset_credential_is_skipped_unasked(self):
         named, asked, _ = self.pick(["A", "B"], B="good-b")

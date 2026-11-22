@@ -72,6 +72,9 @@ pub enum Expr {
     },
     /// `len` characters of a value, from character `from`.
     Slice { of: Box<Expr>, from: usize, len: usize },
+    /// The value `of` makes, or `or` where it makes none: a session's cookie written into a longer value is the
+    /// caller's own, and a jar that holds none writes nothing in its place (a page's code that has no id yet).
+    Else { of: Box<Expr>, or: String },
     /// The value split at `split`, and the piece at `index`, counted from zero.
     Piece { of: Box<Expr>, split: String, index: usize },
     /// The value written the way its place writes it.
@@ -277,6 +280,8 @@ impl Area {
 pub enum At {
     Json { pointer: String },
     Header { name: String },
+    /// The `key` value of the query of the address the `name` header hands over (a redirect's `location`).
+    HeaderQuery { name: String, key: String },
     SetCookie { name: String },
     /// In text such as a page: after the `nth` occurrence of `before`, counted from zero, up to `after`.
     Text {
@@ -462,6 +467,15 @@ fn stands_in(value: &str, part: &str) -> Vec<usize> {
     value.match_indices(part).map(|(at, _)| at).filter(|&at| !word(value[..at].chars().next_back()) && !word(value[at + part.len()..].chars().next())).collect()
 }
 
+/// Whether `part` stands whole somewhere in `value` as a word of its own: no letter, digit or `_` against either end,
+/// so `search` stands in `{"q":"search"}` and in `search params`, never in the key `search_params`. A learner asks this
+/// before it takes a longer literal for a caller's value spliced into fixed text: a value that only turns up inside a
+/// longer word (a key name, an identifier) is a coincidence of letters, not where the caller's value goes.
+pub fn stands_as_a_word(value: &str, part: &str) -> bool {
+    let word = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '_');
+    !part.is_empty() && value.match_indices(part).any(|(at, _)| !word(value[..at].chars().next_back()) && !word(value[at + part.len()..].chars().next()))
+}
+
 /// `value` with `now` wherever `part` stands whole. A part that stands whole nowhere but occurs once is that one
 /// occurrence: a word a learner placed and the site bore out.
 pub fn swapped(value: &str, part: &str, now: &str) -> String {
@@ -489,7 +503,10 @@ pub fn stamped(form: &str, now_ms: u64, digits: &mut dyn FnMut(usize) -> String)
     let mut rest = form;
     while let Some(at) = rest.find('{') {
         out.push_str(&rest[..at]);
-        let Some(end) = rest[at..].find('}') else { break };
+        let Some(end) = rest[at..].find('}') else {
+            rest = &rest[at..];
+            break;
+        };
         let token = &rest[at + 1..at + end];
         match token {
             "ms" => out.push_str(&now_ms.to_string()),
@@ -686,7 +703,7 @@ impl Expr {
         out.push(self);
         match self {
             Expr::Join { parts, .. } => parts.iter().for_each(|p| p.gather(into_digests, out)),
-            Expr::Slice { of, .. } | Expr::Piece { of, .. } | Expr::Written { of, .. } | Expr::Wrapped { of, .. } | Expr::Unwrapped { of, .. } | Expr::Format { of, .. } => of.gather(into_digests, out),
+            Expr::Slice { of, .. } | Expr::Else { of, .. } | Expr::Piece { of, .. } | Expr::Written { of, .. } | Expr::Wrapped { of, .. } | Expr::Unwrapped { of, .. } | Expr::Format { of, .. } => of.gather(into_digests, out),
             Expr::Swap { within, now, .. } => {
                 within.gather(into_digests, out);
                 now.gather(into_digests, out);
@@ -727,7 +744,7 @@ impl Expr {
             }
             Expr::Lookup { fits: Fits::Equals { is, .. } | Fits::Holds { is, .. }, .. } => is.rename_steps(rename),
             Expr::Join { parts, .. } => parts.iter_mut().for_each(|p| p.rename_steps(rename)),
-            Expr::Slice { of, .. } | Expr::Piece { of, .. } | Expr::Written { of, .. } | Expr::Wrapped { of, .. } | Expr::Unwrapped { of, .. } | Expr::Hash { of, .. } | Expr::Format { of, .. } => of.rename_steps(rename),
+            Expr::Slice { of, .. } | Expr::Else { of, .. } | Expr::Piece { of, .. } | Expr::Written { of, .. } | Expr::Wrapped { of, .. } | Expr::Unwrapped { of, .. } | Expr::Hash { of, .. } | Expr::Format { of, .. } => of.rename_steps(rename),
             Expr::Swap { within, now, .. } => {
                 within.rename_steps(rename);
                 now.rename_steps(rename);
@@ -779,7 +796,7 @@ impl Expr {
             Expr::Slot { .. } | Expr::Given { .. } | Expr::File { .. } => f(self),
             Expr::Pick { fits: Fits::Equals { is, .. } | Fits::Holds { is, .. }, .. } | Expr::Lookup { fits: Fits::Equals { is, .. } | Fits::Holds { is, .. }, .. } => is.each_slot(f),
             Expr::Join { parts, .. } => parts.iter_mut().for_each(|p| p.each_slot(f)),
-            Expr::Slice { of, .. } | Expr::Piece { of, .. } | Expr::Written { of, .. } | Expr::Wrapped { of, .. } | Expr::Unwrapped { of, .. } | Expr::Hash { of, .. } | Expr::Format { of, .. } => of.each_slot(f),
+            Expr::Slice { of, .. } | Expr::Else { of, .. } | Expr::Piece { of, .. } | Expr::Written { of, .. } | Expr::Wrapped { of, .. } | Expr::Unwrapped { of, .. } | Expr::Hash { of, .. } | Expr::Format { of, .. } => of.each_slot(f),
             Expr::Swap { within, now, .. } => {
                 within.each_slot(f);
                 now.each_slot(f);
@@ -893,6 +910,10 @@ impl Expr {
                 }
                 Is(out.join(with))
             }
+            Expr::Else { of, or } => match of.eval(cx)? {
+                Absent => Is(or.clone()),
+                other => other,
+            },
             Expr::Slice { of, from, len } => match of.eval(cx)? {
                 Is(v) => {
                     let piece: String = v.chars().skip(*from).take(*len).collect();
@@ -942,10 +963,32 @@ impl Expr {
                     None => Is(value),
                 }
             }
-            Expr::Hash { algo, of } => match of.eval(cx)? {
-                Is(v) => Is(algo.hash(&v)),
-                other => other,
-            },
+            Expr::Hash { algo, of } => {
+                // A digest over a cookie the request doesn't carry yet is over nothing in its place, as a page's own code
+                // signs before its session holds the token: a gateway that issues its own token answers that call with
+                // it, and the node signs again with what it handed over. Only inside a digest: a cookie read for its
+                // own value is still missing.
+                let absent: Vec<String> = match cx.sent {
+                    Some(built) => of
+                        .all()
+                        .into_iter()
+                        .filter_map(|e| match e {
+                            Expr::Sent { part: Sent::Cookie(name) } if built.part(&Sent::Cookie(name.clone())).is_none() => Some(name.clone()),
+                            _ => None,
+                        })
+                        .collect(),
+                    None => Vec::new(),
+                };
+                let blank = cx.sent.filter(|_| !absent.is_empty()).map(|built| built.with_blank_cookies(&absent));
+                let made = match &blank {
+                    Some(built) => of.eval(&mut Cx { world: &mut *cx.world, host: cx.host, sent: Some(built) })?,
+                    None => of.eval(cx)?,
+                };
+                match made {
+                    Is(v) => Is(algo.hash(&v)),
+                    other => other,
+                }
+            }
             Expr::Hmac { algo, key, of } => match (key.eval(cx)?, of.eval(cx)?) {
                 (Is(k), Is(v)) => Is(algo.keyed(&k, &v)),
                 (Is(_), other) | (other, _) => other,
@@ -984,5 +1027,362 @@ impl Expr {
                 (Is(_), other) | (other, _) => other,
             },
         })
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    /// A world that answers from tables a test fills in, and, like the node's default world, runs no program and holds
+    /// no storage or list until a test gives it one. `fill`'s tests use it too.
+    #[derive(Default)]
+    pub(crate) struct Desk {
+        slots: HashMap<String, String>,
+        jar: HashMap<String, String>,
+        lists: HashMap<(String, String), Vec<serde_json::Value>>,
+        answered: Vec<String>,
+        program: Option<String>,
+    }
+
+    impl Desk {
+        /// A desk that knows only what the caller wrote.
+        pub(crate) fn saying(pairs: &[(&str, &str)]) -> Desk {
+            Desk { slots: pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), ..Desk::default() }
+        }
+    }
+
+    impl World for Desk {
+        fn slot(&self, name: &str) -> Option<String> {
+            self.slots.get(name).cloned()
+        }
+        fn cookie(&self, name: &str) -> Option<String> {
+            self.jar.get(name).cloned()
+        }
+        fn read(&self, _step: &str, _at: &At) -> Option<String> {
+            None
+        }
+        fn answered(&self, step: &str) -> bool {
+            self.answered.iter().any(|s| s == step)
+        }
+        fn fresh(&mut self, _id: &str, _clock: Clock) -> String {
+            "id".into()
+        }
+        fn now_ms(&self) -> u64 {
+            1_700_000_000_000
+        }
+        fn digits(&mut self, n: usize) -> String {
+            "4".repeat(n)
+        }
+        fn file(&self, named: &str, _fact: FileFact) -> Result<String, String> {
+            Err(format!("{named} is unreadable"))
+        }
+        fn same_site(&self, a: &str, b: &str) -> bool {
+            a == b
+        }
+        fn list(&self, step: &str, pointer: &str) -> Option<Vec<serde_json::Value>> {
+            self.lists.get(&(step.to_string(), pointer.to_string())).cloned()
+        }
+        fn program(&mut self, _source: &str, _sent: &Built) -> Option<String> {
+            self.program.clone()
+        }
+    }
+
+    fn expr(v: serde_json::Value) -> Expr {
+        serde_json::from_value(v).expect("an expression")
+    }
+
+    fn eval(e: &Expr, world: &mut Desk) -> Result<Outcome, Why> {
+        e.eval(&mut Cx { world, host: None, sent: None })
+    }
+
+    fn says(e: &Expr, world: &mut Desk) -> String {
+        match eval(e, world) {
+            Ok(Outcome::Is(v)) => v,
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// An expression that reads a step, a slot and a list in every shape an expression nests them, so a rename that
+    /// skips one shape leaves a name behind.
+    fn nested() -> Expr {
+        let read = |step: &str| json!({ "op": "read", "step": step, "at": { "from": "json", "pointer": "/x" } });
+        let slot = |name: &str| json!({ "op": "slot", "name": name });
+        expr(json!({ "op": "join", "parts": [
+            read("a"),
+            { "op": "slice", "of": slot("s1"), "from": 0, "len": 1 },
+            { "op": "piece", "of": slot("s2"), "split": ",", "index": 0 },
+            { "op": "swap", "within": read("b"), "was": "w", "now": slot("s3") },
+            { "op": "hmac", "algo": "sha1", "key": read("c"), "of": slot("s4") },
+            { "op": "solve", "algo": "md5", "before": read("d"), "after": slot("s5"), "zeros": 1 },
+            { "op": "program_reading", "source": "return 1", "reads": [{ "read": { "of": "cookie", "key": "k" }, "from": read("e") },
+                                                                        { "read": { "of": "local", "key": "k" }, "from": slot("s6") }] },
+            { "op": "pick", "step": "f", "list": "/l", "fits": { "when": "equals", "at": "/id", "is": read("g") }, "take": "" },
+            { "op": "lookup", "rows": [], "fits": { "when": "holds", "at": "/id", "is": slot("s7") }, "take": "" },
+            { "op": "nothing", "after": "h" },
+            { "op": "hash", "algo": "md5", "of": slot("s8") },
+            { "op": "format", "of": slot("s9"), "read": { "as": "time", "form": "{yyyy}" }, "write": { "as": "time", "form": "{yy}" } },
+            { "op": "written", "of": slot("s10"), "how": "upper" },
+            { "op": "wrapped", "of": slot("s11"), "how": "base64" },
+            { "op": "unwrapped", "of": slot("s12"), "how": "base64" },
+            { "op": "file", "slot": "s13", "fact": "name" },
+        ] }))
+    }
+
+    /// Steps and slots renamed reach into every shape an expression nests, and only the names asked for change, so a
+    /// body whose steps are numbered otherwise still reads from the replies it read from.
+    #[test]
+    fn every_nested_read_and_slot_is_renamed_where_it_sits() {
+        let e = nested();
+        let mut steps = e.reads();
+        steps.sort_unstable();
+        assert_eq!(steps, ["a", "b", "c", "d", "e", "f", "g", "h"]);
+        let moved = e.with_steps_renamed(&|s| format!("{s}2"));
+        let mut now = moved.reads();
+        now.sort_unstable();
+        assert_eq!(now, ["a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2"]);
+        assert_eq!(e.reads().len(), 8, "the original is left as it was");
+
+        let mut slots = e.slots();
+        slots.sort_unstable();
+        assert_eq!(slots, ["s1", "s10", "s11", "s12", "s13", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9"]);
+        let renamed = e.with_slots_renamed(&|n| (n != "s1").then(|| format!("{n}_x")));
+        let mut now = renamed.slots();
+        now.sort_unstable();
+        assert_eq!(now, ["s1", "s10_x", "s11_x", "s12_x", "s13_x", "s2_x", "s3_x", "s4_x", "s5_x", "s6_x", "s7_x", "s8_x", "s9_x"]);
+        let files: Vec<&Expr> = renamed.all().into_iter().filter(|e| matches!(e, Expr::File { .. })).collect();
+        assert!(matches!(files[0], Expr::File { slot, .. } if slot == "s13_x"), "a file's slot is a slot");
+    }
+
+    /// A secret's slot keeps nothing of what the walk sent, wherever the slot sits; another slot keeps its word.
+    #[test]
+    fn a_secrets_walked_value_is_dropped_wherever_its_slot_sits() {
+        let e = expr(json!({ "op": "join", "parts": [
+            { "op": "slot", "name": "pw", "or": "hunter2" },
+            { "op": "swap", "within": { "op": "text", "is": "t" }, "was": "t", "now": { "op": "slot", "name": "pw", "or": "hunter2" } },
+            { "op": "hash", "algo": "md5", "of": { "op": "slot", "name": "q", "or": "lamp" } },
+        ] }));
+        let kept = e.with_no_walked_value_for(&|n| n == "pw");
+        let walked: Vec<Option<String>> = kept.all().into_iter().filter_map(|e| match e { Expr::Slot { or, .. } => Some(or.clone()), _ => None }).collect();
+        assert_eq!(walked, [None, None, Some("lamp".to_string())]);
+        assert!(!serde_json::to_string(&kept).unwrap().contains("hunter2"));
+    }
+
+    /// A program is the route's private code, and the expression says so wherever it sits: bare, inside a digest, a
+    /// join, a pick's condition or a fed program's own reads. An expression of plain operations never does.
+    #[test]
+    fn an_expression_with_a_program_inside_says_it_holds_code() {
+        let program = json!({ "op": "program", "source": "return 1" });
+        let fed = json!({ "op": "program_reading", "source": "return 2", "reads": [] });
+        for held in [
+            program.clone(),
+            fed.clone(),
+            json!({ "op": "hash", "algo": "md5", "of": program.clone() }),
+            json!({ "op": "join", "parts": [{ "op": "text", "is": "a" }, fed.clone()] }),
+            json!({ "op": "pick", "step": "s", "list": "/l", "fits": { "when": "equals", "at": "/id", "is": program.clone() }, "take": "" }),
+        ] {
+            assert!(expr(held.clone()).holds_code(), "{held}");
+        }
+        assert!(nested().holds_code(), "the nested one holds a fed program");
+        assert!(!expr(json!({ "op": "hash", "algo": "sha1", "of": { "op": "text", "is": "a" } })).holds_code());
+    }
+
+    /// Every reason a hole could not be filled says it in words an agent can act on, naming what was missing.
+    #[test]
+    fn every_reason_a_hole_could_not_be_filled_is_said_in_words() {
+        let at = Some(Place::Query("q".into()));
+        let said = |why: Why| Stuck { at: at.clone(), why }.to_string();
+        let cases = [
+            (Why::Slot("q".into()), "the caller must give q"),
+            (Why::Source { step: "s1".into() }, "step s1's reply does not hold it"),
+            (Why::Short, "too short"),
+            (Why::Unbuilt, "before the request is built"),
+            (Why::NotSent("Path".into()), "it reads Path, which the request does not carry"),
+            (Why::File { slot: "f".into(), reason: "gone".into() }, "the file given as f: gone"),
+            (Why::NotWrapped, "not a text encoded"),
+            (Why::Needs(2), "a maker of rung 2"),
+            (Why::Body, "the step's body cannot be built"),
+            (Why::Breaks { part: "body".into() }, "a value in part body holds the body's own boundary"),
+            (Why::BadUrl("empty".into()), "the address does not read: empty"),
+            (Why::OtherOrigin { own: "a.example".into(), to: "b.example".into() }, "handed a.example over to b.example"),
+            (Why::Gap, "a list with a gap"),
+            (Why::NotListed("Oslo".into()), "lists nothing that fits \"Oslo\""),
+            (Why::Unread("x".into()), "\"x\" does not read as the date"),
+        ];
+        for (why, wants) in cases {
+            let text = said(why.clone());
+            assert!(text.starts_with("query q: ") && text.contains(wants), "{why:?}: {text}");
+        }
+        assert_eq!(Stuck { at: None, why: Why::Gap }.to_string(), "a value in a list could not be made, and a list with a gap is another request");
+    }
+
+    /// What a program reads of the page is named for a person the way the page would name it.
+    #[test]
+    fn what_a_program_reads_of_the_page_is_named_plainly() {
+        assert_eq!(Reach::Cookie("sid".into()).to_string(), "the cookie sid");
+        assert_eq!(Reach::Local("k".into()).to_string(), "localStorage k");
+        assert_eq!(Reach::Session("k".into()).to_string(), "sessionStorage k");
+        assert_eq!(Reach::Navigator("language".into()).to_string(), "navigator.language");
+    }
+
+    /// A world that says nothing more than it must reads no list, no storage and no program, and sends a cookie only to
+    /// a host the step names: a pick has nothing to pick from, a program has no maker, a stored value is nowhere.
+    #[test]
+    fn a_world_that_says_little_holds_no_list_no_storage_and_no_program() {
+        struct Bare;
+        impl World for Bare {
+            fn slot(&self, _: &str) -> Option<String> { None }
+            fn cookie(&self, name: &str) -> Option<String> { Some(format!("{name}=jar")) }
+            fn read(&self, _: &str, _: &At) -> Option<String> { None }
+            fn answered(&self, _: &str) -> bool { false }
+            fn fresh(&mut self, _: &str, _: Clock) -> String { String::new() }
+            fn now_ms(&self) -> u64 { 0 }
+            fn digits(&mut self, n: usize) -> String { "0".repeat(n) }
+            fn file(&self, _: &str, _: FileFact) -> Result<String, String> { Err(String::new()) }
+            fn same_site(&self, _: &str, _: &str) -> bool { false }
+        }
+        let mut world = Bare;
+        assert_eq!(world.cookie_for("sid", Some("shop.example")).as_deref(), Some("sid=jar"));
+        assert_eq!(world.cookie_for("sid", None), None, "a host built at call time gets no jar's cookie");
+        assert_eq!(world.stored(Area::Local, "k"), None);
+        assert_eq!(world.list("s", "/l"), None);
+        let built = Built { method: "GET".into(), url: "https://shop.example/a".parse().unwrap(), headers: vec![], body: None, made: vec![] };
+        assert_eq!(world.program("return 1", &built), None);
+        assert_eq!(world.program_reading("return 1", &built, &[]), None);
+        // So an expression that needs one of them stops, and says it needs a maker.
+        let mut cx = Cx { world: &mut world, host: None, sent: Some(&built) };
+        assert_eq!(expr(json!({ "op": "program", "source": "return 1" })).eval(&mut cx), Err(Why::Needs(2)));
+        assert_eq!(expr(json!({ "op": "program_reading", "source": "return 1", "reads": [{ "read": { "of": "navigator", "key": "language" }, "from": { "op": "text", "is": "en" } }] })).eval(&mut cx), Err(Why::Needs(2)));
+        assert_eq!(expr(json!({ "op": "pick", "step": "s", "list": "/l", "fits": { "when": "equals", "at": "/id", "is": { "op": "text", "is": "1" } }, "take": "" })).eval(&mut cx), Err(Why::Source { step: "s".into() }));
+    }
+
+    /// A list's item is picked by what its field says, as text whatever the leaf's kind: an equal number or flag, a
+    /// held word in any case; an item whose field is a list or object, or is missing, never fits.
+    #[test]
+    fn a_pick_reads_numbers_and_flags_as_the_text_a_request_sends() {
+        let mut desk = Desk::default();
+        desk.lists.insert(("s".into(), "/l".into()), vec![
+            json!({ "id": { "no": 1 }, "n": "x" }),
+            json!({ "id": 7, "n": "Seven", "ok": true, "v": 2.5 }),
+            json!({ "n": "Eight", "id": 8 }),
+        ]);
+        let pick = |when: &str, at: &str, is: &str, take: &str| expr(json!({ "op": "pick", "step": "s", "list": "/l", "fits": { "when": when, "at": at, "is": { "op": "text", "is": is } }, "take": take }));
+        assert_eq!(says(&pick("equals", "/id", "7", "/n"), &mut desk), "Seven");
+        assert_eq!(says(&pick("equals", "/ok", "true", "/id"), &mut desk), "7");
+        assert_eq!(says(&pick("holds", "/n", "EIGHT", "/id"), &mut desk), "8");
+        assert_eq!(eval(&pick("equals", "/id", "8", ""), &mut desk), Err(Why::Short), "an item that is an object is no one text");
+        desk.lists.insert(("s".into(), "/t".into()), vec![json!("a"), json!("bb")]);
+        let word = expr(json!({ "op": "pick", "step": "s", "list": "/t", "fits": { "when": "equals", "at": "", "is": { "op": "text", "is": "bb" } }, "take": "" }));
+        assert_eq!(says(&word, &mut desk), "bb", "an item that is a text is its own text");
+        assert_eq!(eval(&pick("holds", "/n", "", "/id"), &mut desk), Err(Why::Source { step: "s".into() }), "an empty word holds nothing");
+        assert_eq!(eval(&pick("equals", "/id", "1", "/n"), &mut desk), Err(Why::Source { step: "s".into() }), "an object is no one text");
+        assert_eq!(eval(&pick("equals", "/id", "7", "/missing"), &mut desk), Err(Why::Short));
+        assert_eq!(eval(&pick("equals", "/nope", "7", "/n"), &mut desk), Err(Why::Source { step: "s".into() }));
+        assert_eq!(says(&pick("equals", "/id", "7", "/v"), &mut desk), "2.5");
+    }
+
+    /// A table the site ships gives the first row that fits; a word it lists nowhere stops the call and names the word.
+    #[test]
+    fn a_table_lookup_names_the_word_the_site_does_not_list() {
+        let table = |is: &str| expr(json!({ "op": "lookup", "rows": [{ "city": "Oslo", "code": "OSL" }, { "city": "Bergen", "code": "BGO" }],
+            "fits": { "when": "equals", "at": "/city", "is": { "op": "text", "is": is } }, "take": "/code" }));
+        let mut desk = Desk::default();
+        assert_eq!(says(&table("Bergen"), &mut desk), "BGO");
+        let long = "x".repeat(60);
+        assert_eq!(eval(&table(&long), &mut desk), Err(Why::NotListed("x".repeat(40))), "a long word is cut in the message");
+    }
+
+    /// Operations carry what is missing upward unchanged: a part the caller left unset leaves the whole unset, and a
+    /// value that can't be cut as asked says so, so no call goes out with half a value.
+    #[test]
+    fn an_operation_over_a_missing_value_is_missing_and_one_over_a_short_value_stops() {
+        let unset = json!({ "op": "slot", "name": "opt", "optional": true });
+        let mut desk = Desk::default();
+        for op in [
+            json!({ "op": "slice", "of": unset.clone(), "from": 0, "len": 1 }),
+            json!({ "op": "piece", "of": unset.clone(), "split": ",", "index": 0 }),
+            json!({ "op": "written", "of": unset.clone(), "how": "json" }),
+            json!({ "op": "wrapped", "of": unset.clone(), "how": "base64" }),
+            json!({ "op": "unwrapped", "of": unset.clone(), "how": "base64" }),
+            json!({ "op": "hash", "algo": "md5", "of": unset.clone() }),
+            json!({ "op": "format", "of": unset.clone(), "read": { "as": "time", "form": "{yyyy}" }, "write": { "as": "time", "form": "{yy}" } }),
+            json!({ "op": "hmac", "algo": "md5", "key": { "op": "text", "is": "k" }, "of": unset.clone() }),
+            json!({ "op": "hmac", "algo": "md5", "key": unset.clone(), "of": { "op": "text", "is": "k" } }),
+            json!({ "op": "solve", "algo": "md5", "before": unset.clone(), "after": { "op": "text", "is": "" }, "zeros": 1 }),
+            json!({ "op": "solve", "algo": "md5", "before": { "op": "text", "is": "" }, "after": unset.clone(), "zeros": 1 }),
+            json!({ "op": "swap", "within": unset.clone(), "was": "a", "now": { "op": "text", "is": "b" } }),
+            json!({ "op": "join", "parts": [{ "op": "text", "is": "a" }, unset.clone()] }),
+        ] {
+            assert_eq!(eval(&expr(op.clone()), &mut desk), Ok(Outcome::Unset), "{op}");
+        }
+        let text = |s: &str| json!({ "op": "text", "is": s });
+        assert_eq!(eval(&expr(json!({ "op": "slice", "of": text("ab"), "from": 1, "len": 5 })), &mut desk), Err(Why::Short));
+        assert_eq!(eval(&expr(json!({ "op": "piece", "of": text("a,b"), "split": ",", "index": 2 })), &mut desk), Err(Why::Short));
+        assert_eq!(eval(&expr(json!({ "op": "unwrapped", "of": text("not base64!"), "how": "base64" })), &mut desk), Err(Why::NotWrapped));
+        assert_eq!(eval(&expr(json!({ "op": "format", "of": text("soon"), "read": { "as": "time", "form": "{yyyy}" }, "write": { "as": "time", "form": "{yy}" } })), &mut desk), Err(Why::Unread("soon".into())));
+        assert_eq!(eval(&expr(json!({ "op": "solve", "algo": "md5", "before": text(""), "after": text(""), "zeros": 7 })), &mut desk), Err(Why::Needs(2)), "more work than a call waits for");
+    }
+
+    /// Values are made as a site makes them: wrapped and unwrapped base64, a keyed digest, a search for leading zeros,
+    /// a date said in another form, a stamp from the clock and chance, a file the caller named.
+    #[test]
+    fn values_are_made_the_way_a_page_makes_them() {
+        let text = |s: &str| json!({ "op": "text", "is": s });
+        let mut desk = Desk::default();
+        assert_eq!(says(&expr(json!({ "op": "wrapped", "of": text("hi"), "how": "base64_url_no_pad" })), &mut desk), "aGk");
+        assert_eq!(says(&expr(json!({ "op": "unwrapped", "of": text("aGk="), "how": "base64" })), &mut desk), "hi");
+        assert_eq!(says(&expr(json!({ "op": "hmac", "algo": "sha256", "key": text("k"), "of": text("v") })), &mut desk), Algo::Sha256.keyed("k", "v"));
+        assert_eq!(Algo::Sha256.keyed("k", "v").len(), 64);
+        assert_eq!(Algo::Md5.keyed("k", "v").len(), 32);
+        assert_eq!(Algo::Sha1.keyed("k", "v").len(), 40);
+        let found = says(&expr(json!({ "op": "solve", "algo": "sha1", "before": text("ab"), "after": text("cd"), "zeros": 1 })), &mut desk);
+        let n: u64 = found.parse().unwrap();
+        assert!(leading_zeros(&Algo::Sha1.hash(&format!("ab{n}cd"))) >= 1);
+        assert!((0..n).all(|m| leading_zeros(&Algo::Sha1.hash(&format!("ab{m}cd"))) < 1), "the least count");
+        assert_eq!(says(&expr(json!({ "op": "format", "of": text("2026"), "read": { "as": "time", "form": "{yyyy}" }, "write": { "as": "time", "form": "{yy}" } })), &mut desk), "26");
+        assert_eq!(says(&expr(json!({ "op": "stamp", "form": "{s}-{d3}-{x}" })), &mut desk), "1700000000-444-{x}");
+        assert_eq!(says(&expr(json!({ "op": "fresh", "id": "a", "clock": "millis" })), &mut desk), "id");
+        assert_eq!(eval(&expr(json!({ "op": "file", "slot": "up", "fact": "size" })), &mut desk), Err(Why::Slot("up".into())));
+        desk.slots.insert("up".into(), "/tmp/a.txt".into());
+        assert_eq!(eval(&expr(json!({ "op": "file", "slot": "up", "fact": "size" })), &mut desk), Err(Why::File { slot: "up".into(), reason: "/tmp/a.txt is unreadable".into() }));
+        assert_eq!(eval(&expr(json!({ "op": "given", "name": "nobody" })), &mut desk), Err(Why::Slot("nobody".into())));
+        assert_eq!(eval(&expr(json!({ "op": "stored", "area": "local", "key": "k" })), &mut desk), Ok(Outcome::Absent));
+        assert_eq!(eval(&expr(json!({ "op": "cookie", "name": "sid" })), &mut desk), Ok(Outcome::Absent));
+        assert_eq!(eval(&expr(json!({ "op": "nothing", "after": "s1" })), &mut desk), Err(Why::Source { step: "s1".into() }));
+        desk.answered.push("s1".into());
+        assert_eq!(eval(&expr(json!({ "op": "nothing", "after": "s1" })), &mut desk), Ok(Outcome::Absent));
+        assert_eq!(eval(&expr(json!({ "op": "sent", "part": { "of": "path" } })), &mut desk), Err(Why::Unbuilt));
+    }
+
+    /// A word the walk sent is replaced by the caller's where it stands whole, never inside a longer word; a word that
+    /// stands only inside another is replaced only when it is the one place it occurs, and an empty one replaces nothing.
+    #[test]
+    fn a_word_is_swapped_where_it_stands_whole_and_a_stamp_keeps_what_it_does_not_know() {
+        assert_eq!(swapped("address addressed", "dress", "x"), "address addressed", "a word inside longer words, twice, is nowhere the walk's stood");
+        assert_eq!(swapped("a red b red", "red", "blue"), "a blue b blue");
+        assert_eq!(swapped("one address", "dress", "x"), "one adx", "the one place a word occurs is where the walk's stood");
+        assert_eq!(swapped("keep", "", "x"), "keep");
+        assert!(stands_as_a_word("{\"q\":\"search\"}", "search") && !stands_as_a_word("search_params", "search") && !stands_as_a_word("a", ""));
+        let mut digits = |n: usize| "9".repeat(n);
+        assert_eq!(stamped("t{ms}|{s}|{d2}|{dx}", 5000, &mut digits), "t5000|5|99|{dx}");
+    }
+
+    /// A stamp whose last brace is never closed keeps the text after its last token once, as it was written.
+    #[test]
+    fn a_stamp_with_an_unclosed_brace_keeps_the_text_once() {
+        let mut digits = |n: usize| "9".repeat(n);
+        assert_eq!(stamped("t{ms}|{open", 5000, &mut digits), "t5000|{open");
+        assert_eq!(stamped("a{b", 5000, &mut digits), "a{b");
+    }
+
+    /// A body names only the expressions this node knows: one that names another does not read, and one with a
+    /// field it does not know does not either, so nothing half understood ever runs.
+    #[test]
+    fn an_expression_this_node_does_not_know_does_not_read() {
+        assert!(serde_json::from_value::<Expr>(json!({ "op": "eval", "code": "1+1" })).is_err());
+        assert!(serde_json::from_value::<Expr>(json!({ "op": "text", "is": "a", "run": "rm -rf" })).is_err());
+        assert!(serde_json::from_value::<Fits>(json!({ "when": "matches", "at": "/a", "is": { "op": "text", "is": "a" } })).is_err());
     }
 }

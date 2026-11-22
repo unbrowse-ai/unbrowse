@@ -99,9 +99,6 @@ pub struct InvocationRecord {
     pub tool_name: String,
     pub frame_id: String,
     pub origin: String,
-    /// The CDP session of the page the tool runs in. The tool lives and dies with that page, and a cancel goes there, not
-    /// to whichever tab is active by then.
-    pub page_session: String,
     pub status: String,
     pub raw_status: Option<String>,
     pub result: Option<Value>,
@@ -124,7 +121,6 @@ impl InvocationRecord {
             tool_name,
             frame_id,
             origin,
-            page_session: String::new(),
             status: "pending".to_string(),
             raw_status: None,
             result: None,
@@ -134,11 +130,6 @@ impl InvocationRecord {
             started_at: Instant::now(),
             finished_at: None,
         }
-    }
-
-    pub fn on_page(mut self, session_id: &str) -> Self {
-        self.page_session = session_id.to_string();
-        self
     }
 
     pub fn is_terminal(&self) -> bool {
@@ -477,25 +468,9 @@ impl RuntimeState {
         self.early_order.clear();
     }
 
-    /// A new document or a closed tab ends the calls running in that page and no other: a tool on another tab, another
-    /// session's in a browser sessions share, is still running.
     pub fn clear_page_scope(&mut self, session_id: &str) {
-        self.fail_invocations_where(|page| page == session_id);
+        self.clear_invocations();
         self.clear_page_tools(session_id);
-    }
-
-    /// Fail what is pending on pages no longer open. Closing a tab drops its session before `Target.targetDestroyed`
-    /// arrives, so that event can't name it.
-    pub fn clear_closed_pages(&mut self, is_open: impl Fn(&str) -> bool) {
-        self.fail_invocations_where(|page| !is_open(page));
-    }
-
-    fn fail_invocations_where(&mut self, ended: impl Fn(&str) -> bool) {
-        for record in self.invocations.values_mut() {
-            if !record.is_terminal() && ended(&record.page_session) {
-                record.mark_context_changed();
-            }
-        }
     }
 
     pub fn clear_page_tools(&mut self, session_id: &str) {
@@ -708,28 +683,6 @@ fn bounded_value(value: &Value, cap: usize) -> (Value, bool, usize) {
 
 #[cfg(test)]
 mod tests {
-    /// A tool runs in its page: that page changing fails the call, and no other page's change does.
-    #[test]
-    fn a_page_changing_ends_only_the_calls_in_that_page() {
-        let mut state = RuntimeState::default();
-        for (id, page) in [("on-a", "page-a"), ("on-b", "page-b")] {
-            let record = InvocationRecord::pending(
-                id.to_string(),
-                "tool".to_string(),
-                "frame".to_string(),
-                "https://example.test".to_string(),
-            );
-            state.insert(record.on_page(page)).unwrap();
-        }
-
-        state.clear_page_scope("page-a");
-        assert_eq!(state.invocations["on-a"].status, "failed");
-        assert_eq!(state.invocations["on-b"].status, "pending");
-
-        state.clear_closed_pages(|page| page == "page-a");
-        assert_eq!(state.invocations["on-b"].status, "failed");
-    }
-
     #[test]
     fn summaries_only_emit_changes_and_clear_stale_context_once() {
         let mut state = RuntimeState::default();

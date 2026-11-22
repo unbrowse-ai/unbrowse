@@ -24,7 +24,7 @@ const Slot = struct {
 };
 
 /// What an action's answer is for, so the app can take it.
-pub const Tag = enum { generic, settings, cash_out, call_route, agent_create, vault_reveal, vault_import, wallet_phrase, wallet_restore, open_link, card_limit, close };
+pub const Tag = enum { generic, settings, cash_out, call_route, agent_create, remote_key, vault_reveal, vault_import, wallet_phrase, wallet_restore, open_link, card_limit, agent_clients, agent_connect, agent_undo, link_start, close };
 
 /// An action's name while it runs. Long enough for the labels made of a site and an account.
 const Label = struct {

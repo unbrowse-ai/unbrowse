@@ -48,9 +48,16 @@ class RootWatch(unittest.TestCase):
         sign = next(i for i, step in enumerate(steps) if "updates.mjs release" in step.get("run", ""))
         self.assertLess(check, sign)
 
-    def test_release_check_runs_root_check_for_release_script_pull_requests(self):
-        release_check = yaml.safe_load((WORKFLOWS / "release-check.yml").read_text())
-        steps = release_check["jobs"]["scripts"]["steps"]
+    def test_ci_runs_root_check_and_this_folder_for_every_pull_request(self):
+        ci = yaml.safe_load((WORKFLOWS / "ci.yml").read_text())
+        triggers = ci.get(True, ci.get("on", {}))
+        self.assertIn("pull_request", triggers)
+        self.assertNotIn("paths", triggers["pull_request"] or {})
+        steps = ci["jobs"]["papers"]["steps"]
+        runs = [step.get("run", "") for step in steps]
+        self.assertTrue(any("unittest discover -s .github/scripts/test -p 'test_*.py'" in run for run in runs))
+        self.assertTrue(any("node --test .github/scripts/test/*.test.mjs" in run for run in runs))
+        self.assertTrue(any("check_signing_jobs.py" in run for run in runs))
         self.assertTrue(any("updates.mjs root-check" in step.get("run", "") and "--main-updates" in step.get("run", "") for step in steps))
 
 

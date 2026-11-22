@@ -1,0 +1,265 @@
+# The installers, in one run, attached to a draft GitHub release that nobody sees until a person publishes it:
+#
+#   macOS    Unbrowse-<version>-macos-arm64.dmg (Apple silicon; no Intel build), the app to drag onto Applications (package-macos.sh)
+#   Windows  Unbrowse-<version>-windows-x64-setup.exe, a per-user installer with a Start menu entry and an uninstaller
+#            (package-windows-installer.sh, .github/installers/windows/unbrowse.nsi)
+#   Linux    unbrowse_<version>_amd64.deb and _arm64.deb, for Debian, Ubuntu and their family (package-linux-deb.sh)
+#
+# with SHA256SUMS and every file's SHA-256 in the release notes. It builds what release.yml builds, from the same
+# commit, on the same fresh machines, and holds no key: the Mac app is signed ad hoc and nothing is
+# notarized, nothing goes to npm or PyPI, and no update metadata is written. A build here doesn't update itself
+# (UNBROWSE_RELEASE is unset), so a tester's copy stays the one they installed. The draft's tag is v<X.Y.Z>-installers.<run>,
+# which release.yml's tag trigger (vX.Y.Z alone) never matches, so publishing the draft releases nothing else.
+#
+# Run it by pushing a branch named installers/<anything>, or by hand (workflow_dispatch) on any branch once this file
+# is on main.
+name: Installers
+
+on:
+  push:
+    branches: ["installers/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: installers-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  version:
+    permissions:
+      contents: read
+    name: Version
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      sha: ${{ steps.next.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every branch and tag: the version counts from them.
+          fetch-depth: 0
+          persist-credentials: false
+      # The version staging would get next (one minor above the newest release branch or tag), marked as an installer
+      # build: X.Y.0-installers.N.
+      - id: next
+        env:
+          RUN: ${{ github.run_number }}
+        run: |
+          staging=$(sh .github/scripts/release-version.sh refs/heads/staging "$RUN")
+          version="${staging%-staging.*}-installers.$RUN"
+          { echo "version=$version"; echo "sha=$(git rev-parse HEAD)"; } >> "$GITHUB_OUTPUT"
+          echo "Installers $version from $(git rev-parse HEAD)"
+
+  # The programs for each machine, built on it, as release.yml's programs job builds them; a Mac's packed into its disk
+  # image here, signed ad hoc.
+  programs:
+    permissions:
+      contents: read
+    name: Programs (${{ matrix.platform }})
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-15 }
+          # Ubuntu 22.04's glibc (2.35) is the oldest a Linux machine needs; the .deb depends on it.
+          - { platform: linux-x64, runner: blacksmith-4vcpu-ubuntu-2204 }
+          - { platform: linux-arm64, runner: blacksmith-4vcpu-ubuntu-2204-arm }
+          - { platform: win32-x64, runner: blacksmith-4vcpu-windows-2025 }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      EXE: ${{ startsWith(matrix.platform, 'win32') && '.exe' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+      # No cache, as in release.yml: a cache's key names its inputs, not what was saved under it.
+      - working-directory: unbrowse-node
+        run: sh scripts/apply-tls-patch.sh
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.17.0
+          use-cache: false
+
+      # The node reports its version from the workspace's; the lockfile's entries for the workspace's own crates follow
+      # it, so the build stays --locked to every other dependency (release.yml does the same).
+      - name: Build the node and unb
+        working-directory: unbrowse-node
+        env:
+          UNBROWSE_DEFAULT_CHAIN: ${{ vars.UNBROWSE_DEFAULT_CHAIN || 'arc-testnet' }}
+          UNBROWSE_SITE: ${{ vars.UNBROWSE_SITE }}
+          UNBROWSE_SHARE_DEFAULT: ${{ vars.UNBROWSE_SHARE_DEFAULT }}
+        run: |
+          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml && rm Cargo.toml.bak
+          grep -qx "version = \"$VERSION\"" Cargo.toml
+          py=$(command -v python3 || command -v python)
+          cargo metadata --no-deps --offline --format-version 1 | "$py" -c '
+          import json, re, sys
+          version = sys.argv[1]
+          ours = {p["name"] for p in json.load(sys.stdin)["packages"] if p["version"] == version}
+          lock = open("Cargo.lock").read()
+          entry = re.compile(r"(\[\[package\]\]\nname = \"([^\"]+)\"\nversion = \")[^\"]+(\"\n)(?!source = )")
+          new = entry.sub(lambda m: m.group(1) + version + m.group(3) if m.group(2) in ours else m.group(0), lock)
+          open("Cargo.lock", "w", newline="\n").write(new)
+          ' "$VERSION"
+          cargo build --release --locked --bin unbrowse-node --bin unb
+      - name: Build the browser
+        working-directory: unbrowse-browser/cli
+        run: cargo build --release --locked
+
+      - if: startsWith(matrix.platform, 'darwin')
+        name: Build Unbrowse.app
+        working-directory: unbrowse-node/window
+        # A bundle's version is numbers alone (CFBundleShortVersionString): a prerelease's is its X.Y.Z.
+        run: zig build app -Doptimize=ReleaseSafe -Dcpu=baseline -Dversion="${VERSION%%-*}"
+      - if: startsWith(matrix.platform, 'darwin')
+        name: Pack the disk image (signed ad hoc)
+        run: |
+          mkdir -p mac dist
+          sh .github/scripts/package-macos.sh "$VERSION" mac
+          mv mac/*.dmg dist/
+      - if: ${{ !startsWith(matrix.platform, 'darwin') }}
+        name: Build the window
+        working-directory: unbrowse-node/window
+        # -Dcpu=baseline: Zig builds for the build machine's own processor unless told, and a window built for a newer
+        # one dies on start with an illegal instruction on an older one (0xc000001d on Windows runners, Nov 2026).
+        run: zig build -Doptimize=ReleaseSafe -Dcpu=baseline
+      - if: ${{ !startsWith(matrix.platform, 'darwin') }}
+        name: Pack the programs
+        run: sh .github/scripts/package-programs.sh "$VERSION" "${{ matrix.platform }}" dist
+
+      - name: Check the programs run
+        run: |
+          # unb says its usage and exits 2.
+          { UNBROWSE_AGENT_TOKEN=check unbrowse-node/target/release/unb$EXE 2>&1 || true; } | grep -q '^usage: unb'
+          unbrowse-browser/cli/target/release/agent-browser$EXE --version
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: programs-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  # The Windows installer and the Linux packages, packed from the programs on Linux, and the hash of every file the
+  # draft will carry, as a job output the draft checks its downloads against. No secret and no write permission.
+  installers:
+    permissions:
+      contents: read
+    name: Installers
+    needs: [version, programs]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      sums: ${{ steps.sums.outputs.sums }}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: programs-*
+          path: programs
+          merge-multiple: true
+      - name: Install makensis
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq nsis
+      - name: Pack the installers
+        run: |
+          mkdir -p installers
+          cp "programs/Unbrowse-$VERSION-macos-arm64.dmg" installers/
+          sh .github/scripts/package-windows-installer.sh "$VERSION" "programs/unbrowse-$VERSION-windows-x64.zip" installers
+          for arch in x64 arm64; do
+            sh .github/scripts/package-linux-deb.sh "$VERSION" "programs/unbrowse-$VERSION-linux-$arch.tar.gz" installers
+          done
+          # One of each, or the draft doesn't happen.
+          test -f "installers/Unbrowse-$VERSION-windows-x64-setup.exe"
+          test -f "installers/unbrowse_${VERSION}_amd64.deb"
+          test -f "installers/unbrowse_${VERSION}_arm64.deb"
+          ls -l installers
+      - name: Hash every file
+        id: sums
+        run: |
+          (cd installers && sha256sum -- * > SHA256SUMS && cat SHA256SUMS)
+          { echo "sums<<SUMS"; cat installers/SHA256SUMS; echo "SUMS"; } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installers
+          path: installers/*
+          if-no-files-found: error
+
+  # Each installer on a fresh machine of its kind, installed and opened as a person does: the window must start the node
+  # and the node's MCP must answer (installers-device-test.yml). No draft is made from an installer that fails.
+  device-test:
+    permissions:
+      contents: read
+      actions: read
+    name: Device test
+    needs: installers
+    uses: ./.github/workflows/installers-device-test.yml
+    with:
+      run-id: ${{ github.run_id }}
+
+  # The draft: every installer and SHA256SUMS, each file checked against the hash the installers job recorded. It runs
+  # nothing it downloads.
+  draft:
+    name: Draft release
+    needs: [version, installers, device-test]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      SHA: ${{ needs.version.outputs.sha }}
+      SUMS: ${{ needs.installers.outputs.sums }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: installers
+          path: installers
+      - name: Check every file against the installers job's hashes
+        run: |
+          cd installers
+          printf '%s\n' "$SUMS" > "$RUNNER_TEMP/expected"
+          cmp SHA256SUMS "$RUNNER_TEMP/expected"
+          sha256sum -c SHA256SUMS
+          test "$(ls | grep -vc '^SHA256SUMS$')" = "$(wc -l < SHA256SUMS)"
+      - name: Create the draft
+        run: |
+          cd installers
+          {
+            echo "Draft installers for Unbrowse $VERSION, built from $SHA. Not published."
+            echo
+            echo "- **macOS:** \`Unbrowse-$VERSION-macos-arm64.dmg\` (Apple silicon; there is no Intel Mac build). Open it and drag Unbrowse onto Applications. Signed ad hoc, not notarized: the first launch needs right-click, Open (or System Settings > Privacy & Security > Open Anyway)."
+            echo "- **Windows:** \`Unbrowse-$VERSION-windows-x64-setup.exe\`. Installs for your user alone (no administrator prompt) and opens Unbrowse when it finishes. Not code-signed: SmartScreen asks once (More info, Run anyway)."
+            echo "- **Linux:** \`unbrowse_${VERSION}_amd64.deb\` or \`_arm64.deb\`: \`sudo apt install ./unbrowse_${VERSION}_amd64.deb\`, then Unbrowse in the app menu or \`unbrowse-node\`. The window needs GTK 4."
+            echo
+            echo "Or with npm: \`npm install -g unbrowse\`."
+            echo
+            echo "## SHA-256"
+            echo
+            echo "| File | SHA-256 |"
+            echo "|---|---|"
+            while read -r sum file; do echo "| \`$file\` | \`$sum\` |"; done < SHA256SUMS
+            echo
+            echo "Check a download with \`sha256sum -c SHA256SUMS --ignore-missing\` (macOS: \`shasum -a 256 -c SHA256SUMS --ignore-missing\`)."
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --prerelease \
+            --target "$SHA" \
+            --title "Unbrowse $VERSION installers (draft)" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            "v$VERSION" -- *
+          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json isDraft,assets --jq '{isDraft, assets: [.assets[].name]}'

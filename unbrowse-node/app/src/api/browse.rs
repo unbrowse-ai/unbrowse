@@ -8,6 +8,10 @@ use super::*;
 /// browser still holds the session the route will run with.
 /// The browser made ready for `need` as `how` allows (`browsers::ensure`), else the failure saying what it lacks.
 pub(super) async fn ready(node: &Arc<Node>, need: crate::browsers::Need, how: crate::browsers::Use) -> Result<(), Fail> {
+    // A public peer never opens a browser, for anyone (`gateway.calls-only`): what needs one needs the caller's own node.
+    if crate::remote::public_home() || crate::remote::arrived_public() {
+        return Err((StatusCode::FORBIDDEN, crate::remote::NEEDS_OWN_NODE.into()));
+    }
     let n = node.clone();
     tokio::task::spawn_blocking(move || crate::browsers::ensure(&n, need, how)).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?.map_err(browser_missing)
 }
@@ -84,6 +88,10 @@ fn actions_for(role: &str) -> Vec<&'static str> {
 }
 
 pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, site: String, goal: String, named: &str) -> Result<Value, Fail> {
+    // A command whose words came as one item is the agent's to resend, said before any browser starts.
+    if let Some(said) = crate::browse::words_run_together(&args) {
+        return Err((StatusCode::BAD_REQUEST, said));
+    }
     // Every command runs in the node's browser: none here is `browser_missing`, after fetching it when the owner lets
     // the node.
     ready(node, crate::browsers::Need::Hands, crate::browsers::Use::Auto).await?;
@@ -96,13 +104,24 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
     if let Some(card) = crate::browse::card_fill(&args) {
         approve_checkout(node, a, &args, &site, &session, &card).await?;
     }
+    // A login the agent asks the owner for (`vault:ask:`) is in the vault before it is filled: asked of the owner in
+    // their window when it isn't, then filled as the plain reference, so the rest of the step never sees the ask.
+    let args = match ask_fill(&args) {
+        Some((at, r)) => {
+            ask_for_login(node, a, &args, &site, &session, &r).await?;
+            let mut plain = args;
+            plain[at] = r.name();
+            plain
+        }
+        None => args,
+    };
     let who = a.name.clone();
     let started = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0);
     let verb = args.first().cloned().unwrap_or_default();
     let closes = verb == "close";
     let leaves = matches!(verb.as_str(), "open" | "goto" | "navigate");
-    // A command that acts on the page can send something: the reply waits for what it set off and for the learn, so
-    // a route it made is named in this very reply and the agent can call it from the next step.
+    // A command that acts on the page can send something, and the node learns from it after the reply, never before:
+    // learning is secondary to the step. A route it made is named in the session's next reply (`browse::learned`).
     let acts = matches!(verb.as_str(), "click" | "dblclick" | "press" | "fill" | "type" | "select" | "check" | "uncheck" | "upload");
     let learning = store::load_settings().map_while_browsing;
     let eye = {
@@ -116,7 +135,10 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
     let args_said = args.clone();
     let opened_for = goal.trim().to_string();
     let n = node.clone();
-    let out = tokio::task::spawn_blocking(move || {
+    // The step ends on its ask's stop flag (`mint::stops_with`): a wait for the site's profile, a walk it starts.
+    let stop = super::mcp::ask_stop();
+    super::asks::phase("browse");
+    let out = tokio::task::spawn_blocking(move || unbrowse_learn::mint::stops_with(stop, || {
         let (goal, session) = (goal2, session2);
         let named = Some(site.as_str()).filter(|s| !s.is_empty());
         let on = crate::browse::site(&args, named, &session)?;
@@ -159,9 +181,15 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
         let tab = crate::browse::tab_of(&session);
         let clicks = matches!(verb2.as_str(), "click" | "dblclick");
         let before = if clicks { crate::browse::look(&on, &tab) } else { None };
+        // Where the browsing log ends before the step: the step's own lines (the page it landed on, what a script
+        // sent) are the ones after.
+        let mark = crate::browse::log_mark(&on);
+        // Whether the tab takes a vault fill before the step: a script that runs in it ends that, and the reply says so
+        // before the agent finds out by a refused fill.
+        let scripted_before = crate::browse::script_may_have_run(&on, crate::browse::Scope::Tab(&tab));
         let done = match (crate::browse::card_fill(&args), crate::browse::vault_fill(&args)) {
             (Some(_), _) => n.key().and_then(|keys| crate::browse::fill_card(&args, named, &who2, &session, keys)),
-            (None, Some(_)) => n.key().and_then(|keys| crate::browse::fill_from_vault(&args, named, &who2, &session, keys)),
+            (None, Some(_)) => n.key().and_then(|keys| crate::browse::fill_from_vault(&args, named, &who2, &session, keys, true)),
             (None, None) => crate::browse::act(&args, named, &who2, &session),
         };
         if let Some(leaving) = leaving {
@@ -180,50 +208,123 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
         if learning && closes && done.is_ok() {
             learn::note_setups(&on);
         }
-        if learning && acts && done.is_ok() {
-            // The browser logs a finished request only once it has settled (most of a second, and the next event
-            // after): a click that may send what was typed waits long enough to see it, a fill less.
-            let sends = !matches!(verb2.as_str(), "fill" | "type") && crate::browse::typed_on(&on);
-            let quiet = std::time::Duration::from_millis(if sends { 2000 } else { 1000 });
-            crate::browse::settle(&on, quiet, std::time::Duration::from_secs(6));
-            if let Some((r, sent)) = learn::learn_now(&on, &session, &who2, &eye2) {
-                crate::browse::credit_learned(&on, &session, &r.id, sent);
-            }
-        } else if before.is_some() && done.is_ok() {
-            // What a click set off lands once the page goes quiet: the learn above waited for it; without one, this does.
+        // No learn here: the step's reply never waits for one (`learn_after` below runs it once the reply is out).
+        // A click alone waits, and only for the page: what it set off lands once the site goes quiet, and the reply
+        // says whether the click did anything (`browse::came_to`).
+        if before.is_some() && done.is_ok() {
             crate::browse::settle(&on, std::time::Duration::from_millis(1000), std::time::Duration::from_secs(6));
         }
-        let came_now = || {
-            let after = crate::browse::look(&on, &tab);
-            crate::browse::came_to(&verb2, if leaves { args.get(1).map(String::as_str) } else { None }, before.as_ref(), after.as_ref())
+        // What the step came to, and the words naming the page it returned on when it waited past a door, read from
+        // the step's own lines (those after `mark`).
+        let came_of = |done: &Result<String, String>, mark: u64| -> (crate::browse::Came, Option<String>) {
+            // A navigation the browser never got the page for (no address, nothing listening) is a page that isn't
+            // there, said as one, not a step that failed.
+            let unreached = leaves && matches!(done, Err(e) if crate::browse::never_reached(e));
+            let mut passed: Option<String> = None;
+            let came = match done {
+                Ok(_) if clicks || leaves => {
+                    let asked = if leaves { args.get(1).map(String::as_str) } else { None };
+                    // The document the tab shows, read from the step's lines; the page asked for when the tab shows
+                    // none of the site's (the browser's own page for a site it couldn't reach). A click that loaded no
+                    // page has none, and isn't waited on for one. A navigation is read until it lands on a page: past a
+                    // door that only waits on its own code, and once its document is written (`browse::landed_settled`).
+                    let read = || {
+                        let after = crate::browse::look(&on, &tab);
+                        let at = after.as_ref().map(|l| l.url.clone()).or_else(|| asked.map(String::from));
+                        let landed = at.and_then(|at| match leaves {
+                            true => crate::browse::landed_read(&on, mark, |lines| crate::browse::landed_in(lines, &at)),
+                            false => crate::browse::landed_in(&crate::browse::lines_since(&on, mark), &at),
+                        });
+                        (after, landed)
+                    };
+                    let (after, landed, looks) = match leaves {
+                        true => crate::browse::landed_settled(read, std::thread::sleep),
+                        false => {
+                            let (after, landed) = read();
+                            (after, landed, 0)
+                        }
+                    };
+                    // The program's words name the page it returned on: past a door, that was the door.
+                    if looks > 0 {
+                        passed = landed.as_ref().map(crate::browse::landed_said);
+                    }
+                    crate::browse::came_to_page(&verb2, asked, before.as_ref(), after.as_ref(), landed.as_ref())
+                }
+                Err(_) if unreached => crate::browse::Came::Gone { status: 0 },
+                _ => crate::browse::Came::Done,
+            };
+            (came, passed)
         };
-        let mut came = match &done {
-            Ok(_) if clicks || leaves => came_now(),
-            _ => crate::browse::Came::Done,
-        };
+        let (mut came, mut passed) = came_of(&done, mark);
+        // A check at the very address asked for may be the page itself, an app whose first HTML is only a shell with
+        // a check's widget in it (a help widget, a form further down): rendered, a working page shows its own
+        // controls, where a check that stands in for the page shows little but its widget.
+        if let (true, crate::browse::Came::Check { at }) = (leaves, &came) {
+            if is_the_page_asked(args.get(1).map(String::as_str), at) {
+                // An app draws its page after its shell loads: looked at a few times over a few seconds, not once.
+                for look in 0..RENDER_LOOKS {
+                    if look > 0 {
+                        std::thread::sleep(RENDER_PAUSE);
+                    }
+                    let rendered = crate::browse::act(&["snapshot".to_string(), "-i".to_string()], named, &who2, &session).unwrap_or_default();
+                    if renders_a_page_of_its_own(&rendered) {
+                        came = crate::browse::Came::CarriesCheck { at: at.clone() };
+                        break;
+                    }
+                }
+            }
+        }
         // A page opened onto the site's sign-in: the owner's own browser on this machine may be signed in to the site.
         // Its session is taken in and the page opened once more, so the owner isn't asked for what it already holds.
-        let mut done = done;
-        if let (true, crate::browse::Came::Walled { at }) = (leaves && !card_held, &came) {
-            match crate::import::when_signed_out(&on) {
+        let (mut done, mut mark) = (done, mark);
+        if let (true, Some(at)) = (leaves && !card_held, signed_out_at(&came, args.get(1).map(String::as_str)).map(String::from)) {
+            // The page's own host, not the site: a session cookie set for www.example.com is never sent to example.com,
+            // so an import for the site alone finds none where the owner is signed in.
+            let host = args.get(1).and_then(|u| url::Url::parse(u).ok()).and_then(|u| u.host_str().map(String::from)).unwrap_or_else(|| on.clone());
+            // Only on the owner's yes, asked in the node's window and naming this agent (`import::owner_lets`).
+            match crate::import::when_signed_out(&host, &who2, |q| crate::import::ask_in_the_nodes_window(Some(&*n), q)) {
                 Some(Ok(kept)) => {
                     eprintln!("   [browse] {on} sent the page to {at}; took in the owner's browser session ({} cookies) and opened it again", kept.cookies);
+                    mark = crate::browse::log_mark(&on);
                     done = crate::browse::act(&args, named, &who2, &session);
-                    came = if done.is_ok() { came_now() } else { crate::browse::Came::Done };
+                    (came, passed) = came_of(&done, mark);
                 }
                 Some(Err(none)) => eprintln!("   [browse] {on} sent the page to {at}; the owner's browser holds no session for it: {none}"),
                 None => {}
             }
         }
-        done.map(|text| (on, text, came))
-    })
+        // A click that downloaded a file leaves the page as it was: it did what it was for.
+        if let (true, crate::browse::Came::Unchanged, Ok(_)) = (clicks, &came, &done) {
+            if let Some(name) = crate::browse::downloaded_in(&crate::browse::lines_since(&on, mark)) {
+                came = crate::browse::Came::Done;
+                done = Ok(format!("✓ Downloaded {name}: the browser saved it to its downloads folder"));
+            }
+        }
+        let unreached = leaves && matches!(&done, Err(e) if crate::browse::never_reached(e));
+        let done = match done {
+            Err(e) if unreached => Ok(e),
+            Ok(_) if passed.is_some() => Ok(passed.unwrap_or_default()),
+            other => other,
+        };
+        // An eval's note on the requests a script sends is for one that sent some: read from the step's lines, looked
+        // for as long as the browser program takes to write a finished request (`browse::script_sent`).
+        let sent = done.is_ok() && crate::browse::runs_script(&args) && crate::browse::script_sent(&on, &tab, mark);
+        let unfillable = no_fill_note(&args, scripted_before, done.is_ok()).is_some();
+        // A login made by vault:new: is kept once the site accepted the sign-up, read after every step on the site.
+        let kept = match n.key() {
+            Ok(keys) => crate::browse::sign_ups_accepted(&on, |tab| crate::browse::asks_a_password(&on, tab), |r, who| crate::vault::keep_new(&crate::vault_keep(Ok(keys))?, r, who)),
+            Err(_) => Vec::new(),
+        };
+        let waiting = crate::browse::sign_ups_waiting(&on);
+        done.map(|text| (on, text, came, sent, unfillable, kept, waiting))
+    }))
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     node.events.emit("activity", ());
     // A command that timed out may still have done its work (a page that never goes quiet still loaded): the node
     // learns from what the browser did either way.
     let on = match &out {
-        Ok((on, _, _)) => Some(on.clone()),
+        Ok((on, ..)) => Some(on.clone()),
         Err(_) => crate::browse::last_site(&session),
     };
     if let (true, Some(on)) = (leaves && !learning, &on) {
@@ -235,12 +336,23 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
             if leaves {
                 crate::browse::set_goal(&on, &session, &goal);
             }
-            // What the command set off lands in the log once it settles. A command that acts on the page was learned
-            // from before its reply; this catches what landed later still. A page just opened set nothing off: it is
-            // learned when the agent leaves it, under the goal it was opened for, and reported then.
+            // What the command set off lands in the log once it settles, and is learned from here, after the reply. A
+            // page just opened set nothing off: it is learned when the agent leaves it, under the goal it was opened
+            // for, and reported then.
             if !leaves {
-                std::thread::sleep(std::time::Duration::from_secs(2));
-                if let Some((r, sent)) = learn::learn_auto(&on, &session, None, &who, &eye) {
+                // One learn waits per session and site: steps that come faster than a learn takes are read together
+                // by the one already waiting, and the last step is never the one skipped.
+                if !learn_after(&on, &session) {
+                    n.events.emit("activity", ());
+                    return;
+                }
+                // The browser logs a finished request only once it has settled (most of a second, and the next event
+                // after): a step that may send what was typed waits long enough to see it, a fill less.
+                let sends = acts && !matches!(verb.as_str(), "fill" | "type") && crate::browse::typed_on(&on);
+                let quiet = std::time::Duration::from_millis(if sends || !acts { 2000 } else { 1000 });
+                crate::browse::settle(&on, quiet, std::time::Duration::from_secs(6));
+                learn_starts(&on, &session);
+                if let Some((r, sent)) = learn::learn_now(&on, &session, &who, &eye) {
                     crate::browse::credit_learned(&on, &session, &r.id, sent);
                 }
                 // The browser is the truth for the session: what a step did to it (signed in, signed out, chose a
@@ -258,13 +370,18 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
             n.events.emit("activity", ());
         });
     }
-    let (on, output, came) = out.map_err(|e| (StatusCode::UNPROCESSABLE_ENTITY, e))?;
+    // A step the owner's pause stopped is the pause, not a step that failed.
+    let (on, output, came, sent, unfillable, kept, waiting) = out.map_err(|e| (if e == crate::outcome::PAUSED { StatusCode::SERVICE_UNAVAILABLE } else { StatusCode::UNPROCESSABLE_ENTITY }, e))?;
     let mut reply = json!({ "site": on, "output": output });
-    // A step that landed elsewhere than asked, or a click that changed nothing, isn't done: the page needs the owner.
-    if let Some((said, ask)) = needs_owner(&came, &on) {
-        reply["output"] = json!(said);
-        reply["needs_owner"] = json!(true);
-        reply["next"] = json!(["ask_owner", ask]);
+    // A step that landed elsewhere than asked, on a page that isn't there or asks for a person, or a click that
+    // changed nothing, isn't done: the reply says where it landed, and what to do next.
+    let owner = || crate::hands::owner_reach(node.events.watchers(), crate::browsers::headless_only()) != "off";
+    if let Some(landed) = came_said(&came, &on, came != crate::browse::Came::Done && owner()) {
+        reply["output"] = json!(landed.said);
+        if landed.needs_owner {
+            reply["needs_owner"] = json!(true);
+        }
+        landed.outcome.put(&mut reply);
     }
     // What this browsing has learned so far, and a route that already does what the page was opened for: from here the
     // agent calls the route, no more clicking through that flow.
@@ -295,12 +412,25 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
     if !learned.is_empty() || for_goal.is_some() {
         notes.push("A route does this now: call it with unbrowse_call (route_id, inputs) instead of clicking through the flow again. Ask first when write is true.");
     }
-    if crate::browse::runs_script(&args_said) {
-        notes.push(EVAL_NOTE);
+    if let Some(note) = eval_note(&args_said, sent) {
+        notes.push(note);
+    }
+    if unfillable {
+        notes.push(NO_FILL_AFTER_A_SCRIPT);
+    }
+    if matches!(came, crate::browse::Came::CarriesCheck { .. }) {
+        notes.push(CARRIES_A_CHECK);
+    }
+    let sign_up = sign_up_note(&kept, &waiting);
+    if let Some(said) = &sign_up {
+        notes.push(said.as_str());
     }
     // A page that needs a person may be one the agent can see and finish itself: say so before it asks the owner.
     if reply.get("needs_owner").and_then(|v| v.as_bool()) == Some(true) {
-        notes.push("Before ask_owner, try unbrowse_challenge: it shows you the page's check as a picture and takes your clicks one step at a time (look, click, drag, type, press, done). What the picture can't settle (a sign-in, a code only a person has) is the owner's.");
+        if crate::solver::configured().is_some() {
+            notes.push(SOLVER_CONFIGURED);
+        }
+        notes.push("Before ask_owner, try unbrowse_challenge: it shows you the page's check as a picture and takes your clicks one step at a time (look, click, drag, hold, type, press, done). What the picture can't settle (a sign-in, a code only a person has) is the owner's.");
     }
     if !notes.is_empty() {
         reply["note"] = json!(notes.join(" "));
@@ -311,22 +441,164 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
     Ok(reply)
 }
 
+/// What an open of a page that carries a check for a person among its own content says: it is the page, and the check
+/// is met when it stands in the way, with unbrowse_challenge.
+/// Said when a clearable check needs clearing and the owner configured a captcha solver: the node has a last
+/// source for the wall beyond a person. The owner is still never asked to solve it.
+pub(super) const SOLVER_CONFIGURED: &str = "A captcha solver is configured: the node can meet this check with it, no person needed.";
+
+pub(super) const CARRIES_A_CHECK: &str = "This page carries a check for a person (a widget among its own fields): it is the page asked for. Fill and click as usual; when the check stands in the way (a submit stays disabled, or the check opens), meet it with unbrowse_challenge (look, click, done) before ask_owner.";
+
+/// The sessions with a learn waiting to start, by site: `learn_after` adds one, `learn_starts` takes it out as the
+/// learn begins reading, so a step that comes while a learn runs queues the next and one that comes before it starts
+/// is read by it.
+static LEARN_WAITING: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+
+/// Whether this step is the one to run the learn after its reply: false when one already waits for the same session
+/// on the same site, which will read this step's calls too.
+fn learn_after(site: &str, session: &str) -> bool {
+    let mut waiting = LEARN_WAITING.lock().unwrap_or_else(|p| p.into_inner());
+    let key = (site.to_string(), session.to_string());
+    if waiting.contains(&key) {
+        return false;
+    }
+    waiting.push(key);
+    true
+}
+
+/// The waiting learn begins: a step from here on queues another.
+fn learn_starts(site: &str, session: &str) {
+    LEARN_WAITING.lock().unwrap_or_else(|p| p.into_inner()).retain(|(s, w)| !(s == site && w == session));
+}
+
+/// What the reply to the first script in a tab says: the tab takes no vault fill from then on, and the order that keeps
+/// one possible (`browse::no_secret_after_a_script`).
+pub(super) const NO_FILL_AFTER_A_SCRIPT: &str = "Your script ran in this tab, so it takes no vault fill from now until it closes: what a script leaves on a page could hear what the node types. To fill a login, close this tab, open the page again and fill before any script; click, type and press run no code of yours, and so do unbrowse_challenge's steps for a human check, so the tab stays fillable.";
+
+/// What a step on a site with a sign-up under way says of its new logins: the ones kept now the site accepted them,
+/// and the ones not kept yet, so `unbrowse_logins` listing nothing for them is no surprise.
+pub(super) fn sign_up_note(kept: &[String], waiting: &[String]) -> Option<String> {
+    let mut said = Vec::new();
+    if !kept.is_empty() {
+        said.push(format!("The site accepted the sign-up: the vault keeps {} now.", kept.join(", ")));
+    }
+    if !waiting.is_empty() {
+        said.push(format!("{} is kept once the site accepts the sign-up (a request that sent the password answered with success, and the page asks for no password), not before: until then vault:new: fills the same password again.", waiting.join(", ")));
+    }
+    (!said.is_empty()).then(|| said.join(" "))
+}
+
+/// The note on a step that ended the tab's fills: a script that ran (`ran`) in a tab no script had run in.
+pub(super) fn no_fill_note(args: &[String], scripted_before: bool, ran: bool) -> Option<&'static str> {
+    (crate::browse::runs_script(args) && !scripted_before && ran).then_some(NO_FILL_AFTER_A_SCRIPT)
+}
+
 /// What an `eval`'s reply says: the requests the agent's own script makes are never learned, and what is.
 pub(super) const EVAL_NOTE: &str = "The requests your script makes (a fetch or an XHR of your own) are never learned: a call you wrote isn't the site's own. Drive the page instead (click, fill, press, select) and the call the site's page sends becomes a route.";
 
-/// What the reply says, and what to ask the owner, when a step came to something the owner must do (`browse::came_to`).
-fn needs_owner(came: &crate::browse::Came, site: &str) -> Option<(String, String)> {
+/// The note an eval's reply carries: that the requests its script sent are never learned, for a script that sent one
+/// (`sent`, read from the step's lines of the browsing log). A script that sent nothing hears nothing of it.
+pub(super) fn eval_note(args: &[String], sent: bool) -> Option<&'static str> {
+    (crate::browse::runs_script(args) && sent).then_some(EVAL_NOTE)
+}
+
+/// What a step that didn't come to what it asked says: the words in place of the browser's, what it came to with the
+/// call to make next, and whether the page needs the owner.
+pub(super) struct Landed {
+    pub(super) said: String,
+    pub(super) outcome: crate::outcome::Said,
+    pub(super) needs_owner: bool,
+}
+
+/// Whether `at` is the page `asked` named: the same host, path and query, whatever its fragment or a trailing slash.
+fn is_the_page_asked(asked: Option<&str>, at: &str) -> bool {
+    let (Some(a), Ok(b)) = (asked.and_then(|a| url::Url::parse(a).ok()), url::Url::parse(at)) else { return false };
+    a.host_str() == b.host_str() && a.path().trim_end_matches('/') == b.path().trim_end_matches('/') && a.query() == b.query()
+}
+
+/// The controls a rendered page needs before it reads as a page of its own rather than a check standing in for one:
+/// a check's own page has its widget and a button or two; a working page has its navigation, search and lists.
+const A_PAGES_OWN_CONTROLS: usize = 12;
+
+/// How many times, and how far apart, a check at the address asked for is looked at for a page of its own: an app's
+/// shell draws the page a moment after it loads (Loom's library: a handful of controls at first, 34 a few seconds on).
+const RENDER_LOOKS: usize = 6;
+const RENDER_PAUSE: std::time::Duration = std::time::Duration::from_millis(800);
+
+/// Whether a page's interactive snapshot (`snapshot -i`) shows a working page of its own: enough controls
+/// ([`A_PAGES_OWN_CONTROLS`]) besides any frame a check sits in.
+fn renders_a_page_of_its_own(snapshot: &str) -> bool {
+    snapshot.lines().filter(|l| l.contains("[ref=") && !l.trim_start().starts_with("- Iframe")).count() >= A_PAGES_OWN_CONTROLS
+}
+
+/// Where a page opened onto the site's sign-in, when it did: a page the site sent it to naming it to come back to, or
+/// another page that asks for a password, and also a check for a person the site sent it to that way (a sign-in form
+/// with a captcha on it). Signed in, the owner's own session gets past both, so the check is no reason to stop first.
+fn signed_out_at<'a>(came: &'a crate::browse::Came, asked: Option<&str>) -> Option<&'a str> {
     match came {
-        crate::browse::Came::Done => None,
-        crate::browse::Came::Unchanged => Some((
-            "The click changed nothing: the page is at the same address and shows the same as before. A control that does nothing usually needs a sign-in, so this page needs the owner: ask_owner, then take a snapshot and carry on. Don't click it again.".into(),
-            format!("sign in to {site}: the page's controls do nothing signed out"),
-        )),
-        crate::browse::Came::Walled { at } => Some((
-            format!("The site sent the page to {at} instead of the one asked for, naming it to come back to: a sign-in or a check. The page needs the owner: ask_owner, and the page is yours again once they are done."),
-            format!("sign in to {site}: it sent the page to its sign-in"),
-        )),
+        crate::browse::Came::Walled { at } | crate::browse::Came::SignIn { at } => Some(at),
+        crate::browse::Came::Check { at } => {
+            let (asked, landed) = (url::Url::parse(asked?).ok()?, url::Url::parse(at).ok()?);
+            unbrowse_learn::answer::detour(&asked, &landed).then_some(at.as_str())
+        }
+        _ => None,
     }
+}
+
+/// What the reply says when a step came to something other than done (`browse::came_to_page`): a page that isn't there
+/// is gone, with nothing to do on it; a check for a person is the agent's to try (`unbrowse_challenge`); a sign-in, a
+/// wall or a click that changed nothing needs the owner (`ask_owner`), where the owner can be asked (`can_ask`, as
+/// `unbrowse_whoami`'s owner says it). Where they can't, no next names ask_owner: a sign-in or a wall is
+/// `owner_unavailable`, and the words say to tell the user what the page needs.
+pub(super) fn came_said(came: &crate::browse::Came, site: &str, can_ask: bool) -> Option<Landed> {
+    use crate::browse::Came;
+    use crate::outcome::{Outcome, Said};
+    const NO_OWNER: &str = " The owner keeps windows off this node, so ask_owner is refused: tell the user what the page needs instead.";
+    let owner = |said: String, outcome: Outcome, from: &'static str, ask: String| match can_ask {
+        true => Landed { said, outcome: Said::new(outcome, from).then("unbrowse_browse", json!({ "do": ["ask_owner", ask], "site": site })), needs_owner: true },
+        false => Landed {
+            said: said + NO_OWNER,
+            outcome: Said::new(if outcome == Outcome::NeedsPerson { Outcome::OwnerUnavailable } else { outcome }, "owner.reach"),
+            needs_owner: true,
+        },
+    };
+    Some(match came {
+        Came::Done | Came::CarriesCheck { .. } => return None,
+        // A click that changed nothing needs hands the agent hasn't got; a page sent to a sign-in or a check, a person.
+        Came::Unchanged => owner(
+            "The click changed nothing: the page is at the same address and shows the same as before. A control that does nothing usually needs a sign-in, so this page needs the owner: ask_owner, then take a snapshot and carry on. Don't click it again.".into(),
+            Outcome::NeedsHands,
+            "browse.came_to",
+            format!("sign in to {site}: the page's controls do nothing signed out"),
+        ),
+        Came::Walled { at } => owner(
+            format!("The site sent the page to {at} instead of the one asked for, naming it to come back to: a sign-in or a check. The page needs the owner: ask_owner, and the page is yours again once they are done."),
+            Outcome::NeedsPerson,
+            "browse.came_to",
+            format!("sign in to {site}: it sent the page to its sign-in"),
+        ),
+        Came::SignIn { at } => owner(
+            format!("The page landed on {at} instead of the one asked for, and it asks for a password: a sign-in. Fill it from the vault when unbrowse_logins lists a login for {site}; else the page needs the owner: ask_owner, and the page is yours again once they are done."),
+            Outcome::NeedsPerson,
+            "browse.landed.sign_in",
+            format!("sign in to {site}: it sent the page to its sign-in"),
+        ),
+        Came::Check { at } => Landed {
+            said: format!("The page landed on {at}, a check that asks for a person, not the page asked for. Try it yourself with unbrowse_challenge (look, then click, drag, hold, type, press, done); what the picture can't settle is the owner's: ask_owner."),
+            outcome: Said::new(Outcome::Challenge, "browse.landed.check").then("unbrowse_challenge", json!({ "action": "look", "site": site })),
+            needs_owner: false,
+        },
+        Came::Gone { status: 0 } => Landed {
+            said: "The page didn't load: the browser got no answer from the site (offline, or an address that doesn't resolve), and shows its own error page. There is nothing on it to drive.".into(),
+            outcome: Said::new(Outcome::Gone, "browse.landed.status"),
+            needs_owner: false,
+        },
+        Came::Gone { status } => Landed {
+            said: format!("The page answered {status}: the site's error page, not the page asked for. There is nothing on it to drive; check the address."),
+            outcome: Said::new(Outcome::Gone, "browse.landed.status"),
+            needs_owner: false,
+        },
+    })
 }
 
 /// The browsing session an agent's command belongs to: its key, and the session it runs in (`session`: the MCP
@@ -342,7 +614,7 @@ pub(super) fn browse_session(a: &Agent, named: &str) -> String {
 /// approve; the agent hears a refusal or a lapse as the call's error, never the card.
 pub(super) async fn ask_to_pay(node: &Arc<Node>, a: &Agent, on: &str, session: Option<&str>, pay: crate::hands::Pay) -> Result<(), Fail> {
     if store::load_settings().paused {
-        return Err((StatusCode::SERVICE_UNAVAILABLE, "the node is paused by its owner".into()));
+        return Err((StatusCode::SERVICE_UNAVAILABLE, crate::outcome::PAUSED.into()));
     }
     if crate::hands::asks().iter().any(|x| x.site == on) {
         return Err((StatusCode::CONFLICT, format!("{on} is already waiting on the owner")));
@@ -455,15 +727,104 @@ async fn ask_and_check(node: &Arc<Node>, a: &Agent, session: &str, card: &vault:
     Ok(())
 }
 
+/// The `vault:ask:` login a command fills, if it is `fill <target> vault:ask:<site>:<account>`, and where it sits.
+fn ask_fill(args: &[String]) -> Option<(usize, vault::Ref)> {
+    (args.len() == 3 && args[0] == "fill").then(|| vault::ask_ref(&args[2]).map(|r| (2, r))).flatten()
+}
+
+/// Whether the vault can fill `r` now: it lists the login, or can read its password (`vault::secret_for`, which may
+/// look further than the list).
+fn vault_can_fill(n: &Node, r: &vault::Ref) -> bool {
+    if vault::list().iter().any(|l| l.site == r.site && l.account == r.account) {
+        return true;
+    }
+    n.key().and_then(|keys| crate::vault_keep(Ok(keys)).and_then(|keep| vault::secret_for(&keep, keys, r))).is_ok()
+}
+
+/// `fill <target> vault:ask:<site>:<account>` (`vault.ask-owner`): the login for an account that already exists, which
+/// the vault doesn't hold. The owner is asked for it in their window, which opens its Add login form with the site and
+/// account filled in; the password goes from that form into the vault and never passes through the agent, its
+/// conversation or this reply. The ask is answered once the vault holds the login (`hands::login_added`), and the fill
+/// then goes on as `vault:<site>:<account>`. Asked only on a page the login may be typed into, so the owner is never
+/// asked for a password the node then refuses to type.
+async fn ask_for_login(node: &Arc<Node>, a: &Agent, args: &[String], site: &str, session: &str, r: &vault::Ref) -> Result<(), Fail> {
+    if store::load_settings().paused {
+        return Err((StatusCode::SERVICE_UNAVAILABLE, crate::outcome::PAUSED.into()));
+    }
+    let (named, args2, session2, r2, n) = (site.trim().to_string(), args.to_vec(), session.to_string(), r.clone(), node.clone());
+    let asked = tokio::task::spawn_blocking(move || -> Result<Option<String>, String> {
+        if vault_can_fill(&n, &r2) {
+            return Ok(None);
+        }
+        let on = crate::browse::site(&args2, Some(named.as_str()).filter(|s| !s.is_empty()), &session2)?;
+        let page = crate::browse::page_url(&on, Some(&crate::browse::tab_of(&session2))).ok_or("open the login page first")?;
+        if !r2.fits_page(&page) {
+            return Err(format!("{} is a login for {}, and this page isn't one it may be typed into (its own site, over https): open the sign-in page of {} first. The owner wasn't asked.", r2.name(), r2.site, r2.site));
+        }
+        // The owner's window shows the page of the session asking, under the ask.
+        crate::browse::to_front(&on, &session2);
+        Ok(Some(on))
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .map_err(|e| (StatusCode::UNPROCESSABLE_ENTITY, e))?;
+    let Some(on) = asked else { return Ok(()) };
+    if crate::hands::asks().iter().any(|x| x.site == on) {
+        return Err((StatusCode::CONFLICT, format!("{on}'s page is already waiting on the owner")));
+    }
+    let watching = node.events.clone();
+    crate::hands::reach_owner(move || watching.watchers(), crate::hands::open_window, crate::hands::WINDOW_WAIT)
+        .await
+        .map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, e))?;
+    let why = format!("add the login for {} on {} to the vault", r.account, r.site);
+    store::log_activity(&store::Activity {
+        at: store::now(),
+        who: a.name.clone(),
+        site: on.clone(),
+        what: format!("Asked you to {why}"),
+        kind: "vault".into(),
+        result: "waiting".into(),
+        ms: None,
+        unb: None,
+        tx: None,
+        note: None,
+    });
+    let events = node.events.clone();
+    let tab = crate::browse::tab_of(session);
+    let login = crate::hands::Login { site: r.site.clone(), account: r.account.clone() };
+    let answer = crate::hands::ask_login(&on, Some(&tab), &why, &a.name, std::time::Duration::from_secs(crate::hands::ASK_WAIT), login, |ask| {
+        events.tell("hands", &json!({ "kind": "ask", "site": ask.site, "ask": ask }));
+        events.emit("activity", ());
+    })
+    .await
+    .ok_or((StatusCode::CONFLICT, format!("{on}'s page is already waiting on the owner")))?;
+    match answer {
+        crate::hands::Answer::Done if vault::list().iter().any(|l| l.site == r.site && l.account == r.account) => Ok(()),
+        crate::hands::Answer::Done => Err((StatusCode::CONFLICT, format!("the owner answered, but the vault still has no login for {} on {}: nothing was filled. Tell the user.", r.account, r.site))),
+        crate::hands::Answer::Declined => Err((StatusCode::FORBIDDEN, format!("the owner declined to add the login for {} on {}: don't ask again straight away, tell the user", r.account, r.site))),
+        crate::hands::Answer::NoAnswer => {
+            node.events.emit("hands", json!({ "kind": "lapsed", "site": on }));
+            Err((StatusCode::REQUEST_TIMEOUT, format!("the owner didn't add the login for {} on {} in time, so nothing was filled: tell the user, and try again when they're there", r.account, r.site)))
+        }
+    }
+}
+
 /// `["ask_owner", what the agent needs]`: the page needs the owner (a sign-in the vault has no login for, a check only a
 /// person can pass). The window shows them the site's page live, and they click and type on it themselves; the
 /// agent's call waits until they give it back, or until its time is up. The agent hears how it went and where the
 /// page is now, never what was typed. The session the owner earned stays in the site's profile.
 pub(super) async fn ask_owner(node: &Arc<Node>, a: &Agent, args: &[String], site: &str, session: &str) -> Result<Value, Fail> {
     if store::load_settings().paused {
-        return Err((StatusCode::SERVICE_UNAVAILABLE, "the node is paused by its owner".into()));
+        return Err((StatusCode::SERVICE_UNAVAILABLE, crate::outcome::PAUSED.into()));
     }
     let (why, wait) = crate::hands::parse_ask(args).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    // The owner's answer is waited for as long as the agent asked, behind a still-working reply (`api::asks`): the
+    // agent's call is answered within the minute an MCP client waits, and the owner's wait isn't ended by the wall
+    // other work behind a reply meets. A minute is added for the window to come up and the page to be read after.
+    if let Some(ask) = super::asks::current() {
+        ask.goes_on_for(wait + crate::hands::WINDOW_WAIT + std::time::Duration::from_secs(60));
+    }
+    super::asks::phase("owner");
     let (named, session2) = (site.trim().to_string(), session.to_string());
     let (on, held) = tokio::task::spawn_blocking(move || -> Result<(String, Option<String>), String> {
         let on = crate::browse::site(&["snapshot".to_string()], Some(named.as_str()).filter(|s| !s.is_empty()), &session2)?;
@@ -487,8 +848,11 @@ pub(super) async fn ask_owner(node: &Arc<Node>, a: &Agent, args: &[String], site
     }
     // The ask must reach the owner: a window watching the node shows it. With none, one is opened; when none comes,
     // the agent hears so now, not after a wait nobody can answer.
+    // UNB-147: with remote answers on (off by default), a device of the owner's that answers away from the machine
+    // (the daemon hub's Telegram bot, calling `remote_answers` with `via`) reaches them too.
     let watching = node.events.clone();
-    crate::hands::reach_owner(move || watching.watchers(), crate::hands::open_window, crate::hands::WINDOW_WAIT)
+    let away = crate::hands::away_there() && crate::owner_dialog::remote_answers(node.key().ok().map(|k| k as &dyn unbrowse_core::KeyStore)).on;
+    crate::hands::reach_owner(move || watching.watchers() + usize::from(away), crate::hands::open_window, crate::hands::WINDOW_WAIT)
         .await
         .map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, e))?;
     store::log_activity(&store::Activity {
@@ -513,6 +877,7 @@ pub(super) async fn ask_owner(node: &Arc<Node>, a: &Agent, args: &[String], site
     // What the owner had typed by hand on the site before the hand-over: a passkey is kept after it only if they typed
     // a secret during it, their own sign-in.
     let typed_before = crate::browse::owner_secrets_typed(&on);
+    let asked_at = std::time::Instant::now();
     let answer = crate::hands::ask_alone(&on, Some(&tab), &why, &a.name, wait, |ask| {
         events.tell("hands", &json!({ "kind": "ask", "site": ask.site, "ask": ask }));
         events.emit("activity", ());
@@ -549,7 +914,7 @@ pub(super) async fn ask_owner(node: &Arc<Node>, a: &Agent, args: &[String], site
             ("The owner didn't answer in time.", "The page is as it was. Ask again later, or tell the user what you need them to do.")
         }
     };
-    Ok(json!({ "site": on, "output": output, "owner": answer, "url": url, "waited_s": wait.as_secs(), "note": note }))
+    Ok(json!({ "site": on, "output": output, "owner": answer, "url": url, "waited_s": asked_at.elapsed().as_secs().min(wait.as_secs()), "note": note }))
 }
 
 
@@ -571,21 +936,42 @@ pub(super) async fn do_challenge(
     text: Option<String>,
     key: Option<String>,
     ms: Option<u64>,
+    quick: bool,
+    steps: Vec<Value>,
 ) -> Result<Value, Fail> {
     ready(node, crate::browsers::Need::Hands, crate::browsers::Use::Auto).await?;
     let session = browse_session(a, &session);
     let who = a.name.clone();
     let (action, site, url) = (action.trim().to_string(), site.trim().to_string(), url.trim().to_string());
+    // A batch of hand steps lands over one browser attachment (a captcha grid's clicks + Confirm inside a short timer).
+    let mut batch_acts = Vec::new();
+    for s in &steps {
+        let g = |k: &str| s.get(k);
+        let act = unbrowse_learn::challenge::Act::of(
+            g("action").and_then(Value::as_str).unwrap_or("click"),
+            g("x").and_then(Value::as_f64), g("y").and_then(Value::as_f64),
+            g("to_x").and_then(Value::as_f64), g("to_y").and_then(Value::as_f64),
+            g("text").and_then(Value::as_str), g("key").and_then(Value::as_str),
+            g("ms").and_then(Value::as_u64),
+        ).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+        batch_acts.push(act);
+    }
     // What the agent asked for, read before the browser: a step that names no point reaches no one.
-    let act = if action == "look" {
+    let act = if action == "look" || !batch_acts.is_empty() {
         None
     } else {
         Some(unbrowse_learn::challenge::Act::of(&action, x, y, to_x, to_y, text.as_deref(), key.as_deref(), ms).map_err(|e| (StatusCode::BAD_REQUEST, e))?)
     };
     let (sess, what) = (session.clone(), action.clone());
-    let out = tokio::task::spawn_blocking(move || match act {
-        None => crate::challenge::look(&who, &site, &sess, &url),
-        Some(act) => crate::challenge::act(&who, &site, &sess, act),
+    let out = tokio::task::spawn_blocking(move || {
+        if !batch_acts.is_empty() {
+            return crate::challenge::batch(&who, &site, &sess, batch_acts);
+        }
+        match act {
+            None => crate::challenge::look(&who, &site, &sess, &url),
+            Some(act) if quick => crate::challenge::act_quick(&who, &site, &sess, act),
+            Some(act) => crate::challenge::act(&who, &site, &sess, act),
+        }
     })
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -616,6 +1002,41 @@ pub(super) async fn do_challenge(
 #[cfg(test)]
 mod observe_tests {
     use super::*;
+
+    /// Loom's library, opened signed in, was told "a check that asks for a person, not the page asked for": its first
+    /// HTML is an app's shell with a check's widget in it. At the address asked, a page that renders its own controls
+    /// is the page carrying a check; a check standing in for the page renders little but its widget, and stays a check.
+    #[test]
+    fn the_page_asked_for_that_renders_its_own_controls_is_the_page() {
+        let asked = Some("https://www.loom.example/looms/videos");
+        assert!(is_the_page_asked(asked, "https://www.loom.example/looms/videos/#top"));
+        assert!(!is_the_page_asked(asked, "https://www.loom.example/login?redirect_after=%2Flooms%2Fvideos"));
+        assert!(!is_the_page_asked(None, "https://www.loom.example/looms/videos"));
+        let library: String = ["link \"Skip to content\"", "button \"Expand sidebar\"", "link \"Loom home\"", "combobox \"Search\"", "button \"Upgrade\"", "button \"Notifications\"", "heading \"Library Videos\"", "button \"Create new folder\"", "tab \"Videos\"", "tab \"Screenshots\"", "tab \"Archive\"", "checkbox \"Select all videos\"", "button \"Sort by\""]
+            .iter().enumerate().map(|(i, l)| format!("  - {l} [ref=e{i}]\n")).collect();
+        assert!(renders_a_page_of_its_own(&library));
+        let interstitial = "- Iframe \"Widget containing a security challenge\" [ref=e1]\n  - checkbox \"Verify you are human\" [ref=e2]\n- link \"Privacy\" [ref=e3]\n";
+        assert!(!renders_a_page_of_its_own(interstitial), "a check's own page is not a page of its own");
+        assert!(!renders_a_page_of_its_own(""), "nothing rendered, nothing to go on");
+    }
+
+    /// A sign-in the site sent the page to takes in the owner's browser session, a captcha on its form or not; a check
+    /// the page asked for itself, naming nothing to come back to, is a check and nothing else.
+    #[test]
+    fn a_sign_in_with_a_check_on_it_is_still_a_sign_in() {
+        use crate::browse::Came;
+        let asked = Some("https://www.loom.example/looms/videos");
+        let walled = Came::Walled { at: "https://www.loom.example/login?next=%2Flooms%2Fvideos".into() };
+        assert_eq!(signed_out_at(&walled, asked), Some("https://www.loom.example/login?next=%2Flooms%2Fvideos"));
+        let checked = Came::Check { at: "https://www.loom.example/login?redirect_after=%2Flooms%2Fvideos".into() };
+        assert_eq!(signed_out_at(&checked, asked), Some("https://www.loom.example/login?redirect_after=%2Flooms%2Fvideos"), "a sign-in carrying a captcha");
+        let own = Came::Check { at: "https://www.loom.example/looms/videos".into() };
+        assert_eq!(signed_out_at(&own, asked), None, "the page's own check names nothing to come back to");
+        assert_eq!(signed_out_at(&checked, None), None, "no page asked, nothing to come back to");
+        assert_eq!(signed_out_at(&Came::Done, asked), None);
+        let real = Came::Check { at: "https://www.loom.com/login?redirect_after=%2Flooms%2Fvideos".into() };
+        assert_eq!(signed_out_at(&real, Some("https://www.loom.com/looms/videos")), Some("https://www.loom.com/login?redirect_after=%2Flooms%2Fvideos"), "the live landing");
+    }
 
     /// A snapshot line is an action: its ref, role, name, state and what it takes. A line with no ref is text.
     #[test]

@@ -1,0 +1,912 @@
+#!/usr/bin/env python3
+"""unbrowse-verify: build, start, check, drive and clean up a scratch Unbrowse node from this checkout.
+
+Every command prints one JSON object on stdout and exits 0 when it did what it says, 1 when it failed (the object
+has "error" and "fix"), 2 on a usage error. Nothing here touches the owner's node: port 7788 is refused, the node runs
+with its own home under /tmp/ubv-<port>, and stop/cleanup only act on processes and folders this tool recorded.
+
+Run `unbrowse-verify <command> --help` for each command's flags.
+"""
+
+import argparse
+import datetime as dt
+import json
+import os
+import platform
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import urllib.error
+import urllib.request
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+REPO = os.path.realpath(os.path.join(HERE, "..", "..", ".."))
+SCRATCH_SCRIPT = os.path.join(REPO, "test-banks", "popular-sites", "scratch-node.sh")
+STATE = os.environ.get("UBV_STATE", os.path.expanduser("~/.local/state/unbrowse-verify"))
+OWNER_PORT = 7788
+DEFAULT_PORT = 17810
+NODE_MAJOR = 25  # the page-code runtime scratch-node.sh accepts: Node 25+, whose permission model denies the network
+
+
+class Fail(Exception):
+    def __init__(self, error, fix, **extra):
+        super().__init__(error)
+        self.error, self.fix, self.extra = error, fix, extra
+
+
+def out(obj, code=0):
+    print(json.dumps(obj, indent=2, default=str))
+    sys.exit(code)
+
+
+def now():
+    return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ---------- paths ----------
+
+def target_dirs():
+    t = os.environ.get("CARGO_TARGET_DIR")
+    node_t = t or os.path.join(REPO, "unbrowse-node", "target")
+    browser_t = t or os.path.join(REPO, "unbrowse-browser", "cli", "target")
+    return node_t, browser_t
+
+
+def binaries():
+    node_t, browser_t = target_dirs()
+    return {
+        "unbrowse-node": os.path.join(node_t, "debug", "unbrowse-node"),
+        "unb": os.path.join(node_t, "debug", "unb"),
+        "agent-browser": os.path.join(browser_t, "debug", "agent-browser"),
+    }
+
+
+def scratch_dir(port):
+    return f"/tmp/ubv-{port}"
+
+
+def state_file(port):
+    return os.path.join(STATE, "nodes", f"{port}.json")
+
+
+def evidence_dir(port):
+    return os.path.join(STATE, "evidence", str(port))
+
+
+def load_state(port):
+    try:
+        with open(state_file(port)) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise Fail(f"no scratch node recorded on port {port}",
+                   f"start one: unbrowse-verify start --port {port} (or list them: unbrowse-verify list)")
+
+
+def save_state(port, st):
+    os.makedirs(os.path.dirname(state_file(port)), exist_ok=True)
+    with open(state_file(port), "w") as f:
+        json.dump(st, f, indent=2)
+
+
+def check_port(port):
+    if port == OWNER_PORT:
+        raise Fail("port 7788 is the owner's node", "pick another port, e.g. --port 17810")
+    if not (1024 < port < 65535):
+        raise Fail(f"port {port} is out of range", "use a port between 1025 and 65534")
+
+
+def git(*args):
+    try:
+        return subprocess.run(["git", "-C", REPO, *args], capture_output=True, text=True, timeout=20).stdout.strip()
+    except Exception:
+        return ""
+
+
+# ---------- runtime and browser discovery ----------
+
+def node_version(prog):
+    try:
+        v = subprocess.run([prog, "--version"], capture_output=True, text=True, timeout=10).stdout.strip()
+        m = re.match(r"v(\d+)\.", v)
+        return (int(m.group(1)), v) if m else (0, v)
+    except Exception:
+        return (0, "")
+
+
+def runtime_dir():
+    return os.path.join(STATE, "runtime")
+
+
+def find_signing():
+    cands = []
+    if os.environ.get("SIGNING_PROGRAM"):
+        cands.append(os.environ["SIGNING_PROGRAM"])
+    if shutil.which("node"):
+        cands.append(shutil.which("node"))
+    rd = runtime_dir()
+    if os.path.isdir(rd):
+        for d in sorted(os.listdir(rd), reverse=True):
+            cands.append(os.path.join(rd, d, "bin", "node"))
+    for c in cands:
+        if os.access(c, os.X_OK) and node_version(c)[0] >= NODE_MAJOR:
+            return c
+    return None
+
+
+def find_chrome():
+    if os.environ.get("CHROME"):
+        return os.environ["CHROME"]
+    for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
+        p = shutil.which(name)
+        if p:
+            return p
+    mac = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    if os.path.exists(mac):
+        return mac
+    pw = os.path.expanduser("~/.cache/ms-playwright")
+    if os.path.isdir(pw):
+        for d in sorted(os.listdir(pw), reverse=True):
+            if d.startswith("chromium-"):
+                for sub in ("chrome-linux64/chrome", "chrome-linux/chrome"):
+                    p = os.path.join(pw, d, sub)
+                    if os.access(p, os.X_OK):
+                        return p
+    return None  # scratch-node.sh then has the node download Chrome for Testing
+
+
+# ---------- process helpers ----------
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
+
+
+def proc_exe(pid):
+    try:
+        return os.readlink(f"/proc/{pid}/exe")
+    except OSError:
+        try:
+            return subprocess.run(["ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+        except Exception:
+            return ""
+
+
+def proc_env(pid):
+    try:
+        with open(f"/proc/{pid}/environ", "rb") as f:
+            return dict(kv.split("=", 1) for kv in f.read().decode(errors="replace").split("\0") if "=" in kv)
+    except OSError:
+        return None
+
+
+def listening_pid(port):
+    if shutil.which("ss"):
+        r = subprocess.run(["ss", "-ltnpH", f"sport = :{port}"], capture_output=True, text=True).stdout
+        m = re.search(r"pid=(\d+)", r)
+        return int(m.group(1)) if m else None
+    if shutil.which("lsof"):
+        r = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"], capture_output=True, text=True).stdout
+        return int(r.split()[0]) if r.split() else None
+    return None
+
+
+def ppid_of(pid):
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            return int(f.read().rsplit(")", 1)[1].split()[1])
+    except (OSError, ValueError, IndexError):
+        try:
+            return int(subprocess.run(["ps", "-o", "ppid=", "-p", str(pid)], capture_output=True, text=True).stdout.strip())
+        except ValueError:
+            return 0
+
+
+def my_ancestors():
+    seen, pid = set(), os.getpid()
+    while pid > 1 and pid not in seen:
+        seen.add(pid)
+        pid = ppid_of(pid)
+    return seen
+
+
+def procs_under(path, root_pid=None):
+    """What a scratch node started: processes that inherited its environment (UNBROWSE_HOME or TMPDIR inside `path`;
+    the node runs under `env -i`, so nothing else carries those) or descend from `root_pid`. Never this tool or the
+    shell that ran it, and never a process that merely names the folder (a `tail` of its log, an editor)."""
+    found, mine = [], my_ancestors()
+    inside = lambda v: v == path or v.startswith(path.rstrip("/") + "/")
+    if os.path.isdir("/proc"):
+        pids = [int(p) for p in os.listdir("/proc") if p.isdigit()]
+        parents = {p: ppid_of(p) for p in pids}
+
+        def descends(p):
+            hops = 0
+            while p > 1 and hops < 64:
+                if p == root_pid:
+                    return True
+                p, hops = parents.get(p, 0), hops + 1
+            return False
+
+        for p in pids:
+            if p in mine:
+                continue
+            env = proc_env(p) or {}
+            if inside(env.get("UNBROWSE_HOME", "")) or inside(env.get("TMPDIR", "")) or (root_pid and descends(p)):
+                try:
+                    with open(f"/proc/{p}/cmdline", "rb") as f:
+                        cmd = f.read().replace(b"\0", b" ").decode(errors="replace")
+                except OSError:
+                    continue
+                found.append({"pid": p, "cmd": cmd[:160]})
+    else:
+        # No /proc (macOS): the browser's profile and the node's home are in their arguments.
+        r = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
+        for line in r.splitlines():
+            pid, _, cmd = line.strip().partition(" ")
+            if int(pid) not in mine and f"--user-data-dir={path}/" in cmd:
+                found.append({"pid": int(pid), "cmd": cmd[:160]})
+    return found
+
+
+# ---------- HTTP ----------
+
+def http(method, url, token=None, body=None, timeout=60, headers=None):
+    data = json.dumps(body).encode() if body is not None else None
+    h = {"content-type": "application/json", "accept": "application/json, text/event-stream"}
+    if token:
+        h["authorization"] = f"Bearer {token}"
+    h.update(headers or {})
+    req = urllib.request.Request(url, data=data, method=method, headers=h)
+    t0 = time.monotonic()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw, status, rh = r.read(), r.status, dict(r.headers)
+    except urllib.error.HTTPError as e:
+        raw, status, rh = e.read(), e.code, dict(e.headers)
+    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+        raise Fail(f"{method} {url} failed: {e}",
+                   "is the scratch node up? run: unbrowse-verify doctor; then unbrowse-verify logs")
+    ms = round((time.monotonic() - t0) * 1000)
+    text = raw.decode(errors="replace")
+    parsed = None
+    if "text/event-stream" in rh.get("Content-Type", rh.get("content-type", "")):
+        for line in text.splitlines():
+            if line.startswith("data:"):
+                try:
+                    parsed = json.loads(line[5:].strip())
+                except ValueError:
+                    pass
+    else:
+        try:
+            parsed = json.loads(text) if text else None
+        except ValueError:
+            parsed = None
+    return status, (parsed if parsed is not None else text), ms, rh
+
+
+def node_url(st, path):
+    return f"http://127.0.0.1:{st['port']}{path}"
+
+
+def read_token(path):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def write_evidence(port, kind, record):
+    d = evidence_dir(port)
+    os.makedirs(d, exist_ok=True)
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    path = os.path.join(d, f"{stamp}-{kind}.json")
+    with open(path, "w") as f:
+        json.dump(record, f, indent=2, default=str)
+    return path
+
+
+# ---------- commands ----------
+
+def cmd_build(a):
+    node_t, browser_t = target_dirs()
+    steps = [
+        {"what": "vendor BoringSSL with Chrome's ClientHello extensions (idempotent)",
+         "run": ["sh", "scripts/apply-tls-patch.sh"], "cwd": os.path.join(REPO, "unbrowse-node")},
+        {"what": "the node and unb, debug",
+         "run": ["cargo", "build", "-p", "unbrowse-node-app", "--bin", "unbrowse-node", "--bin", "unb"],
+         "cwd": os.path.join(REPO, "unbrowse-node"), "target": node_t},
+        {"what": "the browser program the node drives, debug",
+         "run": ["cargo", "build", "--manifest-path", "unbrowse-browser/cli/Cargo.toml"], "cwd": REPO, "target": browser_t},
+    ]
+    # The patch script rewrites vendor/ every run, which makes cargo rebuild the TLS stack and all above it.
+    # Skip it when the vendored copy already carries this checkout's patch.
+    nd = os.path.join(REPO, "unbrowse-node")
+    want = os.path.join(nd, "crates", "learn", "assets", "chrome-clienthello", "chrome-ext.patch")
+    have = os.path.join(nd, "vendor", "btls-sys", "patches", "chrome-ext.patch")
+    if os.path.exists(have) and open(want, "rb").read() == open(have, "rb").read():
+        steps[0]["skip"] = "vendor/btls-sys already carries this checkout's patch"
+    if a.dry_run:
+        out({"ok": True, "dry_run": True, "steps": steps, "binaries": binaries(),
+             "note": "set CARGO_TARGET_DIR to build elsewhere; the build writes only there and unbrowse-node/vendor"})
+    done = []
+    for s in steps:
+        if s.get("skip"):
+            done.append({"what": s["what"], "skipped": s["skip"]})
+            continue
+        env = dict(os.environ)
+        if "target" in s:
+            env["CARGO_TARGET_DIR"] = s["target"]
+        t0 = time.monotonic()
+        r = subprocess.run(s["run"], cwd=s["cwd"], env=env, capture_output=True, text=True)
+        secs = round(time.monotonic() - t0, 1)
+        if r.returncode != 0:
+            raise Fail(f"build step failed: {s['what']}", "read stderr_tail, fix the build, run unbrowse-verify build again",
+                       step=s["run"], seconds=secs, stderr_tail=r.stderr[-3000:])
+        done.append({"what": s["what"], "seconds": secs})
+    bins = binaries()
+    missing = [k for k, p in bins.items() if not os.path.exists(p)]
+    if missing:
+        raise Fail(f"built, but {missing} are not where expected", "check CARGO_TARGET_DIR", binaries=bins)
+    rev = {"git_rev": git("rev-parse", "HEAD"), "dirty": bool(git("status", "--porcelain")), "built_at": now()}
+    os.makedirs(STATE, exist_ok=True)
+    with open(os.path.join(STATE, "build.json"), "w") as f:
+        json.dump({**rev, "binaries": bins}, f, indent=2)
+    out({"ok": True, "steps": done, "binaries": bins, **rev})
+
+
+def cmd_runtime(a):
+    have = find_signing()
+    if have and not a.force:
+        out({"ok": True, "signing_program": have, "version": node_version(have)[1], "fetched": False})
+    sysname = {"Linux": "linux", "Darwin": "darwin"}.get(platform.system())
+    arch = {"x86_64": "x64", "AMD64": "x64", "arm64": "arm64", "aarch64": "arm64"}.get(platform.machine())
+    if not sysname or not arch:
+        raise Fail(f"no Node build known for {platform.system()} {platform.machine()}",
+                   f"install Node {NODE_MAJOR}+ yourself and set SIGNING_PROGRAM to it")
+    status, index, _, _ = http("GET", "https://nodejs.org/dist/index.json", timeout=30)
+    if status != 200 or not isinstance(index, list):
+        raise Fail("couldn't read nodejs.org's release index", f"install Node {NODE_MAJOR}+ and set SIGNING_PROGRAM")
+    rel = next((r for r in index if r["version"].startswith(f"v{NODE_MAJOR}.")), None)
+    if not rel:
+        raise Fail(f"nodejs.org lists no v{NODE_MAJOR} release", "set SIGNING_PROGRAM to a Node 25+ binary")
+    ver = rel["version"]
+    name = f"node-{ver}-{sysname}-{arch}.tar.gz"
+    base = f"https://nodejs.org/dist/{ver}/"
+    plan = {"version": ver, "file": base + name, "checked_against": base + "SHASUMS256.txt", "into": runtime_dir()}
+    if a.dry_run:
+        out({"ok": True, "dry_run": True, **plan})
+    _, sums, _, _ = http("GET", base + "SHASUMS256.txt", timeout=30)
+    want = next((l.split()[0] for l in str(sums).splitlines() if l.endswith(name)), None)
+    if not want:
+        raise Fail(f"{name} is not in SHASUMS256.txt", "set SIGNING_PROGRAM to a Node 25+ binary")
+    import hashlib
+    tmp = tempfile.mkdtemp(prefix="ubv-node-")
+    try:
+        tgz = os.path.join(tmp, name)
+        urllib.request.urlretrieve(base + name, tgz)
+        got = hashlib.sha256(open(tgz, "rb").read()).hexdigest()
+        if got != want:
+            raise Fail(f"checksum {got} isn't nodejs.org's {want}", "run it again; if it repeats, install Node by hand")
+        os.makedirs(runtime_dir(), exist_ok=True)
+        with tarfile.open(tgz) as t:
+            t.extractall(runtime_dir(), filter="data")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    prog = os.path.join(runtime_dir(), name[:-7], "bin", "node")
+    out({"ok": True, "signing_program": prog, "version": node_version(prog)[1], "fetched": True, "sha256": want})
+
+
+def cmd_start(a):
+    port = a.port
+    check_port(port)
+    d = scratch_dir(port)
+    bins = binaries()
+    missing = [k for k, p in bins.items() if not os.access(p, os.X_OK)]
+    signing = find_signing()
+    chrome = find_chrome()
+    env_extra = {}
+    for kv in a.env or []:
+        if "=" not in kv:
+            raise Fail(f"--env {kv} isn't KEY=VALUE", "e.g. --env SECOND_WALK=1 (scratch-node.sh's switches)")
+        k, v = kv.split("=", 1)
+        env_extra[k] = v
+    plan = {"port": port, "dir": d, "home": f"{d}/home/node", "node": bins["unbrowse-node"],
+            "browser_program": bins["agent-browser"], "chrome": chrome or "(the node downloads Chrome for Testing)",
+            "signing_program": signing, "headed": a.headed, "env": env_extra, "runs": SCRATCH_SCRIPT}
+    if missing:
+        raise Fail(f"not built: {missing}", "run: unbrowse-verify build  (set CARGO_TARGET_DIR first if you build elsewhere)",
+                   plan=plan)
+    if not signing:
+        raise Fail(f"no Node {NODE_MAJOR}+ to run a page's code in (scratch-node.sh refuses without one)",
+                   "run: unbrowse-verify runtime  (fetches Node 25 checked against nodejs.org's SHASUMS), "
+                   "or set SIGNING_PROGRAM", plan=plan)
+    if os.path.exists(state_file(port)):
+        st = load_state(port)
+        if alive(st.get("pid", 0)):
+            raise Fail(f"a scratch node from this tool already runs on port {port} (pid {st['pid']})",
+                       f"use it, or: unbrowse-verify stop --port {port}")
+    status = None
+    try:
+        status, _, _, _ = http("GET", f"http://127.0.0.1:{port}/v1/health", timeout=3)
+    except Fail:
+        pass
+    if status is not None:
+        raise Fail(f"something already answers on port {port} and this tool didn't start it",
+                   "pick another --port; never drive a node you didn't start")
+    if a.dry_run:
+        out({"ok": True, "dry_run": True, "plan": plan})
+    if os.path.exists(d):
+        raise Fail(f"{d} is left from an earlier run", f"run: unbrowse-verify cleanup --port {port}  (or pick another --port)")
+    env = dict(os.environ)
+    env.update({"NODE": bins["unbrowse-node"], "BROWSER_PROGRAM": bins["agent-browser"], "PORT": str(port),
+                "SIGNING_PROGRAM": signing, **env_extra})
+    if chrome:
+        env["CHROME"] = chrome
+    if a.headed:
+        env["ALLOW_HEADED"] = "1"
+    t0 = time.monotonic()
+    r = subprocess.run(["sh", SCRATCH_SCRIPT, d], env=env, capture_output=True, text=True, timeout=900)
+    secs = round(time.monotonic() - t0, 1)
+    pid = None
+    try:
+        pid = int(open(os.path.join(d, "node.pid")).read().strip())
+    except (OSError, ValueError):
+        pass
+    st = {"port": port, "dir": d, "home": f"{d}/home/node", "pid": pid, "node": bins["unbrowse-node"],
+          "unb": bins["unb"], "started_at": now(), "git_rev": git("rev-parse", "HEAD"), "chrome": chrome,
+          "signing_program": signing, "env": env_extra}
+    if pid:
+        save_state(port, st)  # recorded even on failure, so stop/cleanup can reach what was started
+    if r.returncode != 0:
+        raise Fail("scratch-node.sh failed", f"read stderr and: unbrowse-verify logs --port {port}; then unbrowse-verify cleanup --port {port}",
+                   stderr=r.stderr[-2000:], stdout=r.stdout[-1000:], seconds=secs)
+    out({"ok": True, "port": port, "pid": pid, "dir": d, "seconds": secs, "said": r.stdout.strip().splitlines()[-1:],
+         "next": f"unbrowse-verify doctor --port {port}"})
+
+
+def cmd_doctor(a):
+    port = a.port
+    checks = []
+
+    def check(name, ok, detail):
+        checks.append({"check": name, "ok": ok, "detail": detail})
+
+    check("not_owner_port", port != OWNER_PORT, f"port {port}")
+    try:
+        st = load_state(port)
+    except Fail as e:
+        check("started_by_this_tool", False, e.error)
+        out({"pass": False, "port": port, "checks": checks, "fix": e.fix}, 1)
+    check("started_by_this_tool", True, state_file(port))
+    pid = st.get("pid")
+    check("process_alive", bool(pid) and alive(pid), f"pid {pid}")
+    exe = proc_exe(pid) if pid else ""
+    same = os.path.realpath(st["node"]) == exe.replace(" (deleted)", "") or exe.endswith("unbrowse-node")
+    check("process_is_built_node", same and "(deleted)" not in exe,
+          f"{exe or 'unreadable'}" + (" — rebuilt since start: restart to drive the new build" if "(deleted)" in exe else ""))
+    lp = listening_pid(port)
+    check("port_owned_by_node", lp == pid, f"listener pid {lp}" if lp else "no listener found (or ss/lsof missing)")
+    env = proc_env(pid) if pid else None
+    if env is not None:
+        home = env.get("UNBROWSE_HOME", "")
+        check("home_is_scratch", home == st["home"] and home != os.path.expanduser("~/.unbrowse"), home)
+    else:
+        check("home_is_scratch", os.path.isdir(st["home"]), f"{st['home']} (process env unreadable on this OS)")
+    health = None
+    try:
+        status, health, ms, _ = http("GET", node_url(st, "/v1/health"), timeout=10)
+        ok = status == 200 and isinstance(health, dict) and health.get("alive") is True
+        check("health_alive", ok, f"HTTP {status} in {ms} ms, ready={health.get('ready') if isinstance(health, dict) else '?'}")
+    except Fail as e:
+        check("health_alive", False, e.error)
+    token = read_token(os.path.join(st["dir"], "token"))
+    if token:
+        try:
+            status, who, ms, _ = http("GET", node_url(st, "/v1/whoami"), token=token, timeout=10)
+            check("agent_token_valid", status == 200, f"GET /v1/whoami HTTP {status} in {ms} ms")
+        except Fail as e:
+            check("agent_token_valid", False, e.error)
+    else:
+        check("agent_token_valid", False, f"no token at {st['dir']}/token")
+    head = git("rev-parse", "HEAD")
+    check("build_matches_checkout", st.get("git_rev") == head,
+          f"node started at {st.get('git_rev', '?')[:12]}, checkout at {head[:12]}"
+          + ("" if st.get("git_rev") == head else " — rebuild and restart"))
+    owner = None
+    try:
+        s, _, _, _ = http("GET", f"http://127.0.0.1:{OWNER_PORT}/v1/health", timeout=3)
+        owner = f"owner's node on {OWNER_PORT} answers (HTTP {s}), left alone"
+    except Fail:
+        owner = f"no node on {OWNER_PORT}"
+    passed = all(c["ok"] for c in checks)
+    res = {"pass": passed, "port": port, "pid": pid, "home": st["home"], "checks": checks,
+           "health": health if isinstance(health, dict) else None, "owner_node": owner}
+    if not passed:
+        bad = [c["check"] for c in checks if not c["ok"]]
+        res["fix"] = (f"failed: {bad}. Read: unbrowse-verify logs --port {port}. "
+                      f"If the node died or the build moved: unbrowse-verify cleanup --port {port} && unbrowse-verify start --port {port}")
+    out(res, 0 if passed else 1)
+
+
+def agent_ctx(port):
+    st = load_state(port)
+    token = read_token(os.path.join(st["dir"], "token"))
+    if not token:
+        raise Fail(f"no agent token at {st['dir']}/token", f"restart: unbrowse-verify cleanup --port {port} && unbrowse-verify start --port {port}")
+    return st, token
+
+
+def parse_json_arg(s, flag):
+    if s is None:
+        return None
+    try:
+        return json.loads(s)
+    except ValueError as e:
+        raise Fail(f"{flag} isn't JSON: {e}", f"quote it for the shell, e.g. {flag} '{{\"q\":\"rust\"}}'")
+
+
+def trim(v, n):
+    s = json.dumps(v, default=str)
+    return v if len(s) <= n else {"truncated_to_chars": n, "preview": s[:n]}
+
+
+def cmd_do(a):
+    st, token = agent_ctx(a.port)
+    body = {"goal": a.goal, "url": a.url}
+    inputs = parse_json_arg(a.inputs, "--inputs")
+    if inputs:
+        body["inputs"] = inputs
+    if a.fields:
+        body["fields"] = [f.strip() for f in a.fields.split(",") if f.strip()]
+    if a.wait_ms:
+        body["wait_ms"] = a.wait_ms
+    rounds = []
+    t0 = time.monotonic()
+    status, reply, ms, _ = http("POST", node_url(st, "/v1/do"), token=token, body=body, timeout=340)
+    rounds.append({"status": status, "ms": ms})
+    # A learn that outlasts wait_ms answers still_working with an `ask` handle: collect it, as an agent would.
+    while (isinstance(reply, dict) and reply.get("outcome") == "still_working" and reply.get("ask")
+           and time.monotonic() - t0 < a.timeout):
+        status, reply, ms, _ = http("POST", node_url(st, "/v1/do"), token=token,
+                                    body={"ask": reply["ask"], **({"wait_ms": a.wait_ms} if a.wait_ms else {})}, timeout=340)
+        rounds.append({"status": status, "ms": ms})
+    total = round((time.monotonic() - t0) * 1000)
+    r = reply if isinstance(reply, dict) else {}
+    result = r.get("result") if isinstance(r.get("result"), dict) else {}
+    route = r.get("route") if isinstance(r.get("route"), dict) else {}
+    node_timings = {k: v for k, v in {**r, **result}.items() if isinstance(v, (int, float)) and k.endswith("_ms")}
+    record = {"at": now(), "port": a.port, "request": {"POST": "/v1/do", "body": body}, "http_status": status,
+              "timings": {"wall_ms": total, "rounds": rounds, **node_timings}, "reply": reply}
+    ev = write_evidence(a.port, "do", record)
+    ok = status == 200 and result.get("ok") is True
+    res = {"ok": ok, "how": r.get("how"), "outcome": r.get("outcome"), "route_id": route.get("id"),
+           "answer": trim(result.get("data"), a.max_chars), "fields_more": trim((result.get("fields") or {}).get("more"), 600),
+           "notes": r.get("notes"), "timings": record["timings"], "http_status": status, "evidence": ev}
+    if not ok:
+        res["error"] = r.get("error") or r.get("message") or (reply if not isinstance(reply, dict) else r.get("outcome"))
+        res["fix"] = (f"read the reply in {ev}; then unbrowse-verify logs --port {a.port} --grep do. "
+                      "ok:false is the site's or the node's answer, not this tool's: report it as it is")
+    out(res, 0 if ok else 1)
+
+
+def cmd_api(a):
+    st, token = agent_ctx(a.port)
+    if not a.path.startswith("/"):
+        raise Fail(f"path {a.path} must start with /", "e.g. unbrowse-verify api GET /v1/whoami")
+    body = parse_json_arg(a.body, "--body")
+    status, reply, ms, _ = http(a.method.upper(), node_url(st, a.path), token=token, body=body, timeout=340)
+    ev = write_evidence(a.port, "api", {"at": now(), "request": {a.method.upper(): a.path, "body": body},
+                                        "http_status": status, "ms": ms, "reply": reply})
+    out({"ok": 200 <= status < 300, "http_status": status, "ms": ms, "reply": trim(reply, a.max_chars), "evidence": ev},
+        0 if 200 <= status < 300 else 1)
+
+
+def cmd_mcp(a):
+    st, token = agent_ctx(a.port)
+    url = node_url(st, "/mcp")
+    t0 = time.monotonic()
+    s, init, _, h = http("POST", url, token=token, timeout=30, body={
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {"protocolVersion": "2025-06-18", "capabilities": {},
+                   "clientInfo": {"name": "unbrowse-verify", "version": "1"}}})
+    if s != 200:
+        raise Fail(f"MCP initialize answered HTTP {s}", "unbrowse-verify logs --grep mcp", reply=init)
+    sess = {k: v for k, v in h.items() if k.lower() == "mcp-session-id"}
+    hdr = {"mcp-session-id": list(sess.values())[0]} if sess else {}
+    if a.list or not a.tool:
+        msg = {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}
+    else:
+        msg = {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+               "params": {"name": a.tool, "arguments": parse_json_arg(a.args, "--args") or {}}}
+    s, reply, ms, _ = http("POST", url, token=token, body=msg, timeout=340, headers=hdr)
+    total = round((time.monotonic() - t0) * 1000)
+    ev = write_evidence(a.port, "mcp", {"at": now(), "request": msg, "http_status": s, "ms": ms, "reply": reply})
+    if isinstance(reply, dict) and "result" in reply and msg["method"] == "tools/list":
+        tools = [t.get("name") for t in reply["result"].get("tools", [])]
+        out({"ok": True, "tools": tools, "count": len(tools), "ms": total, "evidence": ev})
+    ok = s == 200 and isinstance(reply, dict) and "result" in reply and not reply["result"].get("isError")
+    content = reply.get("result", {}).get("content") if isinstance(reply, dict) and isinstance(reply.get("result"), dict) else None
+    parsed = []
+    for c in content or []:
+        if c.get("type") == "text":
+            try:
+                parsed.append(json.loads(c["text"]))
+            except ValueError:
+                parsed.append(c["text"])
+    res = {"ok": ok, "tool": a.tool, "http_status": s, "ms": total,
+           "reply": trim(parsed if parsed else reply, a.max_chars), "evidence": ev}
+    if not ok:
+        res["fix"] = f"read {ev}; the tool's own error is in reply. List tools: unbrowse-verify mcp --list"
+    out(res, 0 if ok else 1)
+
+
+def cmd_owner(a):
+    st = load_state(a.port)
+    token = read_token(os.path.join(st["home"], "owner.token"))
+    if not token:
+        raise Fail(f"no owner token at {st['home']}/owner.token", "is the node started? unbrowse-verify doctor")
+    body = parse_json_arg(a.body, "--body") or {}
+    status, reply, ms, _ = http("POST", node_url(st, f"/owner/{a.cmd}"), token=token, body=body, timeout=340)
+    ev = write_evidence(a.port, "owner", {"at": now(), "request": {"POST": f"/owner/{a.cmd}", "body": body},
+                                          "http_status": status, "ms": ms, "reply": reply})
+    out({"ok": 200 <= status < 300, "http_status": status, "ms": ms, "reply": trim(reply, a.max_chars), "evidence": ev},
+        0 if 200 <= status < 300 else 1)
+
+
+def scratch_env(st):
+    return {"HOME": f"{st['dir']}/home", "UNBROWSE_HOME": st["home"], "TMPDIR": f"{st['dir']}/tmp",
+            "PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "UNBROWSE_TELEMETRY": "0", "UNBROWSE_REPORTS": "0",
+            "UNBROWSE_DEVNET_PORT": str(st["port"] + 1), "UNBROWSE_DEVNET_FORK": "none"}
+
+
+def run_program(a, prog, env, kind):
+    args = [x for x in (a.args or []) if x != "--"]
+    if not args:
+        raise Fail("nothing to run", f"e.g. unbrowse-verify {kind} -- --help")
+    t0 = time.monotonic()
+    # Piped input goes through (`printf ... | unbrowse-verify node -- vault card add x`); a terminal's doesn't, so a
+    # command that would prompt fails instead of waiting.
+    r = subprocess.run([prog, *args], env=env, capture_output=True, text=True, timeout=a.timeout,
+                       stdin=subprocess.DEVNULL if sys.stdin.isatty() else sys.stdin)
+    ms = round((time.monotonic() - t0) * 1000)
+    ev = write_evidence(a.port, kind, {"at": now(), "argv": [os.path.basename(prog), *args], "exit": r.returncode,
+                                       "ms": ms, "stdout": r.stdout, "stderr": r.stderr})
+    out({"ok": r.returncode == 0, "exit": r.returncode, "ms": ms, "stdout": r.stdout[-a.max_chars:],
+         "stderr": r.stderr[-2000:], "evidence": ev}, 0 if r.returncode == 0 else 1)
+
+
+def cmd_node(a):
+    st = load_state(a.port)
+    run_program(a, st["node"], scratch_env(st), "node")
+
+
+def cmd_unb(a):
+    st, token = agent_ctx(a.port)
+    env = {**scratch_env(st), "UNBROWSE_NODE": f"http://127.0.0.1:{st['port']}", "UNBROWSE_AGENT_TOKEN": token}
+    run_program(a, st["unb"], env, "unb")
+
+
+def cmd_logs(a):
+    st = load_state(a.port)
+    path = os.path.join(st["dir"], "guard.log" if a.guard else "node.log")
+    try:
+        lines = open(path, errors="replace").read().splitlines()
+    except OSError:
+        raise Fail(f"no log at {path}", "start the node first: unbrowse-verify start")
+    if a.grep:
+        rx = re.compile(a.grep)
+        lines = [l for l in lines if rx.search(l)]
+    out({"ok": True, "log": path, "total_lines": len(lines), "lines": lines[-a.lines:]})
+
+
+def stop_node(port, dry):
+    st = load_state(port)
+    pid = st.get("pid")
+    acts = []
+    if pid and alive(pid):
+        env = proc_env(pid)
+        if env is not None and env.get("UNBROWSE_HOME") != st["home"]:
+            raise Fail(f"pid {pid} is no longer this scratch node (its home is {env.get('UNBROWSE_HOME')})",
+                       "nothing was killed; remove the stale record with: unbrowse-verify cleanup --port " + str(port))
+        acts.append({"kill": pid, "what": "the scratch node"})
+    children = [p for p in procs_under(st["dir"], pid if pid and alive(pid) else None) if p["pid"] != pid]
+    acts += [{"kill": p["pid"], "what": p["cmd"]} for p in children]
+    if dry:
+        return st, acts
+    for act in acts:
+        try:
+            os.kill(act["kill"], signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    deadline = time.time() + 15
+    while time.time() < deadline and any(alive(x["kill"]) for x in acts):
+        time.sleep(0.5)
+    for act in acts:
+        if alive(act["kill"]):
+            os.kill(act["kill"], signal.SIGKILL)
+            act["forced"] = True
+    left = procs_under(st["dir"])
+    if left:
+        raise Fail(f"processes still name {st['dir']}", "run stop again; they are listed in left", left=left)
+    return st, acts
+
+
+def cmd_stop(a):
+    st, acts = stop_node(a.port, a.dry_run)
+    out({"ok": True, "dry_run": a.dry_run, "port": a.port, ("would_stop" if a.dry_run else "stopped"): acts})
+
+
+def cmd_cleanup(a):
+    ports = []
+    if a.all:
+        nd = os.path.join(STATE, "nodes")
+        ports = [int(f[:-5]) for f in os.listdir(nd) if f.endswith(".json")] if os.path.isdir(nd) else []
+    else:
+        ports = [a.port]
+    report = []
+    for port in ports:
+        check_port(port)
+        d = scratch_dir(port)
+        stopped = []
+        if os.path.exists(state_file(port)):
+            try:
+                _, stopped = stop_node(port, a.dry_run)
+            except Fail as e:
+                if not a.dry_run and "no longer this scratch node" not in e.error:
+                    raise
+        if not d.startswith("/tmp/ubv-"):
+            raise Fail(f"refusing to remove {d}", "this tool only removes its own /tmp/ubv-<port> folders")
+        item = {"port": port, "stopped": stopped, "removes": [p for p in (d, state_file(port)) if os.path.exists(p)],
+                "keeps_evidence": evidence_dir(port)}
+        if not a.dry_run:
+            shutil.rmtree(d, ignore_errors=True)
+            if os.path.exists(state_file(port)):
+                os.remove(state_file(port))
+            item["evidence_still_there"] = os.path.isdir(evidence_dir(port))
+        report.append(item)
+    out({"ok": True, "dry_run": a.dry_run, "cleaned": report})
+
+
+def cmd_list(a):
+    nd = os.path.join(STATE, "nodes")
+    nodes = []
+    for f in sorted(os.listdir(nd)) if os.path.isdir(nd) else []:
+        st = json.load(open(os.path.join(nd, f)))
+        nodes.append({"port": st["port"], "pid": st.get("pid"), "alive": bool(st.get("pid")) and alive(st["pid"]),
+                      "dir": st["dir"], "started_at": st.get("started_at"), "git_rev": st.get("git_rev", "")[:12]})
+    out({"ok": True, "nodes": nodes, "binaries": {k: (p, os.path.exists(p)) for k, p in binaries().items()},
+         "signing_program": find_signing(), "chrome": find_chrome(), "state": STATE})
+
+
+# ---------- argument parsing ----------
+
+EPILOG = """\
+typical run:
+  CARGO_TARGET_DIR=/path/to/target unbrowse-verify build
+  unbrowse-verify runtime                 # once, if `node --version` is below v25
+  unbrowse-verify start --port 17810
+  unbrowse-verify doctor --port 17810     # must say "pass": true before you drive it
+  unbrowse-verify do --port 17810 --url 'https://hn.algolia.com/?q=rust' --goal 'search stories'
+  unbrowse-verify logs --port 17810 --lines 50
+  unbrowse-verify cleanup --port 17810    # stops what it started, removes /tmp/ubv-17810, keeps evidence
+
+state and evidence: ~/.local/state/unbrowse-verify (UBV_STATE moves it); evidence/<port>/ survives cleanup.
+exit codes: 0 done, 1 failed (JSON has error and fix), 2 usage error.
+"""
+
+
+def main():
+    p = argparse.ArgumentParser(prog="unbrowse-verify", description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter, epilog=EPILOG)
+    sub = p.add_subparsers(dest="cmd", metavar="<command>")
+
+    def add(name, fn, help_, port=True):
+        sp = sub.add_parser(name, help=help_, description=help_, formatter_class=argparse.RawDescriptionHelpFormatter)
+        if port:
+            sp.add_argument("--port", type=int, default=int(os.environ.get("UBV_PORT", DEFAULT_PORT)),
+                            help=f"the scratch node's agent API port (default {DEFAULT_PORT}, or $UBV_PORT; never 7788)")
+        sp.set_defaults(fn=fn)
+        return sp
+
+    sp = add("build", cmd_build, "Build unbrowse-node, unb and agent-browser (debug) from this checkout. "
+             "Honours CARGO_TARGET_DIR for both workspaces.", port=False)
+    sp.add_argument("--dry-run", action="store_true", help="print the steps and paths; build nothing")
+
+    sp = add("runtime", cmd_runtime, f"Find, or fetch, the Node {NODE_MAJOR}+ a scratch node runs a page's code in "
+             "(checked against nodejs.org's SHASUMS256; kept under the state dir).", port=False)
+    sp.add_argument("--dry-run", action="store_true", help="say what would be fetched; fetch nothing")
+    sp.add_argument("--force", action="store_true", help="fetch even when a Node 25+ is found")
+
+    sp = add("start", cmd_start, "Start a scratch node: its own home in /tmp/ubv-<port>, headless, devnet with no fork, "
+             "telemetry, reports, sharing and the peer network off, an agent bearer token. Wraps "
+             "test-banks/popular-sites/scratch-node.sh.")
+    sp.add_argument("--headed", action="store_true", help="let the node open a window (ALLOW_HEADED=1), for a door that refuses headless")
+    sp.add_argument("--env", action="append", metavar="KEY=VALUE",
+                    help="a scratch-node.sh switch, repeatable: SECOND_WALK=1, SENT_LOG=1, ONE_ASK=1, ARM_B=1, ...")
+    sp.add_argument("--dry-run", action="store_true", help="print what would start; start nothing")
+
+    add("doctor", cmd_doctor, "Read-only: is this scratch node worth driving? Process up and ours, the port ours, "
+        "its home the scratch one, /v1/health alive, the agent token accepted, the build at this checkout's HEAD. "
+        "Exit 0 only when every check passes.")
+
+    sp = add("do", cmd_do, "Ask the node for a goal on a page (POST /v1/do, the unbrowse_do primitive), as an agent "
+             "would. Prints how it answered, the answer, the route id and timings; writes the full reply as evidence.")
+    sp.add_argument("--url", required=True, help="a page that does the goal; put the search term in its query")
+    sp.add_argument("--goal", required=True, help="plain words: what you want from the page")
+    sp.add_argument("--inputs", help="JSON object of route inputs, e.g. '{\"q\":\"rust\"}'")
+    sp.add_argument("--fields", help="comma-separated extra paths from fields_more, or '*'")
+    sp.add_argument("--wait-ms", type=int, help="the node's wait before answering still_working (default 45000)")
+    sp.add_argument("--timeout", type=int, default=600, help="seconds to keep collecting a still_working learn (default 600)")
+    sp.add_argument("--max-chars", type=int, default=6000, help="cap on the answer printed; evidence keeps it whole")
+
+    sp = add("api", cmd_api, "Send one agent API request with the agent token: GET /v1/whoami, GET '/v1/routes?q=x', "
+             "POST /v1/routes/<id>/call --body '{\"inputs\":{...}}', GET /v1/health.")
+    sp.add_argument("method", help="GET or POST")
+    sp.add_argument("path", help="starts with /")
+    sp.add_argument("--body", help="JSON body")
+    sp.add_argument("--max-chars", type=int, default=6000)
+
+    sp = add("mcp", cmd_mcp, "Talk to the node's MCP server (POST /mcp): --list for tools/list, or TOOL --args JSON "
+             "for tools/call, e.g. mcp unbrowse_whoami.")
+    sp.add_argument("tool", nargs="?", help="tool name, e.g. unbrowse_do")
+    sp.add_argument("--args", help="JSON arguments for the tool")
+    sp.add_argument("--list", action="store_true", help="list the tools")
+    sp.add_argument("--max-chars", type=int, default=6000)
+
+    sp = add("owner", cmd_owner, "Send one owner command (POST /owner/<cmd>) with the scratch node's owner token. "
+             "Names: unbrowse-node/agent-api.json's owner list. Prefer read-only ones.")
+    sp.add_argument("cmd", help="owner command, e.g. status or browsers")
+    sp.add_argument("--body", help="JSON body (default {})")
+    sp.add_argument("--max-chars", type=int, default=6000)
+
+    sp = add("node", cmd_node, "Run the built `unbrowse-node <args>` against the scratch home (never ~/.unbrowse). "
+             "Put the args after --, e.g. node -- vault list")
+    sp.add_argument("args", nargs=argparse.REMAINDER)
+    sp.add_argument("--timeout", type=int, default=120)
+    sp.add_argument("--max-chars", type=int, default=6000)
+
+    sp = add("unb", cmd_unb, "Run the built `unb <args>` with UNBROWSE_NODE and the agent token set, e.g. unb -- whoami")
+    sp.add_argument("args", nargs=argparse.REMAINDER)
+    sp.add_argument("--timeout", type=int, default=340)
+    sp.add_argument("--max-chars", type=int, default=6000)
+
+    sp = add("logs", cmd_logs, "Show the scratch node's log (or the guard's log of refused windows and clicks).")
+    sp.add_argument("--lines", type=int, default=80)
+    sp.add_argument("--grep", help="regular expression to keep")
+    sp.add_argument("--guard", action="store_true", help="the guard log instead of node.log")
+
+    sp = add("stop", cmd_stop, "Stop the scratch node and the processes it started (by pid and by naming its folder; "
+             "never by process name). Keeps its folder.")
+    sp.add_argument("--dry-run", action="store_true", help="list what would be stopped")
+
+    sp = add("cleanup", cmd_cleanup, "Stop, then remove /tmp/ubv-<port> and the node's record. Evidence stays.")
+    sp.add_argument("--all", action="store_true", help="every scratch node this tool recorded")
+    sp.add_argument("--dry-run", action="store_true", help="list what would be stopped and removed")
+
+    add("list", cmd_list, "Scratch nodes this tool recorded, the binaries, the runtime and the Chrome it found.", port=False)
+
+    a = p.parse_args()
+    if not a.cmd:
+        p.print_help()
+        sys.exit(2)
+    try:
+        if getattr(a, "port", None) is not None and a.cmd not in ("list",):
+            check_port(a.port)
+        a.fn(a)
+    except Fail as e:
+        out({"ok": False, "error": e.error, "fix": e.fix, **e.extra}, 1)
+    except subprocess.TimeoutExpired as e:
+        out({"ok": False, "error": f"timed out: {e.cmd}", "fix": "raise --timeout, or read unbrowse-verify logs"}, 1)
+
+
+if __name__ == "__main__":
+    main()

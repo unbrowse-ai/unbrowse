@@ -91,7 +91,7 @@ fn read_case(dir: &std::path::Path) -> Result<(Learned, Option<Learned>), String
     let probes = unbrowse_learn::walk::probes_from_walk(dir, session);
     let kept = std::fs::read_to_string(dir.join("learned.json")).ok().and_then(|t| serde_json::from_str(&t).ok());
     // Where the kept walk's browser was, as its capture records it: never assumed clean.
-    let visited = unbrowse_learn::walk::addresses_from_walk(dir, session);
+    let visited = unbrowse_learn::walk::owners_addresses_from_walk(dir, session);
     Ok((read(&url, &goal, trace, &probes, visited.as_deref()), kept))
 }
 
@@ -637,3 +637,89 @@ fn a_read_of_kept_walks_opens_no_connection() {
     let _ = unguarded.join();
 }
 
+
+/// One kept walk read as the live learn reads it, and the route it keeps shown hole by hole with what sharing makes of
+/// it: each field's class, what the share guard reads (`page_made`, the walk's addresses), and `recipe::of_route`'s
+/// verdict. `UNBROWSE_WALK_CASE=<case folder>` (a corpus case: `case.json` and the capture). A diagnostic: it asks no
+/// site and asserts nothing.
+#[test]
+#[ignore]
+fn a_kept_walk_as_it_would_be_shared() {
+    let _offline = unbrowse_learn::http::offline();
+    let Some(dir) = std::env::var_os("UNBROWSE_WALK_CASE").map(std::path::PathBuf::from) else { return };
+    store::scratch_home("walk-case");
+    let case: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(dir.join("case.json")).unwrap()).unwrap();
+    let (url, goal) = (case["url"].as_str().unwrap().to_string(), case["goal"].as_str().unwrap().to_string());
+    let capture = std::fs::read_dir(&dir).unwrap().flatten().map(|f| f.path()).find(|p| p.extension().is_some_and(|x| x == "jsonl")).unwrap();
+    let session = capture.file_stem().unwrap().to_string_lossy().into_owned();
+    let mut trace = trace_from_walk(&dir, &session).expect("a walk");
+    let probes = unbrowse_learn::walk::probes_from_walk(&dir, &session);
+    let visited = unbrowse_learn::walk::owners_addresses_from_walk(&dir, &session);
+    let host = url::Url::parse(&url).unwrap().host_str().unwrap().to_string();
+    let site = walked_site(&trace.exchanges, &host);
+    let view = view_of("case", &url, &site, &trace, 0);
+    let (in_path, _) = path_inputs(&url, &goal, &trace);
+    let query_values = asked_values(&url, &in_path);
+    let scores = rule_scores(&trace, &view, &goal, &query_values, &[]);
+    let shown = page_shown(&trace.exchanges, &url, &[]);
+    let passes = |i: usize| may_answer(&trace, i, &goal, &url, &query_values, &shown, &view.site);
+    let Some((index, by, _)) = walk_pick(&trace, &view, &goal, &query_values, scores, &passes, None) else { panic!("{NEEDS_HANDS}") };
+    trace.inputs = walk_inputs(&url, &in_path, &trace.exchanges);
+    println!("visited: {}", visited.as_ref().map_or("none (no whole record)".to_string(), |v| format!("{} addresses", v.len())));
+    // A second case's walk, as the page's other walk already in memory (`history_of`): the learn's second sighting.
+    let history: Vec<(Trace, Vec<unbrowse_learn::trace::Probe>)> = std::env::var_os("UNBROWSE_WALK_CASE2")
+        .map(std::path::PathBuf::from)
+        .and_then(|d| {
+            let c = std::fs::read_dir(&d).ok()?.flatten().map(|f| f.path()).find(|p| p.extension().is_some_and(|x| x == "jsonl"))?;
+            let s = c.file_stem()?.to_string_lossy().into_owned();
+            Some(vec![(trace_from_walk(&d, &s)?, unbrowse_learn::walk::probes_from_walk(&d, &s))])
+        })
+        .unwrap_or_default();
+    println!("history: {} walk(s)", history.len());
+    let route = route_of(&trace, index, &goal, &url, true, &probes, &history, visited.as_deref()).expect("a route");
+    println!("route by {by}: {} {}{}  inputs {:?}", route.method, route.site, route.path, route.inputs.iter().map(|i| (&i.name, &i.default)).collect::<Vec<_>>());
+    for (n, step) in route.graph.steps.iter().enumerate() {
+        println!("step {} {} {}", n + 1, step.method, step.url);
+        for f in &step.fields {
+            let class = serde_json::to_value(&f.class).unwrap_or_default();
+            let kind = class.get("class").and_then(|c| c.as_str()).map(String::from).or_else(|| class.as_str().map(String::from)).unwrap_or_default();
+            let detail = match &f.class {
+                unbrowse_learn::Class::Derived { origin } => format!(" from step-exchange {} {:?}", origin.exchange, origin.at),
+                unbrowse_learn::Class::Input { name, .. } => format!(" input {name}"),
+                unbrowse_learn::Class::Minted { name } => format!(" session {name}"),
+                unbrowse_learn::Class::Recipe { recipe } => format!(" {:?} over {:?} joined by {:?}", recipe.algo, recipe.parts, recipe.separator),
+                _ => String::new(),
+            };
+            println!("    {:<40} {kind}{detail}", f.loc.to_string());
+        }
+        for h in &step.held {
+            println!("    held {} input {} as {:?}", h.loc, h.input, h.written);
+        }
+    }
+    println!("walk_without_fragment {}  session_gave {}  page_made {:?}", route.walk_without_fragment, route.session_gave, route.page_made);
+    match crate::recipe::of_route(&route) {
+        Ok(r) => {
+            println!("SHARED as {}: session {:?}, params {:?}", r.format, r.session, r.params.iter().map(|p| &p.name).collect::<Vec<_>>());
+            // The body as another node fetches it (`UNBROWSE_SHARED_OUT=<route.json>`): its canonical bytes, held to
+            // their content id, made a route again by the receiving side's own code, and written for a node to call.
+            if let Some(out) = std::env::var_os("UNBROWSE_SHARED_OUT") {
+                let bytes = crate::recipe::canonical_json(&serde_json::to_value(&r).unwrap());
+                let listing = crate::listing::SignedListing {
+                    route_id: route.id.clone(),
+                    site: r.site.clone(),
+                    content_id: crate::recipe::content_id(&bytes),
+                    agent_id: "0".into(),
+                    version: 1,
+                    supersedes: None,
+                    terms: crate::listing::Terms { description: goal.clone(), response: r.response.clone(), price: crate::listing::Price::default() },
+                    sig: String::new(),
+                };
+                let body = crate::recipe::recheck(&bytes, &listing.content_id, unbrowse_learn::egress::Egress::Own).expect("its own bytes");
+                let fetched = crate::recipe::into_route(body, &listing).expect("a route again");
+                std::fs::write(&out, serde_json::to_vec_pretty(&fetched).unwrap()).unwrap();
+                println!("FETCHED route {} written to {}", fetched.id, std::path::Path::new(&out).display());
+            }
+        }
+        Err(why) => println!("REFUSED: {why}"),
+    }
+}

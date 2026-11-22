@@ -21,7 +21,6 @@ RUN apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update \
  && apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends cmake clang libclang-dev golang-go ninja-build pkg-config libssl-dev python3 \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-COPY unbrowse-browser/core unbrowse-browser/core
 COPY unbrowse-node unbrowse-node
 # The node carries the terms it asks its owner about (terms.rs).
 COPY TERMS.md PRIVACY.md ./

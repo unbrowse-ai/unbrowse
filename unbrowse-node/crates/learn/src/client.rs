@@ -45,6 +45,9 @@ pub struct RouteClient {
     jar_domains: HashMap<String, String>,
     /// The scope file as this client last read it, for the same measure at a save as [`RouteClient::loaded`].
     loaded_scope: Option<HashMap<String, String>>,
+    /// Cookies read from the site's other hosts' jars (`take_in_the_sites_other_jars`), by the value read: sent as
+    /// this jar's, never written into its file unless a call changed them.
+    borrowed: HashMap<String, String>,
     /// Each cookie's path, expiry and place in the jar's order: what a browser uses to order the cookies it sends,
     /// kept beside the jar in its own file (`meta_path`).
     cookie_meta: HashMap<String, CookieMeta>,
@@ -70,6 +73,9 @@ pub struct RouteClient {
     /// page walked again. A fallback that still answers is otherwise silent, and a route that only ever answers through
     /// one looks healthy. The caller hands these back with the answer.
     fell_back: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    /// Why the sandbox ran no page's code for this call, where that is why it was skipped (`sandbox::unheld`): the
+    /// reader's own answer, for a reply to name, never its words to parse.
+    unheld: std::sync::Arc<std::sync::Mutex<Option<crate::sandbox::Unheld>>>,
     /// Chrome-shaped transport for the plain side of every call.
     chrome: bool,
     /// The page where the flow starts. When a call fails because the site has
@@ -97,6 +103,13 @@ pub struct RouteClient {
     /// Signs the site in again in its browser, handing back the session that earned: tried before a re-walk when an
     /// answer says the session is gone, since a walk signed out can only learn the signed-out page.
     sign_in: Option<SignIn>,
+    /// Signs the site in again by the sign-in's own request, with no browser, handing back the session that earned
+    /// (`with_plain_sign_in`): tried as soon as an answer says the session is gone, before anything that opens a browser.
+    plain_sign_in: Option<SignIn>,
+    /// What the node around this client can do against a wall that the client can't do itself: take in the owner's own
+    /// browser session, ask a solver, ask the owner (`with_clearer`). Each is tried where the wall's own list names
+    /// it (`refusal::Wall::sources`), in that list's order.
+    clearers: Vec<(crate::refusal::Source, Clearer)>,
     /// The profile a route that came from another node walks in, when the owner lets it open the browser: made for this
     /// client alone, empty, and removed with it. Never the site's own profile, where the owner is signed in.
     scratch_profile: Option<ScratchProfile>,
@@ -129,11 +142,13 @@ pub struct RouteClient {
 }
 
 impl RouteClient {
-    pub fn new(graph: Graph) -> Self {
+    pub fn new(mut graph: Graph) -> Self {
+        // A graph read without its page's code (a listing's) runs with it: the signing bridge boots on it.
+        graph.rejoined();
         let writes = route_writes(&graph);
         // A step made from someone else's body says so: such a route is held to their rule unless a caller says otherwise.
         let egress = if graph.steps.iter().any(|s| s.foreign) { crate::egress::Egress::Foreign } else { Default::default() };
-        Self { cdp: None, frames: None, sign_in: None, body: None, ran_body: false, graph, store: None, browser: None, jar: HashMap::new(), loaded: None, jar_domains: HashMap::new(), loaded_scope: None, cookie_meta: HashMap::new(), loaded_meta: None, storage: Default::default(), fingerprint: serde_json::Value::Null, shared_mint: false, used_browser: Default::default(), made: Default::default(), fell_back: Default::default(), chrome: false, root: None, target: None, writes, judged_write: false, egress, excluded: Vec::new(), healed: None, scratch_profile: None, session_reads_approved: false, owner_consent: None, held: None, learn_again: false, drifted: None, heal_held: false, #[cfg(test)] wire: None }
+        Self { cdp: None, frames: None, sign_in: None, plain_sign_in: None, clearers: Vec::new(), body: None, ran_body: false, graph, store: None, browser: None, jar: HashMap::new(), loaded: None, jar_domains: HashMap::new(), loaded_scope: None, borrowed: HashMap::new(), cookie_meta: HashMap::new(), loaded_meta: None, storage: Default::default(), fingerprint: serde_json::Value::Null, shared_mint: false, used_browser: Default::default(), made: Default::default(), fell_back: Default::default(), unheld: Default::default(), chrome: false, root: None, target: None, writes, judged_write: false, egress, excluded: Vec::new(), healed: None, scratch_profile: None, session_reads_approved: false, owner_consent: None, held: None, learn_again: false, drifted: None, heal_held: false, #[cfg(test)] wire: None }
     }
 
     /// A call that, where the site drifted (`a_drift`), does not heal the route in place: no browser re-walks the
@@ -338,6 +353,152 @@ impl RouteClient {
         self
     }
 
+    /// How to sign the site in again with no browser: the sign-in's own request, as the node kept it from the walk
+    /// that signed in. Held to routes this node learned itself, as `with_sign_in` is.
+    pub fn with_plain_sign_in(mut self, sign_in: Option<SignIn>) -> Self {
+        self.plain_sign_in = sign_in.filter(|_| self.egress == crate::egress::Egress::Own);
+        self
+    }
+
+    /// A way to clear a wall that the node around this client has (`refusal::Source`): the owner's own browser
+    /// session, a solver, the owner. Only for the node's own routes: a route that came from another node is cleared
+    /// by nothing of the owner's.
+    pub fn with_clearer(mut self, source: crate::refusal::Source, clearer: Clearer) -> Self {
+        if self.egress == crate::egress::Egress::Own {
+            self.clearers.push((source, clearer));
+        }
+        self
+    }
+
+    /// The client this call looks like to a site (`refusal::identity_of`): the browser it presents as and the
+    /// address it leaves from. A pass earned in this call is this client's.
+    fn identity(&self) -> String {
+        crate::refusal::identity_of(&self.fingerprint, &self.local_proxy().unwrap_or_else(|| "direct".into()))
+    }
+
+    /// The node's engine walks the route's page once, and what the walk earned joins the call's session: its cookies
+    /// the jar (each with what the browser said of it), what the page kept for its own code the storages, and the
+    /// browser it presented as the fingerprint the call's wire is shaped to from now on. The walk's trace is handed
+    /// back for a caller that rebuilds the chain from it. None when there is no engine, when the page is not on the
+    /// route's site (a route this node didn't learn mints only on its own site: its root is the contributor's URL,
+    /// and a browser here is the owner's), or when the walk failed.
+    fn sight_the_root(&mut self, root: &str, why: &str) -> Option<crate::trace::Trace> {
+        if !self.on_the_routes_site(root) {
+            eprintln!("   [heal] {root} is not on the route's site: a shared route mints nowhere else");
+            return None;
+        }
+        let home = self.home().map(|(_, h)| h);
+        let mint = self.browser.as_mut()?;
+        self.used_browser.store(true, std::sync::atomic::Ordering::Relaxed);
+        self.made.reach(crate::rung::Rung::Browser);
+        said(&self.fell_back, why.to_string());
+        let sighting = mint.sight(root);
+        let _ = std::fs::remove_dir_all(&mint.capture_dir);
+        let sighting = match sighting {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("   [heal] root sighting failed: {e}");
+                return None;
+            }
+        };
+        // The fresh walk's session values join the jar: the recomputed chain's Minted fields draw from the session
+        // that just minted them. What the page kept for its own code joins the storages the signing bridge boots the
+        // page's scripts with: the bridge now sees the page this walk saw, not the one the last walk did.
+        if !sighting.session.local_storage.is_empty() || !sighting.session.session_storage.is_empty() {
+            self.storage.local.extend(sighting.session.local_storage.clone());
+            self.storage.session.extend(sighting.session.session_storage.clone());
+            self.save_storage();
+        }
+        if let Some(fp) = sighting.session.fingerprint.clone().filter(|v| !v.is_null()) {
+            self.fingerprint = fp;
+            self.save_fingerprint();
+        }
+        let facts = sighting.session.facts.clone();
+        let before = self.jar.clone();
+        merge_sighting(&mut self.jar, home.as_deref(), root, sighting.session, &minted_tokens(&self.graph), &mut self.jar_domains);
+        note_facts(&mut self.cookie_meta, &facts, &self.jar, &before);
+        Some(sighting.trace)
+    }
+
+    /// Tries what may clear `wall`, in the wall's own order, until the chain answers. The site's page asked again and
+    /// the door's page run in the sandbox are the client's own (`refresh_session` does both, once). The rest are the
+    /// node's (`with_clearer`): what one hands back joins the jar as this client's pass, and the chain runs again. A
+    /// source nobody gave is passed over. None when nothing cleared it; the answer and its ledger when something did,
+    /// or when a retry may have written.
+    fn clear(&mut self, wall: &crate::refusal::Wall, door: &crate::graph::Door, inputs: &HashMap<String, String>) -> Option<(Result<Value, ReplayError>, Ledger)> {
+        use crate::refusal::Source;
+        let mut asked_the_page = false;
+        for source in wall.sources() {
+            let cleared = match source {
+                Source::Page | Source::Sandbox => {
+                    if std::mem::replace(&mut asked_the_page, true) || !self.refresh_session() {
+                        continue;
+                    }
+                    true
+                }
+                Source::Wait => false,
+                // The node's own engine, unless the node gave another: the page is walked once, at most one walk of a
+                // page at a time, and only for a pass the jar does not already hold alive. What the walk earned is the
+                // engine's, and the call's wire is shaped to that engine from here on (`sight_the_root`).
+                Source::Engine if !self.clearers.iter().any(|(s, _)| *s == Source::Engine) => {
+                    // A door whose own page re-issues its pass never opens the engine: asking the page was the whole
+                    // of what there was to do. Nor does one whose pass the jar still holds inside its life: the refusal
+                    // is not about that pass, and the engine would earn the same one again.
+                    if door.earn == crate::graph::Earn::Recompute || holds_the_credential(&self.jar, &self.cookie_meta, door) {
+                        continue;
+                    }
+                    // The engine runs the page the wall stood at in the walk (`Door::at`), and the route's own page
+                    // where the walk kept none.
+                    let Some(root) = door.at.clone().or_else(|| self.root.clone()).filter(|_| self.browser.is_some()) else { continue };
+                    let Some(_walking) = HealGuard::take(&root) else { continue };
+                    let before = self.jar.clone();
+                    if self.sight_the_root(&root, "the site's door stood in the way, so the node's engine ran the page for its pass").is_none() {
+                        continue;
+                    }
+                    let me = self.identity();
+                    let gained: Vec<String> = self.jar.iter().filter(|(k, v)| before.get(*k) != Some(*v)).map(|(k, _)| k.clone()).collect();
+                    for k in &gained {
+                        if let Some(meta) = self.cookie_meta.get_mut(k) {
+                            meta.bound_to = Some(me.clone());
+                        }
+                    }
+                    !gained.is_empty()
+                }
+                other => {
+                    let Some((_, clearer)) = self.clearers.iter_mut().find(|(s, _)| s == other) else { continue };
+                    match clearer(wall) {
+                        Some(pass) if !pass.cookies.is_empty() => {
+                            let (now, me) = (now_secs(), self.identity());
+                            for (k, v) in pass.cookies {
+                                let order = self.cookie_meta.values().map(|m| m.order).max().unwrap_or(0) + 1;
+                                let meta = self.cookie_meta.entry(k.clone()).or_insert_with(|| CookieMeta { path: "/".into(), expires: None, order, http_only: None, bound_to: None });
+                                meta.expires = pass.ttl.map(|ttl| now + ttl as f64);
+                                meta.bound_to = Some(pass.bound_to.clone().unwrap_or_else(|| me.clone()));
+                                self.jar.insert(k, v);
+                            }
+                            eprintln!("   [door] {wall:?}: cleared by {other:?}");
+                            said(&self.fell_back, format!("the site's check was cleared by {}", said_source(*other)));
+                            true
+                        }
+                        _ => false,
+                    }
+                }
+            };
+            if !cleared {
+                continue;
+            }
+            let (again, ledger) = self.run(inputs);
+            if again.is_ok() {
+                self.save_jar();
+                return Some((again, ledger));
+            }
+            if ledger.retry(self.writes) != Retry::AsIs {
+                return Some((again, ledger));
+            }
+        }
+        None
+    }
+
     /// Takes in a session the browser earned since this client read its jar.
     pub fn absorb(&mut self, jar: HashMap<String, String>) {
         self.jar.extend(jar);
@@ -360,6 +521,11 @@ impl RouteClient {
     /// What this call fell back on and why, in order (`fell_back`). Empty for a call that ran as the route says.
     pub fn fell_back(&self) -> Vec<String> {
         self.fell_back.lock().map(|f| f.clone()).unwrap_or_default()
+    }
+
+    /// Why the sandbox ran no page's code for this call, when it was skipped for that (`sandbox::unheld`).
+    pub fn unheld(&self) -> Option<crate::sandbox::Unheld> {
+        self.unheld.lock().ok().and_then(|u| u.clone())
     }
 
     /// Whether a browser was opened for this call (a heal, a walled step or a signing page).
@@ -485,6 +651,85 @@ impl RouteClient {
             // And what its own code saw when it fingerprinted the browser.
             self.fingerprint = unbrowse_files::JAR.read_at(&fingerprint_path(dir, &host)).ok().flatten().unwrap_or(serde_json::Value::Null);
         }
+        if let (Some(dir), Some(host)) = (self.store.clone(), self.host()) {
+            self.take_in_the_sites_other_jars(&dir, &host);
+        }
+    }
+
+    /// Reads into this jar the cookies the site's other hosts hold that reach `host` too: a cookie set for the domain
+    /// (`Domain=.site.example`) is the browser's for every host under it, whichever host's answer set it. A sign-in on
+    /// `auth.site.example` sets the session the calls on `www.site.example` send. Each jar is a host's own, so without
+    /// this a route on one host never had what a call on another earned. Only a cookie whose recorded reach takes in
+    /// `host` (`mint::sent_to`), on the same site, and only where this jar holds none of the name: its own stands. Read
+    /// apart from what this jar's own file held (`borrowed`), so it is no change of this run's, and the file is not
+    /// written for it.
+    fn take_in_the_sites_other_jars(&mut self, dir: &std::path::Path, host: &str) {
+        for other in other_jars_of_the_site(dir, host) {
+            let jar: HashMap<String, String> = unbrowse_files::JAR.read_at(&dir.join(format!("{other}.json"))).ok().flatten().unwrap_or_default();
+            let scope: HashMap<String, String> = unbrowse_files::JAR.read_at(&scope_path(dir, &other)).ok().flatten().unwrap_or_default();
+            let meta: HashMap<String, CookieMeta> = unbrowse_files::JAR.read_at(&meta_path(dir, &other)).ok().flatten().unwrap_or_default();
+            for (name, value) in jar {
+                let Some(domain) = scope.get(&name).filter(|d| reaches_another_host(d, &other, host)) else { continue };
+                if self.jar.contains_key(&name) {
+                    continue;
+                }
+                self.jar.insert(name.clone(), value.clone());
+                self.jar_domains.insert(name.clone(), domain.clone());
+                self.borrowed.insert(name.clone(), value);
+                if let Some(m) = meta.get(&name) {
+                    self.cookie_meta.insert(name, m.clone());
+                }
+            }
+        }
+    }
+
+    /// Writes into the site's other jars what this run changed of a cookie set for the domain: a value it was given
+    /// anew, or a cookie the site took away. Only jars that are there, of hosts on the same site its recorded reach
+    /// takes in; a host with no jar yet reads it when it is first called (`take_in_the_sites_other_jars`). A cookie of
+    /// one host's own is never written anywhere but its own jar.
+    fn give_the_sites_other_jars(&self, dir: &std::path::Path, host: &str, was: &HashMap<String, String>, was_scope: &HashMap<String, String>) {
+        let given: Vec<(&String, &String, &String)> = self
+            .jar
+            .iter()
+            .filter(|(k, v)| was.get(*k) != Some(*v))
+            .filter_map(|(k, v)| Some((k, v, self.jar_domains.get(k).filter(|d| d.starts_with('.'))?)))
+            .collect();
+        let taken: Vec<(&String, &String)> = was.keys().filter(|k| !self.jar.contains_key(*k)).filter_map(|k| Some((k, was_scope.get(k).filter(|d| d.starts_with('.'))?))).collect();
+        if given.is_empty() && taken.is_empty() {
+            return;
+        }
+        for other in other_jars_of_the_site(dir, host) {
+            let path = dir.join(format!("{other}.json"));
+            if unbrowse_files::JAR.writable(&path).is_err() {
+                continue;
+            }
+            let Ok(Some(mut jar)) = unbrowse_files::JAR.read_at::<HashMap<String, String>>(&path) else { continue };
+            let mut scope: HashMap<String, String> = unbrowse_files::JAR.read_at(&scope_path(dir, &other)).ok().flatten().unwrap_or_default();
+            let mut changed = false;
+            for (name, value, domain) in given.iter().filter(|(_, _, d)| crate::mint::sent_to(d, &other)) {
+                // A cookie of the name the other host holds for itself alone is its own: never written over.
+                if jar.contains_key(*name) && scope.get(*name).is_none_or(|d| !d.eq_ignore_ascii_case(domain)) {
+                    continue;
+                }
+                jar.insert((*name).clone(), (*value).clone());
+                scope.insert((*name).clone(), (*domain).clone());
+                changed = true;
+            }
+            for (name, domain) in taken.iter().filter(|(_, d)| crate::mint::sent_to(d, &other)) {
+                if scope.get(*name).is_some_and(|d| d.eq_ignore_ascii_case(domain)) && jar.remove(*name).is_some() {
+                    scope.remove(*name);
+                    changed = true;
+                }
+            }
+            if changed {
+                if let Ok(json) = unbrowse_files::JAR.to_vec_pretty(&jar) {
+                    let _ = unbrowse_files::private::write(&path, &json);
+                }
+                if let Ok(json) = unbrowse_files::JAR.to_vec_pretty(&scope) {
+                    let _ = unbrowse_files::private::write(&scope_path(dir, &other), &json);
+                }
+            }
+        }
     }
 
     /// Writes what this run changed onto the jar as it stands now ([`jar_after`]): calls and sign-outs run beside each
@@ -502,7 +747,21 @@ impl RouteClient {
             return;
         }
         let Ok(on_disk) = unbrowse_files::JAR.read_at(&path) else { return };
-        let Some(jar) = jar_after(on_disk, self.loaded.as_ref(), &self.jar) else {
+        // What the call began with, the cookies borrowed from the site's other hosts with it: what it changed of
+        // either is measured against this.
+        let mut was = self.loaded.clone().unwrap_or_default();
+        let mut was_scope = self.loaded_scope.clone().unwrap_or_default();
+        for (k, v) in &self.borrowed {
+            was.entry(k.clone()).or_insert_with(|| v.clone());
+            if let Some(d) = self.jar_domains.get(k) {
+                was_scope.entry(k.clone()).or_insert_with(|| d.clone());
+            }
+        }
+        // A borrowed cookie the call left as it was stays the other host's: it isn't written into this jar.
+        let unborrowed = |k: &String, v: &String| self.borrowed.get(k) != Some(v) || self.loaded.as_ref().is_some_and(|l| l.contains_key(k));
+        let own: HashMap<String, String> = self.jar.iter().filter(|(k, v)| unborrowed(k, v)).map(|(k, v)| (k.clone(), v.clone())).collect();
+        let own_domains: HashMap<String, String> = self.jar_domains.iter().filter(|(k, _)| own.contains_key(*k) || !self.borrowed.contains_key(*k)).map(|(k, v)| (k.clone(), v.clone())).collect();
+        let Some(jar) = jar_after(on_disk, self.loaded.as_ref(), &own) else {
             eprintln!("   [call] the session for {host} was dropped during the call; it stays dropped");
             self.jar.clear();
             self.loaded = None;
@@ -514,12 +773,14 @@ impl RouteClient {
             let _ = unbrowse_files::private::write(&path, &json);
             let _ = unbrowse_files::private::narrow(&dir);
         }
+        // What this run gave or took of a cookie set for the domain reaches the site's other hosts as it reaches a browser.
+        self.give_the_sites_other_jars(&dir, &host, &was, &was_scope);
         self.jar = jar.clone();
         self.loaded = Some(jar);
         let scope_file = scope_path(&dir, &host);
         let on_scope: Option<HashMap<String, String>> = unbrowse_files::JAR.read_at(&scope_file).ok().flatten();
         let had_file = on_scope.is_some();
-        if let Some(scope) = jar_after(on_scope, self.loaded_scope.as_ref(), &self.jar_domains) {
+        if let Some(scope) = jar_after(on_scope, self.loaded_scope.as_ref(), &own_domains) {
             // No scope file and nothing to put in it is no file to make; anything else is written the way the jar is
             // (the folder was narrowed with it).
             if (had_file || !scope.is_empty()) && unbrowse_files::JAR.writable(&scope_file).is_ok() {
@@ -527,14 +788,21 @@ impl RouteClient {
                     let _ = unbrowse_files::private::write(&scope_file, &json);
                 }
             }
+            // No file was made for an empty scope, so none is loaded: a later save that has reach to keep makes the
+            // file, where a loaded one that went would read as the session's reach dropped.
+            let made = had_file || !scope.is_empty();
             self.jar_domains = scope.clone();
-            self.loaded_scope = Some(scope);
+            self.loaded_scope = made.then_some(scope);
         } else {
             // The scope file went while this ran, as a sign-out takes both: its reach stays gone too.
             self.jar_domains.clear();
             self.loaded_scope = None;
         }
         self.save_meta(&dir, &host);
+        self.borrowed.clear();
+        // The jar in hand is this host's file now: what the site's other hosts hold for this one too is read in again,
+        // so a call that goes on after a save (a retry after a sign-in) still sends it.
+        self.take_in_the_sites_other_jars(&dir, &host);
     }
 
     /// Writes the fingerprint sample beside the jar after a heal: the page the bridge boots sees the browser the walk
@@ -923,7 +1191,10 @@ impl RouteClient {
             // rule refuses fails the call with nothing sent, not after the steps before it ran. A body's steps are what
             // is sent when it runs, and are checked too.
             let sent = self.graph.steps.iter().enumerate().chain(self.body.is_some().then_some(runs.steps.iter().enumerate()).into_iter().flatten());
-            let refused = sent.into_iter().find_map(|(n, s)| self.egress.template(&s.url).err().map(|e| (ReplayError::Refused(format!("step {} of the route: {e}", n + 1)), Ledger::of_route(&runs, self.judged_write))));
+            let refused = sent.into_iter().find_map(|(n, s)| {
+                let why = self.egress.template(&s.url).err().map(|e| format!("step {} of the route: {e}", n + 1)).or_else(|| crate::replay::chosen_credential(n + 1, s)).or_else(|| crate::replay::misplaced_session(n + 1, s));
+                why.map(|why| (ReplayError::Refused(why), Ledger::of_route(&runs, self.judged_write)))
+            });
             (writes, refused, target_may_run_alone(&runs, self.judged_write))
         };
         self.writes = writes;
@@ -973,7 +1244,10 @@ impl RouteClient {
             eprintln!("   [call] failed before any heal: {}", e.to_string().chars().take(300).collect::<String>());
         }
         // What the caller or the rule got wrong, and a site that is down, a walk can't mend: no browser opens for it.
-        if first.as_ref().err().is_some_and(|e| !a_walk_can_mend(e)) {
+        // A door is the one of those with a mend of its own that is no walk: the site's page, asked again over this
+        // call's wire, may hand the pass back (`refresh_session`). It goes on to that, and no further (below).
+        let at_a_door = matches!(first, Err(ReplayError::Door { .. }));
+        if first.as_ref().err().is_some_and(|e| !a_walk_can_mend(e)) && !at_a_door {
             return (first, first_ledger);
         }
         // A write the site may already hold is not healed: a re-walk and a retry would send the commit twice.
@@ -984,6 +1258,24 @@ impl RouteClient {
                 _ => "unconfirmed",
             });
             return (first, first_ledger);
+        }
+        // An answer that says the session is gone, on a site whose sign-in the node holds as a request of its own: that
+        // request is sent, with no browser, and the call made again on the session it earned. It is the owner's own
+        // sign-in made again for the agent's own request, as a choice the site asks again is (`setups`), not a mend of
+        // the route: it is tried where a heal is held and where no browser may open. Sent once, whatever comes of it.
+        if first.as_ref().err().is_some_and(session_gone) {
+            if let Some(jar) = self.plain_sign_in.as_mut().and_then(|sign_in| sign_in()) {
+                self.jar.extend(jar);
+                // The sign-in's own host may be another of the site's (`auth.` beside `www.`): what it earned there for
+                // the domain is in that host's jar.
+                if let (Some(dir), Some(host)) = (self.store.clone(), self.host()) {
+                    self.take_in_the_sites_other_jars(&dir, &host);
+                }
+                let (again, ledger) = self.run(inputs);
+                if again.is_ok() || ledger.retry(self.writes) != Retry::AsIs {
+                    return (again, ledger);
+                }
+            }
         }
         // Held, nothing of the node's own mends the call: it fails as it failed (`holding_the_heal`).
         if self.heal_held {
@@ -997,12 +1289,21 @@ impl RouteClient {
         let (Some(root), Some((method, frag))) = (self.root.clone(), self.target.clone()) else {
             return (first, first_ledger);
         };
-        let home = self.home().map(|(_, h)| h);
         // A stale session is re-minted browserless first: the route's page fetched once over the same transport, the
         // cookies it hands back into the jar, the chain run again. Only a page that hands back nothing new — or one
         // behind a wall — costs the browser a walk (the Eden report's Lazada call, which opened a browser for a
         // session cookie that the page itself had re-issued).
-        if first.as_ref().err().is_some_and(|e| e.is_stale()) && self.refresh_session() {
+        // A door is cleared by what its own answer says may clear it, in that order (`Wall::sources`): the page asked
+        // again is first on every list that has it, so a door whose answer was not read is still asked its page.
+        let wall = match &first {
+            Err(ReplayError::Door { wall, door, .. }) => Some((wall.clone().unwrap_or(crate::refusal::Wall::Refused), door.clone())),
+            _ => None,
+        };
+        if let Some((wall, door)) = &wall {
+            if let Some(cleared) = self.clear(wall, door, inputs) {
+                return cleared;
+            }
+        } else if first.as_ref().err().is_some_and(|e| e.is_stale()) && self.refresh_session() {
             let (again, ledger) = self.run(inputs);
             if again.is_ok() || ledger.retry(self.writes) != Retry::AsIs {
                 return (again, ledger);
@@ -1022,6 +1323,11 @@ impl RouteClient {
                 eprintln!("   [door] {:?}: the jar holds {}, still inside its life; no browser opened", door.kind, door.credential.as_deref().unwrap_or_default());
                 return (first, first_ledger);
             }
+        }
+        // A walk can't mend a wall (`a_walk_can_mend`): a fresh sighting is the same browser at the same wall, and a
+        // wall is not the site drifting, so the chain is neither walked again nor rebuilt for one.
+        if at_a_door {
+            return (first, first_ledger);
         }
         // Where the site drifted and the route can be learned again, it is not healed in place: the call fails here,
         // before any browser walks, and says so. The caller learns the route again as a new one.
@@ -1052,42 +1358,10 @@ impl RouteClient {
                 }
             }
         }
-        // A route this node didn't learn mints only on its own site: its root is the contributor's URL, and a browser
-        // here is the owner's.
-        if !self.on_the_routes_site(&root) {
-            eprintln!("   [heal] {root} is not on the route's site: a shared route mints nowhere else");
-            return (first, first_ledger);
-        }
-        let Some(mint) = self.browser.as_mut() else { return (first, first_ledger) };
-        self.used_browser.store(true, std::sync::atomic::Ordering::Relaxed);
-        self.made.reach(crate::rung::Rung::Browser);
         let why = first.as_ref().err().map(|e| e.to_string().chars().take(160).collect::<String>()).unwrap_or_default();
-        said(&self.fell_back, format!("the call failed ({why}), so the node's browser walked the page again"));
-        let sighting = mint.sight(&root);
-        let _ = std::fs::remove_dir_all(&mint.capture_dir);
-        let sighting = match sighting {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("   [heal] root sighting failed: {e}");
-                return (first, first_ledger);
-            }
+        let Some(trace) = self.sight_the_root(&root, &format!("the call failed ({why}), so the node's browser walked the page again")) else {
+            return (first, first_ledger);
         };
-        // The fresh walk's session values join the jar: the recomputed chain's Minted fields draw from the session
-        // that just minted them. What the page kept for its own code joins the storages the signing bridge boots the
-        // page's scripts with: the bridge now sees the page this walk saw, not the one the last walk did.
-        if !sighting.session.local_storage.is_empty() || !sighting.session.session_storage.is_empty() {
-            self.storage.local.extend(sighting.session.local_storage.clone());
-            self.storage.session.extend(sighting.session.session_storage.clone());
-            self.save_storage();
-        }
-        if let Some(fp) = sighting.session.fingerprint.clone().filter(|v| !v.is_null()) {
-            self.fingerprint = fp;
-            self.save_fingerprint();
-        }
-        let facts = sighting.session.facts.clone();
-        let before = self.jar.clone();
-        merge_sighting(&mut self.jar, home.as_deref(), &root, sighting.session, &minted_tokens(&self.graph), &mut self.jar_domains);
-        note_facts(&mut self.cookie_meta, &facts, &self.jar, &before);
         // What the sighting changed may be only the session (a door's credential): the same chain, called again with
         // it, is the cheapest answer. Only a chain that still fails is rebuilt from the sighting. Nothing was sent by
         // the failed call (the heal is reached only then), so this sends nothing twice.
@@ -1099,12 +1373,12 @@ impl RouteClient {
         // The route's target is on its own origin: the fresh chain's target must be the same origin's call, so a heal
         // never moves the route, and its session, onto another host the root page also called.
         let origin = self.graph.steps.last().map(|s| origin_of(&s.url));
-        let fresh_trace = sighting.trace.clone();
+        let fresh_trace = trace.clone();
         if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() {
             let on_path: Vec<String> = fresh_trace.exchanges.iter().filter(|e| e.url.path().contains(frag.as_str())).map(|e| format!("{} {} {}", e.method, e.status, e.url.as_str().chars().take(110).collect::<String>())).collect();
             eprintln!("   [heal] the walk of {root} saw {} calls, {} at {frag}: {:?}", fresh_trace.exchanges.len(), on_path.len(), on_path.iter().take(4).collect::<Vec<_>>());
         }
-        let mut g = match rebuilt(&self.graph, sighting.trace, &method, &frag, origin.as_deref(), &self.excluded) {
+        let mut g = match rebuilt(&self.graph, trace, &method, &frag, origin.as_deref(), &self.excluded) {
             Ok(g) => g,
             Err(why) => {
                 eprintln!("   [heal] {why}");
@@ -1207,6 +1481,7 @@ impl RouteClient {
             false => (Default::default(), serde_json::Value::Null),
         };
         let mut runner = Runner {
+            began: Default::default(),
             owner: if material { self.owners_session() } else { self.owners_session().map(|_| HashMap::new()) },
             replaced: None,
             under_owner: HashSet::new(),
@@ -1237,6 +1512,7 @@ impl RouteClient {
             used_browser: self.used_browser.clone(),
             reached: Default::default(),
             fell_back: self.fell_back.clone(),
+            unheld: self.unheld.clone(),
             signed: std::cell::RefCell::new(HashMap::new()),
             page_read: std::cell::Cell::new(false),
             sandbox_off: std::cell::Cell::new(false),
@@ -1498,6 +1774,9 @@ struct Runner {
     /// The owner's own session for the site, when the route came from another node: the values its answers must never
     /// replace. None for the node's own route.
     owner: Option<HashMap<String, String>>,
+    /// The jar as the call's first request went out: a value the site handed the call after (a gateway's token issued
+    /// to the request that lacked it, `replay::resigned`) is not in it, and is the call's own, not the owner's.
+    began: std::cell::RefCell<Option<HashMap<String, String>>>,
     /// The cookie of the owner's session an answer replaced or removed, for a route that came from another node: the
     /// call ends at the step that saw it, and no request is sent after.
     replaced: Option<String>,
@@ -1555,6 +1834,9 @@ struct Runner {
     reached: std::cell::Cell<crate::rung::Rung>,
     /// Shared with the client: what the call fell back on, and why.
     fell_back: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    /// Why the sandbox ran no page's code for this call, where that is why it was skipped (`sandbox::unheld`): the
+    /// reader's own answer, for a reply to name, never its words to parse.
+    unheld: std::sync::Arc<std::sync::Mutex<Option<crate::sandbox::Unheld>>>,
     /// The requests the page's own code made, by `METHOD path`: read once per run, from the page opened with the
     /// caller's values (the browser bridge), and reused for every signed step after it.
     signed: std::cell::RefCell<HashMap<String, crate::sandbox::Signed>>,
@@ -1683,9 +1965,13 @@ impl Runner {
         // the step came by it (its body names the cookie): it goes where the jar's cookie goes, and nowhere else. The
         // node's own route draws a cookie by name where its own walk saw the browser send it, and that word stands.
         let had = pairs.len();
-        if self.owner.is_some() {
+        // The owner's cookie is one the owner's session held, or the jar held as the call began: a value the site handed
+        // this call itself (a gateway's token issued to the request that lacked it, `replay::resigned`) is the call's.
+        let began = self.began.borrow_mut().get_or_insert_with(|| self.jar.clone()).clone();
+        if let Some(owner) = &self.owner {
+            let theirs = |k: &str, v: &str| owner.get(k).or_else(|| began.get(k)).is_some_and(|j| j == v);
             pairs.retain(|p| match p.split_once('=') {
-                Some((k, v)) if self.jar.get(k.trim()).is_some_and(|j| j == v.trim()) && !self.is_token(k.trim()) => self.sends_cookie(k.trim(), &req.url),
+                Some((k, v)) if theirs(k.trim(), v.trim()) && !self.is_token(k.trim()) => self.sends_cookie(k.trim(), &req.url),
                 _ => true,
             });
         }
@@ -1950,59 +2236,10 @@ fn said(fell_back: &std::sync::Mutex<Vec<String>>, what: String) {
     }
 }
 
-impl Fetch for Runner {
-    /// A check of where a page lands is answered by the call's own fetch: every request of the call goes through the
-    /// call's transport (`Held`), whose redirect hops are each held to the call's rule ([`Fetch::fetch_within`]).
-    fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
-        self.fetch(req)
-    }
-
-    fn allows(&self, req: &Request) -> Result<(), ReplayError> {
-        self.transport.allows(req)
-    }
-
-    fn browser_made(&self, exchange: usize) -> bool {
-        self.walled.contains(&exchange)
-    }
-
-    /// The page's own scripts, run again: booted at the route's page with the caller's values in its address, the
-    /// page's code builds and signs the call, and the headers it sets are the answer. A route with no scripts (or a
-    /// machine with no signing runtime) says so, and the step goes to the browser.
-    fn environment(&self) -> crate::generated::Environment {
-        crate::generated::Environment {
-            fingerprint: self.fingerprint.clone(),
-            storage: self.storage.clone(),
-            page_url: self.page.clone(),
-            html: self.page_html.clone(),
-            answers: self.answers.clone(),
-            scripts: self.scripts.iter().map(|s| (s.url.clone(), s.body.clone())).collect(),
-        }
-    }
-
-    /// The page's own call for `req` (`signed_by_the_page`), kept only where it asks what `req` asks: each caller's
-    /// value `req` carries is in the call the page made (`carries_the_values`). A page whose call asks another value
-    /// (the page as walked, its address unable to carry this value; a visit of the browser's that read another
-    /// visit's page) signs another request: its answer is that value's, whenever it runs, and the step is walled.
-    fn sign_request(&mut self, req: &Request, inputs: &HashMap<String, String>) -> Option<crate::sandbox::Signed> {
-        let signed = self.signed_by_the_page(req, inputs)?;
-        match carries_the_values(req, inputs, &signed) {
-            Ok(()) => Some(signed),
-            Err(value) => {
-                eprintln!("   [sign] the page's call at {} {} does not ask {value:?}, which this request asks: another value's call", req.method, req.url.path());
-                said(&self.fell_back, "the page's own call asked another value than this request, so it was not sent".to_string());
-                None
-            }
-        }
-    }
-
-    /// What the store holds of a session step's cookies, when it holds them all. A jar short of any leaves the step to
-    /// run for real, and earn them: there is nothing to serve, and nothing to say the step answered.
-    fn session_values(&mut self, exchange: usize) -> Option<Vec<(String, String)>> {
-        let names = self.session_steps.get(&exchange)?;
-        names.iter().map(|n| self.jar.get(n).map(|v| ("set-cookie".to_string(), format!("{n}={v}; Path=/")))).collect()
-    }
-
-    fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+impl Runner {
+    /// One request of the call: its session put on, every check it is held to made, the cookies its answer sets kept.
+    /// `follow` says whether its redirects are followed (each hop held to the call's rule) or the redirect is the answer.
+    fn send(&mut self, req: &Request, follow: bool) -> Result<Exchange, ReplayError> {
         // A session the site replaced, whether a step or the page's own code asked, ends the call before anything more
         // is sent under it.
         if let Some(why) = self.ended() {
@@ -2021,7 +2258,7 @@ impl Fetch for Runner {
         if self.owner.as_ref().is_some_and(|owner| sends_the_owners_session(owner, req)) {
             self.under_owner.insert(req.exchange);
         }
-        let plain = self.transport.fetch(req)?;
+        let plain = if follow { self.transport.fetch(req)? } else { self.transport.fetch_unredirected(req)? };
         self.keep_set_cookies(&plain);
         // The request reached the site, so it may hold it: the call ends as one whose last step was sent.
         if let Some(why) = self.ended() {
@@ -2038,6 +2275,16 @@ impl Fetch for Runner {
                     .map(|(k, v)| if k.eq_ignore_ascii_case("user-agent") || k.to_ascii_lowercase().starts_with("sec-ch-ua") { format!("{k}={v}") } else { k.clone() })
                     .collect();
                 eprintln!("   [debug] the refused request sent {shape:?}");
+                // What the wall answered by: the vendor's own mark (a DataDome or Cloudflare header) and the page it
+                // served, so a refusal is told apart from the site's own rule without naming a site here.
+                let wall: Vec<String> = plain
+                    .response_headers
+                    .iter()
+                    .filter(|(k, _)| matches!(k.to_ascii_lowercase().as_str(), "server" | "x-datadome" | "cf-ray" | "cf-mitigated" | "x-cache" | "x-datadome-cid"))
+                    .map(|(k, v)| format!("{k}={v}"))
+                    .collect();
+                let body_head: String = plain.response_body.as_deref().unwrap_or_default().chars().take(200).collect();
+                eprintln!("   [debug] the 403 answered {wall:?} body={body_head:?}");
             }
         }
         if plain.status != 403 || self.refused_on_the_walk.contains(&req.exchange) {
@@ -2091,8 +2338,79 @@ impl Fetch for Runner {
         }
         Ok(ex)
     }
+}
 
+impl Fetch for Runner {
+    /// The request alone, its redirect the answer: sent as every request of the call is (its session, its checks, the
+    /// cookies it is set kept), over the call's transport (`Held`), which holds its one address to the call's rule. A
+    /// step whose redirect a later step reads (a sign-in's flow id in the address it hands over) is sent so.
+    fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+        self.send(req, false)
+    }
+
+    fn allows(&self, req: &Request) -> Result<(), ReplayError> {
+        self.transport.allows(req)
+    }
+
+    fn browser_made(&self, exchange: usize) -> bool {
+        self.walled.contains(&exchange)
+    }
+
+    /// The page's own scripts, run again: booted at the route's page with the caller's values in its address, the
+    /// page's code builds and signs the call, and the headers it sets are the answer. A route with no scripts (or a
+    /// machine with no signing runtime) says so, and the step goes to the browser.
+    fn environment(&self) -> crate::generated::Environment {
+        crate::generated::Environment {
+            fingerprint: self.fingerprint.clone(),
+            storage: self.storage.clone(),
+            page_url: self.page.clone(),
+            html: self.page_html.clone(),
+            answers: self.answers.clone(),
+            scripts: self.scripts.iter().map(|s| (s.url.clone(), s.body.clone())).collect(),
+        }
+    }
+
+    /// The page's own call for `req` (`signed_by_the_page`), kept only where it asks what `req` asks: each caller's
+    /// value `req` carries is in the call the page made (`carries_the_values`). A page whose call asks another value
+    /// (the page as walked, its address unable to carry this value; a visit of the browser's that read another
+    /// visit's page) signs another request: its answer is that value's, whenever it runs, and the step is walled.
+    fn sign_request(&mut self, req: &Request, inputs: &HashMap<String, String>) -> Option<crate::sandbox::Signed> {
+        let signed = self.signed_by_the_page(req, inputs)?;
+        match carries_the_values(req, inputs, &signed) {
+            Ok(()) => Some(signed),
+            Err(value) => {
+                eprintln!("   [sign] the page's call at {} {} does not ask {value:?}, which this request asks: another value's call", req.method, req.url.path());
+                said(&self.fell_back, "the page's own call asked another value than this request, so it was not sent".to_string());
+                None
+            }
+        }
+    }
+
+    /// What the call fell back on, said where the reply carries it: a step the page's own code made nothing for, sent
+    /// as the route builds it (`replay::run`'s read of [`Fetch::sign_request`]'s None).
+    fn fell_back(&mut self, why: String) {
+        said(&self.fell_back, why);
+    }
+
+    /// What the store holds of a session step's cookies, when it holds them all. A jar short of any leaves the step to
+    /// run for real, and earn them: there is nothing to serve, and nothing to say the step answered.
+    fn session_values(&mut self, exchange: usize) -> Option<Vec<(String, String)>> {
+        let names = self.session_steps.get(&exchange)?;
+        names.iter().map(|n| self.jar.get(n).map(|v| ("set-cookie".to_string(), format!("{n}={v}; Path=/")))).collect()
+    }
+
+    fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+        self.send(req, true)
+    }
+    /// A session value for a step to place anywhere but the cookie header (a header token, or wherever a body's hole
+    /// asks). A route that came from another node places a cookie only in the cookie header ([`Self::minted_cookie`]):
+    /// a name the jar knows as a cookie (a line set it, or a browser recorded its path or reach) is never handed to it
+    /// here, so the owner's session never rides in a form, query, JSON field or header someone else's route chose. Its
+    /// header tokens still go (audit 1118 M7).
     fn minted(&self, name: &str) -> Option<String> {
+        if self.egress != crate::egress::Egress::Own && (self.cookie_meta.contains_key(name) || self.jar_domains.contains_key(name)) {
+            return None;
+        }
         self.jar.get(name).filter(|v| self.may_send(name, v)).cloned()
     }
 
@@ -2277,6 +2595,10 @@ pub struct CookieMeta {
     /// When it runs out, in Unix seconds, from the line's `Max-Age`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires: Option<f64>,
+    /// The client that earned it (`refusal::identity_of`), where one is known: a pass a source cleared a wall with is
+    /// that client's. None for a cookie the site simply set, which is whoever's it was sent to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bound_to: Option<String>,
     /// When in this jar's life the cookie arrived: the tie-break among cookies of one path.
     #[serde(default)]
     pub order: u64,
@@ -2305,7 +2627,7 @@ fn note_facts(meta: &mut HashMap<String, CookieMeta>, facts: &HashMap<String, ag
         let same = before.get(name).is_some() && before.get(name) == jar.get(name);
         let had = meta.get(name).map(|m| m.http_only);
         let next = meta.values().map(|m| m.order).max().unwrap_or(0) + 1;
-        let m = meta.entry(name.clone()).or_insert_with(|| CookieMeta { path: root_path(), expires: None, order: next, http_only: None });
+        let m = meta.entry(name.clone()).or_insert_with(|| CookieMeta { path: root_path(), expires: None, order: next, http_only: None, bound_to: None });
         if f.path.starts_with('/') {
             m.path = f.path.clone();
         }
@@ -2358,7 +2680,7 @@ impl CookieMeta {
         // A cookie set again keeps the place it first had: a browser updates a cookie's value and life in place,
         // it does not move it to the end of the order.
         let order = meta.get(&change.name).map_or_else(|| meta.values().map(|m| m.order).max().unwrap_or(0) + 1, |m| m.order);
-        CookieMeta { path: change.path.clone(), expires: change.expires, order, http_only: Some(change.http_only) }
+        CookieMeta { path: change.path.clone(), expires: change.expires, order, http_only: Some(change.http_only), bound_to: None }
     }
 }
 
@@ -2377,6 +2699,24 @@ pub fn meta_path(dir: &std::path::Path, jar_name: &str) -> PathBuf {
 /// The name a route's session jar is kept under: its target's host, and never its port. A cookie knows no port (a
 /// browser sends a host's cookies to every port of it), and a walk keeps the session it earned under the host it
 /// walked: a route on a named port reads that same jar, or its calls would never find what its own walk was given.
+/// The hosts of `host`'s site that the session store keeps a jar for, `host` itself left out.
+fn other_jars_of_the_site(dir: &std::path::Path, host: &str) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    let mut out: Vec<String> = entries
+        .flatten()
+        .filter_map(|e| e.file_name().to_str()?.strip_suffix(".json").map(String::from))
+        .filter(|h| !h.eq_ignore_ascii_case(host) && !h.contains(".json") && crate::identity::same_site(h, host))
+        .collect();
+    out.sort();
+    out
+}
+
+/// Whether a cookie `other`'s jar keeps with the recorded reach `domain` is sent to `host` too: set for a domain (the
+/// recorded reach begins with a dot), and one both hosts are under, as a browser sends it.
+fn reaches_another_host(domain: &str, other: &str, host: &str) -> bool {
+    domain.starts_with('.') && crate::mint::sent_to(domain, other) && crate::mint::sent_to(domain, host)
+}
+
 pub fn jar_name(graph: &Graph) -> Option<String> {
     graph.steps.last().map(|s| {
         let authority = s.url.split('/').nth(2).unwrap_or("site");
@@ -2452,6 +2792,24 @@ pub fn secure_context(url: &url::Url) -> bool {    if matches!(url.scheme(), "ht
 /// What signs a site in again: the session it earned, or None when it didn't.
 pub type SignIn = Box<dyn FnMut() -> Option<HashMap<String, String>> + Send>;
 
+/// A way the node clears a wall for a call (`RouteClient::with_clearer`): given the wall, the pass it earned, or None.
+pub type Clearer = Box<dyn FnMut(&crate::refusal::Wall) -> Option<crate::refusal::Cleared> + Send>;
+
+/// A source, as the agent is told of it.
+fn said_source(source: crate::refusal::Source) -> &'static str {
+    use crate::refusal::Source::*;
+    match source {
+        Wait => "waiting",
+        Page => "the site's own page",
+        Sandbox => "the check's own script, run in the sandbox",
+        OwnerSession => "the owner's own browser session",
+        Engine => "the node's engine running the page",
+        SignIn => "the owner's saved sign-in",
+        Solver => "the configured solver",
+        Owner => "the owner",
+    }
+}
+
 /// Whether an answer says the session is gone, rather than that the site moved: a refusal, a value only a session
 /// holds, or a page that isn't the answer (a sign-in the site sent the call to). A challenge is the site checking the
 /// caller, not the session: signing in again answers nothing, and it spends the owner's login.
@@ -2490,6 +2848,45 @@ fn a_drift(e: &ReplayError) -> bool {
 }
 
 #[cfg(test)]
+mod apart_tests {
+    use super::*;
+
+    fn whole(at: &std::path::Path) -> Option<Graph> {
+        serde_json::from_slice(&std::fs::read(at).ok()?).ok()
+    }
+
+    /// A graph read without its page's code (a listing's, UNB-139) writes none of it and takes it back from its file
+    /// whenever it runs, made into a client directly or through a body set beside it.
+    #[test]
+    fn a_graph_read_apart_runs_with_its_page_code() {
+        crate::graph::set_rejoin(whole);
+        let dir = std::env::temp_dir().join(format!("unbrowse-apart-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let at = dir.join("graph.json");
+        let script = crate::signing::Script { url: "https://shop.example/app.js".into(), body: "function sign(){}".into() };
+        let graph = Graph { scripts: vec![script.clone()], page_html: Some("<html>kept</html>".into()), ..Graph::default() };
+        std::fs::write(&at, serde_json::to_vec(&graph).unwrap()).unwrap();
+
+        let mut light = graph.clone();
+        assert!(light.set_apart(&at));
+        let said = serde_json::to_string(&light).unwrap();
+        assert!(!said.contains("function sign") && !said.contains("kept"), "a graph read apart writes none of its code: {said}");
+
+        let client = RouteClient::new(light.clone());
+        assert_eq!(client.graph.scripts, vec![script.clone()], "a client runs with the page's code");
+        assert_eq!(client.graph.page_html.as_deref(), Some("<html>kept</html>"));
+        assert!(client.graph.apart.is_none());
+
+        let beside = crate::body::skeleton_beside(&crate::body::from_graph(&light, "shop.example"), &light);
+        assert_eq!(RouteClient::new(beside).graph.scripts, vec![script], "and so does one made from its body");
+
+        let mut plain = Graph::default();
+        assert!(!plain.set_apart(&at) && plain.apart.is_none(), "a graph with no code is left whole");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
 mod heal_tests {
     use super::*;
 
@@ -2505,7 +2902,7 @@ mod heal_tests {
         }
         let door = crate::graph::Door::answered(&Exchange { method: "GET".into(), url: "https://shop.example/".parse().unwrap(), request_headers: Vec::new(), request_body: None, status: 403, response_headers: Vec::new(), response_body: Some("<html>checking your browser</html>".into()), response_mime: "text/html".into(), resource_type: None, main_frame: Some(true) });
         let mut not = vec![failed(401), failed(403), failed(429), failed(500), failed(503), not_an_answer(true), ReplayError::Transport("EOF".into()), ReplayError::MissingInput("q".into()), ReplayError::Refused("rule".into()), ReplayError::MissingMinted("token".into()), ReplayError::NeedsBrowser { step: 1, url: String::new(), loc: crate::slots::Loc::Url }];
-        not.extend(door.map(|door| ReplayError::Door { step: 1, url: String::new(), status: 403, door }));
+        not.extend(door.map(|door| ReplayError::Door { step: 1, url: String::new(), status: 403, door, wall: None }));
         for kept in not {
             assert!(!a_drift(&kept), "{kept}");
         }
@@ -2570,6 +2967,9 @@ impl Runner {
         if let Some(why) = crate::sandbox::unheld().filter(|_| !self.scripts.is_empty() && !self.sandbox_off.get()) {
             eprintln!("   [sign] {}: the sandbox is skipped", why.said());
             said(&self.fell_back, format!("{}, so the sandbox was skipped", why.said()));
+            if let Ok(mut u) = self.unheld.lock() {
+                *u = Some(why);
+            }
             self.sandbox_off.set(true);
         }
         // The walk's page carries what the walked page was asked, written into its document (a search the server
@@ -2664,6 +3064,24 @@ impl Runner {
                 self.sandbox_pages.borrow_mut().insert(page.clone(), made);
             }
         }
+        // A plain read the page's own code made no call for is the route's to send: `Fetch::sign_request` already says
+        // None here means the step goes out as the route builds it, and the site's answer says whether it needed the
+        // page's values. Opening a browser instead answers a question the site was never asked, and a page's code that
+        // writes only a reporting header (a trace id, a span) is no reason to load the page again: the route's own
+        // request asks the site, and a refusal there is a failure the call reports.
+        // Whether a step may go plainly is the write rule's question, not its method's (`ledger::writes`, the engine's
+        // one reader of it): a request it names a read — the page sent it as it loaded, it answered with data and set
+        // no cookie, or its path is a query's — asks and changes nothing, so it is sent as the route builds it even
+        // when it is a POST, and the site's answer says whether it needed the page's signature (trip.com's flight list
+        // answers a caller's cities without the page's tokens, and opening a browser for them answered nothing).
+        let goes_plainly = self.steps.get(&req.exchange).map_or_else(
+            || matches!(req.method.to_ascii_uppercase().as_str(), "GET" | "HEAD"),
+            |step| !crate::ledger::writes(step),
+        );
+        if goes_plainly {
+            eprintln!("   [sign] the page made no call at {} {}: a plain read goes as the route builds it", req.method, req.url.path());
+            return None;
+        }
         // Otherwise the page's own code signs it, in the browser the node runs: one page load per run, its calls kept
         // for every step after.
         if self.page_read.get() {
@@ -2694,21 +3112,12 @@ impl Runner {
 }
 
 /// Whether `signed`, the call a page made, carries each caller's value (`inputs`, two characters or more) that `req`,
-/// the request the route built for the caller, carries in its address or its body. Err, the first it lacks.
+/// the request the route built for the caller, carries in its address or its body. Err, the first it lacks. One
+/// reader for the question ([`crate::replay::carries_what_the_caller_asked`]): the page's call is held to it before it
+/// stands for the route's request, and so is a step sent as the route builds it.
 fn carries_the_values(req: &Request, inputs: &HashMap<String, String>, signed: &crate::sandbox::Signed) -> Result<(), String> {
-    let decoded = |url: &str, body: Option<&str>| {
-        let mut all = percent_encoding::percent_decode_str(&url.replace('+', " ")).decode_utf8_lossy().to_lowercase();
-        if let Some(b) = body {
-            all.push('\n');
-            all.push_str(&percent_encoding::percent_decode_str(&b.replace('+', " ")).decode_utf8_lossy().to_lowercase());
-            all.push('\n');
-            all.push_str(&b.to_lowercase());
-        }
-        all
-    };
-    let text = |b: Option<&Vec<u8>>| b.map(|b| String::from_utf8_lossy(b).into_owned());
-    let ours = decoded(req.url.as_str(), text(req.body.as_ref()).as_deref());
-    let theirs = decoded(&signed.url, text(signed.body.as_ref()).as_deref());
+    let ours = crate::replay::what_it_says(req.url.as_str(), req.body.as_deref());
+    let theirs = crate::replay::what_it_says(&signed.url, signed.body.as_deref());
     let mut values: Vec<String> = inputs.values().map(|v| v.trim().to_lowercase()).filter(|v| v.chars().count() >= 2).collect();
     values.sort();
     match values.into_iter().find(|v| ours.contains(v.as_str()) && !theirs.contains(v.as_str())) {
@@ -3198,6 +3607,16 @@ mod tests {
         assert!(RouteClient::new(g).with_sign_in(Some(Box::new(|| None))).sign_in.is_some());
     }
 
+    /// The sign-in's own request, sent with no browser, spends the owner's login as the browser's sign-in does: a
+    /// route that came from another node never takes it.
+    #[test]
+    fn someone_elses_route_never_signs_in_by_the_sign_ins_own_request() {
+        let g = Graph { steps: Vec::new(), provisional: false, page_origin: None, ..Graph::default() };
+        let client = RouteClient::new(g.clone()).with_egress(crate::egress::Egress::Foreign).with_plain_sign_in(Some(Box::new(|| None)));
+        assert!(client.plain_sign_in.is_none());
+        assert!(RouteClient::new(g).with_plain_sign_in(Some(Box::new(|| None))).plain_sign_in.is_some());
+    }
+
     /// Only an answer that says the session is gone asks for a sign-in: a site that moved, or a bad value, isn't one.
     #[test]
     fn a_sign_in_is_for_a_session_gone() {
@@ -3557,6 +3976,7 @@ mod tests {
 
     pub(super) fn runner(home: &str) -> Runner {
         Runner {
+            began: Default::default(),
             owner: None,
             replaced: None,
             under_owner: HashSet::new(),
@@ -3582,6 +4002,7 @@ mod tests {
             used_browser: Default::default(),
             reached: Default::default(),
             fell_back: Default::default(),
+            unheld: Default::default(),
             fingerprint: serde_json::Value::Null,
             signed: std::cell::RefCell::new(HashMap::new()),
             page_read: std::cell::Cell::new(false),
@@ -3923,7 +4344,7 @@ mod tests {
         c.graph.steps[0].url = "https://shop.example.com/api/list".into();
         c.root = Some("https://shop.example.com/search?q=lamp".into());
         c.egress = crate::egress::Egress::Foreign;
-        let meta = |path: &str, http_only: bool, order: u64| CookieMeta { path: path.into(), expires: None, order, http_only: Some(http_only) };
+        let meta = |path: &str, http_only: bool, order: u64| CookieMeta { path: path.into(), expires: None, order, http_only: Some(http_only), bound_to: None };
         c.jar = HashMap::from([("sid".to_string(), "old".to_string()), ("pref".to_string(), "dark".to_string()), ("admin".to_string(), "a".to_string())]);
         c.cookie_meta = HashMap::from([("sid".to_string(), meta("/", true, 1)), ("pref".to_string(), meta("/", false, 2)), ("admin".to_string(), meta("/admin", false, 3))]);
         let owner = c.jar.clone();
@@ -4095,10 +4516,10 @@ mod tests {
         let mut r = runner("https://www.shop.example/");
         r.jar = jar_of(&[("a", "1"), ("b", "2"), ("c", "3"), ("old", "x")]);
         r.cookie_meta = HashMap::from([
-            ("a".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: None }),
-            ("b".to_string(), CookieMeta { path: "/api".into(), expires: None, order: 2, http_only: None }),
-            ("c".to_string(), CookieMeta { path: "/api/v1".into(), expires: None, order: 3, http_only: None }),
-            ("old".to_string(), CookieMeta { path: "/".into(), expires: Some(1.0), order: 4, http_only: None }),
+            ("a".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: None, bound_to: None }),
+            ("b".to_string(), CookieMeta { path: "/api".into(), expires: None, order: 2, http_only: None, bound_to: None }),
+            ("c".to_string(), CookieMeta { path: "/api/v1".into(), expires: None, order: 3, http_only: None, bound_to: None }),
+            ("old".to_string(), CookieMeta { path: "/".into(), expires: Some(1.0), order: 4, http_only: None, bound_to: None }),
         ]);
         let ask = r.with_session_cookies(&get("https://www.shop.example/api/v1/items"));
         let sent = cookie(&ask).unwrap_or_default();
@@ -4111,7 +4532,7 @@ mod tests {
     /// from another node, a cookie its step names by its own field is held to the same rule.
     #[test]
     fn a_cookie_goes_only_to_the_paths_its_line_covers() {
-        let meta = |path: &str, expires: Option<f64>, order: u64| CookieMeta { path: path.into(), expires, order, http_only: Some(true) };
+        let meta = |path: &str, expires: Option<f64>, order: u64| CookieMeta { path: path.into(), expires, order, http_only: Some(true), bound_to: None };
         let mut r = runner("https://www.shop.example/");
         r.jar = jar_of(&[("sid", "s"), ("admin", "a"), ("old", "o")]);
         r.cookie_meta = HashMap::from([
@@ -4195,7 +4616,7 @@ mod tests {
         let before = jar.clone();
         merge_sighting(&mut jar, Some("shop.example"), "https://shop.example/", session, &HashSet::new(), &mut domains);
         assert_eq!((jar.get("pass").map(String::as_str), domains.get("pass")), (Some("new"), None));
-        let mut meta = HashMap::from([("pass".to_string(), CookieMeta { path: "/admin".into(), expires: None, order: 1, http_only: Some(false) })]);
+        let mut meta = HashMap::from([("pass".to_string(), CookieMeta { path: "/admin".into(), expires: None, order: 1, http_only: Some(false), bound_to: None })]);
         note_facts(&mut meta, &HashMap::new(), &jar, &before);
         assert!(!meta.contains_key("pass"), "the old line's path and HttpOnly went with its value");
         // A walk whose browser was asked and holds nothing for the host: the site ended the session, and the jar's goes.
@@ -4285,7 +4706,7 @@ mod tests {
         assert_eq!(r.cookie_meta["legacy"].http_only, None);
         assert!(!r.page_cookies(&page).contains("legacy="));
         // And a browser's word is held to the same rule.
-        let mut meta = HashMap::from([("sid".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: Some(true) })]);
+        let mut meta = HashMap::from([("sid".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: Some(true), bound_to: None })]);
         let jar = jar_of(&[("sid", "s")]);
         let facts = HashMap::from([("sid".to_string(), agent_browser_core::session::CookieFacts { path: "/".into(), http_only: false, expires: None })]);
         note_facts(&mut meta, &facts, &jar, &jar);
@@ -4315,7 +4736,7 @@ mod tests {
     /// the site are all kept from it.
     #[test]
     fn a_pages_script_sees_only_the_cookies_a_browser_shows_it() {
-        let meta = |path: &str, expires: Option<f64>, order: u64, http_only: Option<bool>| CookieMeta { path: path.into(), expires, order, http_only };
+        let meta = |path: &str, expires: Option<f64>, order: u64, http_only: Option<bool>| CookieMeta { path: path.into(), expires, order, http_only, bound_to: None };
         let mut r = runner("https://www.shop.example/");
         r.jar = jar_of(&[("sid", "secret"), ("pref", "dark"), ("legacy", "l"), ("admin", "a"), ("old", "o"), ("wide", "w")]);
         r.jar_domains.insert("wide".into(), ".shop.example".into());
@@ -4448,6 +4869,58 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Each host has a jar of its own, and a cookie set for the domain is the browser's for every host under it: a
+    /// sign-in on `auth.` sets the session the calls on `www.` send (the owner's Ticketmaster routes: `KP_UIDz-ssn` set
+    /// on `auth.ticketmaster.com` for `.ticketmaster.com`, the search on `www.`). So a route on one host reads what
+    /// another host's jar holds for the domain, without its own file taking a copy; what a call gives anew or takes
+    /// away of such a cookie reaches the other jars it covers; and a host's own cookie, or one of another site, never
+    /// moves.
+    #[test]
+    fn a_cookie_given_on_one_host_reaches_a_taker_on_another_host_its_domain_covers() {
+        let dir = std::env::temp_dir().join(format!("route-client-hosts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let g = build(&traces(), |e| e.url.path() == "/api/p/list").unwrap();
+        let from = jar_name(&g).unwrap();
+        let on = |host: &str| {
+            let mut g = g.clone();
+            g.steps.iter_mut().for_each(|s| s.url = s.url.replacen(&from, host, 1));
+            g
+        };
+        let file = |host: &str| -> HashMap<String, String> { unbrowse_files::JAR.read_at(&dir.join(format!("{host}.json"))).ok().flatten().unwrap_or_default() };
+        // The sign-in, on `auth.`: the session for the domain, and a cookie of its own.
+        let mut auth = RouteClient::new(on("auth.shop.example")).with_session_store(&dir);
+        assert_eq!(auth.host().as_deref(), Some("auth.shop.example"));
+        auth.jar.insert("sid".into(), "signed-in".into());
+        auth.jar_domains.insert("sid".into(), ".shop.example".into());
+        auth.jar.insert("auth_step".into(), "auth-only".into());
+        auth.save_jar();
+        // Another site's jar, holding a cookie of the same name for its own domain.
+        std::fs::write(dir.join("shop.other.json"), r#"{"v":1,"items":{"sid":"theirs"}}"#).unwrap();
+
+        let mut www = RouteClient::new(on("www.shop.example")).with_session_store(&dir);
+        assert_eq!(www.jar.get("sid").map(String::as_str), Some("signed-in"), "the session the domain's sign-in set");
+        assert!(!www.jar.contains_key("auth_step"), "a cookie of auth.'s own stays there");
+        www.jar.insert("pref".into(), "dark".into());
+        www.save_jar();
+        assert!(!file("www.shop.example").contains_key("sid"), "read from auth.'s jar, not copied into www.'s file");
+        assert_eq!(www.jar.get("sid").map(String::as_str), Some("signed-in"), "and still in hand after the save");
+        assert!(!file("auth.shop.example").contains_key("pref"), "a host-only cookie never moves");
+
+        // The site renews the session in an answer to www.: auth.'s jar holds the new one too.
+        www.jar.insert("sid".into(), "renewed".into());
+        www.save_jar();
+        assert_eq!(file("auth.shop.example").get("sid").map(String::as_str), Some("renewed"));
+        assert_eq!(file("shop.other.json".trim_end_matches(".json")).get("sid").map(String::as_str), Some("theirs"), "another site's jar is never touched");
+        // And takes it away: gone from every jar it reached.
+        www.jar.remove("sid");
+        www.save_jar();
+        assert!(!file("auth.shop.example").contains_key("sid"), "auth: {:?}", file("auth.shop.example"));
+        assert!(!file("www.shop.example").contains_key("sid"), "www: {:?}", file("www.shop.example"));
+        assert!(!RouteClient::new(on("api.shop.example")).with_session_store(&dir).jar.contains_key("sid"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// A site ends a cookie by setting it to expire, whatever value it leaves there: the jar lets it go.
     #[test]
     fn a_cookie_set_to_expire_leaves_the_jar() {
@@ -4566,6 +5039,7 @@ mod tests {
             on_load: false,
             foreign,
             held: vec![],
+            fallbacks: Vec::new(),
         };
         let sent_to_sibling = |foreign: bool| {
             let graph = Graph { steps: vec![step(0, "https://api.shop.example/v1/me", foreign), step(1, "https://www.shop.example/api", foreign)], provisional: false, page_origin: None, ..Graph::default() };
@@ -4593,9 +5067,10 @@ mod tests {
             credential: Some("_abck".into()),
             ttl: Some(3600),
             earn: crate::graph::Earn::Browser,
+            at: None,
         };
         let mut jar = HashMap::from([("_abck".to_string(), "v".to_string())]);
-        let mut meta = HashMap::from([("_abck".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() + 600.0), order: 0, http_only: None })]);
+        let mut meta = HashMap::from([("_abck".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() + 600.0), order: 0, http_only: None, bound_to: None })]);
         assert!(holds_the_credential(&jar, &meta, &door), "alive");
         meta.get_mut("_abck").unwrap().expires = Some(now_secs() - 1.0);
         assert!(!holds_the_credential(&jar, &meta, &door), "lapsed");
@@ -4657,6 +5132,69 @@ mod tests {
         (r, log, plain)
     }
 
+    /// Whether a step may go plainly is the write rule's question, not its method's: a POST the page sent as it loaded,
+    /// that answered with data and set no cookie, changes nothing (`ledger::writes`), so the page's own code making no
+    /// call for it opens no browser — the route's own request asks the site, and the site's answer says whether it
+    /// needed the page's signature. A POST that may change the site still asks the page, as before.
+    #[cfg(unix)]
+    #[test]
+    fn a_page_signed_post_that_only_asks_opens_no_browser() {
+        let step = |on_load: bool, sets_cookie: bool| crate::graph::Step {
+            page_signed: true,
+            page_producers: vec![crate::graph::PageProducer {
+                loc: Loc::Header("x-canva-analytics".into()),
+                producer: crate::signing::Producer { script: "https://shop.example/app.js".into(), at: 12, frame: false },
+            }],
+            exchange: 2,
+            method: "POST".into(),
+            status: 200,
+            url: "https://shop.example/_ajax/tiles".into(),
+            fields: vec![],
+            body: None,
+            response_shape: None,
+            needs_browser: true,
+            reads_page: false,
+            sets_cookie,
+            on_load,
+            foreign: false,
+            held: vec![],
+            fallbacks: Vec::new(),
+        };
+        let posting = |url: &str| Request { method: "POST".into(), url: url.parse().unwrap(), exchange: 2, headers: vec![], body: Some(br#"{"query":"resume"}"#.to_vec()) };
+        let (mut r, log, _) = a_walled_site("[200,\"application/json\",[],\"{}\"]", "plain-post");
+        r.page = Some("https://shop.example/templates?query=resume".into());
+        r.page_html = Some("<!doctype html><html><body>templates</body></html>".into());
+        r.sandbox_off.set(true);
+        r.steps.insert(2, step(true, false));
+        assert!(r.sign_request(&posting("https://shop.example/_ajax/tiles"), &HashMap::new()).is_none(), "the route's own request is the step's");
+        assert!(!log.exists(), "the browser was told nothing");
+        assert!(!r.used_browser.load(std::sync::atomic::Ordering::Relaxed), "no browser ran");
+        // The same request setting a cookie may have changed the site: the page's own code is what sends it.
+        r.page_read.set(false);
+        r.steps.insert(2, step(true, true));
+        r.sign_request(&posting("https://shop.example/_ajax/tiles"), &HashMap::new());
+        assert!(log.exists(), "the browser was told, for the write");
+    }
+
+    /// A plain read the page's own code makes no call for goes out as the route builds it: the browser is not opened,
+    /// whatever the page's scripts sign, because `Fetch::sign_request`'s None on a GET already means the route's own
+    /// request and the site's answer says whether the page's values were needed. A page whose only page-written value
+    /// is a reporting header (`sentry-trace`) answered nothing cheaper through a browser.
+    #[cfg(unix)]
+    #[test]
+    fn a_plain_read_the_page_makes_no_call_for_opens_no_browser() {
+        let (mut r, log, _) = a_walled_site("[200,\"application/json\",[],\"{}\"]", "plain-read");
+        r.page = Some("https://shop.example/search?q=apollo%2011".into());
+        r.page_html = Some("<!doctype html><html><body>a search</body></html>".into());
+        // The page's code is on the route, and it makes no call of its own: a script that defines a reporter.
+        r.scripts = vec![crate::signing::Script { url: "https://shop.example/app.js".into(), body: "window.__ub_trace = 'x';".into() }];
+        r.sandbox_off.set(true);
+        let asked = get("https://shop.example/services/search/page_production/?user_query=apollo%2011");
+        assert!(r.sign_request(&asked, &HashMap::new()).is_none(), "the route's own request is the step's");
+        assert!(!log.exists(), "the browser was told nothing");
+        assert!(!r.used_browser.load(std::sync::atomic::Ordering::Relaxed), "no browser ran");
+    }
+
     /// The walk saw this step refused, so a refusal is what it answers. No browser opens for it, on any call.
     #[cfg(unix)]
     #[test]
@@ -4710,6 +5248,7 @@ mod tests {
             on_load: false,
             foreign: false,
             held: vec![],
+            fallbacks: Vec::new(),
         };
         let mut first = plain(0, "POST", "https://shop.example/api/visitor");
         first.sets_cookie = true;
@@ -4765,6 +5304,26 @@ mod tests {
         assert_eq!(sent.lock().unwrap().first().map(String::as_str), Some("/api/visitor"), "the step reached the site");
         assert!(run.is_err(), "the site's own 500 fails the call: {run:?}");
         assert!(ledger.marks.iter().all(|m| m.state != crate::ledger::MarkState::Confirmed), "nothing the site didn't say: {:?}", ledger.marks);
+    }
+
+    /// For a route that came from another node, a cookie the site handed this call itself (a gateway's token issued to
+    /// the request that lacked it) is the call's, not the owner's: the request signed again with it keeps it. Nothing
+    /// else of the jar that the owner didn't hold as the call began is drawn in.
+    #[test]
+    fn a_token_the_site_handed_this_call_goes_with_a_shared_route() {
+        let mut r = runner("https://shop.example/");
+        r.owner = Some(HashMap::from([("sid".to_string(), "host-only-secret".to_string())]));
+        // The call's first request goes out without the token.
+        let first = Request { method: "GET".into(), url: "https://shop.example/h5/find/1.0/?t=0".parse().unwrap(), exchange: 0, headers: vec![], body: None };
+        let _ = r.with_session_cookies(&first);
+        // Its answer set the gateway's token in the jar, and another cookie beside it.
+        r.jar.insert("_tk".into(), "9e107d9d372bb682_1794402700000".into());
+        r.jar.insert("issued_aside".into(), "a1b2c3d4e5".into());
+        let req = Request { method: "GET".into(), url: "https://shop.example/h5/find/1.0/?t=1".parse().unwrap(), exchange: 0, headers: vec![("cookie".into(), "_tk=9e107d9d372bb682_1794402700000".into())], body: None };
+        let sent = r.with_session_cookies(&req);
+        let cookie = sent.headers.iter().find(|(k, _)| k == "cookie").map(|(_, v)| v.clone()).unwrap_or_default();
+        assert!(cookie.contains("_tk=9e107d9d372bb682_1794402700000"), "the call's own token rides the resend: {cookie}");
+        assert!(!cookie.contains("issued_aside"), "a cookie of this call the request doesn't name is never drawn from the jar: {cookie}");
     }
 
     /// Half a session is no session: the step runs, and earns what the jar lacks.
@@ -5293,6 +5852,7 @@ mod strangers_tests {
             on_load: false,
             foreign,
             held: vec![],
+            fallbacks: Vec::new(),
         }
     }
 
@@ -5371,6 +5931,136 @@ mod strangers_tests {
         let mut read = RouteClient::new(get(false));
         read.wire = Some(|| Box::new(Shop { seen: &SEEN, answers: |_| (200, vec![]) }));
         assert!(read.call(&HashMap::new()).is_ok(), "released, a route goes");
+    }
+
+    /// A shop behind a door: its calls answer 403 until a request carries the pass, and its own page hands the pass out
+    /// to whoever asks for the page.
+    struct Gated {
+        seen: &'static Mutex<Seen>,
+    }
+
+    impl Fetch for Gated {
+        fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            self.fetch(req)
+        }
+
+        fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            let path = req.url.path().to_string();
+            let cookie = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("cookie")).map(|(_, v)| v.clone()).unwrap_or_default();
+            self.seen.lock().unwrap().push((path.clone(), cookie.clone()));
+            let api = path.starts_with("/api");
+            let (status, set) = match (api, cookie.contains("pass=fresh")) {
+                (true, true) => (200, vec![]),
+                (true, false) => (403, vec![]),
+                (false, _) => (200, vec!["pass=fresh; Path=/"]),
+            };
+            Ok(Exchange {
+                method: req.method.clone(),
+                url: req.url.clone(),
+                request_headers: vec![],
+                request_body: None,
+                status,
+                response_headers: set.into_iter().map(|c| ("set-cookie".to_string(), c.to_string())).collect(),
+                response_body: Some(if api && status == 200 { r#"{"items":[1]}"#.into() } else { "<html></html>".into() }),
+                response_mime: if api && status == 200 { "application/json" } else { "text/html" }.into(),
+                resource_type: None,
+                main_frame: None,
+            })
+        }
+    }
+
+    /// A call refused at the site's door is mended where a door is mended: the route's page is asked again over the
+    /// call's own wire, the pass it hands back joins the jar, and the chain runs again. It does not give up before the
+    /// page was ever asked.
+    #[test]
+    fn a_door_refusal_reaches_its_own_mend() {
+        static SEEN: Mutex<Seen> = Mutex::new(Vec::new());
+        let mut graph = two_reads(false);
+        graph.door = Some(crate::graph::Door { kind: crate::graph::DoorKind::Unknown, statuses: vec![403, 429, 503], credential: Some("pass".into()), ttl: None, earn: crate::graph::Earn::Recompute, at: None });
+        let mut client = RouteClient::new(graph);
+        client.root = Some("https://shop.example.com/".into());
+        client.target = Some(("GET".into(), "/api/list".into()));
+        client.wire = Some(|| Box::new(Gated { seen: &SEEN }));
+        let (answer, _) = client.call_with_ledger(&HashMap::new());
+        let seen = SEEN.lock().unwrap().clone();
+        assert!(seen.iter().any(|(p, _)| p == "/"), "the door's page was never asked: {seen:?}");
+        assert!(answer.is_ok(), "the pass the page handed back opens the door: {answer:?}");
+        assert!(seen.iter().any(|(p, c)| p == "/api/list" && c.contains("pass=fresh")), "the chain ran again with the pass: {seen:?}");
+    }
+
+    /// A shop whose calls answer with a check for a person (a page that is only the check's widget) until a request
+    /// carries the pass. Its own page hands out nothing.
+    struct Checked;
+
+    impl Fetch for Checked {
+        fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            self.fetch(req)
+        }
+
+        fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            let path = req.url.path().to_string();
+            let cookie = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("cookie")).map(|(_, v)| v.clone()).unwrap_or_default();
+            let api = path.starts_with("/api");
+            let (status, mime, body) = match (api, cookie.contains("cleared=yes")) {
+                (true, true) => (200, "application/json", r#"{"items":[1]}"#),
+                (true, false) => (403, "text/html", r#"<html><head><script src="/w.js"></script></head><body><div data-sitekey="k1"></div><p>Confirm you are a person.</p></body></html>"#),
+                (false, _) => (200, "text/html", "<html></html>"),
+            };
+            Ok(Exchange { method: req.method.clone(), url: req.url.clone(), request_headers: vec![], request_body: None, status, response_headers: vec![], response_body: Some(body.into()), response_mime: mime.into(), resource_type: None, main_frame: None })
+        }
+    }
+
+    /// What is tried against a door is read from what the door's answer was, in that order, and stops at the first
+    /// thing that opens it: a check for a person asks for the owner's own browser session, then the solver, and the
+    /// owner is never asked once the solver's pass opened the door. The pass joins the jar as this client's, with the
+    /// life the source gave it. A source the node did not give (here, the engine) is passed over.
+    #[test]
+    fn what_clears_a_door_is_read_from_the_wall_and_tried_in_its_order() {
+        use crate::refusal::{Cleared, Source};
+        let asked: std::sync::Arc<Mutex<Vec<Source>>> = Default::default();
+        let source = |which: Source, pass: Option<Cleared>| -> Clearer {
+            let asked = asked.clone();
+            Box::new(move |wall| {
+                assert_eq!(wall, &crate::refusal::Wall::Person, "the clearer is told what the wall is");
+                asked.lock().unwrap().push(which);
+                pass.clone()
+            })
+        };
+        let pass = Cleared { cookies: [("cleared".to_string(), "yes".to_string())].into(), ttl: Some(600), bound_to: None, by: Some(Source::Solver) };
+        let mut graph = two_reads(false);
+        graph.door = Some(crate::graph::Door { kind: crate::graph::DoorKind::Unknown, statuses: vec![403, 429, 503], credential: Some("cleared".into()), ttl: None, earn: crate::graph::Earn::BrowserOrOwner, at: None });
+        let mut client = RouteClient::new(graph)
+            .with_clearer(Source::Owner, source(Source::Owner, None))
+            .with_clearer(Source::Solver, source(Source::Solver, Some(pass)))
+            .with_clearer(Source::OwnerSession, source(Source::OwnerSession, None));
+        client.root = Some("https://shop.example.com/".into());
+        client.target = Some(("GET".into(), "/api/list".into()));
+        client.wire = Some(|| Box::new(Checked));
+        let me = client.identity();
+        let (answer, _) = client.call_with_ledger(&HashMap::new());
+        assert!(answer.is_ok(), "the solver's pass opens the door: {answer:?}");
+        assert_eq!(*asked.lock().unwrap(), [Source::OwnerSession, Source::Solver], "in the wall's order, whatever order they were given in, and no further than what opened it");
+        let meta = client.cookie_meta.get("cleared").expect("the pass is kept with its record");
+        assert_eq!(meta.bound_to.as_deref(), Some(me.as_str()), "the pass is this client's");
+        assert!(meta.expires.is_some_and(|at| at > now_secs() + 500.0 && at < now_secs() + 700.0), "with the life its source gave: {meta:?}");
+        assert!(client.fell_back().iter().any(|n| n.contains("cleared by the configured solver")), "{:?}", client.fell_back());
+
+        // Nothing clears it: the call fails as the door it met, having asked every source it was given, the owner last.
+        asked.lock().unwrap().clear();
+        let mut graph = two_reads(false);
+        graph.door = Some(crate::graph::Door { kind: crate::graph::DoorKind::Unknown, statuses: vec![403, 429, 503], credential: None, ttl: None, earn: crate::graph::Earn::BrowserOrOwner, at: None });
+        let mut client = RouteClient::new(graph).with_clearer(Source::Owner, source(Source::Owner, None)).with_clearer(Source::OwnerSession, source(Source::OwnerSession, None));
+        client.root = Some("https://shop.example.com/".into());
+        client.target = Some(("GET".into(), "/api/list".into()));
+        client.wire = Some(|| Box::new(Checked));
+        let (answer, _) = client.call_with_ledger(&HashMap::new());
+        assert!(matches!(answer, Err(ReplayError::Door { wall: Some(crate::refusal::Wall::Person), .. })), "{answer:?}");
+        assert_eq!(*asked.lock().unwrap(), [Source::OwnerSession, Source::Owner]);
+
+        // A route that came from another node is cleared by nothing of the owner's.
+        asked.lock().unwrap().clear();
+        let stranger = RouteClient::new(two_reads(true)).with_clearer(Source::Owner, source(Source::Owner, None));
+        assert!(stranger.clearers.is_empty());
     }
 
     /// A route that came from another node reads the owner's session and never writes it: a cookie its answers set,
@@ -5766,5 +6456,816 @@ mod strangers_tests {
         client.call(&HashMap::new()).expect("the node's own route takes the new session");
         assert!(OWN.lock().unwrap().iter().any(|(p, c)| p == "/api/list" && c.contains("sid=rotated")));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Every request the fake shop below was sent, whole: its address with the query, every header, and its body.
+    static WHOLE: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    /// A shop that writes down all of every request, so a value anywhere in it is seen.
+    struct Recorder;
+
+    impl Fetch for Recorder {
+        fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            self.fetch(req)
+        }
+
+        fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            let headers: Vec<String> = req.headers.iter().map(|(k, v)| format!("{k}: {v}")).collect();
+            let body = req.body.as_deref().map(String::from_utf8_lossy).unwrap_or_default();
+            WHOLE.lock().unwrap().push(format!("{} | {} | {body}", req.url, headers.join(" | ")));
+            Ok(Exchange {
+                method: req.method.clone(),
+                url: req.url.clone(),
+                request_headers: vec![],
+                request_body: None,
+                status: 200,
+                response_headers: vec![],
+                response_body: Some(r#"{"items":[1]}"#.into()),
+                response_mime: "application/json".into(),
+                resource_type: None,
+                main_frame: None,
+            })
+        }
+    }
+
+    /// Audit 1118 M7 (16 Nov H5): a step of a route that came from another node puts the owner's session only where a
+    /// browser sends it. One that places the owner's session cookie in a query, form or JSON field is refused before
+    /// anything of the call is sent, with the owner's yes or without; the same cookie in the cookie header goes, and the
+    /// node's own route that places it in a query still sends it there, as its own walk saw. A header of a stranger's
+    /// step never draws a value the jar knows as a cookie, while a header token of the session still rides.
+    #[test]
+    fn a_strangers_step_carries_the_session_only_in_the_cookie_header() {
+        let dir = owners_store("placed");
+        // `sid` is a cookie (a line set it: its path is recorded); `x-csrf` is a token the session keeps for a header.
+        let jar = HashMap::from([("sid".to_string(), "owners-session".to_string()), ("x-csrf".to_string(), "owners-token".to_string())]);
+        std::fs::write(dir.join("shop.example.com.json"), unbrowse_files::JAR.to_vec_pretty(&jar).unwrap()).unwrap();
+        let meta = HashMap::from([("sid".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: Some(true), bound_to: None })]);
+        std::fs::write(meta_path(&dir, "shop.example.com"), unbrowse_files::JAR.to_vec_pretty(&meta).unwrap()).unwrap();
+        let placing = |foreign: bool, fields: Vec<(Loc, &str)>| {
+            let mut s = step(0, "/api/search", foreign);
+            s.fields = fields.into_iter().map(|(loc, name)| crate::graph::Field { loc, class: Class::Minted { name: name.into() } }).collect();
+            Graph { steps: vec![s], provisional: false, page_origin: None, ..Graph::default() }
+        };
+        let call = |client: RouteClient| {
+            let mut client = client;
+            client.wire = Some(|| Box::new(Recorder));
+            WHOLE.lock().unwrap().clear();
+            let answer = client.call(&HashMap::new());
+            (answer, WHOLE.lock().unwrap().clone())
+        };
+        for loc in [Loc::Query("q".into()), Loc::Form("q".into()), Loc::Json("/q".into())] {
+            for consented in [false, true] {
+                let client = RouteClient::new(placing(true, vec![(loc.clone(), "sid")])).with_session_store(&dir);
+                let (answer, sent) = call(if consented { client.consented() } else { client });
+                assert!(matches!(&answer, Err(ReplayError::Refused(why)) if why.contains("cookie header") && !why.contains("owners-session")), "{loc}: {answer:?}");
+                assert!(sent.is_empty(), "{loc}: nothing of the call was sent: {sent:?}");
+            }
+        }
+        // The cookie header is where a stranger's step may carry the session, with the owner's yes.
+        let (answer, sent) = call(RouteClient::new(placing(true, vec![(Loc::Cookie("sid".into()), "sid")])).with_session_store(&dir).consented());
+        assert!(answer.is_ok(), "{answer:?}");
+        assert!(sent.iter().any(|r| r.contains("cookie: sid=owners-session")), "{sent:?}");
+        // A header of a stranger's step: the session's header token goes, the jar's cookie never does.
+        let (answer, sent) = call(RouteClient::new(placing(true, vec![(Loc::Header("x-sid".into()), "sid"), (Loc::Header("x-csrf".into()), "x-csrf")])).with_session_store(&dir).consented());
+        assert!(answer.is_ok(), "{answer:?}");
+        assert!(sent.iter().any(|r| r.contains("x-csrf: owners-token")), "the header token rides: {sent:?}");
+        assert!(sent.iter().all(|r| !r.contains("owners-session")), "the cookie is never moved into a header: {sent:?}");
+        // The node's own route places what its own walk saw the page place: unchanged.
+        let (answer, sent) = call(RouteClient::new(placing(false, vec![(Loc::Query("q".into()), "sid")])).with_session_store(&dir));
+        assert!(answer.is_ok(), "{answer:?}");
+        assert!(sent.iter().any(|r| r.contains("q=owners-session")), "{sent:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// A session that stops answering: what a call does about it, with the site's own pages and no browser.
+#[cfg(test)]
+mod session_refresh_tests {
+    use super::*;
+    use crate::replay::fake_wire::Answer;
+    use std::sync::Mutex;
+
+    /// One request the fake shop was sent: its path, and the cookie header it carried.
+    type Seen = Vec<(String, String)>;
+
+    /// A made-up shop whose `/api/list` refuses a call that carries the old session. `refuses` is the status it
+    /// answers with (0: a `200` that is the sign-in page, where the call was sent to). The shop's page `/` hands out
+    /// a fresh session cookie, and `mends` is whether `/api/list` takes that cookie.
+    struct Gate {
+        seen: &'static Mutex<Seen>,
+        refuses: u16,
+        mends: bool,
+    }
+
+    impl Answer for Gate {
+        fn answer(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            let path = req.url.path().to_string();
+            let cookie = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("cookie")).map(|(_, v)| v.clone()).unwrap_or_default();
+            self.seen.lock().unwrap().push((path.clone(), cookie.clone()));
+            let mut ex = Exchange { method: req.method.clone(), url: req.url.clone(), request_headers: vec![], request_body: None, status: 200, response_headers: vec![], response_body: None, response_mime: "application/json".into(), resource_type: None, main_frame: None };
+            match path.as_str() {
+                "/" => {
+                    ex.response_headers = vec![("set-cookie".into(), "sid=fresh; Path=/".into())];
+                    ex.response_body = Some("<html></html>".into());
+                    ex.response_mime = "text/html".into();
+                }
+                "/api/list" if !(self.mends && cookie.contains("sid=fresh")) => match self.refuses {
+                    0 => {
+                        ex.url = "https://shop.example.com/login?next=%2Fapi%2Flist".parse().unwrap();
+                        ex.response_body = Some(r#"<html><form><input type="password" name="pw"></form></html>"#.into());
+                        ex.response_mime = "text/html".into();
+                    }
+                    status => {
+                        ex.status = status;
+                        ex.response_body = Some(r#"{"error":"signed out"}"#.into());
+                    }
+                },
+                _ => ex.response_body = Some(r#"{"items":[1]}"#.into()),
+            }
+            Ok(ex)
+        }
+    }
+
+    fn step(exchange: usize, path: &str) -> crate::graph::Step {
+        crate::graph::Step {
+            page_signed: false,
+            page_producers: Vec::new(),
+            exchange,
+            method: "GET".into(),
+            status: 200,
+            url: format!("https://shop.example.com{path}"),
+            fields: vec![],
+            body: None,
+            response_shape: None,
+            needs_browser: false,
+            reads_page: false,
+            sets_cookie: false,
+            on_load: false,
+            foreign: false,
+            held: vec![],
+            fallbacks: Vec::new(),
+        }
+    }
+
+    /// The route's two calls: `/api/me` (the one that knows the session), then `/api/list`, which reads a value off
+    /// the first's answer. The client holds an old session and the page the route was learned on.
+    fn client(wire: fn() -> Box<dyn Fetch>) -> RouteClient {
+        client_at(wire, "")
+    }
+
+    /// [`client`], whose page address carries `tag`: one walk per address runs at a time, so tests that open a
+    /// browser each take an address of their own.
+    fn client_at(wire: fn() -> Box<dyn Fetch>, tag: &str) -> RouteClient {
+        let mut list = step(1, "/api/list");
+        let origin = crate::provenance::Origin { exchange: 0, url: "https://shop.example.com/api/me".into(), at: crate::provenance::At::Json { pointer: "/items/0".into() }, wrap: None };
+        list.fields.push(crate::graph::Field { loc: Loc::Query("n".into()), class: Class::Derived { origin } });
+        let graph = Graph { steps: vec![step(0, "/api/me"), list], provisional: false, page_origin: None, ..Graph::default() };
+        let mut c = RouteClient::new(graph);
+        c.root = Some(format!("https://shop.example.com/{tag}"));
+        c.target = Some(("GET".into(), "/api/list".into()));
+        c.jar.insert("sid".into(), "old".into());
+        c.wire = Some(wire);
+        c
+    }
+
+    fn paths(seen: &Mutex<Seen>) -> Vec<String> {
+        seen.lock().unwrap().iter().map(|(p, _)| p.clone()).collect()
+    }
+
+    /// A call that gets a `401` or a `403` runs the route's own first call again once the site's page has handed back
+    /// a fresh session: the auth call goes first in each run, the page is asked once between, and no browser opens.
+    #[test]
+    fn a_refused_call_asks_the_sites_page_for_a_session_and_runs_the_chain_once_more() {
+        static R401: Mutex<Seen> = Mutex::new(Vec::new());
+        static R403: Mutex<Seen> = Mutex::new(Vec::new());
+        let mut a = client(|| Box::new(Gate { seen: &R401, refuses: 401, mends: true }));
+        let mut b = client(|| Box::new(Gate { seen: &R403, refuses: 403, mends: true }));
+        for (c, seen) in [(&mut a, &R401), (&mut b, &R403)] {
+            let answer = c.call(&HashMap::new()).expect("the fresh session answers");
+            assert_eq!(answer["items"][0], 1);
+            assert!(!c.used_browser(), "the page re-issued the session: no browser");
+            assert_eq!(c.jar.get("sid").map(String::as_str), Some("fresh"));
+            let seen = paths(seen);
+            let list = seen.iter().position(|p| p == "/api/list").expect("the target ran");
+            assert_eq!(&seen[list - 1], "/api/me", "the call that knows the session goes first: {seen:?}");
+            assert_eq!(&seen[list + 1..], ["/", "/api/me", "/api/list"], "the page once, then the whole chain once more: {seen:?}");
+            assert_eq!(seen.iter().filter(|p| *p == "/").count(), 1);
+        }
+    }
+
+    /// A refusal that the fresh session does not mend is retried once and no more: the chain runs twice, the page is
+    /// asked once, and the call fails saying the site refused it (the session reads as gone, not as the site moved).
+    #[test]
+    fn a_call_refused_again_after_the_fresh_session_fails_after_one_retry() {
+        static R401: Mutex<Seen> = Mutex::new(Vec::new());
+        static R403: Mutex<Seen> = Mutex::new(Vec::new());
+        let mut a = client(|| Box::new(Gate { seen: &R401, refuses: 401, mends: false }));
+        let mut b = client(|| Box::new(Gate { seen: &R403, refuses: 403, mends: false }));
+        for (c, seen, status) in [(&mut a, &R401, 401), (&mut b, &R403, 403)] {
+            let e = c.call(&HashMap::new()).unwrap_err();
+            assert!(matches!(&e, ReplayError::Failed { status: s, .. } if *s == status), "{e:?}");
+            assert!(session_gone(&e), "the failure says the session is gone");
+            assert!(!c.used_browser());
+            assert_eq!(paths(seen).iter().filter(|p| *p == "/api/list").count(), 2, "one call and one retry: {:?}", paths(seen));
+            assert_eq!(paths(seen).iter().filter(|p| *p == "/").count(), 1);
+        }
+    }
+
+    /// A page that refuses to hand a session back (its own `403`) leaves the call as it failed: the jar keeps the old
+    /// session, the chain does not run again, and no browser is opened without one configured.
+    #[test]
+    fn a_refresh_the_page_refuses_leaves_the_call_failed_and_the_session_as_it_was() {
+        static WALLED: Mutex<Seen> = Mutex::new(Vec::new());
+        /// The site's page answers `403` but sets a cookie beside it: a refused page's cookie is nobody's session.
+        struct Walled;
+        impl Answer for Walled {
+            fn answer(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                WALLED.lock().unwrap().push((req.url.path().to_string(), String::new()));
+                let page = req.url.path() == "/";
+                let set = if page { vec![("set-cookie".to_string(), "sid=fresh; Path=/".to_string())] } else { vec![] };
+                Ok(Exchange { method: "GET".into(), url: req.url.clone(), request_headers: vec![], request_body: None, status: if page { 403 } else { 401 }, response_headers: set, response_body: Some("no".into()), response_mime: "text/plain".into(), resource_type: None, main_frame: None })
+            }
+        }
+        let mut c = client(|| Box::new(Walled));
+        let e = c.call(&HashMap::new()).unwrap_err();
+        assert!(matches!(&e, ReplayError::Failed { status: 401, .. }), "the call's own failure, not the page's: {e:?}");
+        assert_eq!(c.jar.get("sid").map(String::as_str), Some("old"));
+        assert!(!c.used_browser());
+        assert_eq!(paths(&WALLED).iter().filter(|p| *p == "/api/me").count(), 1, "the chain was not run again: {:?}", paths(&WALLED));
+        let mut c = client(|| Box::new(Walled));
+        assert!(!c.refresh_with(&mut Walled), "the session is not refreshed");
+    }
+
+    /// With a way to sign in (a browser to open), a call sent to the sign-in page signs in and runs the chain once
+    /// more, the auth call first in the run. A `401` is answered from the site's page first and never spends the
+    /// sign-in. (A `403` with a browser configured goes to the browser as a wall: that is not this path.)
+    #[test]
+    fn a_call_sent_to_the_sign_in_page_signs_in_once_and_runs_the_chain_once_more() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static R401: Mutex<Seen> = Mutex::new(Vec::new());
+        static LOGIN: Mutex<Seen> = Mutex::new(Vec::new());
+        let signing_in = |wire: fn() -> Box<dyn Fetch>, signed_in: std::sync::Arc<AtomicUsize>| {
+            let mut c = client_at(wire, "?walk=sign-in").with_browser("/bin/true");
+            c.sign_in = Some(Box::new(move || {
+                signed_in.fetch_add(1, Ordering::SeqCst);
+                Some(HashMap::from([("sid".to_string(), "fresh".to_string())]))
+            }));
+            c
+        };
+        let counts = [std::sync::Arc::new(AtomicUsize::new(0)), std::sync::Arc::new(AtomicUsize::new(0))];
+        let mut clients = [signing_in(|| Box::new(Gate { seen: &R401, refuses: 401, mends: true }), counts[0].clone()), signing_in(|| Box::new(Gate { seen: &LOGIN, refuses: 0, mends: true }), counts[1].clone())];
+        for (n, c) in clients.iter_mut().enumerate() {
+            let answer = c.call(&HashMap::new());
+            let seen = paths([&R401, &LOGIN][n]);
+            assert!(answer.is_ok(), "trigger {n}: {answer:?}");
+            assert_eq!(seen.iter().filter(|p| *p == "/api/list").count(), 2, "trigger {n}: one call, one retry: {seen:?}");
+            assert_eq!(&seen[seen.iter().rposition(|p| p == "/api/list").unwrap() - 1], "/api/me", "trigger {n}: the auth call goes first: {seen:?}");
+            // The 401 is mended by the site's page; only the redirect to a login page reaches the sign-in.
+            assert_eq!(counts[n].load(Ordering::SeqCst), n, "trigger {n}");
+        }
+    }
+
+    /// A page of another scheme, or of another site, is never asked for a session; a sibling host of the site is.
+    #[test]
+    fn only_a_page_of_the_routes_own_site_and_scheme_is_asked_for_a_session() {
+        static SEEN: Mutex<Seen> = Mutex::new(Vec::new());
+        for root in ["http://shop.example.com/", "https://shop.attacker.net/"] {
+            let mut c = client(|| Box::new(Gate { seen: &SEEN, refuses: 401, mends: true }));
+            c.root = Some(root.into());
+            assert!(!c.refresh_with(&mut Gate { seen: &SEEN, refuses: 401, mends: true }), "{root}");
+            assert_eq!(c.jar.get("sid").map(String::as_str), Some("old"), "{root}");
+        }
+        assert!(SEEN.lock().unwrap().is_empty(), "nothing was asked: {:?}", SEEN.lock().unwrap());
+        let mut c = client(|| Box::new(Gate { seen: &SEEN, refuses: 401, mends: true }));
+        c.root = Some("https://www.shop.example.com/".into());
+        // Another host of the site is asked, with only the cookies a recorded Domain reaches (this jar's is host-only),
+        // and a host-only cookie it answers with is not the jar's.
+        assert!(!c.refresh_with(&mut Gate { seen: &SEEN, refuses: 401, mends: true }));
+        assert_eq!(*SEEN.lock().unwrap(), vec![("/".to_string(), String::new())], "a host-only cookie does not go to a sibling host");
+        assert_eq!(c.jar.get("sid").map(String::as_str), Some("old"));
+    }
+
+    /// A header token the route names is the session's when the page hands it over, in a header of its own name or in a
+    /// `<meta>`; a page that hands back what the jar holds changes nothing.
+    #[test]
+    fn a_token_the_route_names_is_taken_from_the_sites_page() {
+        struct Page(&'static str, Vec<(String, String)>);
+        impl Answer for Page {
+            fn answer(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                Ok(Exchange { method: "GET".into(), url: req.url.clone(), request_headers: vec![], request_body: None, status: 200, response_headers: self.1.clone(), response_body: Some(self.0.into()), response_mime: "text/html".into(), resource_type: None, main_frame: None })
+            }
+        }
+        let mut c = client(|| unreachable!("no wire"));
+        c.graph.steps[1].fields.push(crate::graph::Field { loc: Loc::Header("x-csrf".into()), class: Class::Minted { name: "x-csrf".into() } });
+        assert!(c.refresh_with(&mut Page("<html></html>", vec![("X-CSRF".into(), " from-header ".into())])));
+        assert_eq!(c.jar.get("x-csrf").map(String::as_str), Some("from-header"));
+        assert!(!c.refresh_with(&mut Page("<html></html>", vec![("x-csrf".into(), "from-header".into())])), "the same token is no news");
+        assert!(c.refresh_with(&mut Page(r#"<html><head><meta name="x-csrf" content="from-meta"></head></html>"#, vec![])));
+        assert_eq!(c.jar.get("x-csrf").map(String::as_str), Some("from-meta"));
+        assert!(!c.refresh_with(&mut Page(r#"<meta name="x-csrf" content="">"#, vec![])), "an empty token is none");
+        assert_eq!(c.jar.get("x-csrf").map(String::as_str), Some("from-meta"));
+    }
+
+    /// A route that came from another node reads the owner's session and never changes whose it is: a page that
+    /// answers with a new value for the owner's cookie is refused, and the jar is left as it was.
+    #[test]
+    fn a_page_that_replaces_the_owners_session_is_not_taken_for_a_shared_route() {
+        let dir = std::env::temp_dir().join(format!("refresh-owner-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let jar = HashMap::from([("sid".to_string(), "owners-session".to_string())]);
+        std::fs::write(dir.join("shop.example.com.json"), unbrowse_files::JAR.to_vec_pretty(&jar).unwrap()).unwrap();
+        let mut c = client(|| unreachable!("no wire"));
+        for s in &mut c.graph.steps {
+            s.foreign = true;
+        }
+        let mut c = c.with_egress(crate::egress::Egress::Foreign).with_session_store(&dir).consented();
+        c.start_from_the_owners_session();
+        static SEEN: Mutex<Seen> = Mutex::new(Vec::new());
+        struct Hijack;
+        impl Answer for Hijack {
+            fn answer(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                SEEN.lock().unwrap().push((req.url.path().to_string(), String::new()));
+                Ok(Exchange { method: "GET".into(), url: req.url.clone(), request_headers: vec![], request_body: None, status: 200, response_headers: vec![("set-cookie".into(), "sid=hijacked; Path=/".into())], response_body: Some("<html></html>".into()), response_mime: "text/html".into(), resource_type: None, main_frame: None })
+            }
+        }
+        assert!(!c.refresh_with(&mut Hijack));
+        assert_eq!(SEEN.lock().unwrap().len(), 1, "the page was asked");
+        assert_eq!(c.jar.get("sid").map(String::as_str), Some("owners-session"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A write the site refused for its session did not land: the session is mended from the page and the write goes
+    /// again, once. A write the site answered with an error that may have landed (a `503`) is sent once and never
+    /// again, and the page is not asked for a session.
+    #[test]
+    fn a_refused_write_goes_again_once_and_a_write_that_may_have_landed_does_not() {
+        static REFUSED: Mutex<Seen> = Mutex::new(Vec::new());
+        static MAYBE: Mutex<Seen> = Mutex::new(Vec::new());
+        let mut a = client(|| Box::new(Gate { seen: &REFUSED, refuses: 401, mends: true }));
+        let mut b = client_at(|| Box::new(Gate { seen: &MAYBE, refuses: 503, mends: true }), "?walk=write").with_browser("/bin/true");
+        for c in [&mut a, &mut b] {
+            c.graph.steps[1].method = "POST".into();
+        }
+        a.call(&HashMap::new()).expect("the write goes again on the mended session");
+        let seen = paths(&REFUSED);
+        assert_eq!(seen.iter().filter(|p| *p == "/api/list").count(), 2, "{seen:?}");
+        assert_eq!(seen.iter().filter(|p| *p == "/").count(), 1, "{seen:?}");
+        let e = b.call(&HashMap::new()).unwrap_err();
+        assert!(matches!(&e, ReplayError::Failed { status: 503, .. }), "{e:?}");
+        let seen = paths(&MAYBE);
+        assert_eq!(seen.iter().filter(|p| *p == "/api/list").count(), 1, "the write went once: {seen:?}");
+        assert!(!seen.iter().any(|p| p == "/"), "no session was asked for after a write that may have landed: {seen:?}");
+        assert!(!b.used_browser(), "nor was a walk of the page made, which would send the write again");
+    }
+
+    /// A target that went on its own first, and may have written, ends the call there: the chain before it is not
+    /// run to send it again.
+    #[test]
+    fn a_target_that_went_first_and_may_have_written_is_not_followed_by_the_chain() {
+        static SEEN: Mutex<Seen> = Mutex::new(Vec::new());
+        let mut c = client(|| Box::new(Gate { seen: &SEEN, refuses: 500, mends: false }));
+        c.graph.steps[1].method = "POST".into();
+        c.graph.steps[1].fields.clear();
+        let e = c.call(&HashMap::new()).unwrap_err();
+        assert!(matches!(&e, ReplayError::Failed { status: 500, .. }), "{e:?}");
+        assert_eq!(paths(&SEEN), ["/api/list"], "the target alone went, and nothing after it");
+    }
+
+    /// When the session cannot be mended from the page, a walk of the page is the node's browser's: it opens, and a
+    /// walk that shows nothing leaves the call failed as it failed.
+    #[test]
+    fn a_walk_that_finds_nothing_leaves_the_call_failed_as_it_failed() {
+        static SEEN: Mutex<Seen> = Mutex::new(Vec::new());
+        let mut c = client_at(|| Box::new(Gate { seen: &SEEN, refuses: 401, mends: false }), "?walk=nothing").with_browser("/bin/true");
+        let e = c.call(&HashMap::new()).unwrap_err();
+        assert!(matches!(&e, ReplayError::Failed { status: 401, .. }), "{e:?}");
+        assert!(c.used_browser(), "the page was walked");
+        assert!(c.fell_back().iter().any(|f| f.contains("browser walked the page again")), "{:?}", c.fell_back());
+        assert!(c.healed().is_none());
+    }
+
+    /// One walk per page at a time: a call that fails while another walks the same page does not open a second
+    /// browser, and fails as it failed.
+    #[test]
+    fn a_call_that_fails_while_its_page_is_being_walked_opens_no_browser() {
+        static SEEN: Mutex<Seen> = Mutex::new(Vec::new());
+        let mut c = client_at(|| Box::new(Gate { seen: &SEEN, refuses: 401, mends: false }), "?walk=held").with_browser("/bin/true");
+        let walking = HealGuard::take("https://shop.example.com/?walk=held").expect("nobody else walks it");
+        let e = c.call(&HashMap::new()).unwrap_err();
+        assert!(matches!(&e, ReplayError::Failed { status: 401, .. }), "{e:?}");
+        assert!(!c.used_browser());
+        drop(walking);
+    }
+
+    /// A route that came from another node mints only on its own site: a page of another site is never walked in the
+    /// owner's browser, and the call fails as it failed.
+    #[test]
+    fn a_shared_route_never_walks_a_page_off_its_site() {
+        static SEEN: Mutex<Seen> = Mutex::new(Vec::new());
+        let mut c = client(|| Box::new(Gate { seen: &SEEN, refuses: 401, mends: false })).with_egress(crate::egress::Egress::Foreign).with_shared_mint(true).with_browser("/bin/true");
+        assert!(c.browser.is_some(), "the owner allowed the route a browser of its own");
+        c.root = Some("https://elsewhere.example.net/?walk=off-site".into());
+        let e = c.call(&HashMap::new()).unwrap_err();
+        assert!(matches!(&e, ReplayError::Failed { status: 401, .. } | ReplayError::Refused(_)), "{e:?}");
+        assert!(!c.used_browser());
+    }
+}
+
+/// What a client keeps of a session and how it reads one: the storage, fingerprint and tokens beside the jar, and the
+/// transport the site is asked over.
+#[cfg(test)]
+mod client_state_tests {
+    use super::*;
+    use crate::replay::fake_wire::Answer;
+    use std::sync::Mutex;
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("client-state-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn step(exchange: usize, path: &str) -> crate::graph::Step {
+        crate::graph::Step {
+            page_signed: false,
+            page_producers: Vec::new(),
+            exchange,
+            method: "GET".into(),
+            status: 200,
+            url: format!("https://shop.example.com{path}"),
+            fields: vec![],
+            body: None,
+            response_shape: None,
+            needs_browser: false,
+            reads_page: false,
+            sets_cookie: false,
+            on_load: false,
+            foreign: false,
+            held: vec![],
+            fallbacks: Vec::new(),
+        }
+    }
+
+    fn one_read() -> Graph {
+        Graph { steps: vec![step(0, "/api/list")], provisional: false, page_origin: None, ..Graph::default() }
+    }
+
+    /// What the page kept in its storages and what its code saw of the browser go beside the jar after a walk, are
+    /// there for the next call, and go when there is nothing to keep. A route that came from another node writes
+    /// neither: its walk is its call's alone.
+    #[test]
+    fn a_walks_page_state_is_kept_beside_the_jar_for_the_nodes_own_route_only() {
+        let dir = scratch("page-state");
+        let mut c = RouteClient::new(one_read()).with_session_store(&dir);
+        c.storage.local.insert("k".into(), "v".into());
+        c.storage.session.insert("s".into(), "w".into());
+        c.fingerprint = serde_json::json!({ "ua": "Browser/1" });
+        c.save_storage();
+        c.save_fingerprint();
+        assert!(storage_path(&dir, "shop.example.com").exists());
+        assert!(fingerprint_path(&dir, "shop.example.com").exists());
+        let next = RouteClient::new(one_read()).with_session_store(&dir);
+        assert_eq!(next.storage.local.get("k").map(String::as_str), Some("v"));
+        assert_eq!(next.storage.session.get("s").map(String::as_str), Some("w"));
+        assert_eq!(next.fingerprint["ua"], "Browser/1");
+        c.storage = Default::default();
+        c.fingerprint = Value::Null;
+        c.save_storage();
+        c.save_fingerprint();
+        assert!(!storage_path(&dir, "shop.example.com").exists(), "an empty storage leaves no file");
+        assert!(!fingerprint_path(&dir, "shop.example.com").exists(), "no fingerprint leaves no file");
+        let strangers = scratch("page-state-foreign");
+        let mut f = RouteClient::new(one_read()).with_egress(crate::egress::Egress::Foreign).with_session_store(&strangers);
+        f.storage.local.insert("k".into(), "v".into());
+        f.fingerprint = serde_json::json!({ "ua": "Browser/1" });
+        f.save_storage();
+        f.save_fingerprint();
+        assert!(!storage_path(&strangers, "shop.example.com").exists() && !fingerprint_path(&strangers, "shop.example.com").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&strangers);
+    }
+
+    /// A session the browser earned since the client read its jar joins the jar beside what it already holds.
+    #[test]
+    fn a_session_the_browser_earned_joins_the_jar_beside_what_it_holds() {
+        let mut c = RouteClient::new(one_read());
+        c.jar.insert("sid".into(), "old".into());
+        c.jar.insert("keep".into(), "me".into());
+        c.absorb(HashMap::from([("sid".to_string(), "fresh".to_string()), ("new".to_string(), "1".to_string())]));
+        assert_eq!(c.jar, HashMap::from([("sid".to_string(), "fresh".to_string()), ("keep".to_string(), "me".to_string()), ("new".to_string(), "1".to_string())]));
+    }
+
+    /// A page is walked by one call at a time, and free again when that walk ends.
+    #[test]
+    fn a_page_is_walked_by_one_call_at_a_time() {
+        let first = HealGuard::take("https://guarded.example/a").expect("nobody walks it");
+        assert!(HealGuard::take("https://guarded.example/a").is_none(), "already walked");
+        assert!(HealGuard::take("https://guarded.example/b").is_some(), "another page is free");
+        drop(first);
+        assert!(HealGuard::take("https://guarded.example/a").is_some(), "free again once the walk ended");
+    }
+
+    /// Where a browser sends a `Secure` cookie: over TLS, or to this machine itself, by name or by loopback address.
+    #[test]
+    fn a_secure_context_is_tls_or_this_machine() {
+        for url in ["https://shop.example/", "wss://shop.example/", "http://localhost/", "http://api.localhost:8080/", "http://127.0.0.1:9/", "http://[::1]/"] {
+            assert!(secure_context(&url.parse().unwrap()), "{url}");
+        }
+        for url in ["http://shop.example/", "http://10.0.0.5/", "ws://shop.example/", "http://notlocalhost/", "http://localhost.example/"] {
+            assert!(!secure_context(&url.parse().unwrap()), "{url}");
+        }
+    }
+
+    /// The route's own client's reading of the session store: its cookies, and its page's storages under the names
+    /// the store keeps them by; and the transport presents the browser the store's fingerprint names.
+    #[test]
+    fn a_session_is_read_from_the_store_as_the_routes_own_client_reads_it() {
+        let dir = scratch("as-its-client");
+        let jar = HashMap::from([("sid".to_string(), "held".to_string())]);
+        std::fs::write(dir.join("shop.example.com.json"), unbrowse_files::JAR.to_vec_pretty(&jar).unwrap()).unwrap();
+        let storage = crate::sandbox::Storage { local: HashMap::from([("k".to_string(), "l".to_string())]), session: HashMap::from([("k".to_string(), "s".to_string())]) };
+        std::fs::write(storage_path(&dir, "shop.example.com"), unbrowse_files::JAR.to_vec_pretty(&storage).unwrap()).unwrap();
+        let (_, held) = as_its_client(&one_read(), &dir, crate::egress::Egress::Own, None).unwrap();
+        assert_eq!(held.get("sid").map(String::as_str), Some("held"));
+        assert_eq!(held.get(&unbrowse_route::expr::Area::Local.held_as("k")).map(String::as_str), Some("l"));
+        assert_eq!(held.get(&unbrowse_route::expr::Area::Session.held_as("k")).map(String::as_str), Some("s"));
+        assert_eq!(held.len(), 3);
+        // A store with nothing for the site gives a transport and an empty session.
+        let (_, none) = as_its_client(&one_read(), &scratch("as-its-client-empty"), crate::egress::Egress::Own, Some("walked/1.0")).unwrap();
+        assert!(none.is_empty());
+        assert!(presenting(None, &dir, crate::egress::Egress::Own, Some("walked/1.0")).is_ok());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The page's scripts are booted with what the call holds: the fingerprint, the storages, the page and its html,
+    /// each script by address; and a value the page kept is read from the storage it was kept in.
+    #[test]
+    fn the_pages_environment_is_what_the_call_holds_of_it() {
+        let mut r = super::tests::runner("https://shop.example.com/");
+        r.fingerprint = serde_json::json!({ "ua": "Browser/1" });
+        r.storage.local.insert("k".into(), "in-local".into());
+        r.storage.session.insert("k".into(), "in-session".into());
+        r.page = Some("https://shop.example.com/search".into());
+        r.page_html = Some("<html></html>".into());
+        r.scripts = vec![crate::signing::Script { url: "https://cdn.shop.example.com/app.js".into(), body: "1".into() }];
+        let env = r.environment();
+        assert_eq!(env.fingerprint["ua"], "Browser/1");
+        assert_eq!(env.storage, r.storage);
+        assert_eq!(env.page_url.as_deref(), Some("https://shop.example.com/search"));
+        assert_eq!(env.html.as_deref(), Some("<html></html>"));
+        assert_eq!(env.scripts, vec![("https://cdn.shop.example.com/app.js".to_string(), "1".to_string())]);
+        assert_eq!(r.stored(unbrowse_route::expr::Area::Local, "k").as_deref(), Some("in-local"));
+        assert_eq!(r.stored(unbrowse_route::expr::Area::Session, "k").as_deref(), Some("in-session"));
+        assert_eq!(r.stored(unbrowse_route::expr::Area::Local, "absent"), None);
+    }
+
+    /// Once the site replaced the owner's session, nothing more is sent under it: the next request is refused with
+    /// the reason, before it leaves.
+    #[test]
+    fn nothing_is_sent_once_the_site_replaced_the_owners_session() {
+        static SEEN: Mutex<Vec<String>> = Mutex::new(Vec::new());
+        struct Wire;
+        impl Answer for Wire {
+            fn answer(&mut self, req: &Request) -> Result<Exchange, ReplayError> { SEEN.lock().unwrap().push(req.url.to_string()); Err(ReplayError::Transport("sent".into())) }
+        }
+        let mut r = super::tests::runner("https://shop.example.com/");
+        r.transport.fetch = Box::new(Wire);
+        r.replaced = Some("sid".into());
+        let e = r.fetch(&Request { method: "GET".into(), url: "https://shop.example.com/api/list".parse().unwrap(), exchange: 0, headers: vec![], body: None }).unwrap_err();
+        assert!(matches!(&e, ReplayError::Refused(why) if why.contains("replaced the session") && why.contains("sid")), "{e:?}");
+        assert!(SEEN.lock().unwrap().is_empty(), "nothing left the node");
+    }
+
+    /// The steps that only carry the session are served from the store: a step whose answer a later step reads only
+    /// for a cookie it set is one, and a step whose answer a later step reads for anything else too is not.
+    #[test]
+    fn a_step_that_only_carries_a_cookie_is_served_from_the_store() {
+        let chain = |also: serde_json::Value| -> Graph {
+            let mut fields = vec![serde_json::json!({ "loc": { "in": "cookie", "key": "sid" }, "class": "derived", "origin": { "exchange": 0, "url": "https://shop.example.com/api/cart", "at": { "from": "set_cookie", "name": "sid" } } })];
+            fields.extend(also.as_array().cloned().unwrap_or_default());
+            serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [
+                { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example.com/api/cart", "fields": [], "needs_browser": false, "sets_cookie": true },
+                { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example.com/api/list", "needs_browser": false, "fields": fields }
+            ]})).unwrap()
+        };
+        let served = session_steps(&chain(serde_json::json!([])), false);
+        assert_eq!(served, HashMap::from([(0, vec!["sid".to_string()])]));
+        let also_read = serde_json::json!([{ "loc": { "in": "query", "key": "n" }, "class": "derived", "origin": { "exchange": 0, "url": "https://shop.example.com/api/cart", "at": { "from": "json", "pointer": "/items/0" } } }]);
+        let read = session_steps(&chain(also_read), false);
+        assert!(read.is_empty(), "{read:?}");
+    }
+
+    /// Holds a vault value to the owner's site: a step that carries one goes over TLS to a host of that site or the
+    /// call is not sent; the steps that carry none are not asked.
+    #[test]
+    fn a_vault_value_goes_only_to_the_owners_site_over_tls_and_the_other_steps_are_not_asked() {
+        let carrying = |url: &str| {
+            let mut pay = step(1, "/api/pay");
+            pay.url = url.to_string();
+            pay.fields.push(crate::graph::Field { loc: Loc::Query("pan".into()), class: Class::Input { name: "pan".into(), secret: true, default: None, optional: false } });
+            Graph { steps: vec![step(0, "/api/me"), pay], provisional: false, page_origin: None, ..Graph::default() }
+        };
+        let held = vec!["pan".to_string()];
+        let site = crate::identity::site_of("shop.example.com");
+        assert_eq!(held_input_leaves(&carrying("https://pay.shop.example.com/api/pay"), &held, &site), None);
+        assert_eq!(held_input_leaves(&carrying("https://pay.shop.example.com/api/pay"), &["other".to_string()], &site), None, "no such value");
+        let leaked = held_input_leaves(&carrying("http://shop.example.com/api/pay"), &held, &site).expect("in the clear");
+        assert!(leaked.contains("step 2") && leaked.contains("pan"), "{leaked}");
+        assert!(held_input_leaves(&carrying("https://collector.example.net/api/pay"), &held, &site).is_some(), "another site");
+    }
+
+    /// A route that came from another node may open a browser only on its own site, over TLS; the node's own route
+    /// anywhere its walk went.
+    #[test]
+    fn a_shared_routes_browser_goes_only_to_its_own_site_over_tls() {
+        let own = RouteClient::new(one_read());
+        assert!(own.on_the_routes_site("http://elsewhere.example.net/"));
+        let shared = RouteClient::new(one_read()).with_egress(crate::egress::Egress::Foreign);
+        assert!(shared.on_the_routes_site("https://www.shop.example.com/page"));
+        assert!(!shared.on_the_routes_site("http://shop.example.com/page"), "not over TLS");
+        assert!(!shared.on_the_routes_site("https://elsewhere.example.net/"), "another site");
+        assert!(!shared.on_the_routes_site("not a url"));
+    }
+
+    /// How far each cookie of the jar goes is read back from beside it, for the cookies the jar still holds.
+    #[test]
+    fn how_far_a_cookie_goes_is_read_back_only_for_cookies_the_jar_holds() {
+        let dir = scratch("scope");
+        let jar = HashMap::from([("sid".to_string(), "1".to_string())]);
+        std::fs::write(dir.join("shop.example.com.json"), unbrowse_files::JAR.to_vec_pretty(&jar).unwrap()).unwrap();
+        let scope = HashMap::from([("sid".to_string(), ".shop.example.com".to_string()), ("gone".to_string(), ".shop.example.com".to_string())]);
+        std::fs::write(scope_path(&dir, "shop.example.com"), unbrowse_files::JAR.to_vec_pretty(&scope).unwrap()).unwrap();
+        let c = RouteClient::new(one_read()).with_session_store(&dir);
+        assert_eq!(c.jar_domains, HashMap::from([("sid".to_string(), ".shop.example.com".to_string())]));
+        assert_eq!(c.loaded_scope.as_ref(), Some(&c.jar_domains));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A route that came from another node, allowed to act in the owner's session, sends the owner's cookie only where
+    /// the jar's goes: a request that named it for another host goes without the cookie header at all.
+    #[test]
+    fn a_shared_request_to_another_host_goes_without_the_owners_cookie() {
+        let mut r = super::tests::runner("https://www.shop.example.com/");
+        r.owner = Some(HashMap::new());
+        r.session_allowed = true;
+        let req = |url: &str| Request { method: "GET".into(), url: url.parse().unwrap(), exchange: 0, headers: vec![("cookie".into(), "sid=host-only-secret".into())], body: None };
+        let off = r.with_session_cookies(&req("https://collector.example.net/x"));
+        assert!(off.headers.iter().all(|(k, _)| !k.eq_ignore_ascii_case("cookie")), "{:?}", off.headers);
+        let home = r.with_session_cookies(&req("https://www.shop.example.com/x"));
+        assert!(home.headers.iter().any(|(k, v)| k.eq_ignore_ascii_case("cookie") && v.contains("sid=host-only-secret")), "{:?}", home.headers);
+    }
+
+    /// A site's reply of a made-up kind, for any address.
+    struct Reply(u16, &'static str, &'static str);
+    impl Answer for Reply {
+        fn answer(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            Ok(Exchange { method: "GET".into(), url: req.url.clone(), request_headers: vec![], request_body: None, status: self.0, response_headers: vec![], response_body: Some(self.2.into()), response_mime: self.1.into(), resource_type: None, main_frame: None })
+        }
+    }
+
+    /// A route of one read, learned on a page that said `walked` when it said anything.
+    fn search_route(walked: Option<&str>) -> RouteClient {
+        let mut g = Graph { steps: vec![step(0, "/search")], provisional: false, page_origin: None, ..Graph::default() };
+        g.page_html = walked.map(String::from);
+        RouteClient::new(g)
+    }
+
+    const HOLD: &str = "<html><head><title>One moment</title></head><body><p>please wait</p></body></html>";
+
+    /// A reply that is neither data nor a page is a shape the route did not learn, and the call says what the site sent.
+    #[test]
+    fn a_reply_that_is_no_data_and_no_page_is_a_shape_the_route_did_not_learn() {
+        let mut c = search_route(None);
+        c.wire = Some(|| Box::new(Reply(200, "application/octet-stream", "\u{1}\u{2} nothing a reader reads")));
+        let e = c.call(&HashMap::from([("q".to_string(), "zebra lamps".to_string())])).unwrap_err();
+        assert!(matches!(&e, ReplayError::ShapeMismatch { got: Value::String(g), .. } if g.contains("nothing a reader reads")), "{e:?}");
+    }
+
+    /// A page that links nowhere and says nothing of what was asked is a check, not the page.
+    #[test]
+    fn a_page_that_says_nothing_of_what_was_asked_is_a_check_not_the_answer() {
+        let mut c = search_route(None);
+        c.wire = Some(|| Box::new(Reply(200, "text/html", HOLD)));
+        let e = c.call(&HashMap::from([("q".to_string(), "zebra lamps".to_string())])).unwrap_err();
+        assert!(matches!(&e, ReplayError::NotAnAnswer { challenge: true, .. }), "{e:?}");
+    }
+
+    /// The same page is the answer when the page the route was learned on said something too: the site is brief, not
+    /// blocking.
+    #[test]
+    fn a_brief_page_is_the_answer_when_the_page_the_route_was_learned_on_said_something() {
+        let mut c = search_route(Some(r#"<html><head><title>Lamps</title></head><body><a href="/p/1">Brass lamp</a></body></html>"#));
+        c.wire = Some(|| Box::new(Reply(200, "text/html", HOLD)));
+        let page = c.call(&HashMap::from([("q".to_string(), "zebra lamps".to_string())])).expect("a page that says something");
+        assert_eq!(page["title"], "One moment");
+    }
+
+    /// A `404` page that says back what was asked is the site's empty answer, and says its status beside what it shows.
+    #[test]
+    fn a_404_page_that_says_back_what_was_asked_is_an_answer_with_its_status() {
+        let mut c = search_route(None);
+        c.wire = Some(|| Box::new(Reply(404, "text/html", "<html><head><title>No results</title></head><body>Nothing found for zebra lamps</body></html>")));
+        let nothing = c.call(&HashMap::from([("q".to_string(), "zebra lamps".to_string())])).expect("nothing is what there is");
+        assert_eq!(nothing["status"], 404);
+    }
+
+    /// A runner on a page of the shop whose script, when it runs, makes the calls `body` says.
+    fn page_runner(body: &str) -> Runner {
+        let mut r = super::tests::runner("https://www.shop.example/");
+        r.page = Some("https://www.shop.example/search?q=walked".to_string());
+        r.page_html = Some("<!doctype html><html><head></head><body></body></html>".to_string());
+        r.scripts = vec![crate::signing::Script { url: "https://cdn.shop.example/app.js".into(), body: body.into() }];
+        r
+    }
+
+    fn asked(path: &str) -> Request {
+        Request { method: "POST".into(), url: format!("https://www.shop.example{path}").parse().unwrap(), exchange: 1, headers: vec![], body: None }
+    }
+
+    const TWO_CALLS: &str = "fetch('/api/a', { method: 'POST', headers: { 'x-sig': 'a' }, body: '{}' }); fetch('/api/b', { method: 'POST', headers: { 'x-sig': 'b' }, body: '{}' });";
+
+    /// One boot of the page signs every call it makes: the steps after the first take theirs from the same boot, and
+    /// the page's scripts are not run again for each.
+    #[test]
+    fn one_boot_of_the_page_signs_every_call_it_makes() {
+        if !crate::sandbox::available() { return eprintln!("no signing runtime on this machine: the sandbox is skipped"); }
+        let mut r = page_runner(TWO_CALLS);
+        let first = r.sign_request(&asked("/api/a"), &HashMap::new()).expect("the page's call");
+        assert!(first.headers.iter().any(|(k, v)| k == "x-sig" && v == "a"), "{:?}", first.headers);
+        // Nothing left to run: the second call is read from the first boot.
+        r.scripts.clear();
+        r.sandbox_off.set(true);
+        let second = r.sign_request(&asked("/api/b"), &HashMap::new()).expect("the same boot's other call");
+        assert!(second.headers.iter().any(|(k, v)| k == "x-sig" && v == "b"), "{:?}", second.headers);
+    }
+
+    /// A page that made no call with the storage the walk left decides it already has what it needs: it is booted
+    /// again with empty storage, as a browser opened fresh would be, before the call is given up on.
+    #[test]
+    fn a_page_that_made_no_call_on_the_walks_storage_is_booted_again_on_empty_storage() {
+        if !crate::sandbox::available() { return eprintln!("no signing runtime on this machine: the sandbox is skipped"); }
+        let mut r = page_runner("if (!localStorage.getItem('done')) { fetch('/api/a', { method: 'POST', headers: { 'x-sig': 'fresh' }, body: '{}' }); }");
+        r.storage.local.insert("done".into(), "1".into());
+        let signed = r.sign_request(&asked("/api/a"), &HashMap::new()).expect("signed on empty storage");
+        assert!(signed.headers.iter().any(|(k, v)| k == "x-sig" && v == "fresh"), "{:?}", signed.headers);
+    }
+
+    /// A call the page never makes is not signed by another of its calls, and with no browser to open the page in,
+    /// the step is left to fail as one that needs a browser.
+    #[test]
+    fn a_call_the_page_never_makes_is_not_signed_by_another() {
+        if !crate::sandbox::available() { return eprintln!("no signing runtime on this machine: the sandbox is skipped"); }
+        let mut r = page_runner(TWO_CALLS);
+        assert!(r.sign_request(&asked("/api/elsewhere"), &HashMap::new()).is_none());
+        assert!(!r.used_browser.load(std::sync::atomic::Ordering::Relaxed), "nothing to open the page in");
+    }
+
+    /// What was once hidden from a page's script stays hidden for the same value: only a value known to be readable
+    /// takes what a line says now, and a value never recorded stays unknown.
+    #[test]
+    fn what_was_hidden_from_a_pages_script_stays_hidden_for_the_same_value() {
+        assert_eq!(kept_from_script(Some(false), true, Some(true)), Some(true), "readable, now said hidden");
+        assert_eq!(kept_from_script(Some(false), true, Some(false)), Some(false));
+        assert_eq!(kept_from_script(Some(true), true, Some(false)), Some(true), "hidden stays hidden");
+        assert_eq!(kept_from_script(None, true, Some(false)), None, "unknown stays unknown");
+        assert_eq!(kept_from_script(None, false, Some(false)), None, "no record at all");
+    }
+
+    /// What a walk's browser knew of the cookies it handed the jar goes beside it, for the cookies the jar holds; a
+    /// walk that knew nothing writes nothing.
+    #[test]
+    fn what_a_walk_knew_of_its_cookies_is_written_beside_the_jar_for_the_cookies_it_holds() {
+        let dir = scratch("cookie-facts");
+        let jar = HashMap::from([("sid".to_string(), "1".to_string())]);
+        std::fs::write(dir.join("shop.example.com.json"), unbrowse_files::JAR.to_vec_pretty(&jar).unwrap()).unwrap();
+        note_cookie_facts(&dir, "shop.example.com", &HashMap::new(), &HashMap::new());
+        assert!(!meta_path(&dir, "shop.example.com").exists(), "nothing was known");
+        let fact = |path: &str| agent_browser_core::session::CookieFacts { path: path.into(), http_only: true, expires: None };
+        let facts = HashMap::from([("sid".to_string(), fact("/app")), ("stray".to_string(), fact("/"))]);
+        note_cookie_facts(&dir, "shop.example.com", &facts, &HashMap::new());
+        let meta: HashMap<String, CookieMeta> = unbrowse_files::JAR.read_at(&meta_path(&dir, "shop.example.com")).unwrap().unwrap();
+        assert_eq!(meta.keys().collect::<Vec<_>>(), ["sid"], "only what the jar holds");
+        assert_eq!(meta["sid"].path, "/app");
+        assert_eq!(meta["sid"].http_only, Some(true));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A route that came from another node reaches only the origins it names, through the plain fetch and the
+    /// request check as through any other: another host is refused before anything is sent; the node's own route has
+    /// no such bound.
+    #[test]
+    fn a_held_wire_refuses_what_the_route_does_not_name_before_it_sends() {
+        let at = |url: &str| Request { method: "GET".into(), url: url.parse().unwrap(), exchange: 0, headers: vec![], body: None };
+        let within = Within::new(["https://shop.example.com".to_string()], Some(("https".into(), "shop.example.com".into())), HashMap::new());
+        let mut held = Held { fetch: Box::new(Reply(200, "text/html", "<html></html>")), within: Some(within) };
+        assert!(held.fetch_unredirected(&at("https://shop.example.com/x")).is_ok());
+        assert!(matches!(held.fetch_unredirected(&at("https://collector.example.net/x")), Err(ReplayError::Refused(_))));
+        assert!(held.allows(&at("https://shop.example.com/x")).is_ok());
+        assert!(matches!(held.allows(&at("https://collector.example.net/x")), Err(ReplayError::Refused(_))));
+        let mut free = Held { fetch: Box::new(Reply(200, "text/html", "<html></html>")), within: None };
+        assert!(free.fetch_unredirected(&at("https://collector.example.net/x")).is_ok());
+        assert!(free.allows(&at("https://collector.example.net/x")).is_ok());
     }
 }

@@ -245,6 +245,12 @@ async fn invoke_plugin_process(
         .and_then(|v| v.as_str())
         .unwrap_or("");
     if protocol != PROTOCOL_VERSION {
+        if !expose_plugin_error {
+            return Err(format!(
+                "Plugin '{}' used unsupported protocol",
+                plugin.name
+            ));
+        }
         return Err(format!(
             "Plugin '{}' used unsupported protocol '{}'",
             plugin.name, protocol
@@ -391,7 +397,6 @@ pub async fn launch_mutations_from_plugins(
 ) -> Result<Vec<LaunchMutation>, String> {
     let mut mutations = Vec::new();
     for plugin in resolved_plugins_with_capability(plugins, CAPABILITY_LAUNCH_MUTATE) {
-        crate::unbrowse_policy::check_launch_mutator(&plugin.name)?;
         let response = invoke_plugin(
             plugin,
             "launch.mutate",
@@ -497,7 +502,7 @@ fn parse_plugin_add_args(args: &[String]) -> Result<PluginAddOptions, String> {
     let mut reference = None;
     let mut name = None;
     let mut capabilities = Vec::new();
-    let mut scope = PluginConfigScope::Project;
+    let mut scope = PluginConfigScope::Global;
     let mut no_manifest = false;
     let mut i = 2;
 
@@ -584,10 +589,12 @@ async fn discover_plugin_manifest(plugin: &PluginConfig) -> Result<PluginManifes
 fn derive_plugin_name(source: &PluginSource) -> String {
     let raw = match source.kind {
         PluginSourceKind::Npm => package_name_without_version(&source.reference),
-        PluginSourceKind::Github => {
-            let repo = source.reference.rsplit('/').next().unwrap_or(&source.reference);
-            repo.split('#').next().unwrap_or(repo).to_string()
-        }
+        PluginSourceKind::Github => source
+            .reference
+            .rsplit('/')
+            .next()
+            .unwrap_or(&source.reference)
+            .to_string(),
     };
     raw.strip_prefix("agent-browser-plugin-")
         .or_else(|| raw.strip_prefix("plugin-"))
@@ -609,92 +616,6 @@ fn package_name_without_version(reference: &str) -> String {
     reference.split('@').next().unwrap_or(reference).to_string()
 }
 
-/// The npm package a reference names, its scope kept and any version or range after it dropped.
-fn npm_package_name(reference: &str) -> &str {
-    let name_starts = if reference.starts_with('@') {
-        reference.find('/').map(|i| i + 1).unwrap_or(reference.len())
-    } else {
-        0
-    };
-    match reference[name_starts..].find('@') {
-        Some(at) => &reference[..name_starts + at],
-        None => reference,
-    }
-}
-
-/// `x.y.z`, with an optional prerelease or build part: a version npm can read only one way.
-fn is_exact_version(version: &str) -> bool {
-    let core = version.split(['-', '+']).next().unwrap_or("");
-    let parts: Vec<&str> = core.split('.').collect();
-    parts.len() == 3
-        && parts.iter().all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
-        && version.bytes().all(|b| b.is_ascii_alphanumeric() || b".-+".contains(&b))
-}
-
-/// The one version `npm view <ref> version --json` printed. A range that several versions meet prints a list, oldest
-/// first, and the newest is taken, as `npm install` would take it. Anything else is not a version and is refused.
-fn npm_view_version(stdout: &str) -> Result<String, String> {
-    let value: serde_json::Value = serde_json::from_str(stdout.trim())
-        .map_err(|_| "npm named no version for this plugin".to_string())?;
-    let version = match &value {
-        serde_json::Value::String(version) => Some(version.as_str()),
-        serde_json::Value::Array(versions) => versions.last().and_then(|v| v.as_str()),
-        _ => None,
-    }
-    .filter(|v| is_exact_version(v))
-    .ok_or_else(|| "npm named no version for this plugin".to_string())?;
-    Ok(version.to_string())
-}
-
-/// A GitHub commit as npm reads one after `#`: all 40 characters, so it can name only one commit.
-fn is_full_commit(reference: &str) -> bool {
-    reference.len() == 40 && reference.bytes().all(|b| b.is_ascii_hexdigit())
-}
-
-/// The source pinned to one version, so the command the config runs is the package `plugin add` read the manifest
-/// from. Unpinned, `npx -y <name>` fetched whatever npm held at each run while the config kept the capabilities of
-/// the version seen at add time (ENGINE-18). An npm package is pinned to the version npm names now (`npm_view` is
-/// the lookup, passed in so a test needs no network); a GitHub repository must name its commit, since npm has no
-/// lookup for one.
-fn pin_plugin_source(
-    source: PluginSource,
-    npm_view: impl FnOnce(&str) -> Result<String, String>,
-) -> Result<PluginSource, String> {
-    match source.kind {
-        PluginSourceKind::Npm => {
-            let version = npm_view_version(&npm_view(&source.reference)?)?;
-            let spec = format!("{}@{}", npm_package_name(&source.reference), version);
-            Ok(PluginSource {
-                install_spec: spec.clone(),
-                source: format!("npm:{}", spec),
-                ..source
-            })
-        }
-        PluginSourceKind::Github => match source.reference.split_once('#') {
-            Some((_, commit)) if is_full_commit(commit) => Ok(source),
-            _ => Err(format!(
-                "A GitHub plugin is added at one commit, so it runs the code it was added with: {}#<40-character commit>",
-                source.reference.split('#').next().unwrap_or(&source.reference)
-            )),
-        },
-    }
-}
-
-/// Asks npm which version a reference names now. `--` keeps a reference from being read as one of npm's flags.
-fn npm_view(reference: &str) -> Result<String, String> {
-    let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
-    let output = std::process::Command::new(npm)
-        .args(["view", "--json", "--", reference, "version"])
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .map_err(|e| format!("Could not ask npm which version of '{}' to add: {}", reference, e))?;
-    if !output.status.success() {
-        return Err(format!("npm has no version of '{}'", reference));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-}
-
 fn validate_plugin_name(name: &str) -> Result<(), String> {
     if name.trim().is_empty() {
         return Err("plugin name cannot be empty".to_string());
@@ -708,7 +629,7 @@ fn validate_plugin_name(name: &str) -> Result<(), String> {
 fn config_path_for_scope(scope: &PluginConfigScope) -> Result<PathBuf, String> {
     match scope {
         PluginConfigScope::Project => Ok(PathBuf::from("agent-browser.json")),
-        PluginConfigScope::Global => dirs::home_dir()
+        PluginConfigScope::Global => std::env::home_dir()
             .map(|d| d.join(".agent-browser").join("config.json"))
             .ok_or_else(|| "Could not determine home directory".to_string()),
     }
@@ -769,51 +690,6 @@ fn upsert_plugin_config(path: &Path, plugin: &PluginConfig) -> Result<(), String
     write_config_json(path, &value)
 }
 
-/// Takes a plugin out of a config file. Whether one was there comes back, so a mistyped name is said.
-fn remove_plugin_config(path: &Path, name: &str) -> Result<bool, String> {
-    let mut value = read_config_json(path)?;
-    let Some(plugins) = value.get_mut("plugins") else { return Ok(false) };
-    let plugins = plugins
-        .as_array_mut()
-        .ok_or_else(|| format!("Config {} field 'plugins' must be an array", path.display()))?;
-    let before = plugins.len();
-    plugins.retain(|entry| entry.get("name").and_then(|v| v.as_str()) != Some(name));
-    let removed = plugins.len() != before;
-    if removed {
-        write_config_json(path, &value)?;
-    }
-    Ok(removed)
-}
-
-fn parse_plugin_remove_args(args: &[String]) -> Result<(String, PluginConfigScope), String> {
-    let mut name = None;
-    let mut scope = PluginConfigScope::Project;
-    for arg in args.iter().skip(2) {
-        match arg.as_str() {
-            "--global" => scope = PluginConfigScope::Global,
-            "--project" => scope = PluginConfigScope::Project,
-            other if other.starts_with("--") => return Err(format!("unknown flag '{}' for plugin remove", other)),
-            value if name.is_none() => name = Some(value.to_string()),
-            value => return Err(format!("unexpected argument '{}' for plugin remove", value)),
-        }
-    }
-    Ok((name.ok_or_else(|| "plugin remove requires a plugin name".to_string())?, scope))
-}
-
-fn remove_plugin_command(args: &[String], json_output: bool) -> Result<(), String> {
-    let (name, scope) = parse_plugin_remove_args(args)?;
-    let path = config_path_for_scope(&scope)?;
-    if !remove_plugin_config(&path, &name)? {
-        return Err(format!("Plugin '{}' is not in {}", name, path.display()));
-    }
-    if json_output {
-        println!("{}", json!({ "success": true, "removed": name, "configPath": path.display().to_string() }));
-    } else {
-        println!("Removed plugin '{}' from {}", name, path.display());
-    }
-    Ok(())
-}
-
 fn build_plugin_config_from_add(
     source: &PluginSource,
     options: &PluginAddOptions,
@@ -872,7 +748,7 @@ fn print_plugin_added(plugin: &PluginConfig, path: &Path, json_output: bool) {
 
 fn add_plugin_command(args: &[String], json_output: bool) -> Result<(), String> {
     let options = parse_plugin_add_args(args)?;
-    let source = pin_plugin_source(parse_plugin_source(&options.reference)?, npm_view)?;
+    let source = parse_plugin_source(&options.reference)?;
     let provisional = PluginConfig {
         name: options
             .name
@@ -913,12 +789,6 @@ pub fn run_plugin_command(args: &[String], plugins: &[PluginConfig], json_output
         "list" => print_plugin_list(plugins, json_output),
         "add" | "install" => {
             if let Err(e) = add_plugin_command(args, json_output) {
-                print_plugin_error(&e, json_output);
-                std::process::exit(1);
-            }
-        }
-        "remove" | "rm" | "uninstall" => {
-            if let Err(e) = remove_plugin_command(args, json_output) {
                 print_plugin_error(&e, json_output);
                 std::process::exit(1);
             }
@@ -1207,99 +1077,6 @@ mod tests {
     }
 
     #[test]
-    fn a_plugin_added_from_npm_runs_the_version_it_was_added_at() {
-        let args = |reference: &str| {
-            ["plugin", "add", reference, "--no-manifest", "--capability", "command.run"]
-                .iter()
-                .map(|s| s.to_string())
-                .collect::<Vec<_>>()
-        };
-        let added = |reference: &str, npm_says: &str| {
-            let options = parse_plugin_add_args(&args(reference)).unwrap();
-            let asked = std::cell::RefCell::new(String::new());
-            let source = pin_plugin_source(parse_plugin_source(reference).unwrap(), |r| {
-                *asked.borrow_mut() = r.to_string();
-                Ok(npm_says.to_string())
-            })
-            .unwrap();
-            assert_eq!(*asked.borrow(), reference, "npm is asked about the reference as given");
-            build_plugin_config_from_add(&source, &options, None).unwrap()
-        };
-
-        let plain = added("agent-browser-plugin-captcha", "\"1.4.2\"\n");
-        assert_eq!(plain.args, vec!["-y", "agent-browser-plugin-captcha@1.4.2"]);
-        assert_eq!(plain.source.as_deref(), Some("npm:agent-browser-plugin-captcha@1.4.2"));
-        assert_eq!(plain.name, "captcha");
-
-        let ranged = added("@acme/agent-browser-plugin-vault@^2", r#"["2.0.0","2.3.1"]"#);
-        assert_eq!(ranged.args, vec!["-y", "@acme/agent-browser-plugin-vault@2.3.1"], "a range takes its newest");
-        assert_eq!(ranged.name, "vault");
-
-        let tagged = added("agent-browser-plugin-captcha@next", r#""2.0.0-beta.1""#);
-        assert_eq!(tagged.args, vec!["-y", "agent-browser-plugin-captcha@2.0.0-beta.1"]);
-    }
-
-    #[test]
-    fn a_plugin_npm_names_no_version_for_is_not_added() {
-        for printed in ["", "[]", "null", r#""latest""#, r#""1.2""#, r#"{"version":"1.0.0"}"#] {
-            let source = parse_plugin_source("agent-browser-plugin-captcha").unwrap();
-            assert!(pin_plugin_source(source, |_| Ok(printed.to_string())).is_err(), "{printed:?} is not a version");
-        }
-        let source = parse_plugin_source("agent-browser-plugin-captcha").unwrap();
-        assert!(pin_plugin_source(source, |_| Err("npm has no version".to_string())).is_err());
-    }
-
-    #[test]
-    fn a_github_plugin_is_added_only_at_a_named_commit() {
-        let commit = "0123456789abcdef0123456789abcdef01234567";
-        let never_asked = |_: &str| -> Result<String, String> { panic!("npm has no lookup for a repository") };
-        let pinned = parse_plugin_source(&format!("acme/agent-browser-plugin-box#{commit}")).unwrap();
-        let pinned = pin_plugin_source(pinned, never_asked).unwrap();
-        assert_eq!(pinned.install_spec, format!("github:acme/agent-browser-plugin-box#{commit}"));
-        assert_eq!(derive_plugin_name(&pinned), "box");
-
-        for unpinned in ["acme/agent-browser-plugin-box", "acme/agent-browser-plugin-box#main", "acme/plugin#0123abc"] {
-            let source = parse_plugin_source(unpinned).unwrap();
-            assert!(pin_plugin_source(source, never_asked).is_err(), "{unpinned} names no one commit");
-        }
-    }
-
-    #[test]
-    fn a_plugin_added_can_be_removed_and_others_stay() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("agent-browser.json");
-        let plugin = |name: &str| PluginConfig {
-            name: name.to_string(),
-            command: "npx".to_string(),
-            args: vec!["-y".to_string(), name.to_string()],
-            capabilities: vec!["command.run".to_string()],
-            source: None,
-        };
-        fs::write(&path, r#"{"headed":true}"#).unwrap();
-        upsert_plugin_config(&path, &plugin("vault")).unwrap();
-        upsert_plugin_config(&path, &plugin("captcha")).unwrap();
-
-        assert_eq!(remove_plugin_config(&path, "vault"), Ok(true));
-        assert_eq!(remove_plugin_config(&path, "vault"), Ok(false), "a name not there is said");
-
-        let left = read_config_json(&path).unwrap();
-        assert_eq!(left["plugins"].as_array().unwrap().len(), 1);
-        assert_eq!(left["plugins"][0]["name"], "captcha");
-        assert_eq!(left["headed"], true, "the rest of the config stays");
-    }
-
-    #[test]
-    fn plugin_remove_reads_its_name_and_scope() {
-        let args = |rest: &[&str]| {
-            ["plugin", "remove"].iter().chain(rest).map(|s| s.to_string()).collect::<Vec<_>>()
-        };
-        assert_eq!(parse_plugin_remove_args(&args(&["vault"])), Ok(("vault".to_string(), PluginConfigScope::Project)));
-        assert_eq!(parse_plugin_remove_args(&args(&["vault", "--global"])), Ok(("vault".to_string(), PluginConfigScope::Global)));
-        assert!(parse_plugin_remove_args(&args(&[])).is_err());
-        assert!(parse_plugin_remove_args(&args(&["a", "b"])).is_err());
-    }
-
-    #[test]
     fn plugin_add_builds_config_from_manual_capabilities() {
         let args = vec![
             "plugin".to_string(),
@@ -1453,6 +1230,44 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":false,"error":"secr
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn plugin_protocol_error_obeys_redaction_setting() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let plugin_path = dir.path().join("fixture-plugin");
+        std::fs::write(
+            &plugin_path,
+            r#"#!/bin/sh
+cat >/dev/null
+printf '%s' '{"protocol":"fixture-invalid-v0","success":false,"error":"fixture diagnostic"}'
+"#,
+        )
+        .unwrap();
+        let mut perms = std::fs::metadata(&plugin_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&plugin_path, perms).unwrap();
+
+        let plugin = PluginConfig {
+            name: "fixture".to_string(),
+            command: plugin_path.to_string_lossy().to_string(),
+            ..PluginConfig::default()
+        };
+        let redacted = invoke_plugin_process(&plugin, json!({}), 5, false)
+            .await
+            .unwrap_err();
+        let detailed = invoke_plugin_process(&plugin, json!({}), 5, true)
+            .await
+            .unwrap_err();
+
+        assert_eq!(redacted, "Plugin 'fixture' used unsupported protocol");
+        assert_eq!(
+            detailed,
+            "Plugin 'fixture' used unsupported protocol 'fixture-invalid-v0'"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn browser_provider_plugin_returns_cdp_connection() {
         use std::os::unix::fs::PermissionsExt;
 
@@ -1489,7 +1304,6 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"browser":{"cd
 
     #[cfg(unix)]
     #[tokio::test]
-    #[ignore = "the Unbrowse build refuses plugins that change how the browser launches; unbrowse_policy tests the refusal"]
     async fn launch_mutator_plugin_returns_launch_changes() {
         use std::os::unix::fs::PermissionsExt;
 

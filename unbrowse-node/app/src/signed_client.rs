@@ -73,6 +73,31 @@ fn now() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
+/// A request's signature: its nonce, and the headers that carry the key, the time, the nonce and the signature.
+pub struct Signature {
+    pub nonce: String,
+    pub headers: Vec<(&'static str, String)>,
+}
+
+/// Signs a request to `authority` (`host:port`, or a node's `<peer id>.p2p` over the peer network) as `method` for
+/// `target` (path and query) with `body`, with `token`, which never leaves this process.
+pub fn sign(token: &str, method: &str, authority: &str, target: &str, body: &[u8]) -> Signature {
+    let (nonce, time) = (nonce(), now());
+    let sig = hex::encode(signed::request_mac(token, method, authority, target, body, time, &nonce));
+    let headers = vec![
+        (signed::KEY, hex::encode(unbrowse_core::token_key(token))),
+        (signed::TIME, time.to_string()),
+        (signed::NONCE, nonce.clone()),
+        (signed::SIGNATURE, sig),
+    ];
+    Signature { nonce, headers }
+}
+
+/// Whether the node signed this answer, its status and body, for the request that carried `nonce`, with `token`.
+pub fn the_nodes(token: &str, status: u16, reply: &str, body: &[u8], nonce: &str) -> bool {
+    signed::matches(&signed::reply_mac(token, status, &signed::body_hash(body), nonce), reply)
+}
+
 /// Sends `body` (JSON, or nothing) to `url` as `method`, signed with `token`, with `extra` headers beside; `wait` bounds
 /// the whole exchange. An answer is handed back only when the node signed it for this request, a refusal included. A
 /// refusal it didn't sign comes back as `Refused` with its status alone.
@@ -93,15 +118,12 @@ pub fn send(
         None => parsed.path().to_string(),
     };
     let bytes = body.unwrap_or_default();
-    let (nonce, time) = (nonce(), now());
     let authority = signed::authority(parsed.host_str().unwrap_or_default(), parsed.port(), parsed.scheme() == "https");
-    let sig = hex::encode(signed::request_mac(token, method.as_str(), &authority, &target, bytes, time, &nonce));
-    let mut req = client()
-        .request(method, parsed)
-        .header(signed::KEY, hex::encode(unbrowse_core::token_key(token)))
-        .header(signed::TIME, time.to_string())
-        .header(signed::NONCE, &nonce)
-        .header(signed::SIGNATURE, sig);
+    let Signature { nonce, headers: signature } = sign(token, method.as_str(), &authority, &target, bytes);
+    let mut req = client().request(method, parsed);
+    for (k, v) in signature {
+        req = req.header(k, v);
+    }
     for (k, v) in extra {
         req = req.header(*k, *v);
     }
@@ -116,7 +138,7 @@ pub fn send(
     }
     let body = res.bytes().map_err(Failed::Send)?.to_vec();
     let theirs = headers.get(signed::REPLY).and_then(|v| v.to_str().ok()).unwrap_or_default();
-    if !signed::matches(&signed::reply_mac(token, status, &signed::body_hash(&body), &nonce), theirs) {
+    if !the_nodes(token, status, theirs, &body, &nonce) {
         if (200..300).contains(&status) {
             return Err(Failed::NotTheNodes(format!(
                 "what answered at {url} didn't sign its answer as the node this token is for does (status {status}): nothing it said is used or shown"

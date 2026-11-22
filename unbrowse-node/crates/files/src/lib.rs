@@ -347,6 +347,8 @@ pub const CARDS: Format = items("cards", "cards.json");
 pub const PASSKEYS: Format = items("passkeys", "passkeys.json");
 // The owner's choices and the node's own bookkeeping.
 pub const TELEMETRY: Format = fields("telemetry", "telemetry.json");
+/// The source tag the node was first started with (`unbrowse start --from <tag>`), kept once (`app/src/telemetry.rs`).
+pub const FROM: Format = fields("from", "from.json");
 pub const LINK: Format = fields("link", "owner.json");
 pub const JOINED: Format = fields("joined", "joined.json");
 pub const BROWSER: Format = fields("browser", "browser.json");
@@ -411,6 +413,8 @@ pub const HANDED: Format = items("handed", "<chain>/handed.json");
 pub const ERC8004: Format = fields("erc8004", "erc8004-<owner>.json");
 // The peer network (`app/src/peers.rs`, `crates/net`).
 pub const PEER_KEY: Format = fields("peer-key", "peer-key.json");
+/// This node's remote MCP address: on or off, the gateway and the node's key there (`app/src/remote.rs`).
+pub const REMOTE: Format = fields("remote", "remote.json");
 pub const PEER_PORT: Format = fields("peer-port", "peer-port.json");
 pub const PEER_PUBLISHED: Format = fields("peer-published", "peer-published.json");
 pub const PEER_TABLE: Format = items("peer-table", "peer-table.json");
@@ -444,6 +448,7 @@ pub const ALL: &[&Format] = &[
     &CARDS,
     &PASSKEYS,
     &TELEMETRY,
+    &FROM,
     &LINK,
     &JOINED,
     &BROWSER,
@@ -483,6 +488,7 @@ pub const ALL: &[&Format] = &[
     &HANDED,
     &ERC8004,
     &PEER_KEY,
+    &REMOTE,
     &PEER_PORT,
     &PEER_PUBLISHED,
     &PEER_TABLE,

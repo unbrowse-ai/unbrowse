@@ -456,4 +456,73 @@ mod tests {
         assert!(shrunk.tried.is_empty());
         assert_eq!(serde_json::to_string(&shrunk.body).unwrap(), serde_json::to_string(&chained_body()).unwrap(), "the body is unchanged");
     }
+
+    /// A part is said in a word or two where a line lists several: a step by its id, a header by its name, the open
+    /// value of a query by the place it sits at.
+    #[test]
+    fn a_part_is_said_short_as_a_line_that_lists_several_says_it() {
+        assert_eq!(Part::Step("x1".into()).short(), "a step nothing reads (x1)");
+        assert_eq!(Part::Header("x2".into(), "x-client".into()).short(), "x-client");
+        assert_eq!(Part::Open("x2".into(), route::Place::Header("traceparent".into())).short(), "traceparent");
+        assert_eq!(Part::Open("x2".into(), route::Place::Query("uid".into())).short(), "the query uid");
+    }
+
+    /// A step left out takes its holes with it: an open value on a step already gone is not tried, and so has no fate.
+    #[test]
+    fn a_part_of_a_step_already_left_out_is_not_tried() {
+        let mut body = chained_body();
+        body.steps.iter_mut().find(|s| s.id == "x1").unwrap().holes.push(open(route::Place::Header("x-trace".into()), "t-1"));
+        let on_menu = Part::Open("x1".into(), route::Place::Header("x-trace".into()));
+        assert!(candidates(&body).contains(&on_menu), "the open value of the menu step is a candidate of the body");
+        let shrunk = shrink(&body, &asked("lamp"), Some(&asked("sofa")), &jar(), 1, 1000, &mut Needs { token: "tok-9f8e".into() });
+        assert_eq!(*fate(&shrunk, &Part::Step("x1".into())), Fate::LeftOut);
+        assert!(!shrunk.tried.iter().any(|(p, _)| *p == on_menu), "a hole of a step that is gone is never tried: {:?}", shrunk.tried);
+    }
+
+    /// A site that answers with too little to tell two values apart cannot show that a body still answers both: the
+    /// body is returned whole, and nothing is tried. With no second value the walk's own answering is all that is asked.
+    #[test]
+    fn a_reply_too_small_to_compare_checks_nothing_when_two_values_are_asked() {
+        struct Small;
+        impl Site for Small {
+            fn ask(&mut self, step: &route::Step, _built: &route::Built) -> Said {
+                let said = if step.id == "x0" { r#"{"token":"t-1"}"# } else { r#"{"items":["one"]}"# };
+                Said::Reply { at: None, reply: reply(said) }
+            }
+        }
+        let two = shrink(&chained_body(), &asked("lamp"), Some(&asked("sofa")), &jar(), 1, 1000, &mut Small);
+        assert!(two.unchecked.is_some(), "a one-line reply cannot tell two values apart");
+        assert!(two.tried.is_empty());
+        let one = shrink(&chained_body(), &asked("lamp"), None, &jar(), 1, 1000, &mut Small);
+        assert_eq!(one.unchecked, None, "with one value, a 200 is the walk's own answering");
+        assert_eq!(*fate(&one, &Part::Step("x1".into())), Fate::LeftOut);
+    }
+
+    /// Leaving out a part of a step the body does not have changes nothing.
+    #[test]
+    fn leaving_out_what_the_body_does_not_have_changes_nothing() {
+        let body = chained_body();
+        let same = |part: Part| serde_json::to_string(&without(&body, &part)).unwrap() == serde_json::to_string(&body).unwrap();
+        assert!(same(Part::Step("nope".into())));
+        assert!(same(Part::Open("nope".into(), route::Place::Header("traceparent".into()))));
+        assert!(same(Part::Header("x2".into(), "x-absent".into())));
+        assert!(!same(Part::Header("x2".into(), "x-client".into())));
+    }
+
+    /// A graph that lacks the step a part names is left as it is, and a query value left out takes its `?` with it when
+    /// it was the address's last.
+    #[test]
+    fn a_part_left_out_of_a_graph_is_taken_from_the_step_it_names_alone() {
+        let graph: crate::graph::Graph = serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [
+            { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/menu?uid={uid}", "needs_browser": false, "fields": [
+                { "loc": { "in": "query", "key": "uid" }, "class": "unconfirmed", "value": "u-7f3a" }
+            ] }
+        ] })).unwrap();
+        let elsewhere = left_out_of(&graph, &[(Part::Open("x9".into(), route::Place::Query("uid".into())), Fate::LeftOut)]);
+        assert_eq!(elsewhere.steps[0].url, "https://shop.example/api/menu?uid={uid}");
+        assert_eq!(elsewhere.steps[0].fields.len(), 1);
+        let left = left_out_of(&graph, &[(Part::Open("x1".into(), route::Place::Query("uid".into())), Fate::LeftOut)]);
+        assert_eq!(left.steps[0].url, "https://shop.example/api/menu");
+        assert!(left.steps[0].fields.is_empty());
+    }
 }

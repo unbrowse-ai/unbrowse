@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Unbrowse
+Comment=The Unbrowse node and its window
+Exec=/usr/bin/unbrowse-window
+Icon=unbrowse
+Terminal=false
+Categories=Network;Utility;
+StartupWMClass=unbrowse-window

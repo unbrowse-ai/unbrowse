@@ -1,5 +1,6 @@
 //! Settings: two columns per section, what it is on the left
-//! and its controls on the right. Every control saves itself.
+//! and its controls on the right; in a narrow window, what it is above
+//! its controls. Every control saves itself.
 const std = @import("std");
 const nanoui = @import("nanoui");
 const ui = nanoui.ui;
@@ -28,6 +29,8 @@ pub fn view(a: *App, c: *ui.Context) void {
         toggle(a, c, "Serve routes for others", c.print("Keeps up to {d} GB of other nodes' routes and serves them to the agents that ask for them. Serving pays no share of the fee.", .{@as(u64, @intFromFloat(s.storage_gb))}), s.hold_routes, "hold_routes");
         toggle(a, c, "Answer bounties for me", "The node takes the bounty steps, with your agent as the judge: it confirms your open bounty once your agent says an entry answers it and you agree, settles your bounties past their deadline, takes back what is yours, and releases by use the shares of entries you list.", s.bounty_auto, "bounty_auto");
     }
+    look.rule(c);
+    remote(a, c);
     look.rule(c);
     {
         const sec = section(c, "This computer", c.print("{s}, version {s}: how the node runs here and what its browser keeps.", .{ a.nodeName(), version }));
@@ -70,19 +73,74 @@ pub fn view(a: *App, c: *ui.Context) void {
     if (a.settings_advanced) devBuy(a, c, s.coin_dev_buy_bps);
 }
 
+/// This node's own remote MCP address (graph `gateway.relay-to-own`): on or off, the URL to copy, and the remote keys
+/// that open it. The node dials out to the gateway, so nothing here opens a port, and only a remote key opens it.
+fn remote(a: *App, c: *ui.Context) void {
+    const sec = section(c, "Use this node from anywhere", "An MCP address for this node at unbrowse.ai, for agents that can only take a URL: a hosted chat, a phone, another computer. They use this node through it, browser and logins included. The node dials out, so no port opens here, and only a remote key you make opens it.");
+    defer sec.end();
+    const r = a.store.get(.remote_status) orelse return look.body(c, a.store.err(.remote_status) orelse "Reading…");
+    if (r.public) return look.body(c, "This node is a public peer: it answers anyone at the gateway's /mcp, calls only. Set it up from its shell (`unbrowse-node remote public`).");
+    {
+        ui.key(c, "remote_on");
+        const row = ui.div(c).row().wFull().gap(16).itemsStart();
+        defer row.end();
+        const w = ui.div(c).column().grow().gap(2);
+        look.label(c, "Remote MCP address");
+        look.small(c, if (r.on) "On: the running node stays attached to the gateway." else "Off: nothing reaches this node from outside this computer.");
+        w.end();
+        var v = r.on;
+        if (look.toggle(c, &v)) a.store.actWith(.generic, "remote_set", "remote_set", .{ .on = v });
+    }
+    if (!r.on) return;
+    if (r.url) |url| {
+        // The address is long (a peer ID): it wraps in a box of its own, with its button under it, never pushed out.
+        look.well(c, url);
+        const row = ui.div(c).row().wFull().gap(8).itemsCenter();
+        defer row.end();
+        if (look.secondary(c, "Copy address", .{})) {
+            c.clipboard.write(c.clipboard.ctx, url);
+            a.toaster.push(.{ .status = .success, .title = "Copied", .duration = 2 });
+        }
+    }
+    if (a.remote_token) |token| {
+        look.label(c, "Your new remote key, shown once");
+        look.well(c, token);
+        if (a.remote_claude) |line| look.small(c, line);
+        const row = ui.div(c).row().wFull().gap(8).itemsCenter();
+        defer row.end();
+        if (look.secondary(c, "Copy key", .{})) {
+            c.clipboard.write(c.clipboard.ctx, token);
+            a.toaster.push(.{ .status = .success, .title = "Copied", .duration = 2 });
+        }
+        if (a.remote_claude) |line| if (look.secondary(c, "Copy Claude Code line", .{})) {
+            c.clipboard.write(c.clipboard.ctx, line);
+            a.toaster.push(.{ .status = .success, .title = "Copied", .duration = 2 });
+        };
+        if (look.ghost(c, "Done, hide it", .{})) a.wipeRemoteKey();
+    }
+    look.small(c, c.print("{d} remote key{s}. Each opens this node only through the gateway, spends up to 5 USDC a day and lasts 30 days.", .{ r.keys.len, if (r.keys.len == 1) "" else "s" }));
+    const row = ui.div(c).row().wFull().gap(8).itemsCenter();
+    defer row.end();
+    if (look.primary(c, "Make a remote key", .{ .loading = a.store.isBusy("remote_key_create") })) a.store.actWith(.remote_key, "remote_key_create", "remote_key_create", .{ .name = "Remote agents" });
+    if (r.keys.len > 0 and look.danger(c, "Revoke all remote keys", .{ .loading = a.store.isBusy("remote_revoke") })) a.store.act(.generic, "remote_revoke", "remote_revoke", "{}");
+}
+
 /// A linked wallet, which is optional: signed in with email or Google in the browser, linked to this node by one
 /// signature. The node needs none: it is on the network with its own wallet (spec §86).
 fn account(a: *App, c: *ui.Context) void {
-    const sec = section(c, "Linked wallet", "Your node has its own Arc wallet and needs no account. Link a wallet with email or Google in your browser and withdrawals go to it. This node keeps only the signature that links them.");
+    const sec = section(c, "Your account", "Your node needs no account to run. Sign in with email or Google in your browser and it earns under your account, and withdrawals go there. This node keeps only the signature that links them.");
     defer sec.end();
     const l = a.store.get(.link_status) orelse return look.body(c, "Reading…");
     if (l.owner) |owner| {
-        const r = ui.div(c).row().wFull().gap(8).itemsCenter();
-        defer r.end();
-        look.label(c, "Linked");
-        look.mono(c, c.print("Wallet {s}", .{@import("../fmt.zig").short(c.alloc(), owner)}), null);
-        ui.spacer(c);
-        if (look.secondary(c, "Unlink", .{ .loading = a.store.isBusy("unlink") })) a.store.act(.generic, "unlink", "unlink", "{}");
+        {
+            const r = ui.div(c).row().wFull().gap(8).itemsCenter();
+            defer r.end();
+            look.label(c, "Signed in");
+            look.mono(c, c.print("Account {s}", .{@import("../fmt.zig").short(c.alloc(), owner)}), null);
+            ui.spacer(c);
+            if (look.secondary(c, "Sign out", .{ .loading = a.store.isBusy("unlink") })) a.store.act(.generic, "unlink", "unlink", "{}");
+        }
+        look.small(c, "Your node lists and earns under this account. Every listing waits for you to approve it, under Money: nothing is shared until you do.");
     } else wallet.signIn(a, c);
 }
 
@@ -153,9 +211,12 @@ fn sharing(a: *App, c: *ui.Context, mode: []const u8, per_day: ?f64) void {
     }
     const day: f64 = per_day orelse if (std.mem.eql(u8, mode, "all")) 20 else if (std.mem.eql(u8, mode, "off")) 0 else 5;
     look.small(c, if (std.mem.eql(u8, mode, "off")) shareHint(mode) else c.print("{s} At most {d} a day.", .{ shareHint(mode), @as(u64, @intFromFloat(day)) }));
-    const r = ui.div(c).row().gap(8).itemsCenter();
+    const r = ui.div(c).row().wFull().gap(8).itemsCenter();
     defer r.end();
     if (look.secondary(c, "Delist every route", .{ .loading = a.store.isBusy("delist_all") })) a.store.act(.generic, "delist_all", "delist_all", "{}");
+    // The note takes what is left beside the button and wraps in it.
+    const note = ui.div(c).grow().minW(0);
+    defer note.end();
     look.small(c, "Turning sharing off delists nothing; this does, and keeps each off until you share it again.");
 }
 
@@ -310,14 +371,17 @@ fn setExcluded(a: *App, now: []const []const u8, add: ?[]const u8, remove: ?[]co
 }
 
 fn section(c: *ui.Context, t: []const u8, description: []const u8) Section {
-    const r = ui.div(c).row().wFull().gap(32).py(12).itemsStart();
+    // Side by side when the window has room; narrower, what it is above its controls, so neither is squeezed.
+    const side = look.tableWidth(c) >= 760;
+    const r = if (side) ui.div(c).row().wFull().gap(32).py(12).itemsStart() else ui.div(c).column().wFull().gap(12).py(12);
     {
-        const l = ui.div(c).column().w(300).gap(4);
+        const l = if (side) ui.div(c).column().w(300).gap(4) else ui.div(c).column().wFull().gap(4);
         defer l.end();
         ui.text(c, t, .{ .size = 15, .weight = .semibold });
         look.body(c, description);
     }
-    _ = ui.div(c).column().grow().minW(0).gap(16).p(16).rounded(12).bg(look.x(c).well);
+    const controls = ui.div(c).column().grow().minW(0).gap(16).p(16).rounded(12).bg(look.x(c).well);
+    if (!side) _ = controls.wFull();
     return .{ .c = c, .row = r };
 }
 

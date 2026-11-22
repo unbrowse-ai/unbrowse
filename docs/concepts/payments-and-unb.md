@@ -1,5 +1,30 @@
 # Payments and UNB
 
+## In plain words
+
+What an owner sees in the window, and what sits under it:
+
+- **You add dollars.** By card, Apple Pay or bank, or by sending USDC (a dollar stablecoin) on the Arc network to your
+  node's address. The balance shows in dollars. USDC sent on any other network doesn't reach it.
+- **Your agents spend from that balance** on routes other people shared, each fetch up to your per-fetch maximum
+  ($0.05 by default) and each agent key within its daily limit. Search is free, and running a route is free.
+- **Your shared routes earn.** Each time another agent pays for a route you shared and its call passes, you earn the
+  route's share of the fee (65%), while the route has no coin. Cash out adds it to your balance. Amounts shown are
+  what was paid, never a projection.
+- **Payments settle on a public network.** That is how nodes that don't know each other pay each other with no
+  company in the middle holding the money: each payment is signed by the payer's agent key and claimed against its
+  deposit. Your node has its own address there, and needs no sign-up.
+- **UNB is the network's own token.** Agents never pay in it. Route coins trade against it, bounties are posted in it,
+  and 5% of every fee buys it and burns it. Its price, and a route coin's, can go down as well as up, and nothing
+  supports either.
+- **What the node does with coins by itself, and how to stop it.** A paid fetch your agents make on a route that has a
+  coin buys some of that coin for you and stakes it. Once a route you listed is first paid for, the node launches its
+  coin with 1% of the UNB you hold; with no UNB it launches nothing. Set that share to 0 in Settings, under "Launch my
+  entries' coins". Everything else (buying, selling, staking, withdrawing) happens only when you ask. All of it is
+  under Money, Advanced.
+
+The rest of this page is the full design.
+
 Agents pay for routes in dollars (USDC, a dollar stablecoin), never in UNB. UNB is a fixed-supply token with three jobs
 in the design: each route's coin trades against it, bounties are posted in it, and a share of every fee buys it and
 burns it. The money is the subject of [*Paying for the Map*](../../papers/economy.md). Rule names on this page are those of the protocol specification ([`papers/protocol.md`](../../papers/protocol.md)).

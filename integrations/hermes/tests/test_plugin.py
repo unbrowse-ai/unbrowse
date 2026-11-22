@@ -72,6 +72,8 @@ def answer(method, path, headers, body):
     if route == "GET /v1/routes":
         return 200, {"routes": [HN]}
     if route == "POST /v1/do":
+        if body.get("ask") == "ask_0f9b3e4a5e46facc" and "goal" not in body:
+            return 200, {"how": "called", "route": HN, "result": {"ok": True, "ms": 5, "data": {"hits": [{"title": "collected", "url": None}]}, "retry": "as_is"}, "outcome": "answered", "ask": body["ask"]}
         if body.get("goal") == "search HN stories":
             return 200, {"how": "called", "route": HN, "result": {"ok": True, "ms": 212, "data": {"hits": [{"title": body.get("inputs", {}).get("q", "rust"), "url": None}]}, "retry": "as_is"}}
         return 404, {"error": "no route does that yet: give url, a page that does it, and the node learns it"}
@@ -237,6 +239,13 @@ class ToolsTest(unittest.TestCase):
         r = self.call("unbrowse_do", {})
         self.assertEqual(r, {"error": "unbrowse_do needs goal", "code": "bad_request"})
         self.assertEqual(len(SEEN), before)
+
+    def test_an_ask_alone_is_sent_to_the_node_to_collect_its_answer(self):
+        r = self.call("unbrowse_do", {"ask": "ask_0f9b3e4a5e46facc"})
+        self.assertEqual(last()["url"], "/v1/do")
+        self.assertEqual(last()["body"]["ask"], "ask_0f9b3e4a5e46facc")
+        self.assertNotIn("goal", last()["body"])
+        self.assertEqual((r["outcome"], r["ask"]), ("answered", "ask_0f9b3e4a5e46facc"))
 
     def test_a_refusal_is_the_nodes_reason_with_a_code_never_a_raise(self):
         r = self.call("unbrowse_do", {"goal": "send a message"})

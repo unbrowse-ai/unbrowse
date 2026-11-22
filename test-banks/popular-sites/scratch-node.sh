@@ -12,7 +12,8 @@
 #
 # ALLOW_HEADED=1 lets the node ask again in a window, as an owner's node may: the guards stop refusing `--headed` and a
 # launch without `--headless`, and the node runs with windows allowed (`UNBROWSE_HEADLESS=0`). Use it to check a site
-# whose door refuses a headless browser; the default run stays headless, as CI's does.
+# whose door refuses a headless browser; the default run stays headless, as CI's does. On Linux it hands the node the
+# caller's display (DISPLAY, WAYLAND_DISPLAY, XDG_RUNTIME_DIR, XAUTHORITY), which a headless run never gets.
 # ARM_B=1 runs the node as arm B of the A/B of its own asks: none of them (no second look, no made-up value sent to
 # see whether a call hears, no leave-one-out shrinking, no try of the page's controls, no ask for a next page to see
 # how a route reads on, no ask of a route's own value at call time, no heal of a failed call), and a route of one
@@ -111,18 +112,29 @@ dom=${UNBROWSE_DOM_MODULE:-}
   [ -d "$d" ] && { dom=$d; break; }
 done
 
+# A window needs the caller's display, which `env -i` below would drop (Linux: X11 or Wayland and the X cookie; macOS
+# needs none). Passed on only with ALLOW_HEADED=1, so a headless run still holds nothing of the caller's.
+win_display= win_wayland= win_runtime= win_xauth=
+if [ "$headed" = 1 ]; then
+  win_display=${DISPLAY:-} win_wayland=${WAYLAND_DISPLAY:-} win_runtime=${XDG_RUNTIME_DIR:-}
+  win_xauth=${XAUTHORITY:-${HOME:+$HOME/.Xauthority}}
+  [ -n "$win_xauth" ] && [ -f "$win_xauth" ] || win_xauth=
+fi
+
 # Node env: nothing of the caller's. UNBROWSE_PORT stays unset, since it rewrites settings to the default.
 # Run as `in_place=1 in_scratch …` it takes the shell's place (`exec`): a subshell started for it would wait beside the
 # node for as long as the node runs, a copy of this script per node started.
 in_scratch() {
   ${in_place:+exec} env -i HOME="$dir/home" UNBROWSE_HOME="$home" TMPDIR="$dir/tmp" PATH=/usr/bin:/bin:/usr/sbin:/sbin \
     UNBROWSE_BROWSER="$dir/guard-browser" UNBROWSE_DEVNET_PORT=$((port + 1)) UNBROWSE_DEVNET_FORK=none \
-    UNBROWSE_TELEMETRY=0 UNBROWSE_REPORTS=0 ${signing:+SIGNING_PROGRAM="$signing"} ${dom:+UNBROWSE_DOM_MODULE="$dom"} ${SIGN_DEBUG:+UNBROWSE_SIGN_DEBUG=1} ${SENT_LOG:+UNBROWSE_SENT_LOG="$home/sent.jsonl"} ${SECOND_WALK:+UNBROWSE_SECOND_WALK=1} ${LEARN_BY_EXAMPLE:+UNBROWSE_LEARN_BY_EXAMPLE=1} ${FILL_BODY:+UNBROWSE_FILL_BODY=1} ${FILL_SHADOW:+UNBROWSE_FILL_SHADOW=1} ${ARM_A:+UNBROWSE_ARM_A=1} ${ARM_B:+UNBROWSE_CONFIRM_BY_USE=1 UNBROWSE_NO_SECOND_LOOK=1 UNBROWSE_NO_NONSENSE=1 UNBROWSE_NO_SHRINK=1 UNBROWSE_NO_TRY=1 UNBROWSE_NO_PAGING=1 UNBROWSE_NO_RECHECK=1 UNBROWSE_NO_HEAL=1 UNBROWSE_NO_AGAIN=1 UNBROWSE_NO_PAGE_VALUES=1} ${PROPOSE_PROGRAM:+UNBROWSE_PROPOSE_PROGRAM="$PROPOSE_PROGRAM"} ${headed:+"UNBROWSE_HEADLESS=$([ "$headed" = 1 ] && echo 0 || echo 1)"} ${model_base:+TYPESAFE_API_BASE="$model_base" TYPESAFE_API_KEY=placeholder TYPESAFE_MODEL=placeholder} "$@"
+    UNBROWSE_TELEMETRY=0 UNBROWSE_REPORTS=0 ${win_display:+DISPLAY="$win_display"} ${win_wayland:+WAYLAND_DISPLAY="$win_wayland"} ${win_runtime:+XDG_RUNTIME_DIR="$win_runtime"} ${win_xauth:+XAUTHORITY="$win_xauth"} ${RUST_MIN_STACK:+RUST_MIN_STACK="$RUST_MIN_STACK"} ${signing:+SIGNING_PROGRAM="$signing"} ${dom:+UNBROWSE_DOM_MODULE="$dom"} ${SIGN_DEBUG:+UNBROWSE_SIGN_DEBUG=1} ${SENT_LOG:+UNBROWSE_SENT_LOG="$home/sent.jsonl"} ${SECOND_WALK:+UNBROWSE_SECOND_WALK=1} ${LEARN_BY_EXAMPLE:+UNBROWSE_LEARN_BY_EXAMPLE=1} ${FILL_BODY:+UNBROWSE_FILL_BODY=1} ${FILL_SHADOW:+UNBROWSE_FILL_SHADOW=1} ${ARM_A:+UNBROWSE_ARM_A=1} ${ARM_B:+UNBROWSE_CONFIRM_BY_USE=1 UNBROWSE_NO_SECOND_LOOK=1 UNBROWSE_NO_NONSENSE=1 UNBROWSE_NO_SHRINK=1 UNBROWSE_NO_TRY=1 UNBROWSE_NO_PAGING=1 UNBROWSE_NO_RECHECK=1 UNBROWSE_NO_HEAL=1 UNBROWSE_NO_AGAIN=1 UNBROWSE_NO_PAGE_VALUES=1} ${PROPOSE_PROGRAM:+UNBROWSE_PROPOSE_PROGRAM="$PROPOSE_PROGRAM"} ${headed:+"UNBROWSE_HEADLESS=$([ "$headed" = 1 ] && echo 0 || echo 1)"} ${model_base:+TYPESAFE_API_BASE="$model_base" TYPESAFE_API_KEY=placeholder TYPESAFE_MODEL=placeholder} "$@"
 }
 
+# Written at the settings format's current version (`SETTINGS` in unbrowse-node/crates/files): a file without one is
+# migrated from the first, and version 4 turns `accept_bearer` off, so the bank's bearer token would be refused.
 settings() {
   cat > "$home/settings.json" <<JSON
-{"map_while_browsing":true,"hold_routes":false,"signed_in_calls":true,"paused":false,"api_port":$port,"storage_gb":1.0,
+{"v":5,"map_while_browsing":true,"hold_routes":false,"signed_in_calls":true,"paused":false,"api_port":$port,"storage_gb":1.0,
  "excluded":[],"share_routes":"off","share_notice_seen":true,"private_network":${PRIVATE_NETWORK:-false},"terms_accepted":"2026-10-29",
  "peer_network":false,"light":true,"auto_update":false,"fetch_browser":$1,"headless_only":$([ "$headed" = 1 ] && echo false || echo true),"passkeys":false,"passkeys_never":[],"max_fetch_usdc":0,"accept_bearer":true}
 JSON
@@ -208,7 +220,9 @@ printf '{"path": "%s"}\n' "$dir/guard-chrome" > "$home/browser.json"
 settings false
 start
 wait_for
-in_scratch "$node" agent new bank 2>/dev/null | grep -o 'unb_[A-Za-z0-9_.-]*' | head -n 1 > "$dir/token"
+# `agent new` names the agent's number and no longer prints its key; `agent token <n>` prints it.
+agent=$(in_scratch "$node" agent new bank 2>/dev/null | sed -n 's/.* agent token \([0-9][0-9]*\).*/\1/p' | head -n 1)
+[ -n "$agent" ] && in_scratch "$node" agent token "$agent" < /dev/null 2>/dev/null | grep -o 'unb_[A-Za-z0-9_.-]*' | head -n 1 > "$dir/token"
 chmod 600 "$dir/token"
 [ -s "$dir/token" ] || { echo "couldn't make an agent key" >&2; exit 1; }
 echo "scratch node on 127.0.0.1:$port, browsing through $chrome"

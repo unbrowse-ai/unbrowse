@@ -9,6 +9,11 @@
 #                                    ~/.unbrowse and the matrix runs under $TMPDIR. It redraws as the files change.
 #   xray.sh state                    the same state the page draws, as JSON (no server): for a session without a browser
 #   xray.sh diff <home A> <home B>   what changed between two homes, as text; exits 1 on a new break
+#   xray.sh graph [--site S]         the graph across the routes of each home, as JSON (route_graph.py): what each
+#                                    route gives and takes, the edges, the steps and scripts several routes carry,
+#                                    cycles and findings. Names and shapes only
+#   xray.sh dependents <route>       what breaks if this route changes, transitively (by id, file or id prefix)
+#   xray.sh needs <route>            what must hold before this route can be called, transitively
 #   xray.sh --text [routes...]       the findings and the code they point at, as text
 #   xray.sh pages                    the static pages of the scratch node's routes, in ~/.unbrowse-xray
 #   xray.sh <route.json|folder>...   static pages of those routes, in ~/.unbrowse-xray (open index.html)
@@ -111,6 +116,9 @@ case "${1:-}" in
   diff)
     shift
     exec python3 "$S/wiring.py" diff "$@" ;;
+  graph|dependents|needs)
+    # shellcheck disable=SC2086
+    exec python3 "$S/wiring.py" "$@" $where ;;
 esac
 
 text=""; routes=""

@@ -1,4 +1,12 @@
-# Every part of the repository, built and tested on Blacksmith runners. The node and its window are tested on macOS,
+# Runners (UNB-166): Linux jobs run on the local pool's [self-hosted, linux, x64] slots (podman containers on the
+# Steam Machine); any free slot takes any job. macOS jobs run where the repository variable MAC_RUNNER says, as a JSON
+# list: `gh variable set MAC_RUNNER -b '["self-hosted","macos","arm64"]'` sends them to the pool's Mac slots (Lewis's
+# Macs). While it is unset they run on blacksmith-6vcpu-macos-latest: on 21 Nov 2026 the pool had no Mac slot (the
+# MacBook was off the tailnet), so every macOS job (Node, Window, QA, Bank, Gate bank, PR agent checks) waited for a
+# runner that did not exist and no CI run could finish.
+# Windows has no local machine and runs on GitHub's windows-2025. No fork's pull request reaches a pool slot: every
+# pool job opens its `if` with the same-repository guard (test_workflow_security.py).
+# Every part of the repository, built and tested. The node and its window are tested on macOS,
 # and built on Linux and Windows too, where they are released as well; everything else runs on Linux.
 name: CI
 
@@ -17,11 +25,90 @@ concurrency:
 permissions: {}
 
 jobs:
+  # Which of the long jobs below a pull request's changed files can reach: .github/scripts/ci-scope.py holds the table
+  # and says, in this job's summary, why each runs or is left out. A push, a manual run, a change to .github/, or a
+  # list of changed files GitHub can't give in full runs every job, and a long job runs if this one fails. The short
+  # jobs don't wait for it.
+  # The contracts' tests and the route-coin spec read a closed set of files (ci-scope.py, READS), and were 49% of a
+  # push's Linux minutes with no failure in 1,064 spec jobs and 3 in 253 forge jobs (17 to 21 Nov 2026, UNB-166). Each
+  # records a pass under the hash of the files it read; a push or pull request whose files have that hash is told so
+  # here and leaves the job out. A manual run runs both whatever is on record.
+  scope:
+    permissions:
+      contents: read
+      pull-requests: read
+    name: What this change reaches
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      settlement: ${{ steps.scope.outputs.settlement }}
+      spec: ${{ steps.scope.outputs.spec }}
+      settlement-key: ${{ steps.keys.outputs.settlement-key }}
+      spec-key: ${{ steps.keys.outputs.spec-key }}
+      engine: ${{ steps.scope.outputs.engine }}
+      node: ${{ steps.scope.outputs.node }}
+      elsewhere: ${{ steps.scope.outputs.elsewhere }}
+      window: ${{ steps.scope.outputs.window }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/ci-scope.py
+          sparse-checkout-cone-mode: false
+      # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it.
+      # Skipped on hosted runners.
+      - name: Tools the local runner may lack
+        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        run: dpkg -s gh > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq gh > /dev/null; }
+      # The checkout holds every folder's listing (only file contents are left out), which is all a key is made of.
+      # No key, no pass looked up: the jobs run.
+      - id: keys
+        continue-on-error: true
+        run: python3 -I .github/scripts/ci-scope.py --keys >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.keys.outputs.settlement-key != '' && github.event_name != 'workflow_dispatch'
+        continue-on-error: true
+        with:
+          path: passed/settlement
+          key: passed-settlement-${{ steps.keys.outputs.settlement-key }}
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.keys.outputs.spec-key != '' && github.event_name != 'workflow_dispatch'
+        continue-on-error: true
+        with:
+          path: passed/spec
+          key: passed-spec-${{ steps.keys.outputs.spec-key }}
+      - id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          CHANGED: ${{ github.event.pull_request.changed_files }}
+        run: |
+          complete=true
+          : > changed.txt
+          if [ "$EVENT" = pull_request ]; then
+            # Each file, and for a rename the path it had. GitHub lists at most 3000 files of a pull request: a list
+            # with fewer files than the count it gives runs every job.
+            gh api --paginate "repos/$REPO/pulls/$PR/files?per_page=100" \
+              --jq '.[] | "f \(.filename)", (.previous_filename // empty | "p \(.)")' > listed.txt || complete=false
+            [ "$(grep -c '^f ' listed.txt || true)" -ge "$CHANGED" ] || complete=false
+            cut -c3- listed.txt > changed.txt
+          fi
+          python3 -I .github/scripts/ci-scope.py --event "$EVENT" --complete "$complete" --passed passed < changed.txt 2> why.txt >> "$GITHUB_OUTPUT"
+          cat why.txt
+          { echo "### What this change reaches"; sed 's/^/- /' why.txt; } >> "$GITHUB_STEP_SUMMARY"
+
   papers:
     permissions:
       contents: read
     # papers/ is a byte copy of unbrowse-papers' built files; this fails on a hand edit or a file it doesn't map.
+    # Also every test of the workflows' own scripts (.github/scripts/test), once, on every push and pull request:
+    # release-check.yml ran the folder for a pull request that changed a workflow or a script, while this job and
+    # promotion-gate.yml ran six of the same files by name (UNB-166). release.yml holds the signing keys and has no
+    # trigger a pull request can fire, so no pull request's code ever runs in it.
     name: Papers are copies
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -34,13 +121,30 @@ jobs:
           persist-credentials: false
           sparse-checkout: .github/scripts/updates.mjs
           sparse-checkout-cone-mode: false
+      # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it.
+      # Skipped on hosted runners.
+      - name: Tools the local runner may lack
+        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        run: dpkg -s python3-yaml > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq python3-yaml > /dev/null; }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.4
       - run: python3 -I .github/scripts/check-pinned-actions.py --verify-upstream
       - name: Check update root transition metadata
         run: node .github/scripts/updates.mjs root-check --main-updates "$GITHUB_WORKSPACE/trusted-main/.github/scripts/updates.mjs"
-      - run: python3 -I .github/scripts/test/test_pinned_actions.py
-      - run: python3 -I .github/scripts/test/test_artifact_hashes.py
-      - run: python3 -I .github/scripts/test/test_workflow_security.py
-      - run: node --test .github/scripts/test/updates.test.mjs
+      - name: Test the update metadata script
+        run: node --test .github/scripts/test/*.test.mjs
+      # The release workflow has no trigger a pull request can fire. Every job that reads a signing key runs in the
+      # `release` environment and installs nothing: it uses no action but checkout and the artifact actions, and runs
+      # no package manager's install. No other workflow names a signing key (external security review round 3,
+      # 2026-11-04).
+      - name: The signing keys sit in jobs of their own
+        run: python3 .github/scripts/test/check_signing_jobs.py
+      # Root CLAUDE.md and AGENTS.md are one file, so every agent reads the same rules (UNB-235).
+      - name: Root CLAUDE.md is AGENTS.md
+        run: cmp CLAUDE.md AGENTS.md
+      - name: Every test of the workflows' scripts
+        run: python3 -m unittest discover -s .github/scripts/test -p 'test_*.py' -v
       - run: python3 -I papers/sync.py check
       # Every number core hard-codes equals papers/params.toml (papers/params-map.json says where each one lives).
       # Report-only until the contracts follow spec §84 and §85: it fails today on the retired priced bond, the domain
@@ -52,6 +156,7 @@ jobs:
     permissions:
       contents: read
     name: SDK (TypeScript)
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: blacksmith-2vcpu-ubuntu-2404
     defaults:
       run:
@@ -75,48 +180,87 @@ jobs:
         working-directory: integrations/elizaos
         run: npm ci --ignore-scripts && npm test
 
-  integrations:
+  # Seven checks that each take under a minute, in one job with a step each (UNB-166). A job of its own costs a runner
+  # start for a few seconds of work: their medians there were 0.3 to 3.7 minutes
+  # against 0.1 to 0.8 hosted, and a push started 13 such jobs. Every step runs whatever the ones before it did, so one
+  # failure hides no other, and the step that failed carries the name the check had.
+  short:
     permissions:
       contents: read
-    # The agent plugins (integrations/) and the marketplaces at the root: every manifest parses, the paths and links
-    # they name resolve, each declares the tools agent-api.json lists, and the skill's copies match skills/unbrowse.
-    # Then the Hermes plugin's tests, against the Python SDK in this checkout. Python's standard library only.
-    name: Agent plugins
+    name: Short checks
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: python3 -I integrations/check.py
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.4
+      # The agent plugins (integrations/) and the marketplaces at the root: every manifest parses, the paths and links
+      # they name resolve, each declares the tools agent-api.json lists, and the skill's copies match skills/unbrowse.
+      # Python's standard library only.
+      - name: Agent plugins
+        if: ${{ !cancelled() }}
+        run: python3 -I integrations/check.py
       # The Codex installer, run against a scratch home: it keeps a skill folder that was there, takes only a plain
       # node address, and replaces an older Unbrowse's server table keeping every other setting. Once with each awk
       # an owner may have: mawk (Ubuntu's), the one true awk (macOS's) and busybox's.
-      - name: Codex installer
+      - name: Agent plugins, the Codex installer
+        if: ${{ !cancelled() }}
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq mawk original-awk busybox > /dev/null
+          dpkg -s mawk original-awk busybox > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq mawk original-awk busybox > /dev/null; }
           UNBROWSE_TEST_AWKS="mawk:original-awk:busybox awk" python3 -I -m unittest discover -s integrations/codex -p 'test_*.py' -v
-      - name: Hermes plugin
+      # The Hermes plugin's tests, against the Python SDK in this checkout.
+      - name: Agent plugins, the Hermes plugin
+        if: ${{ !cancelled() }}
         working-directory: integrations/hermes
         run: python3 -m unittest discover -s tests -v
-
-  xray:
-    permissions:
-      contents: read
-    # The route x-ray (scripts/xray): it reads a route by shape and writes no value, keeps its pages out of a
-    # repository, and every function of the engine it names is still in the source. Standard library only; no site
-    # is asked.
-    name: Route x-ray
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - run: python3 -I -m unittest discover -s scripts/xray -p 'test_*.py' -v
+      # The route x-ray (scripts/xray): it reads a route by shape and writes no value, keeps its pages out of a
+      # repository, and every function of the engine it names is still in the source. Standard library only; no site
+      # is asked.
+      - name: Route x-ray
+        if: ${{ !cancelled() }}
+        run: python3 -I -m unittest discover -s scripts/xray -p 'test_*.py' -v
+      # The verification skill's CLI (skills/verify-unbrowse): it refuses the owner's port, never kills a process it
+      # didn't start, and keeps the evidence through cleanup. Standard library only; no node is built or started.
+      - name: Verify skill CLI
+        if: ${{ !cancelled() }}
+        run: python3 -I -m unittest discover -s skills/verify-unbrowse/scripts -p 'test_*.py' -v
+      # Requirements the source itself holds (scripts/rules, UNB-208): what must be absent (delegation, a bridge dialog,
+      # a web window, canned answers in the window, a hosted or paid service on the call path) and what the release
+      # gates must keep doing. Standard library only; nothing is built, started or fetched.
+      - name: Requirements held by the source
+        if: ${{ !cancelled() }}
+        run: python3 -I -m unittest discover -s scripts/rules -p 'test_*.py' -v
+      # Since #773 the dashboard is upstream agent-browser v0.43.0's, unchanged: its chat history, session settings and
+      # lifecycle edits, and the tests of them, went with the old fork (unbrowse-browser/FORK.md). Upstream's own CI
+      # builds it (its "Dashboard" job). What is ours to hold here is that it stays upstream's: no line of the fork in
+      # it. `bun test src` found no test file and failed every run since.
+      - name: Browser dashboard
+        if: ${{ !cancelled() }}
+        working-directory: unbrowse-browser/packages/dashboard
+        run: |
+          if grep -rn "Unbrowse fork" . ; then echo "::error::A fork line in the dashboard: fork code lives in cli/src/native/unbrowse/ (FORK.md)"; exit 1; fi
+          version=$(jq -r .version package.json)
+          fork=$(grep -o '\*\*v[0-9][0-9.]*\*\*' ../../FORK.md | head -1 | tr -d '*v')
+          [ -n "$fork" ] && [ "$version" = "$fork" ] || { echo "::error::dashboard $version, FORK.md upstream v$fork"; exit 1; }
+          echo "dashboard $version, as upstream v$fork"
+      - name: Telemetry worker
+        if: ${{ !cancelled() }}
+        working-directory: unbrowse-telemetry
+        run: node --test test/*.test.mjs
+      - name: RPC gateway
+        if: ${{ !cancelled() }}
+        working-directory: unbrowse-rpc
+        run: npm ci && npm test
 
   sdk-python:
     permissions:
       contents: read
     name: SDK (Python ${{ matrix.python }})
+    if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: blacksmith-2vcpu-ubuntu-2404
     strategy:
       matrix:
@@ -145,29 +289,23 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: python unbrowse-sdk/codegen/generate.py --check
 
-  dashboard:
-    permissions:
-      contents: read
-    name: Browser dashboard
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    defaults:
-      run:
-        working-directory: unbrowse-browser/packages/dashboard
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.2
-        with:
-          bun-version: 1.4.3
-      # The dashboard's rules are plain modules, so their tests need no install.
-      - run: bun test src
-
   engine:
     permissions:
       contents: read
-    name: Browser engine
+    name: Browser engine (${{ matrix.part }})
+    needs: scope
+    # coverage.yml's two browser jobs run these same tests, measured, on a push to staging or a release branch and on a
+    # pull request into staging, a release branch or main, and fail when one fails: there this job is left out, so the
+    # tests run once (UNB-166). It runs for what coverage.yml doesn't see: a push to main, a manual run, and a pull
+    # request into any other branch.
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.engine == 'true') && !((github.event_name == 'push' && github.ref != 'refs/heads/main') || (github.event_name == 'pull_request' && (github.base_ref == 'staging' || github.base_ref == 'main' || startsWith(github.base_ref, 'release/'))))) }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    # One part since the fork's module became a subset of the CLI's own run (#773): the second half ran
+    # `cargo test -- "unbrowse::"`, tests the step "Test the CLI" already runs. The matrix stays for the check's name.
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [engine]
     # The runner's AppArmor holds user namespaces back, so Chrome runs without its sandbox here, said outright: the
     # browser no longer turns its sandbox off for a `CI` variable (external security review round 4).
     env:
@@ -176,59 +314,53 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it. Each
+      # workspace's target/ lives in the pool's shared cache, so rust-cache is skipped there. Skipped on hosted runners.
+      - name: Tools and cargo cache on the local runner pool
+        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        run: |
+          dpkg -s build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl xz-utils zstd > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl xz-utils zstd > /dev/null; }
+          for w in unbrowse-node/crates/browser unbrowse-browser/cli; do
+            d="$STEAM_MACHINE_CARGO_TARGET_DIR/$(echo "$w" | tr / -)"
+            mkdir -p "$d" && ln -sfn "$d" "$w/target"
+          done
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: (runner.environment != 'self-hosted' || startsWith(runner.name, 'blacksmith-'))
         with:
           workspaces: |
-            unbrowse-browser/core -> target
+            unbrowse-node/crates/browser -> target
             unbrowse-browser/cli -> target
       - name: Test the engine
-        working-directory: unbrowse-browser/core
+        working-directory: unbrowse-node/crates/browser
         run: cargo test --locked
-      # Four tests time a fake browser or daemon against tight deadlines, two of them through a process-wide socket
-      # directory, which a full parallel run can trip: they run one at a time after the rest.
+      # The engine's walks in a real browser (the runner's Chrome): what a walk records (each call's stack, every
+      # script with its hash, wasm as bytes, storage at settle and at the end), that it hears every frame and worker,
+      # how it refuses, hands off and hides the launch mode. `#[ignore]`d because they need a browser; they need only
+      # that, so they run here, one at a time. A walk that can't start its browser fails (UNB-208).
+      - name: Test the engine's walks in a real browser
+        working-directory: unbrowse-node/crates/browser
+        run: cargo test --locked -- --ignored --test-threads=1 --skip windows_process
+      # Upstream's own suite, as upstream runs it, plus the fork's module (`cli/src/native/unbrowse/`). What the node
+      # needs of the browser in a real one (the capture log, a secret named, a replay) is the node job's learn_shop
+      # and replay_shop tests.
+      # Upstream runs this suite optimised (`--profile ci`); here it is a debug build, sharing the cache above, whose
+      # frames are larger: `test_a_confirmed_launch_keeps_the_allowed_domains_it_was_parked_with` overflowed the 2 MiB
+      # test thread stack (run 44902930272). The same tests, with the stack an optimised build doesn't need.
       - name: Test the CLI
-        working-directory: unbrowse-browser/cli
-        run: >-
-          cargo test --locked --
-          --skip test_failed_local_initialization_disconnects_and_reaps
-          --skip test_failed_lightpanda_initialization_disconnects_before_retry
-          --skip cross_origin_command_post_is_rejected_without_relaying_to_daemon
-          --skip same_origin_command_post_relays_without_wildcard_cors
-      - name: Test the CLI's timed tests, one at a time
-        working-directory: unbrowse-browser/cli
-        run: >-
-          cargo test --locked -- --test-threads=1
-          test_failed_local_initialization_disconnects_and_reaps
-          test_failed_lightpanda_initialization_disconnects_before_retry
-          cross_origin_command_post_is_rejected_without_relaying_to_daemon
-          same_origin_command_post_relays_without_wildcard_cors
-      # What an agent's script and an agent's commands can reach in a signed-in page, against a real browser: the
-      # session read as a stand-in, no markup or code sink into the page's own world, the activation guard under a
-      # poisoned page and a race, access keys. These are `#[ignore]`d with the rest of the e2e set, which needs things
-      # a runner doesn't have; they need only Chrome. A refactor once dropped one of these refusals and nothing that ran
-      # here noticed (the `srcdoc` property), so they run here by name. The larger stack is the e2e harness's need.
-      - name: Test what an agent can reach in a signed-in page, in a real browser
         working-directory: unbrowse-browser/cli
         env:
           RUST_MIN_STACK: "16777216"
-        run: >-
-          cargo test --locked -- --ignored --test-threads=1
-          e2e_a_callers_script_reads_the_session_as_a_stand_in
-          e2e_an_access_key_reaches_no_script_address_in_any_frame
-          e2e_the_race_between_the_guard_and_the_click
-          e2e_what_the_agents_world_reaches_beyond_its_setters
-          e2e_no_markup_or_code_sink_reaches_the_pages_world
-          e2e_no_property_of_any_element_carries_an_agents_code_into_the_pages_world
-          e2e_hostile_page_capture_listener_and_builtin_poisoning
-          e2e_same_origin_reflection_runs_site_code_and_records_cookie
+        run: cargo test --locked
 
   node:
     permissions:
       contents: read
     name: Node
+    needs: scope
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.node == 'true')) }}
     runs-on: blacksmith-6vcpu-macos-latest
     defaults:
       run:
@@ -254,7 +386,7 @@ jobs:
         id: vendor
         with:
           path: unbrowse-node/vendor
-          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch') }}
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-pss.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-grease-sigalg.patch') }}
       - if: steps.vendor.outputs.cache-hit != 'true'
         run: sh scripts/apply-tls-patch.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -267,10 +399,10 @@ jobs:
       - name: Build the browser
         working-directory: unbrowse-browser/cli
         run: cargo build --locked && ./target/debug/agent-browser install
-      # Clippy's defaults, less the lints `[workspace.lints.clippy]` in unbrowse-node/Cargo.toml turns off with its reasons.
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
+      # The owner's live view of a page, in a real browser (UNB-208 W03): it follows the page to another site.
+      - name: Test the live view, in a real browser
+        run: cargo test --locked -p unbrowse-node-app --bin unbrowse-node -- --ignored --test-threads=1 the_live_view_follows_the_page_to_another_site
       # Agents as an OS user of their own, for real: the user is made, reads none of the owner's secrets, runs a
       # program with its own token, and is removed (scripts/agent-user-e2e.sh).
       - name: Agents' OS user, end to end
@@ -280,11 +412,50 @@ jobs:
       # token on a command line (scripts/connect-e2e.sh).
       - name: Connect, end to end
         run: cargo build --locked -p unbrowse-node-app --bins && sh scripts/connect-e2e.sh target/debug/unbrowse-node target/debug/unb
+      # The install with no terminal (UNB-266): with only a GUI app's PATH, the window's Connect (`agent_connect`)
+      # writes Claude Code, Claude Desktop, Cursor and Codex, each entry answers with the node's tools, a stopped node
+      # is started by the entry, no token is written anywhere, and undo puts every file back (scripts/install-e2e.sh).
+      - name: Install with no terminal, end to end
+        run: cargo build --locked -p unbrowse-node-app --bins && sh scripts/install-e2e.sh target/debug/unbrowse-node target/debug/unb
       # The MCP entries an older Unbrowse wrote (`npx -y unbrowse mcp`, `… dist/cli.js mcp --account x`), run against
       # this build through the npm command: they list the node's tools at its default address, and the old hosted
       # sign-in is left byte-identical (scripts/legacy-mcp-e2e.sh).
       - name: Old MCP entries, end to end
         run: (cd ../unbrowse-sdk/typescript && npm ci --ignore-scripts && npm run build) && sh scripts/legacy-mcp-e2e.sh target/debug/unbrowse-node target/debug/unb ../unbrowse-sdk/typescript/dist/cli.js
+
+  # The node's lint, beside its tests rather than before them (UNB-235: 71 s off the Node job of push 44917313656).
+  # Clippy's defaults, less the lints `[workspace.lints.clippy]` in unbrowse-node/Cargo.toml turns off with its reasons.
+  lint:
+    permissions:
+      contents: read
+    name: Node lint (clippy)
+    needs: scope
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.node == 'true')) }}
+    runs-on: blacksmith-6vcpu-macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: unbrowse-node
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+          components: clippy
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: vendor
+        with:
+          path: unbrowse-node/vendor
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-pss.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-grease-sigalg.patch') }}
+      - if: steps.vendor.outputs.cache-hit != 'true'
+        run: sh scripts/apply-tls-patch.sh
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: unbrowse-node -> target
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   # The node, the browser and the window build on Linux and Windows as they are released there, and the node finds
   # the machine's browsers the way that system keeps them.
@@ -292,6 +463,8 @@ jobs:
     permissions:
       contents: read
     name: Builds on ${{ matrix.os }}
+    needs: scope
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.elsewhere == 'true')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -308,6 +481,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it. Each
+      # workspace's target/ lives in the pool's shared cache, so rust-cache is skipped there. Skipped on hosted runners.
+      - name: Tools and cargo cache on the local runner pool
+        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        run: |
+          dpkg -s build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl xz-utils zstd > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl xz-utils zstd > /dev/null; }
+          for w in unbrowse-node unbrowse-browser/cli; do
+            d="$STEAM_MACHINE_CARGO_TARGET_DIR/$(echo "$w" | tr / -)"
+            mkdir -p "$d" && ln -sfn "$d" "$w/target"
+          done
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: 1.99.1
@@ -315,11 +498,12 @@ jobs:
         id: vendor
         with:
           path: unbrowse-node/vendor
-          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch') }}
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-pss.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-grease-sigalg.patch') }}
       - if: steps.vendor.outputs.cache-hit != 'true'
         working-directory: unbrowse-node
         run: sh scripts/apply-tls-patch.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: (runner.environment != 'self-hosted' || startsWith(runner.name, 'blacksmith-'))
         with:
           workspaces: |
             unbrowse-node -> target
@@ -355,6 +539,8 @@ jobs:
     permissions:
       contents: read
     name: Window (nanoui)
+    needs: scope
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.window == 'true')) }}
     runs-on: blacksmith-6vcpu-macos-latest
     defaults:
       run:
@@ -369,30 +555,16 @@ jobs:
       - run: zig build test
       - run: zig build
 
-  telemetry:
-    permissions:
-      contents: read
-    name: Telemetry worker
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    defaults:
-      run:
-        working-directory: unbrowse-telemetry
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22.23.4
-      - run: node --test test/*.test.mjs
-
   settlement:
     # The contracts' sources are private (`.github/public-tree-exclude`): the public unbrowse-ai/unbrowse carries none.
-    if: github.repository == 'unbrowse-ai/unbrowse-core'
     permissions:
       contents: read
     name: Settlement contracts
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    needs: scope
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && github.repository == 'unbrowse-ai/unbrowse-core' && (needs.scope.result != 'success' || needs.scope.outputs.settlement == 'true')) }}
+    # forge test is CPU-bound (fuzz and invariant runs, one contract per core): 478 s on staging push 44914154818 and
+    # 888 s on dispatch 44948604489 with 2 cores, the longest job of a push that reaches the contracts (UNB-235).
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     env:
       FOUNDRY_VERSION: v1.8.5
     defaults:
@@ -409,12 +581,21 @@ jobs:
       # 40c12c79. The build is kept for exactly the files forge reads and this forge, so a run whose contracts, tests,
       # scripts and libraries are unchanged compiles nothing ("No files changed, compilation skipped") and runs every
       # test on the same bytes a fresh build makes. No partial match is restored: any change builds from nothing.
+      # The key is git's own blob hashes of those files. hashFiles read every one of them from the work tree (1,142 in
+      # lib alone) and passed GitHub's 120-second limit on a loaded local runner; the same content gives the same key.
+      - name: Key of the files forge reads
+        id: forge-key
+        working-directory: .
+        run: |
+          key=$(git ls-tree -r HEAD unbrowse-settlement/foundry.toml unbrowse-settlement/src unbrowse-settlement/test \
+            unbrowse-settlement/script unbrowse-settlement/lib | sha256sum | cut -c1-64)
+          echo "key=$key" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             unbrowse-settlement/out
             unbrowse-settlement/cache
-          key: forge-${{ runner.os }}-${{ env.FOUNDRY_VERSION }}-${{ hashFiles('unbrowse-settlement/foundry.toml', 'unbrowse-settlement/src/**', 'unbrowse-settlement/test/**', 'unbrowse-settlement/script/**', 'unbrowse-settlement/lib/**') }}
+          key: forge-${{ runner.os }}-${{ env.FOUNDRY_VERSION }}-${{ steps.forge-key.outputs.key }}
       - run: forge test
       # What the node holds a live network to (`chain/conform.rs`) is what these sources compile to.
       - run: forge build && python3 script/runtime-manifest.py --check
@@ -425,6 +606,18 @@ jobs:
       - name: Antithesis harness reads match the embedded ABIs
         working-directory: .
         run: python3 -I antithesis/test/check_contract_reads.py
+      # Every step above passed on these files: recorded under their key, so the scope job of a later run that reads
+      # the same files leaves this job out. The fuzz and invariant tests draw fresh seeds each run; left out here, they
+      # get them every night instead (fresh-seeds.yml).
+      - name: Record the pass
+        if: needs.scope.outputs.settlement-key != ''
+        working-directory: .
+        run: mkdir -p passed/settlement && echo "run $GITHUB_RUN_ID of $GITHUB_SHA" > passed/settlement/run
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: needs.scope.outputs.settlement-key != ''
+        with:
+          path: passed/settlement
+          key: passed-settlement-${{ needs.scope.outputs.settlement-key }}
 
   coins-spec:
     # The Quint spec of the route-coin contracts (unbrowse-settlement/spec/coins): the invariants every switch holds
@@ -433,16 +626,25 @@ jobs:
     # (8, 17, 12, 2 and 12 on staging 40c12c79), so each runs in a job of its own; together they make the same quint
     # runs, and "Route-coin spec" below passes only when every part did.
     # The contracts' sources are private (`.github/public-tree-exclude`): the public unbrowse-ai/unbrowse carries none.
-    if: github.repository == 'unbrowse-ai/unbrowse-core'
-    name: Route-coin spec, part ${{ matrix.part }}
+    # check.sh runs fixed seeds, so the same files give the same lines: once they passed, the scope job leaves every
+    # part out until one of them changes.
+    name: Route-coin spec, part ${{ matrix.part }}${{ matrix.shard != '1/1' && format(' ({0})', matrix.shard) || '' }}
+    needs: scope
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && github.repository == 'unbrowse-ai/unbrowse-core' && (needs.scope.result != 'success' || needs.scope.outputs.spec == 'true')) }}
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        # The fixtures ride with the short section 4.
-        part: [1, 2, 3, 4, 5]
+        # The fixtures ride with the short section 4. Section 2 (60 runs, 20 minutes in one job on staging 549788a0)
+        # runs as three shards of its rows (check.sh SHARD), so no part is the run's longest wait (UNB-235).
+        part: [1, 3, 4, 5]
+        shard: ['1/1']
+        include:
+          - { part: 2, shard: '1/3' }
+          - { part: 2, shard: '2/3' }
+          - { part: 2, shard: '3/3' }
     defaults:
       run:
         working-directory: unbrowse-settlement
@@ -454,17 +656,17 @@ jobs:
         with:
           node-version: 22
       - run: npm i -g @informalsystems/quint@0.33.1
-      - run: SECTIONS=${{ matrix.part }} SAMPLES=2000 STEPS=20 spec/coins/check.sh
+      - run: SECTIONS=${{ matrix.part }} SHARD=${{ matrix.shard }} SAMPLES=2000 STEPS=20 spec/coins/check.sh
       - if: matrix.part == 4
         run: spec/coins/traces.sh && git diff --exit-code -- test/coins/fixtures/quint
 
   coins-spec-all:
     # The one check that says the whole spec passed, under the name it always had. Skipped means no part was asked to
-    # run (a pull request the contracts' files don't reach, once ci.yml chooses jobs by changed files); a part that
-    # failed or was cancelled fails it.
+    # run (a pull request the contracts' files don't reach, or files that already passed); a part that failed or was
+    # cancelled fails it. When every part passed, the pass is recorded under the key of the files the spec reads.
     name: Route-coin spec
-    needs: coins-spec
-    if: ${{ !cancelled() && github.repository == 'unbrowse-ai/unbrowse-core' }}
+    needs: [scope, coins-spec]
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && github.repository == 'unbrowse-ai/unbrowse-core') }}
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions: {}
     steps:
@@ -473,3 +675,11 @@ jobs:
         run: |
           echo "the parts: $RESULT"
           case $RESULT in success | skipped) ;; *) exit 1 ;; esac
+      - name: Record the pass
+        if: needs.coins-spec.result == 'success' && needs.scope.outputs.spec-key != ''
+        run: mkdir -p passed/spec && echo "run $GITHUB_RUN_ID of $GITHUB_SHA" > passed/spec/run
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: needs.coins-spec.result == 'success' && needs.scope.outputs.spec-key != ''
+        with:
+          path: passed/spec
+          key: passed-spec-${{ needs.scope.outputs.spec-key }}

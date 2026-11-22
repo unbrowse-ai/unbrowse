@@ -192,6 +192,37 @@ mod tests {
         }
     }
 
+    /// A POST whose body the recording lost is an upload when its length is that of a file the walk was given: one
+    /// request, with the preflight before it. A body of another length, one the recording kept, or a GET is not.
+    #[test]
+    fn a_post_the_length_of_a_given_file_is_its_upload() {
+        let dir = crate::files::root().join(format!("upload-lost-body-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("cv.pdf");
+        std::fs::write(&file, vec![b'%'; 1234]).unwrap();
+        let given = [Input::new("file", &file.to_string_lossy())];
+        let at = "https://jobs.example/api/attachments";
+        let walk = Trace {
+            exchanges: vec![
+                ex("GET", "https://jobs.example/apply", &[], None, 200, &[], "<html></html>", "text/html"),
+                ex("OPTIONS", at, &[], None, 204, &[], "", ""),
+                ex("POST", at, &[("content-length", "1234"), ("content-type", "application/pdf")], None, 200, &[], r#"{"id":"a1"}"#, "application/json"),
+                ex("POST", at, &[("content-length", "99")], None, 200, &[], "{}", "application/json"),
+                ex("POST", "https://jobs.example/api/notes", &[("content-length", "1234")], Some("kept"), 200, &[], "{}", "application/json"),
+                ex("GET", "https://jobs.example/api/size", &[("content-length", "1234")], None, 200, &[], "{}", "application/json"),
+            ],
+            inputs: Vec::new(),
+        };
+        let runs = super::runs(&walk, &given);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(runs.len(), 1, "{runs:?}");
+        let run = &runs[0];
+        assert_eq!((run.members.clone(), run.last, run.size), (vec![1, 2], 2, 1234));
+        assert!(matches!(run.protocol, Protocol::Single));
+        assert_eq!(run.content_type.as_deref(), Some("application/pdf"));
+        assert!(super::runs(&walk, &[]).is_empty(), "no file given, no upload read from a length");
+    }
+
     /// A reel posted the way the walk of a photo site did it: the video in chunks of 10,000 bytes to one address,
     /// with a status probe before each, then the cover in one request, then the call that publishes both under the
     /// upload id the page read off the clock.

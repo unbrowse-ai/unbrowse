@@ -1,10 +1,32 @@
 {
-  "about": "The contracts every node on arc-testnet shares. `deployment` is null until the owner runs `unbrowse-node chain deploy` on arc-testnet and copies what it prints here: Settlement, its USDC, UNB and pool, `dnssec` (the DNSSEC verifier the domain proofs' constructor makes on the IANA root anchors; a node refuses one with other anchors), `domains`, `escrow_wait`, and `coins`, the route-coin contracts as `unbrowse-settlement/script/DeployCoins.s.sol` prints them (`route_coins`, `route_coin_implementation`, `coin_stakes`, `coin_fetch`, `coin_bounties`), all fixed at deployment with no admin. A node holds every one of them to this build's code and to the protocol's route-coin numbers before it uses them (`chain/conform.rs`). Until then a node on arc-testnet runs its identity and the peer network, and Settlement calls say it isn't deployed. `existing` names the network's own USDC, UNB and UNB/USDC pool for that deploy to build on instead of deploying test ones; a token left null is read from a named pool, else deployed as the test one. The curves' fee recipient is named on the operator's machine (`UNBROWSE_<NETWORK>_FEE_RECIPIENT`), never here. `usdc` is the network's own: the ERC-20 interface to its native gas, 6 decimals, so Settlement's fees, deposits and claims are in the same USDC that pays the gas. `registry_from` is the block nodes start reading ERC-8004 registrations from: no Unbrowse identity was registered before it. `epoch_blocks` is one epoch in this chain's blocks (R1.28), which `chain deploy` gives the contracts and a node holds a deployment to: 24 hours at the pace the deployments on record show, about 0.507 s a block from 1 to 6 November 2026; `arc::tests::a_networks_epoch_blocks_are_a_day_of_its_blocks` measures it again. The deployment of the contracts before route coins (Settlement 0xdb9315219fe272747f6c8ab46b80b4265c5d272f, from block 71006209) is no longer read: this build runs only on a route-coin deployment. A node reads ~/.unbrowse/networks/arc-testnet.json instead of this file when that one exists.",
+  "about": "The contracts every node on arc-testnet shares. `deployment` is null until the owner runs `unbrowse-node chain deploy` on arc-testnet and copies what it prints here: Settlement, its USDC, UNB and pool, `dnssec` (the DNSSEC verifier the domain proofs' constructor makes on the IANA root anchors; a node refuses one with other anchors), `domains`, `escrow_wait`, and `coins`, the route-coin contracts as `unbrowse-settlement/script/DeployCoins.s.sol` prints them (`route_coins`, `route_coin_implementation`, `coin_stakes`, `coin_fetch`, `coin_bounties`), all fixed at deployment with no admin. A node holds every one of them to this build's code and to the protocol's route-coin numbers before it uses them (`chain/conform.rs`). Until then a node on arc-testnet runs its identity and the peer network, and Settlement calls say it isn't deployed. `existing` names the network's own USDC, UNB and UNB/USDC pool for that deploy to build on instead of deploying test ones; a token left null is read from a named pool, else deployed as the test one. The curves' fee recipient is named on the operator's machine (`UNBROWSE_<NETWORK>_FEE_RECIPIENT`), never here. `usdc` is the network's own: the ERC-20 interface to its native gas, 6 decimals, so Settlement's fees, deposits and claims are in the same USDC that pays the gas. `registry_from` is the block nodes start reading ERC-8004 registrations from: no Unbrowse identity was registered before it. `epoch_blocks` is one epoch in this chain's blocks (R1.28), which `chain deploy` gives the contracts and a node holds a deployment to: 24 hours at the pace the deployments on record show, about 0.507 s a block from 1 to 6 November 2026; `arc::tests::a_networks_epoch_blocks_are_a_day_of_its_blocks` measures it again. The route-coin deployment, from block 72792533 (18 November 2026), replaced the one before route coins (Settlement 0xdb9315219fe272747f6c8ab46b80b4265c5d272f, from block 71006209), which is no longer read. A node reads ~/.unbrowse/networks/arc-testnet.json instead of this file when that one exists.",
   "network": "arc-testnet",
   "chain_id": 5042002,
   "registry_from": 69700000,
   "epoch_blocks": 170000,
-  "deployment": null,
+  "deployment": {
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "usdc_decimals": 6,
+    "unb": "0x577e5891e3d8439fea5a7cce75923fe77b71c9d0",
+    "pool": "0xb680ff07dd9f32df06525a4efd147e8d60645b13",
+    "settlement": "0x20437d45cddb7d122f2997f2e9a14d1bf9771ca5",
+    "dnssec": "0xa3b4acc6e66b0bbc74989a19532c310c7753d189",
+    "domains": "0xaae1f2b224da6d9e3b764e2eb7161adf8d976d8e",
+    "escrow_wait": 14,
+    "epoch_blocks": 170000,
+    "coins": {
+      "route_coins": "0x6e6043b404879e2567aafe0f9b0fd2fc7d434786",
+      "route_coin_implementation": "0xf96e83615a42bd284dd548766eb1a9a09e9c497d",
+      "coin_stakes": "0x46c1635645594efba5ec8e85d9076fad025d42d1",
+      "coin_fetch": "0x7b1b3950451228f4998c27cbd845eadcc984a438",
+      "coin_bounties": "0x172cc3ab91aa363dcffe794ed681d18611d56b11",
+      "chain_id": 5042002,
+      "block": 72792533
+    },
+    "chain_id": 5042002,
+    "block": 72792533,
+    "code": "0x343ddb6e50930277e8957250abac8b6709f1448c36d17899c88db33b5c5ce34c"
+  },
   "existing": {
     "usdc": "0x3600000000000000000000000000000000000000",
     "unb": null,

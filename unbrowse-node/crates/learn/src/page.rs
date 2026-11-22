@@ -813,6 +813,30 @@ mod tests {
         assert!(string_literal(r#""never closes"#).is_none());
     }
 
+    /// The control escapes a script writes (a tab, a line break, a form feed, a null) come back as those characters,
+    /// a backslash at a line's end joins the lines, and either quote or a backtick opens a string.
+    #[test]
+    fn a_strings_control_escapes_are_the_characters_they_name() {
+        let src = "'a\\tb\\nc\\rd\\be\\ff\\vg\\0h\\\nj' tail";
+        let (text, took) = string_literal(src).unwrap();
+        assert_eq!(text, "a\tb\nc\rd\u{8}e\u{c}f\u{b}g\u{0}hj");
+        assert_eq!(&src[took..], " tail");
+        assert_eq!(string_literal("`tick`").unwrap().0, "tick");
+    }
+
+    /// A page's `<option>` showing a label sends its own value; a select is offered by its name or its id.
+    #[test]
+    fn an_option_sends_its_value_and_a_select_is_offered_by_name_or_id() {
+        let body = r#"<form><select name="size" id="pick-size"><option value="">Choose</option><option value="m-42"> Medium </option><option>Large</option></select></form>"#;
+        assert_eq!(option_value(body, "medium").as_deref(), Some("m-42"), "the label read as shown, whatever its case and spaces");
+        assert_eq!(option_value(body, "Choose"), None, "an empty value sends nothing");
+        assert_eq!(option_value(body, "Large"), None, "an option with no value of its own");
+        assert_eq!(option_value(body, "Small"), None);
+        assert!(offers_a_choice(body, "size") && offers_a_choice(body, "pick-size"));
+        assert!(!offers_a_choice(body, "colour"));
+        assert!(!offers_a_choice(r#"<input name="size">"#, "size"), "a typed field is no choice held out");
+    }
+
     /// A small setting is no page's state, and neither is an attribute that only looks like JSON, or a comparison.
     #[test]
     fn a_setting_is_not_the_pages_state() {
@@ -870,6 +894,15 @@ mod tests {
         for (why, page) in pages {
             assert!(!a_door(200, page, &at), "{why}");
         }
+    }
+
+    /// A page whose whole body is a notice for a browser without scripts, an error kept hidden until its loader fails,
+    /// and an inline script that loads more code: it waits on its own code, so it is a door whatever its status.
+    #[test]
+    fn a_page_that_only_loads_its_own_code_is_a_door() {
+        let at = url::Url::parse("https://shop.example/items/none-such").unwrap();
+        let door = r#"<!DOCTYPE html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1" /><link href="/_x/assets/styles.css" rel="stylesheet" /><title>One moment</title><style>#loading-error { display: none; }</style></head><body><noscript><div><img src="/_x/icon.svg" alt="" role="presentation" /><span>JavaScript is disabled in your browser.</span><p>Please enable JavaScript to proceed.</p></div></noscript><div id="loading-error" role="alert" aria-live="polite">A required part of this site couldn't load. This may be due to a browser extension, network issues, or browser settings. Please check your connection, disable any ad blockers, or try using a different browser.</div><script>function loadScript(src) { return new Promise((resolve, reject) => { const s = document.createElement('script'); s.onload = resolve; s.onerror = reject; s.src = src; document.body.appendChild(s); }); } loadScript('/_x/errors.js').then(() => loadScript('/_x/script.js?reload=true'));</script></body></html>"#;
+        assert!(a_door(200, door, &at));
     }
 
     /// Checked against pages that aren't the ones this rule was written from: every document in the walks the node

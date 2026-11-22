@@ -23,22 +23,10 @@ const DEFAULT_PROFILER_CATEGORIES: &[&str] = &[
     "toplevel",
 ];
 
-/// What a stop waits for, delivered whole however fast it comes.
-const TRACE_EVENTS: &[&str] = &["Tracing.dataCollected", "Tracing.tracingComplete"];
-
-/// Said instead of saving what came so far as if it were the whole trace.
-const BROWSER_WENT_AWAY: &str = "The browser went away before the trace finished: nothing was saved";
-
 pub struct TracingState {
     pub active: bool,
     pub events: Vec<Value>,
     pub events_dropped: bool,
-}
-
-impl Default for TracingState {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl TracingState {
@@ -90,9 +78,8 @@ pub async fn trace_stop(
         return Err("No tracing in progress".to_string());
     }
 
-    // Subscribe to events before stopping. Every event, not the broadcast: a trace is the one reader that must not fall
-    // behind, and one that did read that as the trace being over.
-    let mut rx = client.subscribe_methods(TRACE_EVENTS);
+    // Subscribe to events before stopping
+    let mut rx = client.subscribe();
 
     client
         .send_command_no_params("Tracing.end", Some(session_id))
@@ -100,14 +87,15 @@ pub async fn trace_stop(
 
     // Collect trace data with timeout
     let mut trace_events: Vec<Value> = Vec::new();
+    let mut stream_handle: Option<String> = None;
 
     let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
 
-    let stream_handle = loop {
+    loop {
         let result = tokio::time::timeout_at(deadline, rx.recv()).await;
 
         match result {
-            Ok(Some(event)) => {
+            Ok(Ok(event)) => {
                 if event.session_id.as_deref() != Some(session_id) {
                     continue;
                 }
@@ -118,17 +106,22 @@ pub async fn trace_stop(
                         }
                     }
                     "Tracing.tracingComplete" => {
-                        break event.params.get("stream").and_then(|v| v.as_str()).map(String::from);
+                        stream_handle = event
+                            .params
+                            .get("stream")
+                            .and_then(|v| v.as_str())
+                            .map(String::from);
+                        break;
                     }
                     _ => {}
                 }
             }
-            Ok(None) => return Err(BROWSER_WENT_AWAY.to_string()),
+            Ok(Err(_)) => break,
             Err(_) => {
                 return Err("Tracing stop timed out after 30s".to_string());
             }
         }
-    };
+    }
 
     // If ReturnAsStream mode was used, read trace data from the IO stream
     if let Some(handle) = stream_handle {
@@ -235,7 +228,7 @@ pub async fn profiler_stop(
         return Err("No profiling in progress".to_string());
     }
 
-    let mut rx = client.subscribe_methods(TRACE_EVENTS);
+    let mut rx = client.subscribe();
 
     client
         .send_command_no_params("Tracing.end", Some(session_id))
@@ -249,7 +242,7 @@ pub async fn profiler_stop(
         let result = tokio::time::timeout_at(deadline, rx.recv()).await;
 
         match result {
-            Ok(Some(event)) => {
+            Ok(Ok(event)) => {
                 if event.session_id.as_deref() != Some(session_id) {
                     continue;
                 }
@@ -269,7 +262,7 @@ pub async fn profiler_stop(
                     _ => {}
                 }
             }
-            Ok(None) => return Err(BROWSER_WENT_AWAY.to_string()),
+            Ok(Err(_)) => break,
             Err(_) => {
                 return Err("Profiler stop timed out after 30s".to_string());
             }
@@ -364,7 +357,7 @@ fn get_clock_domain() -> Option<&'static str> {
 }
 
 fn get_traces_dir() -> PathBuf {
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = std::env::home_dir() {
         home.join(".agent-browser").join("tmp").join("traces")
     } else {
         std::env::temp_dir().join("agent-browser").join("traces")
@@ -372,56 +365,9 @@ fn get_traces_dir() -> PathBuf {
 }
 
 fn get_profiles_dir() -> PathBuf {
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = std::env::home_dir() {
         home.join(".agent-browser").join("tmp").join("profiles")
     } else {
         std::env::temp_dir().join("agent-browser").join("profiles")
-    }
-}
-
-#[cfg(test)]
-mod lossless_collection {
-    use super::*;
-    use futures_util::{SinkExt, StreamExt};
-    use tokio_tungstenite::tungstenite::Message;
-
-    /// A browser that answers `Tracing.end` with more events at once than the broadcast channel holds, then completes.
-    async fn browser_flooding_trace_events(count: usize) -> (std::sync::Arc<CdpClient>, tokio::task::JoinHandle<()>) {
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let url = format!("ws://{}", listener.local_addr().unwrap());
-        let server = tokio::spawn(async move {
-            let (stream, _) = listener.accept().await.unwrap();
-            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
-            while let Some(Ok(message)) = ws.next().await {
-                let Ok(text) = message.to_text() else { continue };
-                let request: Value = serde_json::from_str(text).unwrap();
-                let _ = ws.send(Message::Text(json!({ "id": request["id"], "result": {} }).to_string())).await;
-                if request["method"] == "Tracing.end" {
-                    let event = |method: &str, params: Value| {
-                        Message::Text(json!({ "method": method, "params": params, "sessionId": "s" }).to_string())
-                    };
-                    for n in 0..count {
-                        let _ = ws.feed(event("Tracing.dataCollected", json!({ "value": [{ "n": n }] }))).await;
-                    }
-                    let _ = ws.feed(event("Tracing.tracingComplete", json!({}))).await;
-                    let _ = ws.flush().await;
-                }
-            }
-        });
-        (std::sync::Arc::new(CdpClient::connect(&url).await.unwrap()), server)
-    }
-
-    /// Falling behind the event stream read as the trace being over: a truncated file, saved as whole.
-    #[tokio::test]
-    async fn a_trace_keeps_every_event_however_fast_they_come() {
-        const EVENTS: usize = 20_000;
-        let (client, server) = browser_flooding_trace_events(EVENTS).await;
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("trace.json");
-        let mut state = TracingState::new();
-        state.active = true;
-        let answer = trace_stop(&client, "s", &mut state, path.to_str()).await.unwrap();
-        server.abort();
-        assert_eq!(answer["eventCount"], EVENTS, "{answer}");
     }
 }

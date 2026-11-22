@@ -139,6 +139,24 @@ impl<'a> Two<'a> {
         saying(&own, &self.asked)
     }
 
+    /// Whether the second walk met the site's door where call `i` of the first was answered with its page: the call
+    /// paired with a page that runs code and says nothing, or with a refusal ([`crate::page::a_door`]). A door is no
+    /// second sighting of the page: the site never showed this walk what it would have answered, so the experiment
+    /// did not run for it, and what it answered says nothing of the page.
+    pub fn answered_by_the_door(&self, i: usize) -> bool {
+        let Some(there) = self.paired.get(&i).and_then(|j| self.second.exchanges.get(*j)) else { return false };
+        there.is_main_document() && crate::page::a_door(there.status, there.response_body.as_deref().unwrap_or_default(), &there.url)
+    }
+
+    /// How many lines of what `i` answered as a page say back what its page was asked, read as the page's own text
+    /// alone: not its title, its links, nor the state it was built from. A search page sets each result on a line of
+    /// its own; a page that only sends the value back in its address or in its search box says it nowhere.
+    pub fn text_lines_back(&self, i: usize) -> usize {
+        let Some(answer) = answer_of(&self.first.exchanges[i]) else { return 0 };
+        let text = answer["text"].as_str().unwrap_or_default();
+        saying(&said_lines(&Value::String(text.to_string()), &[]), &self.asked)
+    }
+
     /// Whether the two walks speak against call `i` of the first as an answer: the second walk made it too, and
     /// either it answered the same for both values, or its reply changed and still says nothing of its own of what its
     /// page was asked (a map beside the results changes with the city and names no hotel; a menu that lists the word
@@ -159,6 +177,15 @@ impl<'a> Two<'a> {
     /// taken before the page (the same answer without the page around it), and of those one that reads (a GET) before
     /// one that sends a body (a page often posts what it showed to a call that records it). Err, saying why, when no
     /// candidate both hears and says its value back on two lines of its own or more: then two walks settled nothing.
+    ///
+    /// The page is the exception, and it is the site's own answer: a page renders the value in the site's own words
+    /// (`Flights from SIN to BKK` drawn as `singapore to bangkok`, a word translated, a code written out), so a page
+    /// whose own document changed with the value has answered it where no call says it back. A data call is only such
+    /// evidence with the word on two lines of its own, a page's own rendering being the whole answer.
+    ///
+    /// A page whose walk the site's door answered was never walked: the second walk met a wall where the page was, so
+    /// it says nothing of what the page would answer, and the first walk's own page stands where its text sets the
+    /// results of what it was asked on two lines or more ([`Two::answered_by_the_door`], [`Two::text_lines_back`]).
     pub fn settle(&self, candidates: &[(usize, bool)]) -> Result<usize, Unsettled> {
         if self.asked.is_empty() {
             return Err(Unsettled::AskedAlike);
@@ -166,11 +193,29 @@ impl<'a> Two<'a> {
         let told: Vec<(usize, bool, Told)> = candidates.iter().map(|(i, page)| (*i, *page, self.told(*i))).collect();
         let deaf = told.iter().filter(|(_, _, t)| *t == Told::Deaf).count();
         let lines: Vec<(usize, bool, usize)> = told.iter().filter(|(_, _, t)| *t == Told::Hears).map(|(i, page, _)| (*i, *page, self.own_lines_back(*i))).collect();
+        let heard: Vec<(usize, bool, usize)> = lines.iter().copied().filter(|(_, _, lines)| *lines >= 2).collect();
+        // A walk the door answered where the page was was never walked: the door is no second sighting, so no reply of
+        // the other walk can say what this page answered. The page whose own text sets the results of what it was asked,
+        // on two lines or more, answered the search by itself; a page that sends the value back in its address or its
+        // search box alone is the site's form, not its answer.
+        let the_door_never_saw = || {
+            candidates.iter().find(|(i, page)| *page && self.answered_by_the_door(*i) && self.text_lines_back(*i) >= 2).map(|(i, _)| *i)
+        };
         if lines.is_empty() {
+            if let Some(i) = the_door_never_saw() {
+                return Ok(i);
+            }
             return Err(Unsettled::NoneHeard { deaf });
         }
-        let heard: Vec<(usize, bool, usize)> = lines.iter().copied().filter(|(_, _, lines)| *lines >= 2).collect();
         let Some(most) = heard.iter().map(|(_, _, lines)| *lines).max() else {
+            // No call says the value back, and a page that heard may still have answered: it says it in its own
+            // words, and its own rendering changing with the value is what says so.
+            if let Some((i, _, _)) = lines.iter().find(|(_, page, _)| *page) {
+                return Ok(*i);
+            }
+            if let Some(i) = the_door_never_saw() {
+                return Ok(i);
+            }
             return Err(Unsettled::NoneSaysItBack { heard: lines.len(), most: lines.iter().map(|(_, _, n)| *n).max().unwrap_or(0) });
         };
         let reads = |i: usize| self.first.exchanges[i].method.eq_ignore_ascii_case("GET");
@@ -313,8 +358,8 @@ pub enum Unsettled {
     /// No call of the first walk's reply changed with the value: `deaf` answered the same on both walks, and the
     /// second walk never made the rest, or their replies say too little to tell apart.
     NoneHeard { deaf: usize },
-    /// `heard` calls' replies changed with the value, and none says it back on two lines of its own: the most any
-    /// said was `most`.
+    /// `heard` calls' replies changed with the value, none of them the page, and none says it back on two lines of
+    /// its own: the most any said was `most`.
     NoneSaysItBack { heard: usize, most: usize },
 }
 
@@ -460,6 +505,128 @@ mod tests {
         assert!(!Two::of(&walk(&one, &[("q", "brass")]), &walk(&walked("glass", false, 12), &[("q", "glass")])).speaks_against(1), "a call the second walk never made is not spoken against");
     }
 
+    /// A page answers in the site's own words: asked `Flights from SIN to BKK on 2027-03-10 one way`, it draws
+    /// `singapore to bangkok` and the date it read out, so none of its own lines holds what it was asked whole. A
+    /// ticker beside it changed for its own reason and says nothing of the ask. The page's own rendering moved with
+    /// the value, which is the page's way of answering it, so the page is the answer where no call says the value
+    /// back. A page that renders the same for both values is a shell and answers nothing, and a call that hears and
+    /// says nothing of the value is no answer on its own.
+    #[test]
+    fn a_page_that_renders_the_value_in_its_own_words_is_the_answer() {
+        let ask = |city: &str| format!("Flights from SIN to {city} on 2027-03-10 one way");
+        // The page draws the cities the codes name, and the flights it found between them.
+        let drawn = |city: &str, airline: &str| {
+            let body = format!(
+                "<html><head><title>{city} | flights</title></head><body><main><h1>singapore to {city}</h1>\
+                 <p>track prices from singapore to {city} departing 2027-03-10</p><p>{airline}</p>\
+                 <p>1 stop in kuala lumpur</p><p>2 hr 20 min</p><p>104 kg co2e</p></main></body></html>"
+            );
+            let mut e = get(&format!("https://flights.example/search?q={}", ask(city)), &body);
+            e.response_mime = "text/html".into();
+            e.resource_type = Some("Document".into());
+            e.main_frame = Some(true);
+            e
+        };
+        // The page as served to both values: the app's shell, with nothing of the ask drawn in it.
+        let shell = |city: &str| {
+            let mut e = get(&format!("https://flights.example/search?q={}", ask(city)), "<html><body><main><h1>Flights</h1><p>Loading results…</p></main></body></html>");
+            e.response_mime = "text/html".into();
+            e.resource_type = Some("Document".into());
+            e.main_frame = Some(true);
+            e
+        };
+        // A ticker that changed between the two walks for its own reason, and says nothing of the ask.
+        let ticker = |headline: &str| {
+            let items = [
+                format!(r#"{{"title":"{headline}"}}"#),
+                format!(r#"{{"title":"more on {headline}"}}"#),
+                format!(r#"{{"title":"and {headline} again"}}"#),
+            ];
+            let rest = ["airport strike called off", "rail fares rise in april", "runway closed for repairs", "cabin crew talks resume", "new terminal opens", "weather delays expected", "baggage rules tightened"];
+            let mut all = items.to_vec();
+            all.extend(rest.iter().map(|t| format!(r#"{{"title":"{t}"}}"#)));
+            get("https://flights.example/api/ticker", &format!(r#"{{"items":[{}]}}"#, all.join(",")))
+        };
+        let walked = |page: Exchange, headline: &str, _city: &str| trace(vec![page, ticker(headline)]);
+
+        let (first, second) = (walked(drawn("bangkok", "thai airways"), "thai airways adds a route", "BKK"), walked(drawn("tokyo", "japan airlines"), "japan airlines adds a route", "TYO"));
+        assert_eq!(candidates(&walk(&first, &[("q", &ask("BKK"))])), [(0, true), (1, false)], "the main frame's document is the page");
+        assert_eq!(says_back(&first, 0, &of(&ask("BKK"))), 0, "the page says none of the ask whole");
+        assert_eq!(answer(&[walk(&first, &[("q", &ask("BKK"))]), walk(&second, &[("q", &ask("TYO"))])]), Some(0), "the page, which drew the cities the codes name");
+        assert_eq!(
+            settle(&[walk(&first, &[("q", &ask("BKK"))]), walk(&second, &[("q", &ask("TYO"))])]),
+            Ok(0),
+            "and it settles rather than saying the walks settled nothing"
+        );
+
+        // The same page served to both values is a shell: its own rendering says nothing, and neither does the ticker.
+        let (one, two) = (walked(shell("BKK"), "strike called off", "BKK"), walked(shell("TYO"), "fares rise", "TYO"));
+        assert_eq!(answer(&[walk(&one, &[("q", &ask("BKK"))]), walk(&two, &[("q", &ask("TYO"))])]), None);
+        // And a call that hears with nothing of its own of the ask is no answer without the page beside it.
+        let heard = |headline: &str| trace(vec![ticker(headline), get("https://flights.example/api/strip", STRIP)]);
+        assert_eq!(answer(&[walk(&heard("strike called off"), &[("q", &ask("BKK"))]), walk(&heard("fares rise"), &[("q", &ask("TYO"))])]), None);
+        assert_eq!(
+            settle(&[walk(&heard("strike called off"), &[("q", &ask("BKK"))]), walk(&heard("fares rise"), &[("q", &ask("TYO"))])]),
+            Err(Unsettled::NoneSaysItBack { heard: 1, most: 0 }),
+            "what the walks settled is said: a call that hears and says nothing back is not the answer"
+        );
+    }
+
+    /// A walk that met the site's door where the page was was never walked: the door is no second sighting of the
+    /// page, so the experiment did not run for it and nothing of the second walk says the page answered nothing. The
+    /// page whose own text sets each result of what it was asked is the answer (eBay serves its results in the page
+    /// and walls the second walk); a page that only sends the value back in its address, or in its search box, is the
+    /// site's form, and a walk the door never stopped still leaves the two walks unsettled.
+    #[test]
+    fn a_page_the_other_walks_door_refused_is_answered_by_its_own_text() {
+        // The results the page serves: a line for each record, as eBay's search page has them.
+        let results = |word: &str| {
+            let kinds = if word == "brass" { ["table lamp", "door knocker", "candle holder", "picture frame"] } else { ["mixing bowl", "storage jar", "flower vase", "water carafe"] };
+            let items: String = (0..8).map(|n| format!("<li><a href='/p/{word}{n}'>{word} {} number {n}</a></li>", kinds[n % 4])).collect();
+            format!("<html><head><title>{word} | search</title></head><body><main><h1>Results for {word}</h1><ul>{items}</ul></main></body></html>")
+        };
+        let page = |word: &str, body: String| {
+            let mut e = get(&format!("https://shop.example/s?q={word}"), &body);
+            e.response_mime = "text/html".into();
+            e.resource_type = Some("Document".into());
+            e.main_frame = Some(true);
+            e
+        };
+        // The site's door: a refusal where the page was, saying nothing of the search.
+        let door = |word: &str| {
+            let mut e = get(&format!("https://shop.example/s?q={word}"), "<html><body><p>Access denied: a check is running</p></body></html>");
+            e.status = 403;
+            e.response_mime = "text/html".into();
+            e.resource_type = Some("Document".into());
+            e.main_frame = Some(true);
+            e
+        };
+        let results_page = trace(vec![page("brass", results("brass"))]);
+        let stopped = trace(vec![door("glass")]);
+        let bounced = [walk(&results_page, &[("q", "brass")]), walk(&stopped, &[("q", "glass")])];
+        assert!(Two::of(&bounced[0], &bounced[1]).answered_by_the_door(0), "the second walk met the door where the page was");
+        assert_eq!(Two::of(&bounced[0], &bounced[1]).told(0), Told::Unseen, "a door is no sighting, so it is not heard either");
+        assert_eq!(settle(&bounced), Ok(0), "the page its own text answers the search with");
+
+        // The same page with the value only in its title, its address and its search box: the site's form, not its
+        // answer, whatever the door did.
+        let form = |word: &str| {
+            format!("<html><head><title>{word} | search</title></head><body><main><form><input name=q value='{word}'/></form><p>Type a word to search.</p></main></body></html>")
+        };
+        let form_page = trace(vec![page("brass", form("brass"))]);
+        let bounced = [walk(&form_page, &[("q", "brass")]), walk(&stopped, &[("q", "glass")])];
+        assert_eq!(settle(&bounced), Err(Unsettled::NoneHeard { deaf: 0 }), "an echo of the ask is no answer");
+
+        // And where no door stopped the second walk, the page it served for another value is a sighting: two shells
+        // answered the same for both, so the walks settle nothing, and no door is there to say why.
+        let shell = "<html><head><title>Search results</title></head><body><main><h1>Search</h1><p>loading results…</p><p>this page needs its code to run</p><p>one moment please</p><a href='/about'>about this shop</a></main></body></html>";
+        let one = trace(vec![page("brass", shell.to_string())]);
+        let two = trace(vec![page("glass", shell.to_string())]);
+        let walked = [walk(&one, &[("q", "brass")]), walk(&two, &[("q", "glass")])];
+        assert!(!Two::of(&walked[0], &walked[1]).answered_by_the_door(0), "the page itself answered the second walk");
+        assert_eq!(settle(&walked), Err(Unsettled::NoneHeard { deaf: 1 }), "a shell is a sighting, and it says the page answered nothing");
+    }
+
     /// A call that posts what the page showed says the value back as often as the search that read it: the call that
     /// reads is the answer.
     #[test]
@@ -599,5 +766,45 @@ mod tests {
     fn the_lines_of_an_answer_strike_the_words_it_was_asked() {
         let lines = said_lines(&serde_json::json!({"title": "Brass lamps\nfor the hall", "n": 12, "tag": "ok", "who": "brass"}), &["brass"]);
         assert_eq!(lines.into_iter().collect::<Vec<_>>(), ["for the hall", "\u{a7} lamps"]);
+    }
+
+    /// A call says back what its page was asked on as many lines as hold the word: the search that lists three records,
+    /// two of them brass, says it twice; a strip that lists nothing of it says it on none.
+    #[test]
+    fn a_call_says_back_the_word_on_as_many_lines_as_hold_it() {
+        let answer = |word: &str| format!(r#"{{"results":[{{"t":"{word} lamp one"}},{{"t":"{word} kettle two"}},{{"t":"copper pan"}}]}}"#);
+        let walked = |word: &str| trace(vec![get(&format!("https://shop.example/api/search?q={word}"), &answer(word)), get(&format!("https://shop.example/api/strip?q={word}"), STRIP)]);
+        let (first, second) = (walked("brass"), walked("glass"));
+        let (a, b) = (walk(&first, &[("q", "brass")]), walk(&second, &[("q", "glass")]));
+        let two = Two::of(&a, &b);
+        assert_eq!(two.says_back(0), 2);
+        assert_eq!(two.says_back(1), 0);
+        assert_eq!(says_back(&first, 0, &of("glass")), 0, "the other walk's word is not said in this walk's reply");
+    }
+
+    /// Each reason two walks settle nothing is said in words that carry its numbers.
+    #[test]
+    fn why_two_walks_settle_nothing_is_said_with_its_numbers() {
+        assert_eq!(Unsettled::OneWalk.to_string(), "one walk cannot say which call answers the caller");
+        assert_eq!(Unsettled::AskedAlike.to_string(), "the two walks were asked the same, so no reply could change with the value");
+        let heard = Unsettled::NoneHeard { deaf: 3 }.to_string();
+        assert!(heard.starts_with("no reply changed with the value (3 answered the same"), "{heard}");
+        assert_eq!(Unsettled::NoneSaysItBack { heard: 2, most: 1 }.to_string(), "2 replies changed with the value, and none says it back on two lines of its own (the most was 1)");
+    }
+
+    /// A record's words are read from all it holds, nested lists and objects as well as its top: a word two records
+    /// say inside a list of tags or an object of their own is shared, as one said at the top is.
+    #[test]
+    fn the_words_records_share_are_read_inside_their_lists_and_objects() {
+        let reply = serde_json::json!({ "results": [
+            { "name": "water tank", "tags": ["copper fitting"], "meta": { "note": "boxed" } },
+            { "name": "water pump", "tags": ["copper elbow"], "meta": { "note": "boxed" } },
+            { "name": "water filter", "tags": [], "meta": { "note": "stainless gasket kit" } },
+            { "name": "water valve", "tags": [], "meta": { "note": "stainless gasket ring" } },
+        ]});
+        let t = trace(vec![get("https://plumb.example/api/search?q=water", &reply.to_string())]);
+        let mut words = shared_words(&t, "https://plumb.example/search?q=water", &of("water"));
+        words.sort();
+        assert_eq!(words, ["copper", "gasket", "stainless"], "{words:?}");
     }
 }

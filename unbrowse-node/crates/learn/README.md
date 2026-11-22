@@ -3,7 +3,7 @@
 Route learning. The node's browser walks a page once; this crate reads the walk, finds where every value in every
 request came from, keeps the call that answers the goal, and replays it as plain HTTP with new inputs.
 
-It links the browser engine (`agent-browser-core` in [`unbrowse-browser/core`](../../../unbrowse-browser/core)) by
+It links the browser engine (`agent-browser-core` in [`crates/browser`](../browser)) by
 path, so a walk is a library call, not a daemon. [AGENTS.md](../../../AGENTS.md) explains the pipeline this crate
 implements: mint, walk, trace, route, call.
 

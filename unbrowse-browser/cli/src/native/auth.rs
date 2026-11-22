@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,7 +43,7 @@ fn validate_profile_name(name: &str) -> Result<(), String> {
 }
 
 fn get_auth_dir() -> PathBuf {
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = std::env::home_dir() {
         home.join(".agent-browser").join("auth")
     } else {
         std::env::temp_dir().join("agent-browser").join("auth")
@@ -58,7 +58,7 @@ const ENCRYPTION_KEY_ENV: &str = "AGENT_BROWSER_ENCRYPTION_KEY";
 const KEY_FILE_NAME: &str = ".encryption-key";
 
 fn get_agent_browser_dir() -> PathBuf {
-    if let Some(home) = dirs::home_dir() {
+    if let Some(home) = std::env::home_dir() {
         home.join(".agent-browser")
     } else {
         std::env::temp_dir().join("agent-browser")
@@ -80,12 +80,11 @@ fn parse_key_hex(hex_str: &str) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
-/// The key given by `env` or held at `key_file`. None only when neither exists: a key that is there but can't be used
-/// (a mistyped value, a damaged or unreadable file) is an error, because the profiles sealed with the real key depend on
-/// it being left alone.
-fn find_key(env: Option<&str>, key_file: &Path) -> Result<Option<Vec<u8>>, String> {
-    if let Some(key_hex) = env {
-        return parse_key_hex(key_hex).map(Some).ok_or_else(|| {
+/// Read the encryption key from AGENT_BROWSER_ENCRYPTION_KEY env var or
+/// ~/.agent-browser/.encryption-key file (matching the Node.js implementation).
+fn get_encryption_key() -> Result<Vec<u8>, String> {
+    if let Ok(key_hex) = std::env::var(ENCRYPTION_KEY_ENV) {
+        return parse_key_hex(&key_hex).ok_or_else(|| {
             format!(
                 "{} should be a 64-character hex string (256 bits). Generate one with: openssl rand -hex 32",
                 ENCRYPTION_KEY_ENV
@@ -93,65 +92,30 @@ fn find_key(env: Option<&str>, key_file: &Path) -> Result<Option<Vec<u8>>, Strin
         });
     }
 
-    let hex = match fs::read_to_string(key_file) {
-        Ok(hex) => hex,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(format!("Failed to read encryption key file: {}", e)),
-    };
-    parse_key_hex(&hex).map(Some).ok_or_else(|| {
-        format!(
-            "Invalid encryption key in {}. Expected 64-character hex string.",
-            key_file.display()
-        )
-    })
-}
-
-/// Read the encryption key from AGENT_BROWSER_ENCRYPTION_KEY env var or
-/// ~/.agent-browser/.encryption-key file (matching the Node.js implementation).
-fn get_encryption_key() -> Result<Vec<u8>, String> {
     let key_file = get_key_file_path();
-    find_key(std::env::var(ENCRYPTION_KEY_ENV).ok().as_deref(), &key_file)?.ok_or_else(|| {
-        format!(
-            "Encryption key required. Set {} or ensure {} exists.",
-            ENCRYPTION_KEY_ENV,
-            key_file.display()
-        )
-    })
+    if key_file.exists() {
+        let hex = fs::read_to_string(&key_file)
+            .map_err(|e| format!("Failed to read encryption key file: {}", e))?;
+        return parse_key_hex(&hex).ok_or_else(|| {
+            format!(
+                "Invalid encryption key in {}. Expected 64-character hex string.",
+                key_file.display()
+            )
+        });
+    }
+
+    Err(format!(
+        "Encryption key required. Set {} or ensure {} exists.",
+        ENCRYPTION_KEY_ENV,
+        key_file.display()
+    ))
 }
 
-/// Puts `key_hex` at `key_file` unless a key is already there, whole and this user's alone from its first byte: it is
-/// written beside the file, owner-only, and linked into place, which never replaces what it finds. Returns whether this
-/// call placed it; when another process got there first, the key to use is theirs.
-fn place_key_file(key_file: &Path, key_hex: &str) -> Result<bool, String> {
-    let mut random = [0u8; 8];
-    getrandom::getrandom(&mut random).map_err(|e| format!("Failed to name a key file: {}", e))?;
-    let suffix = random.iter().map(|b| format!("{:02x}", b)).collect::<String>();
-    let beside = key_file.with_extension(suffix);
-    let mut open = fs::OpenOptions::new();
-    open.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        open.mode(0o600);
-    }
-    let written = open.open(&beside).and_then(|mut file| {
-        writeln!(file, "{}", key_hex)?;
-        file.sync_all()
-    });
-    let placed = written.and_then(|()| fs::hard_link(&beside, key_file));
-    let _ = fs::remove_file(&beside);
-    match placed {
-        Ok(()) => Ok(true),
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
-        Err(e) => Err(format!("Failed to write encryption key: {}", e)),
-    }
-}
-
-/// Ensure an encryption key exists, auto-generating one if none is there at all.
-fn ensure_encryption_key() -> Result<Vec<u8>, String> {
-    let key_file = get_key_file_path();
-    if let Some(key) = find_key(std::env::var(ENCRYPTION_KEY_ENV).ok().as_deref(), &key_file)? {
-        return Ok(key);
+/// Ensure an encryption key exists, auto-generating one only when neither the env var nor the key file is present.
+// Unbrowse fork: `pub(crate)`, so the capture log seals its list of secrets with the same key.
+pub(crate) fn ensure_encryption_key() -> Result<Vec<u8>, String> {
+    if std::env::var_os(ENCRYPTION_KEY_ENV).is_some() || get_key_file_path().exists() {
+        return get_encryption_key();
     }
 
     let mut key = [0u8; 32];
@@ -166,8 +130,13 @@ fn ensure_encryption_key() -> Result<Vec<u8>, String> {
         let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
     }
 
-    if !place_key_file(&key_file, &key_hex)? {
-        return get_encryption_key();
+    let key_file = get_key_file_path();
+    fs::write(&key_file, format!("{}\n", key_hex))
+        .map_err(|e| format!("Failed to write encryption key: {}", e))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&key_file, fs::Permissions::from_mode(0o600));
     }
 
     let _ = writeln!(
@@ -178,44 +147,6 @@ fn ensure_encryption_key() -> Result<Vec<u8>, String> {
     );
 
     Ok(key.to_vec())
-}
-
-/// Seals the capture log's list of secrets with the engine's at-rest key, the one saved logins are sealed with, as
-/// AES-256-GCM: a fresh 12-byte nonce, then the ciphertext and its tag (ENGINE-10.2).
-pub(crate) struct KeySealer(Aes256Gcm);
-
-impl agent_browser_core::capture::Sealer for KeySealer {
-    fn seal(&self, plain: &[u8]) -> Option<Vec<u8>> {
-        let mut nonce = [0u8; 12];
-        getrandom::getrandom(&mut nonce).ok()?;
-        let mut out = nonce.to_vec();
-        out.extend(self.0.encrypt(aes_gcm::Nonce::from_slice(&nonce), plain).ok()?);
-        Some(out)
-    }
-
-    fn open(&self, sealed: &[u8]) -> Option<Vec<u8>> {
-        if sealed.len() < 12 {
-            return None;
-        }
-        let (nonce, body) = sealed.split_at(12);
-        self.0.decrypt(aes_gcm::Nonce::from_slice(nonce), body).ok()
-    }
-}
-
-pub(crate) fn key_sealer(key: &[u8]) -> Option<KeySealer> {
-    Aes256Gcm::new_from_slice(key).ok().map(KeySealer)
-}
-
-/// The capture log's sealer, from the engine's key, made when there is none yet as a saved login makes it. A key that
-/// is there but can't be used is left alone, and the list is then kept in memory only, as it was before.
-pub fn capture_sealer() -> Option<Box<dyn agent_browser_core::capture::Sealer>> {
-    match ensure_encryption_key() {
-        Ok(key) => key_sealer(&key).map(|s| Box::new(s) as Box<dyn agent_browser_core::capture::Sealer>),
-        Err(e) => {
-            let _ = writeln!(std::io::stderr(), "[capture] the secrets this log names are kept in memory only: {e}");
-            None
-        }
-    }
 }
 
 /// Encrypt a profile to the JSON+base64 format compatible with Node.js.
@@ -477,99 +408,6 @@ mod tests {
         }
     }
 
-    fn test_profile() -> AuthProfile {
-        AuthProfile {
-            name: "keyed".to_string(),
-            url: "https://example.com".to_string(),
-            username: "me".to_string(),
-            password: "sealed-password".to_string(),
-            username_selector: None,
-            password_selector: None,
-            submit_selector: None,
-            created_at: None,
-            last_login_at: None,
-        }
-    }
-
-    /// A key mistyped into the environment once used to make a new key file over the good one, and every profile sealed
-    /// with it could never be opened again.
-    #[test]
-    fn a_bad_key_in_the_environment_never_replaces_the_key_on_disk() {
-        let _lock = AUTH_TEST_MUTEX.lock().unwrap();
-        let env = crate::test_utils::EnvGuard::new(&["HOME", ENCRYPTION_KEY_ENV]);
-        let home = tempfile::tempdir().unwrap();
-        env.set("HOME", home.path().to_str().unwrap());
-        env.remove(ENCRYPTION_KEY_ENV);
-        let sealed = encrypt_profile(&test_profile()).unwrap();
-        let key_file = get_key_file_path();
-        let good = fs::read(&key_file).unwrap();
-
-        env.set(ENCRYPTION_KEY_ENV, "not-a-key");
-        assert!(encrypt_profile(&test_profile()).is_err(), "nothing is sealed with a key nobody meant");
-        assert_eq!(fs::read(&key_file).unwrap(), good);
-
-        env.remove(ENCRYPTION_KEY_ENV);
-        assert_eq!(decrypt_profile(sealed.as_bytes()).unwrap().password, "sealed-password");
-    }
-
-    /// A key file that has been damaged is the only record of what was there: it is reported, never written over.
-    #[test]
-    fn a_damaged_key_file_is_reported_not_replaced() {
-        let _lock = AUTH_TEST_MUTEX.lock().unwrap();
-        let env = crate::test_utils::EnvGuard::new(&["HOME", ENCRYPTION_KEY_ENV]);
-        let home = tempfile::tempdir().unwrap();
-        env.set("HOME", home.path().to_str().unwrap());
-        env.remove(ENCRYPTION_KEY_ENV);
-        fs::create_dir_all(get_agent_browser_dir()).unwrap();
-        fs::write(get_key_file_path(), "half a ke").unwrap();
-
-        assert!(encrypt_profile(&test_profile()).is_err());
-        assert_eq!(fs::read_to_string(get_key_file_path()).unwrap(), "half a ke");
-    }
-
-    /// Only a key that is nowhere counts as absent.
-    #[test]
-    fn a_key_is_absent_only_when_it_is_nowhere() {
-        let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("key");
-        assert_eq!(find_key(None, &file), Ok(None));
-        assert!(find_key(Some(""), &file).is_err(), "an empty value is a mistake, not no key");
-        assert_eq!(find_key(Some(&"ab".repeat(32)), &file), Ok(Some(vec![0xab; 32])));
-        fs::create_dir(&file).unwrap();
-        assert!(find_key(None, &file).is_err(), "a file that can't be read isn't an absent one");
-    }
-
-    /// Two daemons starting together: the second finds the first's key and leaves it, and nothing is left beside it.
-    #[test]
-    fn a_new_key_never_replaces_one_placed_first() {
-        let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join(".encryption-key");
-        assert_eq!(place_key_file(&file, "first"), Ok(true));
-        assert_eq!(place_key_file(&file, "second"), Ok(false));
-        assert_eq!(fs::read_to_string(&file).unwrap(), "first\n");
-        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            assert_eq!(fs::metadata(&file).unwrap().permissions().mode() & 0o777, 0o600);
-        }
-    }
-
-    /// The capture log's kept secrets are sealed with the engine's key: the bytes hold none of the list, and only
-    /// that key opens them.
-    #[test]
-    fn the_capture_sealer_holds_no_plaintext_and_opens_only_with_its_key() {
-        use agent_browser_core::capture::Sealer;
-        let sealer = key_sealer(&[7u8; 32]).unwrap();
-        let plain = br#"[["hunter2-kept","secret:1"]]"#;
-        let sealed = sealer.seal(plain).unwrap();
-        assert!(!String::from_utf8_lossy(&sealed).contains("hunter2"));
-        assert_ne!(sealer.seal(plain).unwrap(), sealed, "each seal has its own nonce");
-        assert_eq!(sealer.open(&sealed).as_deref(), Some(&plain[..]));
-        assert!(key_sealer(&[8u8; 32]).unwrap().open(&sealed).is_none(), "another key opens nothing");
-        assert!(sealer.open(&sealed[..8]).is_none(), "a cut file opens nothing");
-    }
-
     #[test]
     fn test_validate_profile_name() {
         assert!(validate_profile_name("github").is_ok());
@@ -632,6 +470,21 @@ mod tests {
             assert_eq!(key.len(), 32);
             assert!(key.iter().all(|&b| b == 0xaa));
         });
+    }
+
+    #[test]
+    fn test_ensure_encryption_key_rejects_malformed_env_key() {
+        let _lock = AUTH_TEST_MUTEX.lock().unwrap();
+        let home = tempfile::TempDir::new().unwrap();
+        let env = crate::test_utils::EnvGuard::new(&["HOME", ENCRYPTION_KEY_ENV]);
+        env.set("HOME", home.path().to_str().unwrap());
+        env.set(ENCRYPTION_KEY_ENV, "nothex");
+        assert!(ensure_encryption_key().is_err());
+        assert!(!home
+            .path()
+            .join(".agent-browser")
+            .join(KEY_FILE_NAME)
+            .exists());
     }
 
     #[test]

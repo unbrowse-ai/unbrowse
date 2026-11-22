@@ -18,6 +18,14 @@ pub fn site_of(input: &str) -> Option<String> {
     psl::domain_str(&host).map(str::to_string)
 }
 
+/// [`site_of`], for a name anyone can look up: one under a suffix the public suffix list names. None for a name under a
+/// suffix no registry hands out (`wiki.corp.internal`, `nas.lan`, `printer.local`, a reserved `.example`), which only a
+/// private network resolves: asking strangers for it tells them what the owner reads at work or at home.
+pub fn public_site_of(input: &str) -> Option<String> {
+    let site = site_of(input)?;
+    psl::suffix(site.as_bytes()).is_some_and(|s| s.is_known()).then_some(site)
+}
+
 /// The table key a site's providers are recorded under.
 pub fn site_key(site: &str) -> RecordKey {
     RecordKey::new(&format!("/unbrowse/site/{site}"))
