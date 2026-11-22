@@ -586,3 +586,84 @@ impl Route {
         self.steps.iter().flat_map(|s| &s.holes).flat_map(|h| &h.ways).any(|w| w.expr.holds_code())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn step(id: &str, holes: Vec<Hole>, body: Option<Form>) -> Step {
+        Step { id: id.into(), method: "GET".into(), url: "https://shop.example/api".into(), holes, body, expect: 200, script: None, page: false, writes: false, on_load: false, sets_cookie: false, lifetime: None, shape: None }
+    }
+
+    fn slot_hole(at: Place, name: &str) -> Hole {
+        Hole { at, ways: vec![Way { rung: 0, expr: Expr::Slot { name: name.into(), or: None, optional: false } }], over: false, open: false }
+    }
+
+    fn route(steps: Vec<Step>, answer: &str) -> Route {
+        Route { v: VERSION, site: "shop.example".into(), slots: Vec::new(), steps, answer: Answer { step: answer.into(), page: false, decode: None }, tests: Vec::new(), plan: None, meaning: Default::default() }
+    }
+
+    /// Every place of a request is named the way an agent reads it in a refusal.
+    #[test]
+    fn every_place_of_a_request_is_named_for_the_reader_of_a_refusal() {
+        for (place, named) in [
+            (Place::Path(2), "path[2]"),
+            (Place::Query("q".into()), "query q"),
+            (Place::Header("x-id".into()), "header x-id"),
+            (Place::Cookie("sid".into()), "cookie sid"),
+            (Place::Json("/a/b".into()), "body /a/b"),
+            (Place::Form("f".into()), "form f"),
+            (Place::Part("meta".into(), String::new()), "part meta"),
+            (Place::Part("meta".into(), "/n".into()), "part meta /n"),
+            (Place::Url, "the address"),
+        ] {
+            assert_eq!(place.to_string(), named);
+        }
+    }
+
+    /// A body is refused whole where it could not run: a hole with no way to fill it (named by its place), a step that
+    /// reads one that comes after it, two steps of one name, an answer from a step it lacks, a plan whose page is no
+    /// address, a version this node does not read. A sound body is not refused.
+    #[test]
+    fn a_body_that_could_not_run_is_refused_and_says_where() {
+        let sound = route(vec![step("a", vec![slot_hole(Place::Query("q".into()), "q")], None), step("b", vec![], None)], "b");
+        assert_eq!(sound.refused(), None);
+
+        let empty = Hole { at: Place::Header("x".into()), ways: vec![], over: false, open: false };
+        assert_eq!(route(vec![step("a", vec![empty], None)], "a").refused().as_deref(), Some("step a: header x has no way to fill it"));
+
+        let read = |of: &str| Hole { at: Place::Query("t".into()), ways: vec![Way { rung: 0, expr: Expr::Read { step: of.into(), at: crate::expr::At::Json { pointer: "/t".into() } } }], over: false, open: false };
+        let refused = route(vec![step("a", vec![read("b")], None), step("b", vec![], None)], "b").refused().unwrap();
+        assert_eq!(refused, "step a: query t reads step b, which does not come before it");
+        assert_eq!(route(vec![step("b", vec![], None), step("a", vec![read("b")], None)], "a").refused(), None);
+
+        assert_eq!(route(vec![step("a", vec![], None), step("a", vec![], None)], "a").refused().as_deref(), Some("two steps are named a"));
+        assert_eq!(route(vec![step("a", vec![], None)], "z").refused().as_deref(), Some("the answer names step z, which the body does not have"));
+        let mut old = route(vec![step("a", vec![], None)], "a");
+        old.v = VERSION + 1;
+        assert!(old.refused().unwrap().starts_with(&format!("the body is version {}", VERSION + 1)));
+        let mut planned = route(vec![step("a", vec![], None)], "a");
+        planned.plan = Some(Plan { page: "not an address".into(), goal: "g".into(), asked: vec![], done: vec![] });
+        assert_eq!(planned.refused().as_deref(), Some("the plan's page not an address is no address"));
+        let mut tested = route(vec![step("a", vec![], None)], "a");
+        tested.tests = vec![Test { step: "gone".into(), sightings: vec![], over_scripts: vec![] }];
+        assert_eq!(tested.refused().as_deref(), Some("a test is of step gone, which the body does not have"));
+    }
+
+    /// What a caller must give is each slot the steps read, once, in the order they are first sent, and the slot a file
+    /// upload reads is among them after the others.
+    #[test]
+    fn what_a_caller_must_give_lists_each_slot_once_and_the_upload_last() {
+        let upload = Form::Upload { slot: "file".into(), protocol: json!({}), content_type: None };
+        let r = route(
+            vec![
+                step("a", vec![slot_hole(Place::Query("q".into()), "q"), slot_hole(Place::Header("x".into()), "q"), slot_hole(Place::Query("n".into()), "n")], None),
+                step("b", vec![slot_hole(Place::Query("m".into()), "m")], Some(upload.clone())),
+                step("c", vec![], Some(upload)),
+            ],
+            "c",
+        );
+        assert_eq!(r.asked(), ["q", "n", "m", "file"]);
+    }
+}

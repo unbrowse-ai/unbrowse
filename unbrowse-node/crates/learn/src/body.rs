@@ -49,6 +49,7 @@ pub(crate) fn at_of(at: &At) -> route::At {
     match at {
         At::Json { pointer } => route::At::Json { pointer: pointer.clone() },
         At::Header { name } => route::At::Header { name: name.clone() },
+        At::HeaderQuery { name, key } => route::At::HeaderQuery { name: name.clone(), key: key.clone() },
         At::SetCookie { name } => route::At::SetCookie { name: name.clone() },
         At::Text { before, after, nth } => route::At::Text { before: before.clone(), after: after.clone(), nth: *nth },
     }
@@ -58,6 +59,7 @@ pub(crate) fn at_back(at: &route::At) -> At {
     match at {
         route::At::Json { pointer } => At::Json { pointer: pointer.clone() },
         route::At::Header { name } => At::Header { name: name.clone() },
+        route::At::HeaderQuery { name, key } => At::HeaderQuery { name: name.clone(), key: key.clone() },
         route::At::SetCookie { name } => At::SetCookie { name: name.clone() },
         route::At::Text { before, after, nth } => At::Text { before: before.clone(), after: after.clone(), nth: *nth },
     }
@@ -145,6 +147,12 @@ fn ways_of(graph: &Graph, step: &Step, loc: &Loc, class: &Class, open: &mut bool
                 Loc::Header(_) if matches!(origin.at, At::Header { .. }) => ways.push(nothing(Some(origin.exchange))),
                 _ => {}
             }
+            // And the last way: what the walk read for it, where a fresh answer does not hold the place, kept by the
+            // graph (`Step::fallback`). A page's own load is what a browser would have had; a value the walk really
+            // read is no value made up, so a call for another word is not refused for one the page left out.
+            if let Some(seen) = step.fallback(loc) {
+                ways.push(way(0, Expr::text(seen)));
+            }
             ways
         }
         // The page's own code makes it, and the step's request is the page's (rung 3 and below): nothing of this
@@ -152,6 +160,19 @@ fn ways_of(graph: &Graph, step: &Step, loc: &Loc, class: &Class, open: &mut bool
         Class::Computed | Class::Script { .. } => vec![Way { rung: 3, expr: Expr::Nothing { after: None } }],
         Class::Piece { input, from, len } => vec![way(0, Expr::Slice { of: Box::new(Expr::Given { name: input.clone() }), from: *from, len: *len })],
         Class::Recipe { recipe } => vec![way(1, recipe_expr(recipe))],
+        // The caller's cookie where the walker's stood, nothing where the jar holds none (`Class::cookie_in`).
+        Class::CookieIn { template, name } => {
+            let mut parts = Vec::new();
+            for (n, piece) in template.split(crate::graph::COOKIE_IN).enumerate() {
+                if n > 0 {
+                    parts.push(Expr::Else { of: Box::new(Expr::Cookie { name: name.clone(), here: false }), or: String::new() });
+                }
+                if !piece.is_empty() {
+                    parts.push(Expr::text(piece));
+                }
+            }
+            vec![way(0, Expr::Join { parts, with: String::new() })]
+        }
         Class::Generated { program, evidence } => vec![way(2, Expr::Program { source: program.clone(), evidence: serde_json::to_value(evidence).ok() })],
         Class::Fresh { value, id, clock } => {
             let clock = match clock {
@@ -499,6 +520,27 @@ fn held_way(loc: &Loc, expr: &Expr) -> Option<Result<(String, Vec<Held>), &'stat
 
 /// The walk's value, the id and its clock, where `parts` are fixed texts and one made-up id, which may stand in them
 /// more than once. None for anything else: two ids, or a part that is neither.
+/// A session cookie written into fixed text, as `from_graph` says a graph's `CookieIn`: the template and the cookie,
+/// one cookie to a value.
+fn cookie_in_text(parts: &[Expr]) -> Option<(String, String)> {
+    let mut name: Option<&str> = None;
+    let mut template = String::new();
+    for part in parts {
+        match part {
+            Expr::Text { is } if !is.contains(crate::graph::COOKIE_IN) => template.push_str(is),
+            Expr::Else { of, or } if or.is_empty() => match of.as_ref() {
+                Expr::Cookie { name: n, here: false } if name.is_none_or(|had| had == n) => {
+                    name = Some(n);
+                    template.push_str(crate::graph::COOKIE_IN);
+                }
+                _ => return None,
+            },
+            _ => return None,
+        }
+    }
+    Some((template, name?.to_string()))
+}
+
 fn fresh_in_text(parts: &[Expr]) -> Option<(String, String, crate::fresh::Clock)> {
     let mut found: Option<(&str, route::Clock)> = None;
     let mut value = String::new();
@@ -548,6 +590,10 @@ fn class_of(body: &route::Route, hole: &route::Hole, expr: &Expr) -> Result<(Cla
         Expr::Read { step, at } => origin(step, at, None)?,
         // A made-up id inside a longer value, as `from_graph` says a graph's fresh id: fixed text around one id, read
         // anew for each call wherever it stood. Said back as that fresh id, the walk's value with the id in place.
+        Expr::Join { parts, with } if with.is_empty() && cookie_in_text(parts).is_some() => {
+            let (template, name) = cookie_in_text(parts).expect("matched just above");
+            Class::CookieIn { template, name }
+        }
         Expr::Join { parts, with } if with.is_empty() && fresh_in_text(parts).is_some() => {
             let (value, id, clock) = fresh_in_text(parts).expect("matched just above");
             Class::Fresh { value, id, clock }
@@ -627,6 +673,7 @@ fn graph_step(body: &route::Route, step: &route::Step) -> Result<(Step, Vec<bool
     let mut fields: Vec<Field> = Vec::new();
     let mut held: Vec<Held> = Vec::new();
     let mut by_its_ways: Vec<bool> = Vec::new();
+    let mut fallbacks: Vec<(Loc, String)> = Vec::new();
     for hole in &step.holes {
         let (class, h) = match hole.ways.as_slice() {
             [] => return Err(here(Some(&hole.at), "a hole with no way to fill it", String::new())),
@@ -634,6 +681,13 @@ fn graph_step(body: &route::Route, step: &route::Step) -> Result<(Step, Vec<bool
             // graph's own below.
             [first, ..] => class_of(body, hole, &first.expr).map_err(|(why, detail)| here(Some(&hole.at), why, detail))?,
         };
+        // The walk's own reading of a value the first way reads, where the body keeps it as its second way: a graph
+        // keeps it too (`ways_of`, `replay::realize`), so both learners say one hole alike.
+        if matches!(&class, Class::Derived { .. }) {
+            if let Some(Expr::Text { is }) = hole.ways.get(1).map(|w| &w.expr) {
+                fallbacks.push((loc_of(&hole.at), is.clone()));
+            }
+        }
         by_its_ways.push(h.is_empty() && !matches!(class, Class::Fresh { .. }));
         fields.push(Field { loc: loc_of(&hole.at), class });
         held.extend(h);
@@ -706,6 +760,7 @@ fn graph_step(body: &route::Route, step: &route::Step) -> Result<(Step, Vec<bool
         foreign: false,
         held,
         reads_page: is_answer && body.answer.page,
+        fallbacks,
     };
     Ok((graph_step, by_its_ways))
 }
@@ -1090,6 +1145,7 @@ pub fn skeleton(body: &route::Route) -> Graph {
             foreign: false,
             held: Vec::new(),
             reads_page: step.id == body.answer.step && body.answer.page,
+            fallbacks: Vec::new(),
         };
         // Whether it writes, as the body says. A step the body says writes, which the ledger's rule would read as one
         // that only asks, is held to its method, as the rule holds a step that is someone else's.
@@ -1116,6 +1172,8 @@ pub fn skeleton_beside(body: &route::Route, graph: &Graph) -> Graph {
     skeleton.scripts = graph.scripts.clone();
     skeleton.api = graph.api.clone();
     skeleton.page_origin = graph.page_origin.clone().or(skeleton.page_origin);
+    // Read without them (a listing's graph), they are taken back from the same route file when the graph runs.
+    skeleton.apart = graph.apart.clone();
     skeleton
 }
 
@@ -1456,10 +1514,20 @@ pub(crate) mod tests {
                 assert_eq!(ours.ok(), theirs.map(route::Outcome::Is), "{algo:?} joined by {separator:?}");
             }
         }
-        // A part the request does not carry makes no value, for the recipe and for the expression alike.
-        let recipe = Recipe { algo: Algo::Md5, separator: ";".into(), parts: vec![Part::Path, Part::Cookie { name: "absent".into() }] };
+        // A part the request does not carry makes no value, for the recipe and for the expression alike; but a cookie
+        // the session doesn't hold yet is signed over as nothing when a call is made, by replay's first call
+        // (`compute_before_token`) and the expression alike: a gateway hands its token over to that call.
+        let recipe = Recipe { algo: Algo::Md5, separator: ";".into(), parts: vec![Part::Path, Part::Header { name: "x-absent".into() }] };
         assert_eq!(compute_with(&recipe, &request, None, &cookies, 0, |n| "4".repeat(n)), None);
         assert!(recipe_expr(&recipe).eval(&mut route::expr::Cx { world: &mut Still, host: None, sent: Some(&built) }).is_err());
+        for absent in [Part::Cookie { name: "absent".into() }, Part::CookiePiece { name: "absent".into(), separator: "_".into(), index: 0 }] {
+            let recipe = Recipe { algo: Algo::Md5, separator: ";".into(), parts: vec![Part::Path, absent] };
+            assert_eq!(compute_with(&recipe, &request, None, &cookies, 0, |n| "4".repeat(n)), None, "learning makes no value from a gap");
+            let theirs = crate::signing::compute_before_token(&recipe, &request, None, &cookies, 0, |n| "4".repeat(n));
+            assert!(theirs.is_some(), "signed over nothing in its place");
+            let ours = recipe_expr(&recipe).eval(&mut route::expr::Cx { world: &mut Still, host: None, sent: Some(&built) });
+            assert_eq!(ours.ok(), theirs.map(route::Outcome::Is));
+        }
     }
 
     /// What a value is written as is the same text from either side: the body's own writers are not a second
@@ -1751,6 +1819,49 @@ pub(crate) mod tests {
         assert_eq!(sent_query(&site.sent[0], "q").as_deref(), Some("red%2Blamp"));
     }
 
+    /// A secret the walk saw (a token, a session cookie) is kept in the site's jar, not in the body: at call time it is
+    /// filled back in from the jar where the walk had it (a header, a cookie, a query), and the answer handed back to
+    /// the caller carries no copy of it.
+    #[test]
+    fn a_secret_the_jar_holds_is_filled_in_where_the_walk_had_it_and_not_handed_back() {
+        let items = serde_json::json!({ "items": [{ "name": "lamp" }] });
+        let holes = vec![
+            a_hole(Place::Query("q".into()), written_twice()),
+            a_hole(Place::Header("authorization".into()), Expr::Cookie { name: "authorization".into(), here: false }),
+            a_hole(Place::Cookie("sid".into()), Expr::Cookie { name: "sid".into(), here: false }),
+            a_hole(Place::Query("tk".into()), Expr::Cookie { name: "tk".into(), here: false }),
+        ];
+        let body = body_of(vec![script_step("x0", "/api/search", holes, &items)]);
+        let mut site = Kept { replies: HashMap::from([("/api/search".to_string(), items.to_string())]), jar: true, ..Kept::default() };
+        let run = crate::replay::replay_body(&body, &asked("lamp"), &mut site).unwrap_or_else(|e| panic!("{e}"));
+        let sent = &site.sent[0];
+        assert!(sent.contains(r#""authorization", "held-authorization""#), "a header read from the jar: {sent}");
+        assert!(sent.contains("sid=held-sid"), "a cookie read from the jar: {sent}");
+        assert_eq!(sent_query(sent, "tk").as_deref(), Some("held-tk"), "a query read from the jar: {sent}");
+        let answer = run.target.response_body.clone().unwrap_or_default();
+        assert!(!answer.contains("held-"), "the answer carries no secret: {answer}");
+        assert!(!format!("{:?}", run.target.response_headers).contains("held-"));
+    }
+
+    /// With nothing in the jar, a place the jar fills is left out of the request: no placeholder and no earlier value
+    /// goes in its place.
+    #[test]
+    fn a_secret_the_jar_does_not_hold_is_left_out_not_made_up() {
+        let items = serde_json::json!({ "items": [] });
+        let holes = vec![
+            a_hole(Place::Query("q".into()), written_twice()),
+            a_hole(Place::Header("authorization".into()), Expr::Cookie { name: "authorization".into(), here: false }),
+            a_hole(Place::Cookie("sid".into()), Expr::Cookie { name: "sid".into(), here: false }),
+            a_hole(Place::Query("tk".into()), Expr::Cookie { name: "tk".into(), here: false }),
+        ];
+        let body = body_of(vec![script_step("x0", "/api/search", holes, &items)]);
+        let mut site = Kept { replies: HashMap::from([("/api/search".to_string(), items.to_string())]), jar: false, ..Kept::default() };
+        crate::replay::replay_body(&body, &asked("lamp"), &mut site).unwrap_or_else(|e| panic!("{e}"));
+        let sent = &site.sent[0];
+        assert!(!sent.contains("held-") && !sent.contains("authorization") && !sent.contains("sid") && !sent.contains("tk="), "{sent}");
+        assert_eq!(sent_query(sent, "q").as_deref(), Some("lamp"), "what the caller asked is still sent");
+    }
+
     /// A word the page writes one way and then another (a plus for each space, then the whole percent-encoded, as a
     /// search box hands its word to an address that encodes it again) is sent written so. No graph says such a
     /// value, and the body runs all the same.
@@ -1837,6 +1948,46 @@ pub(crate) mod tests {
         fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
             self.fetch(req)
         }
+    }
+
+    /// A session cookie the page's code wrote into a longer value (a visitor id inside a JSON parameter) is the
+    /// caller's own on every call: the jar's cookie where the walker's stood, and nothing there where the jar holds none,
+    /// whichever builder sends. The body says it as the text around the cookie, and says it back as the graph's own.
+    #[test]
+    fn a_cookie_written_into_a_value_is_the_callers_own_whichever_builder_sends() {
+        struct Jarred(Option<String>, Vec<url::Url>);
+        impl Fetch for Jarred {
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.1.push(req.url.clone());
+                Empty { jar: false }.fetch(req)
+            }
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn minted(&self, name: &str) -> Option<String> {
+                self.0.clone().filter(|_| name == "cna")
+            }
+        }
+        let mut graph = one_call();
+        let step = graph.steps.last_mut().unwrap();
+        step.url = format!("{}&data={{data}}", step.url);
+        let template = format!(r#"{{"anonymous_id":"{}","scene":"home"}}"#, crate::graph::COOKIE_IN);
+        step.fields.push(crate::graph::Field { loc: Loc::Query("data".into()), class: Class::CookieIn { template: template.clone(), name: "cna".into() } });
+        let body = from_graph(&graph, "shop.example");
+        let way = &body.steps[0].holes.iter().find(|h| h.at == route::Place::Query("data".into())).unwrap().ways[0].expr;
+        let cookie = Expr::Else { of: Box::new(Expr::Cookie { name: "cna".into(), here: false }), or: String::new() };
+        assert_eq!(way, &Expr::Join { parts: vec![Expr::text(r#"{"anonymous_id":""#), cookie, Expr::text(r#"","scene":"home"}"#)], with: String::new() });
+        let sent = |jar: Option<&str>, fill_body: bool| {
+            let mut asked = Jarred(jar.map(String::from), Vec::new());
+            let _ = crate::replay::replay_by(&graph, &HashMap::from([("q".to_string(), "desk".to_string())]), &mut asked, fill_body);
+            asked.1.iter().find(|u| u.path() == "/api/search").and_then(|u| u.query_pairs().find(|(k, _)| k == "data").map(|(_, v)| v.into_owned())).expect("the call sends its data")
+        };
+        for fill_body in [false, true] {
+            assert_eq!(sent(Some("CALLERS0wnId+/9"), fill_body), r#"{"anonymous_id":"CALLERS0wnId+/9","scene":"home"}"#, "the caller's own");
+            assert_eq!(sent(None, fill_body), r#"{"anonymous_id":"","scene":"home"}"#, "nothing where the jar holds none");
+        }
+        let back = to_graph(&body).unwrap();
+        assert_eq!(back.steps[0].fields.iter().find(|f| f.loc == Loc::Query("data".into())).map(|f| f.class.clone()), Some(Class::CookieIn { template, name: "cna".into() }), "said back as the graph's own");
     }
 
     /// A caller's word that the walked value already says somewhere else (a key of the JSON it rides in) is still
@@ -2179,6 +2330,623 @@ pub(crate) mod tests {
         let mut elsewhere = step("x2", vec![]);
         elsewhere.script = Some(route::Caller { origin: Some("https://other.example".into()) });
         assert_eq!(why(body(vec![step("x1", vec![]), elsewhere])).why, "a graph's scripts' calls go out from one page, and this body's from more");
+    }
+
+    /// A slot a graph names twice takes the first default it is given as its example, and a secret slot's example is
+    /// never kept: the value a secret had is the caller's vault's and is in no body.
+    #[test]
+    fn a_slots_example_is_the_first_default_and_a_secrets_is_none() {
+        let input = |key: &str, name: &str, secret: bool, default: Option<&str>| Field { loc: Loc::Query(key.into()), class: Class::Input { name: name.into(), secret, default: default.map(String::from), optional: false } };
+        let graph = graph_with(
+            vec![input("a", "q", false, None), input("b", "q", false, Some("lamp")), input("c", "q", false, Some("desk")), input("k", "key", false, Some("k-123")), input("k2", "key", true, None)],
+            vec![],
+        );
+        let body = from_graph(&graph, "shop.example");
+        let slot = |name: &str| body.slots.iter().find(|s| s.name == name).cloned().unwrap();
+        assert_eq!(slot("q").example.as_deref(), Some("lamp"), "the first default found");
+        assert!(slot("key").secret && slot("key").example.is_none(), "a slot any place holds secret keeps no example");
+    }
+
+    /// A body whose answer the site's own code unpacks is refused: a graph has no decoder for an answer.
+    #[test]
+    fn a_body_whose_answer_the_sites_code_unpacks_is_refused() {
+        let mut decoded = body_of(vec![script_step("x0", "/api/search", vec![], &serde_json::json!({ "items": [] }))]);
+        decoded.answer.decode = Some(route::Decode { source: "function decode(b) { return b; }".into(), evidence: None });
+        assert_eq!(to_graph(&decoded).err().map(|e| e.why), Some("the site's own code unpacks the reply, and a graph has no decoder for an answer"));
+    }
+
+    /// A graph of two script steps of shop.example (a token, then a search), the search with these fields and
+    /// held words.
+    fn graph_with(fields: Vec<Field>, held: Vec<Held>) -> Graph {
+        let mut graph = the_graph(vec![
+            graph_step_at(0, "/api/token", serde_json::json!([]), &serde_json::json!({ "token": "t" })),
+            graph_step_at(1, "/api/search", serde_json::json!([]), &serde_json::json!({ "items": [] })),
+        ]);
+        graph.steps[1].fields = fields;
+        graph.steps[1].held = held;
+        graph
+    }
+
+    /// A body one step of which (`x0`) is the search, and whose slot `q` is secret: the world `class_of` reads a hole in.
+    fn secret_q_body() -> route::Route {
+        let mut body = body_of(vec![script_step("x0", "/api/token", vec![], &serde_json::json!({ "token": "t" }))]);
+        body.slots[0].secret = true;
+        body
+    }
+
+    /// A body that cannot be said as a graph is refused with its words: the reason of the refusal.
+    fn unsaid_why(body: &route::Route) -> &'static str {
+        to_graph(body).map(|_| ()).unwrap_err().why
+    }
+
+    /// Why a body cannot be said as a graph reads as where, then what, then what the body says there, and a
+    /// refusal that holds no step reads as its reason alone.
+    #[test]
+    fn a_refusal_reads_as_the_step_the_place_the_reason_and_what_the_body_says() {
+        let at = |step: Option<&str>, place: Option<Place>, detail: &str| Unsaid { step: step.map(String::from), at: place, why: "a graph cannot say this", detail: detail.into() };
+        assert_eq!(at(Some("x1"), Some(Place::Query("q".into())), "Stored").to_string(), "step x1, query q: a graph cannot say this (Stored)");
+        assert_eq!(at(Some("x1"), None, "").to_string(), "step x1: a graph cannot say this");
+        assert_eq!(at(None, None, "").to_string(), "a graph cannot say this");
+        assert_eq!(at(None, Some(Place::Url), "two ids").to_string(), "a graph cannot say this (two ids)", "a place with no step is not said");
+        let error: &dyn std::error::Error = &at(None, None, "");
+        assert_eq!(error.to_string(), "a graph cannot say this");
+    }
+
+    /// A place of a body and the place of a graph's field are one thing said twice: each reads back as itself.
+    #[test]
+    fn a_place_and_the_graphs_loc_for_it_say_each_other() {
+        let places = [Place::Path(2), Place::Query("q".into()), Place::Header("x-token".into()), Place::Cookie("sid".into()), Place::Json("/a/0".into()), Place::Form("name".into()), Place::Part("meta".into(), "/id".into()), Place::Url];
+        for place in places {
+            let loc = loc_of(&place);
+            assert_eq!(place_of(&loc), place, "{loc:?}");
+        }
+        assert_eq!(loc_of(&Place::Part("meta".into(), String::new())), Loc::Part("meta".into(), String::new()));
+        assert_eq!(loc_of(&Place::Form("name".into())), Loc::Form("name".into()));
+        assert_eq!(loc_of(&Place::Url), Loc::Url);
+    }
+
+    /// How a word is written and how a longer value is wrapped read back as the graph's own words for them, each
+    /// kind its own.
+    #[test]
+    fn a_way_of_writing_and_a_wrap_read_back_as_the_graphs_own() {
+        for written in [Written::Plain, Written::Json, Written::Percent, Written::Plus, Written::Upper, Written::Lower, Written::Dashed] {
+            assert_eq!(how_back(how_of(written)), written);
+        }
+        for wrap in [Wrap::Base64, Wrap::Base64NoPad, Wrap::Base64Url, Wrap::Base64UrlNoPad] {
+            assert_eq!(wrap_back(wrap_of(wrap)), wrap);
+        }
+    }
+
+    /// A digest said as a body and read back is the recipe it was, whatever digest and whatever joins it; an
+    /// expression whose parts no recipe holds is none.
+    #[test]
+    fn a_recipe_said_as_a_body_is_read_back_as_the_same_recipe() {
+        let parts = vec![
+            Part::Path,
+            Part::Method,
+            Part::Body,
+            Part::Cookie { name: "GUID".into() },
+            Part::Constant { value: "salt".into() },
+            Part::Fresh { template: "{ms}-{d7}".into() },
+            Part::Query { key: "t".into() },
+            Part::Header { name: "x-client".into() },
+            Part::CookiePiece { name: "token".into(), separator: "_".into(), index: 1 },
+        ];
+        for algo in [Algo::Md5, Algo::Sha1, Algo::Sha256] {
+            let recipe = Recipe { algo, separator: "&".into(), parts: parts.clone() };
+            let Expr::Hash { algo: said, of } = recipe_expr(&recipe) else { panic!("a recipe is a digest") };
+            assert_eq!(recipe_of(said, &of), Some(recipe), "{algo:?}");
+        }
+        let slot = Expr::Slot { name: "q".into(), or: None, optional: false };
+        let joined = |part: Expr| Expr::Join { parts: vec![Expr::Sent { part: route::Sent::Path }, part], with: ";".into() };
+        assert_eq!(recipe_of(route::Algo::Md5, &Expr::text("lamp")), None, "a digest over a bare text is no recipe");
+        assert_eq!(recipe_of(route::Algo::Sha1, &joined(slot.clone())), None, "the caller's word is no part of a recipe");
+        let piece_of_path = Expr::Piece { of: Box::new(Expr::Sent { part: route::Sent::Path }), split: "/".into(), index: 0 };
+        assert_eq!(recipe_of(route::Algo::Sha256, &joined(piece_of_path)), None, "only a cookie is cut in pieces");
+        // A body that says such a digest is refused with the digest in its detail.
+        let hash = Expr::Hash { algo: route::Algo::Md5, of: Box::new(joined(slot)) };
+        let body = body_of(vec![script_step("x0", "/api/search", vec![a_hole(Place::Query("sign".into()), hash)], &serde_json::json!({ "items": [] }))]);
+        let refused = to_graph(&body).map(|_| ()).unwrap_err();
+        assert_eq!((refused.why, refused.at), ("a digest over what no recipe's part means", Some(Place::Query("sign".into()))));
+    }
+
+    /// The text around one made-up id is said as one fresh id of its clock, with the id in it as often as the walk's
+    /// text had it; two ids, or a part that is neither text nor an id, are none.
+    #[test]
+    fn a_value_around_one_made_up_id_is_one_fresh_id() {
+        let fresh = |id: &str, clock: route::Clock| Expr::Fresh { id: id.into(), clock };
+        for (clock, said) in [(route::Clock::Millis, crate::fresh::Clock::Millis), (route::Clock::Seconds, crate::fresh::Clock::Seconds), (route::Clock::Random, crate::fresh::Clock::Random)] {
+            let parts = [Expr::text("a-"), fresh("id1", clock), Expr::text("-b-"), fresh("id1", clock)];
+            assert_eq!(fresh_in_text(&parts), Some(("a-id1-b-id1".to_string(), "id1".to_string(), said)));
+        }
+        assert_eq!(fresh_in_text(&[fresh("one", route::Clock::Millis), fresh("two", route::Clock::Millis)]), None, "two ids");
+        assert_eq!(fresh_in_text(&[Expr::text("only text")]), None, "no id");
+        assert_eq!(fresh_in_text(&[fresh("one", route::Clock::Millis), Expr::Slot { name: "q".into(), or: None, optional: false }]), None, "a part that is the caller's");
+    }
+
+    /// Each class of a graph's field, said as a body and said back, is the field it was: the same place, the same
+    /// class, every word held in a longer value as it sat there.
+    #[test]
+    fn every_class_of_field_a_graph_holds_is_said_back_as_the_same_field() {
+        let origin = |wrap: Option<(String, String)>| crate::provenance::Origin { exchange: 0, url: "https://shop.example/api/token".into(), at: At::Json { pointer: "/token".into() }, wrap };
+        let evidence = crate::generated::Evidence { header: "x-sig".into(), sightings: 3, producer: None, proposed_by: "test".into(), evidence_hash: "h1".into(), exact: true, scripts: vec![] };
+        let uuid = "080dbce1-3f6b-4a45-b181-2c6c26f285ca";
+        let fresh = |id: &str, value: &str, clock| Class::Fresh { value: value.into(), id: id.into(), clock };
+        let constant = |value: &str| Class::Constant { value: value.into(), origin: None };
+        let packed = Wrap::Base64.close(r#"{"query":"lamp","rows":24}"#);
+        let fields = vec![
+            Field { loc: Loc::Query("q".into()), class: Class::Input { name: "q".into(), secret: false, default: Some("lamp".into()), optional: false } },
+            Field { loc: Loc::Header("authorization".into()), class: Class::Derived { origin: origin(Some(("Bearer ".into(), String::new()))) } },
+            Field { loc: Loc::Query("a".into()), class: fresh("1794398399120", "1794398399120", crate::fresh::Clock::Millis) },
+            Field { loc: Loc::Query("b".into()), class: fresh("1794398399", "t=1794398399&", crate::fresh::Clock::Seconds) },
+            Field { loc: Loc::Query("c".into()), class: fresh(uuid, uuid, crate::fresh::Clock::Random) },
+            Field { loc: Loc::Query("d".into()), class: Class::Generated { program: "function sign(ctx) { return 'x'; }".into(), evidence } },
+            Field { loc: Loc::Query("e".into()), class: Class::File { name: "photo".into(), of: crate::upload::FileFact::Size } },
+            Field { loc: Loc::Query("f".into()), class: Class::File { name: "photo".into(), of: crate::upload::FileFact::Name } },
+            Field { loc: Loc::Query("g".into()), class: Class::Piece { input: "q".into(), from: 0, len: 3 } },
+            Field { loc: Loc::Query("h".into()), class: constant("find red lamp, page 1") },
+            Field { loc: Loc::Header("referer".into()), class: constant("https://shop.example/find?q=lamp") },
+            Field { loc: Loc::Query("s".into()), class: constant(&packed) },
+            Field { loc: Loc::Query("u".into()), class: Class::Unconfirmed { value: "once-seen".into() } },
+        ];
+        let sits = |loc: Loc, input: &str, text: &str, written, inside| Held { loc, input: input.into(), sits: text.into(), written, inside };
+        let held = vec![
+            sits(Loc::Query("h".into()), "q", "red lamp", Written::Plus, None),
+            sits(Loc::Query("h".into()), "page", "1", Written::Percent, None),
+            sits(Loc::Header("referer".into()), "q", "lamp", Written::Upper, None),
+            sits(Loc::Query("s".into()), "q", "lamp", Written::Plain, Some(Wrap::Base64)),
+        ];
+        let graph = graph_with(fields, held);
+        let back = to_graph(&from_graph(&graph, "shop.example")).unwrap_or_else(|unsaid| panic!("{unsaid}"));
+        let said = |g: &Graph| serde_json::to_value(&g.steps[1].fields).unwrap();
+        assert_eq!(said(&back), said(&graph));
+        assert_eq!(back.steps[1].held, graph.steps[1].held, "each word held where it sat, as it was written");
+        assert!(back.provisional, "an open place is an unconfirmed field");
+        // Each class is a hole of the body the graph's own way says it, and the held words are laid over them.
+        let body = from_graph(&graph, "shop.example");
+        let hole = |at: &str| body.steps[1].holes.iter().find(|h| h.at == Place::Query(at.into())).unwrap().clone();
+        assert!(matches!(hole("h").ways[0].expr, Expr::Swap { .. }) && hole("h").over);
+        assert!(matches!(hole("d").ways[0].expr, Expr::Program { .. }) && hole("d").ways[0].rung == 2);
+        assert_eq!(hole("e").ways[0].expr, Expr::File { slot: "photo".into(), fact: route::FileFact::Size });
+        assert_eq!(body.slots.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(), ["q"]);
+    }
+
+    /// Each kind of body a step sends is said as the body's own form and said back as it was: a JSON body with a word
+    /// held in a leaf (the leaf keeps the walk's own text), a form's fields, a multipart form, an upload and a body
+    /// no graph reads.
+    #[test]
+    fn each_kind_of_body_a_step_sends_is_said_back_as_it_was() {
+        let part = |name: &str, text: Option<&str>, json: Option<serde_json::Value>, filename: Option<&str>, content_type: Option<&str>| crate::graph::PartTemplate {
+            name: name.into(),
+            filename: filename.map(String::from),
+            content_type: content_type.map(String::from),
+            text: text.map(String::from),
+            json,
+            types: json_types(),
+        };
+        fn json_types() -> std::collections::BTreeMap<String, String> {
+            std::collections::BTreeMap::new()
+        }
+        let bodies = [
+            Body::Json { template: serde_json::json!({ "q": "find lamp now", "n": null }), types: [("/n".to_string(), "number".to_string())].into() },
+            Body::Form { fields: vec![("name".into(), None), ("kind".into(), Some("lamp".into()))] },
+            Body::Multipart { boundary: "----b0und".into(), parts: vec![part("note", Some("hello"), None, None, None), part("meta", None, Some(serde_json::json!({ "id": null })), Some("m.json"), Some("application/json"))] },
+            Body::Upload { input: "photo".into(), protocol: crate::upload::Protocol::Rupload { chunk: Some(1024) }, content_type: Some("image/png".into()) },
+            Body::Upload { input: "clip".into(), protocol: crate::upload::Protocol::Single, content_type: None },
+            Body::Other,
+        ];
+        for body in bodies {
+            let (fields, held) = match &body {
+                Body::Json { .. } => (
+                    vec![Field { loc: Loc::Json("/q".into()), class: Class::Constant { value: "find lamp now".into(), origin: None } }],
+                    vec![Held { loc: Loc::Json("/q".into()), input: "q".into(), sits: "lamp".into(), written: Written::Plain, inside: None }],
+                ),
+                _ => (vec![], vec![]),
+            };
+            let mut graph = graph_with(fields, held);
+            graph.steps[1].body = Some(body.clone());
+            let back = to_graph(&from_graph(&graph, "shop.example")).unwrap_or_else(|unsaid| panic!("{unsaid}"));
+            assert_eq!(serde_json::to_value(&back.steps[1].body).unwrap(), serde_json::to_value(&body).unwrap(), "{body:?}");
+            assert_eq!(back.steps[1].held, graph.steps[1].held);
+        }
+    }
+
+    /// A body whose form a graph cannot hold is refused with the reason: binary fields with no schema, an upload
+    /// whose way of sending is none a graph reads, and a caller's word held in a part of a multipart form.
+    #[test]
+    fn a_form_a_graph_cannot_hold_is_refused_with_the_reason() {
+        let items = serde_json::json!({ "items": [] });
+        let with_form = |form: route::Form| {
+            let mut step = script_step("x0", "/api/search", vec![a_hole(Place::Query("q".into()), Expr::Slot { name: "q".into(), or: Some("lamp".into()), optional: false })], &items);
+            step.body = Some(form);
+            body_of(vec![step])
+        };
+        let wire = route::Form::Wire { codec: route::wire::Codec::Protobuf, template: serde_json::json!({ "1": null }) };
+        assert_eq!(unsaid_why(&with_form(wire)), "a graph holds no binary body's fields");
+        let upload = |protocol: serde_json::Value| route::Form::Upload { slot: "photo".into(), protocol, content_type: None };
+        let refused = to_graph(&with_form(upload(serde_json::json!("sideways")))).map(|_| ()).unwrap_err();
+        assert_eq!((refused.why, refused.step.as_deref()), ("an upload whose way of sending a graph does not read", Some("x0")));
+        assert!(!refused.detail.is_empty(), "the reading's own error is said");
+        assert!(to_graph(&with_form(upload(serde_json::json!({ "kind": "single" })))).is_ok());
+        // A word held in a part of a multipart body.
+        let mut graph = graph_with(
+            vec![Field { loc: Loc::Part("note".into(), String::new()), class: Class::Constant { value: "a red lamp".into(), origin: None } }],
+            vec![Held { loc: Loc::Part("note".into(), String::new()), input: "q".into(), sits: "lamp".into(), written: Written::Plain, inside: None }],
+        );
+        graph.steps[1].body = Some(Body::Multipart { boundary: "----b".into(), parts: vec![crate::graph::PartTemplate { name: "note".into(), filename: None, content_type: None, text: None, json: None, types: Default::default() }] });
+        assert_eq!(unsaid_why(&from_graph(&graph, "shop.example")), "a graph holds no caller's word in a part of a multipart body");
+    }
+
+    /// A step a graph cannot be made of is refused: a step named other than by its place in the walk, a page's own
+    /// step, a reply kept for a time, a body whose answer names no step, or whose version is not read.
+    #[test]
+    fn a_step_a_graph_is_not_made_of_is_refused_with_the_reason() {
+        let items = serde_json::json!({ "items": [] });
+        let step = |id: &str| script_step(id, "/api/search", vec![], &items);
+        assert_eq!(unsaid_why(&body_of(vec![step("login")])), "a graph's step is a call of the walk, named by its place there");
+        let mut page = step("x0");
+        page.page = true;
+        assert_eq!(unsaid_why(&body_of(vec![page])), "the page's own code makes this step, and a graph made from a body carries no page");
+        let mut kept = step("x0");
+        kept.lifetime = Some(600);
+        let refused = to_graph(&body_of(vec![kept])).map(|_| ()).unwrap_err();
+        assert_eq!((refused.why, refused.step.as_deref()), ("a graph keeps no reply for a time", Some("x0")));
+        assert_eq!(unsaid_why(&body_of(vec![])), "the body is refused", "an answer that names no step");
+        let mut stale = body_of(vec![step("x0")]);
+        stale.v = route::VERSION + 1;
+        assert_eq!(unsaid_why(&stale), "the body is refused");
+    }
+
+    /// A hole's first way is read as the class of a graph's field that means it: the caller's value given whole is
+    /// the input, a made-up id is the fresh id of its clock, and the secret a slot is stays on it.
+    #[test]
+    fn a_way_is_read_as_the_class_of_field_that_means_it() {
+        let body = secret_q_body();
+        let hole = a_hole(Place::Query("x".into()), Expr::text(""));
+        let class = |expr: Expr| class_of(&body, &hole, &expr).map(|(class, held)| (class, held.len()));
+        assert_eq!(class(Expr::Given { name: "q".into() }), Ok((Class::Input { name: "q".into(), secret: true, default: None, optional: false }, 0)));
+        assert_eq!(class(Expr::Given { name: "other".into() }), Ok((Class::Input { name: "other".into(), secret: false, default: None, optional: false }, 0)));
+        assert_eq!(class(Expr::Written { of: Box::new(Expr::Slot { name: "q".into(), or: Some("lamp".into()), optional: true }), how: route::How::Plain }), Ok((Class::Input { name: "q".into(), secret: true, default: Some("lamp".into()), optional: true }, 0)));
+        for (clock, said) in [(route::Clock::Millis, crate::fresh::Clock::Millis), (route::Clock::Seconds, crate::fresh::Clock::Seconds), (route::Clock::Random, crate::fresh::Clock::Random)] {
+            assert_eq!(class(Expr::Fresh { id: "tick".into(), clock }), Ok((Class::Fresh { value: "tick".into(), id: "tick".into(), clock: said }, 0)));
+        }
+        assert_eq!(class(Expr::Cookie { name: "sid".into(), here: true }), Ok((Class::Minted { name: "sid".into() }, 0)));
+        let read = Expr::Read { step: "x0".into(), at: route::At::Json { pointer: "/token".into() } };
+        let wrapped = Expr::Join { parts: vec![Expr::text("Bearer "), read, Expr::text("")], with: String::new() };
+        match class(wrapped) {
+            Ok((Class::Derived { origin }, 0)) => assert_eq!((origin.exchange, origin.url.as_str(), origin.wrap), (0, "https://shop.example/api/token", Some(("Bearer ".to_string(), String::new())))),
+            other => panic!("{other:?}"),
+        }
+        // A clock's reading read as one fresh id, and two clocks or chance in it as none.
+        assert_eq!(class(Expr::Stamp { form: "t{ms}".into() }), Ok((Class::Fresh { value: "t{ms}".into(), id: "{ms}".into(), clock: crate::fresh::Clock::Millis }, 0)));
+        assert_eq!(class(Expr::Stamp { form: "{ms}{s}".into() }).unwrap_err().0, "a graph's fresh id is one reading of one clock");
+        assert_eq!(class(Expr::Stamp { form: "{ms}{d4}".into() }).unwrap_err().0, "a graph's fresh id is one reading of one clock");
+    }
+
+    /// A way no class of a graph's field means is refused with its reason: a read of a step that is no call of the
+    /// walk, a pick from a list, a piece of anything but the caller's value, a program with no evidence, a swap that
+    /// is not the caller's word written some way, and every other expression by its name.
+    #[test]
+    fn a_way_no_class_means_is_refused_with_its_reason() {
+        let body = secret_q_body();
+        let hole = a_hole(Place::Query("x".into()), Expr::text(""));
+        let why = |expr: Expr| class_of(&body, &hole, &expr).map(|_| ()).unwrap_err();
+        let slot = || Expr::Slot { name: "q".into(), or: Some("lamp".into()), optional: false };
+        assert_eq!(why(Expr::Read { step: "login".into(), at: route::At::Json { pointer: "/t".into() } }), ("a read of a step that is no call of the walk", "login".to_string()));
+        let pick = Expr::Pick { step: "x0".into(), list: "/items".into(), fits: route::expr::Fits::Equals { at: "/name".into(), is: Box::new(slot()) }, take: "/id".into() };
+        assert_eq!(why(pick).0, "a graph has no class for a value picked from a list in an earlier reply");
+        assert_eq!(why(Expr::Slice { of: Box::new(slot()), from: 0, len: 2 }).0, "a piece of anything but the caller's value is no class of a graph's");
+        assert_eq!(why(Expr::Program { source: "x".into(), evidence: None }).0, "a program with no evidence of how it was made");
+        assert_eq!(why(Expr::Program { source: "x".into(), evidence: Some(serde_json::json!("not evidence")) }).0, "a program with no evidence of how it was made");
+        let hash = why(Expr::Hash { algo: route::Algo::Md5, of: Box::new(Expr::Join { parts: vec![slot()], with: ";".into() }) });
+        assert!(hash.0 == "a digest over what no recipe's part means" && hash.1.contains("Slot"), "{hash:?}");
+        let other = why(Expr::Stored { area: route::expr::Area::Local, key: "k".into() });
+        assert_eq!(other, ("no class of a graph's field fills a place this way", "Stored".to_string()));
+        // A swap is the caller's word written some way, over a value a graph holds a word in.
+        let swap = |within: Expr, now: Expr| Expr::Swap { within: Box::new(within), was: "lamp".into(), now: Box::new(now), inside: None };
+        let written = |of: Expr| Expr::Written { of: Box::new(of), how: route::How::Percent };
+        let given = || Expr::Given { name: "q".into() };
+        let kind = "a swap of anything but the caller's value written some way";
+        assert_eq!(why(swap(Expr::text("a lamp"), given())).0, kind);
+        assert_eq!(why(swap(Expr::text("a lamp"), written(slot()))).0, kind);
+        assert_eq!(why(swap(Expr::Cookie { name: "sid".into(), here: false }, written(given()))).0, "a swap into a value no graph holds a word in");
+        let (class, held) = class_of(&body, &hole, &swap(swap(Expr::text("a lamp lamp"), written(given())), Expr::Written { of: Box::new(Expr::Given { name: "n".into() }), how: route::How::Upper })).unwrap();
+        assert_eq!(class, Class::Constant { value: "a lamp lamp".into(), origin: None });
+        assert_eq!(held.iter().map(|h| (h.input.as_str(), h.written)).collect::<Vec<_>>(), [("q", Written::Percent), ("n", Written::Upper)], "the innermost word first, as the graph holds them");
+    }
+
+    /// A hole a graph says by what its way comes to (a reading of the clock) is the graph's when it has the one way;
+    /// give it a second and the body says more than a graph does.
+    #[test]
+    fn a_hole_filled_by_a_reading_of_the_clock_is_a_graphs_with_one_way_only() {
+        let items = serde_json::json!({ "items": [] });
+        let stamp = a_hole(Place::Query("t".into()), Expr::Stamp { form: "{ms}".into() });
+        let body = body_of(vec![script_step("x0", "/api/search", vec![stamp.clone()], &items)]);
+        assert!(a_graph_says(&body, &body.steps[0], &body.steps[0].holes[0]));
+        let mut twice = stamp;
+        twice.ways.push(Way { rung: 0, expr: Expr::text("0") });
+        assert!(!a_graph_says(&body, &body.steps[0], &twice));
+        // A hole with no way, or one no class means, is none a graph says.
+        let mut empty = a_hole(Place::Query("t".into()), Expr::text("x"));
+        empty.ways.clear();
+        assert!(!a_graph_says(&body, &body.steps[0], &empty));
+        assert!(!a_graph_says(&body, &body.steps[0], &a_hole(Place::Query("t".into()), Expr::Stored { area: route::expr::Area::Local, key: "k".into() })));
+    }
+
+    /// What a route that keeps the body asks of its callers: each slot, whether it is secret, and the word the walk
+    /// gave it, where a way of the body says it.
+    #[test]
+    fn a_body_asks_each_slot_with_what_the_walk_gave_it() {
+        let items = serde_json::json!({ "items": [] });
+        let slot = |name: &str, or: Option<&str>| Expr::Slot { name: name.into(), or: or.map(String::from), optional: false };
+        let holes = vec![
+            a_hole(Place::Query("q".into()), slot("q", Some("lamp"))),
+            a_hole(Place::Header("x-key".into()), slot("key", None)),
+            a_hole(Place::Query("n".into()), Expr::Written { of: Box::new(slot("n", Some("7"))), how: route::How::Percent }),
+        ];
+        let mut body = body_of(vec![script_step("x0", "/api/search", holes, &items)]);
+        body.slots.push(route::Slot { name: "key".into(), secret: true, example: None, choices: Vec::new() });
+        let asked = asked_as_walked(&body);
+        assert_eq!(asked, vec![("q".to_string(), false, Some("lamp".to_string())), ("key".to_string(), true, None), ("n".to_string(), false, Some("7".to_string()))]);
+        assert_eq!(asked_as_walked(&body_of(vec![script_step("x0", "/api/search", vec![], &items)])), vec![]);
+    }
+
+    /// With a body stored beside a graph whose step is a binary body the graph cannot open, the stored body's
+    /// form and its fields' holes are what runs; a hole the graph's step has no place for is dropped, and said.
+    #[test]
+    fn a_binary_body_the_graph_cannot_open_is_the_stored_bodys_in_the_overlay() {
+        let items = serde_json::json!({ "items": [] });
+        let wire = route::Form::Wire { codec: route::wire::Codec::Protobuf, template: serde_json::json!({ "1": null }) };
+        let mut step = script_step("x7", "/api/search", vec![a_hole(Place::Json("/1".into()), Expr::Slot { name: "q".into(), or: Some("lamp".into()), optional: false }), a_hole(Place::Query("lang".into()), Expr::text("de"))], &items);
+        step.body = Some(wire.clone());
+        let stored = body_of(vec![step]);
+        let mut graph = the_graph(vec![graph_step_at(0, "/api/search", serde_json::json!([]), &items)]);
+        graph.steps[0].body = Some(Body::Other);
+        let laid = overlay(&graph, Some(&stored));
+        assert_eq!(laid.body.steps[0].body, Some(wire), "the stored body's own form");
+        assert!(laid.laid.contains(&("x0".to_string(), Place::Json("/1".into()))), "{:?}", laid.laid);
+        assert_eq!(laid.body.steps[0].holes.iter().filter(|h| h.at == Place::Json("/1".into())).count(), 1);
+        assert!(laid.body.slots.iter().any(|s| s.name == "q"), "the slot its hole asks");
+        assert_eq!(laid.dropped, ["step x7, query lang: the graph's step sends nothing there"]);
+        // The same step whose graph says another kind of body is left to the graph.
+        let mut json = graph.clone();
+        json.steps[0].body = Some(Body::Form { fields: vec![] });
+        assert!(!matches!(overlay(&json, Some(&stored)).body.steps[0].body, Some(route::Form::Wire { .. })));
+    }
+
+    /// What the loop reads of a step besides its request is said of a body whole: each step is named by its place
+    /// in the walk (or the next free one), each way a value is made is a field of its kind, and the query is the
+    /// address's, each key a hole and each fixed value written in.
+    #[test]
+    fn a_skeleton_names_each_step_and_says_each_way_the_loop_reads() {
+        let items = serde_json::json!({ "items": [{ "id": 1 }] });
+        let token = script_step("x2", "/api/session", vec![], &serde_json::json!({ "token": "t" }));
+        let slot = || Expr::Slot { name: "q".into(), or: None, optional: false };
+        let pick = Expr::Pick { step: "x2".into(), list: "/items".into(), fits: route::expr::Fits::Equals { at: "/name".into(), is: Box::new(slot()) }, take: "/id".into() };
+        let holes = vec![
+            a_hole(Place::Header("x-pick".into()), pick),
+            a_hole(Place::Query("n".into()), Expr::Given { name: "q".into() }),
+            a_hole(Place::Query("size".into()), Expr::File { slot: "photo".into(), fact: route::FileFact::Size }),
+            a_hole(Place::Query("name".into()), Expr::File { slot: "photo".into(), fact: route::FileFact::Name }),
+            a_hole(Place::Query("sid".into()), Expr::Cookie { name: "sid".into(), here: false }),
+            a_hole(Place::Query("tick".into()), Expr::Fresh { id: "abc-1".into(), clock: route::Clock::Seconds }),
+            a_hole(Place::Query("ms".into()), Expr::Fresh { id: "abc-2".into(), clock: route::Clock::Millis }),
+            a_hole(Place::Query("rnd".into()), Expr::Fresh { id: "abc-3".into(), clock: route::Clock::Random }),
+            a_hole(Place::Query("lang".into()), Expr::text("de")),
+            a_hole(Place::Header("x-empty".into()), Expr::Nothing { after: None }),
+        ];
+        let mut body = body_of(vec![token, script_step("search", "/api/search", holes, &items)]);
+        body.slots[0].secret = true;
+        let graph = skeleton(&body);
+        assert_eq!(graph.steps.iter().map(|s| s.exchange).collect::<Vec<_>>(), [2, 3], "a step named otherwise takes the next free number");
+        let search = &graph.steps[1];
+        assert_eq!(search.url, "https://shop.example/api/search?n={n}&size={size}&name={name}&sid={sid}&tick={tick}&ms={ms}&rnd={rnd}&lang=de");
+        let at = |loc: Loc| search.fields.iter().filter(|f| f.loc == loc).map(|f| f.class.clone()).collect::<Vec<_>>();
+        let input = Class::Input { name: "q".into(), secret: true, default: None, optional: false };
+        match at(Loc::Header("x-pick".into())).as_slice() {
+            [Class::Derived { origin }, held] => {
+                assert_eq!((origin.exchange, &origin.at), (2, &At::Json { pointer: "/items".into() }));
+                assert_eq!(held, &input, "the word the item is held to is the caller's");
+            }
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(at(Loc::Query("n".into())), [input]);
+        assert_eq!(at(Loc::Query("size".into())), [Class::File { name: "photo".into(), of: crate::upload::FileFact::Size }]);
+        assert_eq!(at(Loc::Query("name".into())), [Class::File { name: "photo".into(), of: crate::upload::FileFact::Name }]);
+        assert_eq!(at(Loc::Query("sid".into())), [Class::Minted { name: "sid".into() }]);
+        assert_eq!(at(Loc::Query("tick".into())), [Class::Fresh { value: "abc-1".into(), id: "abc-1".into(), clock: crate::fresh::Clock::Seconds }]);
+        assert_eq!(at(Loc::Query("ms".into())), [Class::Fresh { value: "abc-2".into(), id: "abc-2".into(), clock: crate::fresh::Clock::Millis }]);
+        assert_eq!(at(Loc::Query("rnd".into())), [Class::Fresh { value: "abc-3".into(), id: "abc-3".into(), clock: crate::fresh::Clock::Random }]);
+        assert_eq!(at(Loc::Query("lang".into())), [Class::Constant { value: "de".into(), origin: None }]);
+        assert_eq!(at(Loc::Header("x-empty".into())), [Class::Constant { value: String::new(), origin: None }], "a place with nothing the loop reads is a constant with no value");
+        assert!(!search.reads_page && !search.foreign && !graph.provisional);
+    }
+
+    /// A step the body says writes, which the ledger's rule would read as one that only asks, is held to its method; a
+    /// body carries no form a graph reads for a binary body or an upload of no known way; and what a body holds open
+    /// or sends from a page the skeleton keeps.
+    #[test]
+    fn a_skeleton_keeps_what_the_body_says_of_a_step_beyond_its_request() {
+        let items = serde_json::json!({ "items": [] });
+        let mut step = script_step("x0", "/api/search", vec![], &items);
+        step.writes = true;
+        step.script = Some(route::Caller { origin: Some("https://shop.example".into()) });
+        step.body = Some(route::Form::Upload { slot: "photo".into(), protocol: serde_json::json!("sideways"), content_type: None });
+        let mut open = a_hole(Place::Query("v".into()), Expr::text("once"));
+        open.open = true;
+        step.holes.push(open);
+        let graph = skeleton(&body_of(vec![step.clone()]));
+        assert!(graph.steps[0].foreign, "a GET the body says writes is held to its method");
+        assert!(matches!(graph.steps[0].body, Some(Body::Other)), "an upload no graph reads is no body");
+        assert!(graph.provisional);
+        assert_eq!(graph.page_origin.as_deref(), Some("https://shop.example"));
+        assert!(matches!(graph.steps[0].fields[0].class, Class::Unconfirmed { .. }), "{:?}", graph.steps[0].fields);
+        step.body = Some(route::Form::Wire { codec: route::wire::Codec::Protobuf, template: serde_json::json!({}) });
+        assert!(matches!(skeleton(&body_of(vec![step.clone()])).steps[0].body, Some(Body::Other)));
+        step.body = Some(route::Form::Upload { slot: "photo".into(), protocol: serde_json::json!({ "kind": "single" }), content_type: Some("image/png".into()) });
+        assert!(matches!(skeleton(&body_of(vec![step])).steps[0].body, Some(Body::Upload { .. })));
+    }
+
+    /// What the node keeps beside a body (the page's markup, the page its calls go out from) is set on the body's
+    /// skeleton from the route's graph, and a page the graph does not name falls back to the one the body's calls go out
+    /// from; the steps are the body's.
+    #[test]
+    fn a_skeleton_beside_a_graph_carries_what_the_node_keeps_of_the_page() {
+        let items = serde_json::json!({ "items": [] });
+        let mut step = script_step("x0", "/api/search", vec![], &items);
+        step.script = Some(route::Caller { origin: Some("https://shop.example".into()) });
+        let body = body_of(vec![step]);
+        let kept = Graph {
+            page_html: Some("<html>kept</html>".into()),
+            page: Some("https://shop.example/find".into()),
+            page_origin: Some("https://app.shop.example".into()),
+            scripts: vec![crate::signing::Script { url: "https://shop.example/app.js".into(), body: "var a=1".into() }],
+            api: vec![crate::signing::Answer { url: "https://shop.example/config.json".into(), status: 200, mime: "application/json".into(), body: "{}".into() }],
+            ..Graph::default()
+        };
+        let beside = skeleton_beside(&body, &kept);
+        assert_eq!(beside.page_html.as_deref(), Some("<html>kept</html>"));
+        assert_eq!(beside.page.as_deref(), Some("https://shop.example/find"));
+        assert_eq!((beside.scripts.len(), beside.api.len()), (1, 1));
+        assert_eq!(beside.page_origin.as_deref(), Some("https://app.shop.example"), "the route's own page, not the body's calls'");
+        assert_eq!(beside.steps.len(), 1);
+        let bare = skeleton_beside(&body, &Graph::default());
+        assert_eq!((bare.page_html, bare.page, bare.page_origin.as_deref()), (None, None, Some("https://shop.example")));
+    }
+
+    /// The world of one replay says what it has: a step is answered once its reply is held, a name that is no
+    /// step's is never answered, and two origins are one site only when they name the same host (or one site's hosts).
+    #[test]
+    fn a_replays_world_says_which_steps_are_answered_and_which_origins_are_one_site() {
+        use route::World as _;
+        let graph = one_call();
+        let (inputs, fresh) = (HashMap::new(), HashMap::new());
+        let responses = HashMap::from([(0usize, searched("https://shop.example/api/search?q=lamp"))]);
+        let reading = Reading { now: 0, seed: 1 };
+        let world = Replaying { graph: &graph, inputs: &inputs, fetch: &Empty { jar: false }, responses: &responses, fresh: &fresh, reading, chance: Box::new(reading.chance()) };
+        assert!(world.answered("x0"));
+        assert!(!world.answered("x1"), "a step not yet answered");
+        assert!(!world.answered("login"), "a name that is no step's");
+        assert!(world.same_site("https://shop.example", "https://shop.example/other"));
+        assert!(!world.same_site("https://shop.example", "https://other.example"));
+        assert!(!world.same_site("not an origin", "not an origin"), "nothing that is no origin is a site");
+    }
+
+    /// The world a body is read in by itself knows nothing of the session: a slot is what the walk sent for it (or a
+    /// mark where the caller's word stands), a made-up id is itself, the clock stands at nought, chance is
+    /// noughts, and the jar, a reply, a file and an answer are none.
+    #[test]
+    fn a_walks_own_world_holds_only_what_the_body_says_by_itself() {
+        use route::World as _;
+        let slot = || Expr::Slot { name: "q".into(), or: Some("lamp".into()), optional: false };
+        assert_eq!(walked_value(&slot(), false).as_deref(), Some("lamp"));
+        assert_eq!(walked_value(&slot(), true), Some(mark("q")), "the caller's word stands as a mark");
+        assert_eq!(walked_value(&Expr::Given { name: "q".into() }, false), None, "the caller gave nothing");
+        assert_eq!(walked_value(&Expr::Cookie { name: "sid".into(), here: false }, false), None, "no jar");
+        assert_eq!(walked_value(&Expr::Read { step: "x0".into(), at: route::At::Json { pointer: "/t".into() } }, false), None, "no reply");
+        assert_eq!(walked_value(&Expr::Nothing { after: Some("x0".into()) }, false), None, "no step is answered");
+        assert_eq!(walked_value(&Expr::Fresh { id: "abc-1".into(), clock: route::Clock::Millis }, false).as_deref(), Some("abc-1"));
+        assert_eq!(walked_value(&Expr::Stamp { form: "{ms}-{d3}".into() }, false).as_deref(), Some("0-000"));
+        let file = Expr::File { slot: "photo".into(), fact: route::FileFact::Size };
+        assert_eq!(walked_value(&file, true), None, "no file is opened");
+        let mut world = Walked { marked: false };
+        assert!(world.same_site("https://shop.example", "https://shop.example") && !world.same_site("https://shop.example", "https://other.example"));
+        assert_eq!((world.now_ms(), world.digits(4), world.fresh("id", route::Clock::Random)), (0, "0000".to_string(), "id".to_string()));
+    }
+
+    /// The rung a request was made at is the highest rung any of its holes needed, and past the page the browser.
+    #[test]
+    fn a_request_is_made_at_the_highest_rung_any_of_its_holes_needed() {
+        use crate::rung::Rung;
+        let built = |rung: u8| route::Built { method: "GET".into(), url: "https://shop.example/".parse().unwrap(), headers: vec![], body: None, made: vec![(Place::Query("a".into()), 0), (Place::Query("b".into()), rung)] };
+        for (rung, said) in [(0, Rung::Walk), (1, Rung::Expression), (2, Rung::Function), (3, Rung::Bundle), (4, Rung::Page), (5, Rung::Browser), (9, Rung::Browser)] {
+            assert_eq!(rung_of(&built(rung)), said, "rung {rung}");
+        }
+        assert_eq!(rung_of(&route::Built { made: vec![], ..built(0) }), Rung::Walk, "a request no hole made is the walk's");
+    }
+
+    /// Where the filler stops, replay says the error it would have: the caller's slot, a value an earlier reply
+    /// did not hold (which a call may step past), a place that needs the browser, a body that cannot be built, a
+    /// value that breaks it, an address that is none, another origin, and a value the route will not read.
+    #[test]
+    fn where_the_filler_stops_replay_says_its_own_error_for_it() {
+        use route::Why;
+        let graph = one_call();
+        let step = &graph.steps[0];
+        let q = || Some(Place::Query("q".into()));
+        let refusal = |why: Why, built: Option<&route::Built>| refusal_of(&route::Stuck { at: q(), why }, 2, step, built);
+        let (e, past) = refusal(Why::Slot("q".into()), None);
+        assert!(matches!(&e, ReplayError::MissingInput(n) if n == "q") && !past, "{e}");
+        for why in [Why::Source { step: "x0".into() }, Why::Short] {
+            let (e, past) = refusal(why, None);
+            assert!(matches!(&e, ReplayError::SourceMissing { step: 2, url, loc } if *url == step.url && *loc == Loc::Query("q".into())) && past, "{e}");
+        }
+        for why in [Why::Gap, Why::NotWrapped] {
+            let (e, past) = refusal(why, None);
+            assert!(matches!(&e, ReplayError::SourceMissing { step: 2, .. }) && !past, "{e}: a list with a hole in it is not stepped past");
+        }
+        let (e, _) = refusal_of(&route::Stuck { at: None, why: Why::Short }, 1, step, None);
+        assert!(matches!(&e, ReplayError::SourceMissing { loc, .. } if *loc == Loc::Url), "{e}: a stop of no place is the address's");
+        let (e, past) = refusal(Why::File { slot: "photo".into(), reason: "no such file".into() }, None);
+        assert!(matches!(&e, ReplayError::File { input, reason } if input == "photo" && reason == "no such file") && !past);
+        let built = route::Built { method: "GET".into(), url: "https://shop.example/built?q=1".parse().unwrap(), headers: vec![], body: None, made: vec![] };
+        for why in [Why::Needs(3), Why::NotSent("header x".into()), Why::Unbuilt] {
+            let (e, past) = refusal(why.clone(), None);
+            assert!(matches!(&e, ReplayError::NeedsBrowser { step: 2, url, loc } if *url == step.url && *loc == Loc::Query("q".into())) && !past, "{e}");
+            let (e, _) = refusal(why, Some(&built));
+            assert!(matches!(&e, ReplayError::NeedsBrowser { url, .. } if url == "https://shop.example/built?q=1"), "the request as far as it was built: {e}");
+        }
+        let (e, _) = refusal(Why::Body, None);
+        assert!(matches!(&e, ReplayError::UnsupportedBody { step: 2, url } if *url == step.url), "{e}");
+        let (e, _) = refusal(Why::Breaks { part: "note".into() }, None);
+        assert!(matches!(&e, ReplayError::BreaksBody { step: 2, part, .. } if part == "note"), "{e}");
+        let (e, _) = refusal(Why::BadUrl("no scheme".into()), None);
+        assert!(matches!(&e, ReplayError::BadUrl(why) if why == "no scheme"), "{e}");
+        let (e, _) = refusal(Why::OtherOrigin { own: "https://a.example".into(), to: "https://b.example".into() }, None);
+        assert!(matches!(&e, ReplayError::Transport(why) if why.contains("https://a.example") && why.contains("https://b.example")), "{e}");
+        for why in [Why::Unread("tomorrow-ish".into()), Why::NotListed("Atlantis".into())] {
+            let stuck = route::Stuck { at: q(), why };
+            let (e, past) = refusal_of(&stuck, 2, step, None);
+            assert!(matches!(&e, ReplayError::Refused(said) if *said == stuck.to_string()) && !past, "{e}");
+        }
+    }
+
+    /// A refusal replay and the filler agree on is held alike, and counted as one held.
+    #[test]
+    fn a_refusal_both_builders_make_for_the_same_reason_is_held_alike() {
+        let graph = one_call();
+        let before = HELD.with(|held| held.get());
+        let stuck = route::Stuck { at: Some(Place::Query("q".into())), why: route::Why::Slot("q".into()) };
+        held_alike(&graph.steps[0], &Err((stuck, None)), Err(&ReplayError::MissingInput("q".into())));
+        assert_eq!(HELD.with(|held| held.get()), (before.0, before.1 + 1));
+    }
+
+    /// A filler that stops where replay builds a request fails the test it shows in.
+    #[test]
+    #[should_panic(expected = "replay built a request, and the filler stopped")]
+    fn a_filler_that_stops_where_replay_builds_fails_the_test() {
+        let graph = one_call();
+        let theirs = Request { method: "GET".into(), url: "https://shop.example/api/search?q=lamp&n=10".parse().unwrap(), exchange: 0, headers: vec![], body: None };
+        let stuck = route::Stuck { at: None, why: route::Why::Short };
+        held_alike(&graph.steps[0], &Err((stuck, None)), Ok((&theirs, crate::rung::Rung::Walk)));
+    }
+
+    /// A filler that builds where replay stops fails the test it shows in.
+    #[test]
+    #[should_panic(expected = "replay stopped (no value given for input `q`), and the filler built a request")]
+    fn a_filler_that_builds_where_replay_stops_fails_the_test() {
+        let graph = one_call();
+        let ours = route::Built { method: "GET".into(), url: "https://shop.example/api/search?q=lamp&n=10".parse().unwrap(), headers: vec![], body: None, made: vec![] };
+        held_alike(&graph.steps[0], &Ok(ours), Err(&ReplayError::MissingInput("q".into())));
+    }
+
+    /// Two refusals for two reasons fail the test they show in, even where both stop at the same step.
+    #[test]
+    #[should_panic(expected = "and the filler stopped for another reason")]
+    fn two_builders_that_stop_for_different_reasons_fail_the_test() {
+        let graph = one_call();
+        let stuck = route::Stuck { at: Some(Place::Query("q".into())), why: route::Why::Body };
+        held_alike(&graph.steps[0], &Err((stuck, None)), Err(&ReplayError::MissingInput("q".into())));
     }
 
     /// Every route a node holds, read from its own folder: each is said as a body, and replayed against a transport

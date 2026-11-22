@@ -1,0 +1,74 @@
+[
+ {
+  "id": "u6:customs-broker-4",
+  "answer_sha": "f64a6b205d950ca3",
+  "finding": "regression",
+  "by": "programme 7f35ecb8 step 7 (Claude), hand re-read",
+  "date": "2026-11-18",
+  "note": "staging 436cf952 honest_fail at 2026-11-18T13:39 vs right on v13.18.1. Staging's browser never opened EU TARIC: walk 'Operation timed out', then 'CDP command timed out: Page.navigate'. Same on staging 7071ae02 (17 Nov) and in the calm rerun. By hand at 17:02 SGT the TARIC consultation page answers 200 in 2.2 s (curl); v13.18.1 read the ERGA OMNES 0% duty from it the same morning."
+ },
+ {
+  "id": "u6:esg-analyst-5",
+  "answer_sha": "190e3adbef1af990",
+  "finding": "regression",
+  "by": "programme 7f35ecb8 step 7 (Claude), hand re-read",
+  "date": "2026-11-18",
+  "note": "staging 436cf952 honest_fail at 2026-11-18T14:18 vs right on v13.18.1. Staging's browser hung on climatetrace.org/explore ('the browser gave no answer within 40 s', 4 times) and the agent's guessed URLs 404'd; the calm rerun failed the same way. By hand at 19:40 SGT the Climate TRACE assets API answers 200 with Singapore's sources (international shipping first), as v13.18.1 and staging 7071ae02 (17 Nov) answered."
+ },
+ {
+  "id": "u6:r2-investor-vc-109",
+  "answer_sha": "1e5cec19a17ed69d",
+  "finding": "regression",
+  "by": "programme 7f35ecb8 step 7 (Claude), hand re-read",
+  "date": "2026-11-18",
+  "note": "staging 436cf952 honest_fail at 2026-11-18T17:36 vs right on v13.18.1. The node masked company names in its replies ('{session}' 45 times in the trace; the agent wrote 'company name masked'), so the agent found 2 startups, not 5. The calm rerun also failed (no 5 confirmed). By hand Wellfound /location/singapore answers 200; v13.18.1 listed 5 from that page."
+ },
+ {
+  "id": "u6:r1-tech-devops-51",
+  "answer_sha": "c0f4a6701ddd3a92",
+  "finding": "regression",
+  "by": "programme 7f35ecb8 step 7 (Claude), hand re-read",
+  "date": "2026-11-18",
+  "note": "staging 436cf952 honest_fail at 2026-11-18T18:13 vs right on v13.18.1. The node replaced tokio's version with '{session}' (27 times; 59 in the calm rerun), so the agent couldn't state it. By hand at 19:00 SGT crates.io's API gives max_stable_version 1.54.1, updated 2026-10-21: exactly v13.18.1's answer."
+ },
+ {
+  "id": "u6:r1-tech-swe-60",
+  "answer_sha": "3b349d59f447cde2",
+  "finding": "regression",
+  "by": "programme 7f35ecb8 step 7 (Claude), hand re-read",
+  "date": "2026-11-18",
+  "note": "staging 436cf952 honest_fail at 2026-11-18T18:18 vs right on v13.18.1. The node replaced react's version with '{session}' in every reply (39 times). By hand registry.npmjs.org dist-tags latest = 19.3.1, v13.18.1's answer. Intermittent: the calm rerun answered right; the masking is the node's (also seen on staging 7071ae02, 17 Nov)."
+ },
+ {
+  "id": "u6:tender-hunter-2",
+  "answer_sha": "4085dd10f5144ca5",
+  "finding": "not_a_regression",
+  "by": "programme 7f35ecb8 step 7 (Claude), hand re-read",
+  "date": "2026-11-18",
+  "note": "staging 436cf952 honest_fail at 2026-11-18T14:13 vs right on v13.18.1. All three failures were the node stopped under the agent (MCP 'transport dropped', ECONNREFUSED) by the run's hard stop when the box fell under 1.5 GB free (14:02-14:12 SGT, other services' memory). Calm rerun (1 task at a time, fresh node, 18 Nov 18:53-19:39 SGT, runs/2026-11-18/staging-436cf952-rerun-results.jsonl): right."
+ },
+ {
+  "id": "u6:tender-hunter-3",
+  "answer_sha": "273b8f4b74814784",
+  "finding": "not_a_regression",
+  "by": "programme 7f35ecb8 step 7 (Claude), hand re-read",
+  "date": "2026-11-18",
+  "note": "staging 436cf952 honest_fail at 2026-11-18T14:14 vs right on v13.18.1. As tender-hunter-2: the node was stopped under it three times by the box-memory hard stop. Calm rerun (1 task at a time, fresh node, 18 Nov 18:53-19:39 SGT, runs/2026-11-18/staging-436cf952-rerun-results.jsonl): right."
+ },
+ {
+  "id": "u6:r2-hard-singapore-government-wa-26",
+  "answer_sha": "74234e98afe7498f",
+  "finding": "not_a_regression",
+  "by": "programme 7f35ecb8 step 7 (Claude), hand re-read",
+  "date": "2026-11-18",
+  "note": "staging 436cf952 error at 2026-11-18T14:44 vs right on v13.18.1. Timed out (1200 s, 19 calls) at 14:44 SGT while the box was short of memory. Calm rerun (1 task at a time, fresh node, 18 Nov 18:53-19:39 SGT, runs/2026-11-18/staging-436cf952-rerun-results.jsonl): right (latest Category A premium). data.gov.sg COE API answers 200 by hand."
+ },
+ {
+  "id": "u6:r2-crypto-trader-36",
+  "answer_sha": "80d2deb837764551",
+  "finding": "not_a_regression",
+  "by": "programme 7f35ecb8 step 7 (Claude), hand re-read",
+  "date": "2026-11-18",
+  "note": "staging 436cf952 honest_fail at 2026-11-18T14:57 vs right on v13.18.1. A 5-minute walk and a 63k-character reply the agent couldn't read, at 14:57 SGT on a loaded box. Calm rerun (1 task at a time, fresh node, 18 Nov 18:53-19:39 SGT, runs/2026-11-18/staging-436cf952-rerun-results.jsonl): right in 2 calls, 75 s."
+ }
+]

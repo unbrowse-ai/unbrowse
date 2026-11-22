@@ -1112,6 +1112,10 @@ const nudge = (d) => Object.defineProperty(d, 'cookie', { configurable: true, ge
 // input's value to find what the page had. Tags and attributes only; nothing renders. A selector names a tag, an id,
 // or an attribute — the shapes a page's own signing code uses to fetch what it signs with.
 const tags = [];
+// Elements the page's own code creates and inserts, findable as a browser's would be: a framework's mount node is
+// made at run time (`createElement('div'); id='root'; appendChild`), so it is in no markup the walk carried, and a
+// lookup by id must still find it. These are the shim's own realm-isolated nodes, not a real DOM's.
+const created = [];
 const parseTags = (src) => {
   let i = 0;
   const lower = src.toLowerCase();
@@ -1169,10 +1173,30 @@ const elementOf = (el) => {
   // element has a parent that can take it, as a browser's document does. The inserted script is the page's own; the
   // harness's loader runs it when it is a harness node, and a third-party tag's no-op keeps the boot going.
   out.parentNode = out.parentNode || { insertBefore: (n) => n, appendChild: (n) => n, removeChild: (n) => n, replaceChild: (n) => n, childNodes: [], removeChildNode: noop };
-  return Object.assign(out, dom(), out);
+  const merged = Object.assign(out, dom(), out);
+  // `dom()` holds ownerDocument as a non-enumerable getter, so the copy above drops it; a framework's `createRoot`
+  // reads `node.ownerDocument` on the mount node it looked up by id, and the read of undefined stops the render.
+  // Re-hold it here as a getter (not evaluated now: the document is still being built when the first tags are parsed).
+  Object.defineProperty(merged, 'ownerDocument', { configurable: true, get: () => (typeof g !== 'undefined' ? g.document : null) });
+  return merged;
 };
-const q = (sel) => { const el = tags.find((t) => matches(t, sel)); return el ? elementOf(el) : null; };
-const qa = (sel) => tags.filter((t) => matches(t, sel)).map(elementOf);
+// A selector read on a live node the page created (its id and attributes are its own, set after it was made), the
+// same shapes `matches` reads on a parsed tag.
+const matchesNode = (n, sel) => {
+  sel = String(sel || '').trim();
+  let m = sel.match(/^([a-zA-Z][-a-zA-Z0-9]*)$/);
+  if (m) return String(n.tagName || '').toLowerCase() === m[1].toLowerCase();
+  m = sel.match(/^#([\w-]+)$/);
+  if (m) return n.id === m[1];
+  m = sel.match(/^(?:([a-zA-Z][-a-zA-Z0-9]*))?\[([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\]\s]*))\]$/);
+  if (!m) return false;
+  const want = m[3] !== undefined ? m[3] : m[4] !== undefined ? m[4] : m[5];
+  const key = m[2].toLowerCase();
+  const val = key === 'id' ? n.id : (n.getAttribute ? n.getAttribute(m[2]) : null);
+  return (!m[1] || String(n.tagName || '').toLowerCase() === m[1].toLowerCase()) && val === want;
+};
+const q = (sel) => { const el = tags.find((t) => matches(t, sel)); if (el) return elementOf(el); return created.find((n) => matchesNode(n, sel)) || null; };
+const qa = (sel) => tags.filter((t) => matches(t, sel)).map(elementOf).concat(created.filter((n) => matchesNode(n, sel)));
 // What any node a page touches can do: a script it inserts, a node it removes, a listener it adds. A page's boot code
 // appends its own `<script>` and would otherwise die on a stub that only looks like an element.
 // A bundle's own loader: it builds a `<script>`, sets `src`, and appends it. A browser fetches and runs it; so does
@@ -1208,6 +1232,10 @@ const inserted = (c) => {
   if (tag === 'LINK' || tag === 'STYLE') {
     setTimeout(() => { try { if (typeof c.onload === 'function') c.onload({ type: 'load', target: c }); if (c.dispatchEvent) c.dispatchEvent({ type: 'load', target: c }); } catch (e) {} }, 0);
   }
+  // A node the page made and inserted is findable from now on: a mount node a framework creates and appends, then
+  // asks for by id, is in the searchable DOM as a browser's would be (the lookup that came back empty is what stopped
+  // a React app from rendering its first call).
+  if (c.nodeType === 1 && created.indexOf(c) < 0) created.push(c);
   return c;
 };
 const textNode = (t) => ({ nodeType: 3, textContent: text(t), data: text(t) });
@@ -1217,7 +1245,8 @@ const textNode = (t) => ({ nodeType: 3, textContent: text(t), data: text(t) });
 // built from the page's markup keeps its own children rather than a copy of this getter's.
 const withText = (o) => {
   // The document a node belongs to: a framework that builds nodes from a node (`ownerDocument.createElement`) finds
-  // the page's document, as in a browser, instead of null.
+  // the page's document, as in a browser, instead of null. Non-enumerable: `elementOf` copies `dom()` with
+  // `Object.assign`, which would evaluate an enumerable getter while the document itself is still being built.
   Object.defineProperty(o, 'ownerDocument', { configurable: true, get: () => (typeof g !== 'undefined' ? g.document : null) });
   Object.defineProperty(o, 'firstChild', {
     configurable: true,
@@ -3980,6 +4009,49 @@ mod tests {
         let signed = sign_with(Some("node"), 400, &bundle, "https://shop.example.com/search", &asked, "", &Storage::default(), "", &serde_json::Value::Null, None).expect("the page's signed call");
         let got = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-d")).map(|(_, v)| v.as_str());
         assert_eq!(got, Some("ready"));
+    }
+
+    /// A mount node the page's own code creates and appends is findable by id, as a browser's would be: a framework
+    /// that builds its root (`document.createElement('div'); root.id='root'; body.appendChild(root)`) and then asks
+    /// `getElementById('root')` for it must find it, not null — the markup the walk carried has no such node (it is
+    /// made at run time), and a React app whose mount lookup comes back empty never renders its first call.
+    #[test]
+    fn a_mount_node_the_page_creates_and_appends_is_findable_by_id() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            var root = document.createElement('div');
+            root.id = 'root';
+            document.body.appendChild(root);
+            var found = document.getElementById('root');
+            fetch('/api/search', { method: 'POST', headers: { 'x-mount': found ? 'found' : 'missing' }, body: '{}' });
+        "#.into())];
+        let asked = request("POST", "https://shop.example.com/api/search", Some("{}"));
+        let signed = sign_with(Some("node"), 400, &bundle, "https://shop.example.com/search", &asked, "", &Storage::default(), "<html><body><div id='main'></div></body></html>", &serde_json::Value::Null, None).expect("the page's signed call");
+        let got = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-mount")).map(|(_, v)| v.as_str());
+        assert_eq!(got, Some("found"), "a mount node the page creates and appends must be findable by id");
+    }
+
+    /// A parsed element belongs to the document: a framework's `createRoot` reads `node.ownerDocument` (to listen for
+    /// selectionchange on it), and a mount node read by id from the carried markup must answer the document, not
+    /// undefined — the read of a property on undefined is what stopped the app from rendering its first call.
+    #[test]
+    fn a_parsed_element_belongs_to_the_document_a_framework_reads() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            var m = document.getElementById('main');
+            var od = m && m.ownerDocument;
+            fetch('/api/search', { method: 'POST', headers: { 'x-od': od ? 'present' : 'undefined' }, body: '{}' });
+        "#.into())];
+        let asked = request("POST", "https://shop.example.com/api/search", Some("{}"));
+        let signed = sign_with(Some("node"), 400, &bundle, "https://shop.example.com/search", &asked, "", &Storage::default(), "<html><body><div id='main'></div></body></html>", &serde_json::Value::Null, None).expect("the page's signed call");
+        let got = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-od")).map(|(_, v)| v.as_str());
+        assert_eq!(got, Some("present"), "a parsed element's ownerDocument is the document, as a framework's createRoot reads it");
     }
 
 

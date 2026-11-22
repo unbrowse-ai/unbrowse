@@ -7,7 +7,9 @@ use super::*;
 /// is called and nothing is paid; no value is revealed, only its class and where it came from.
 pub(super) fn do_inspect(route_id: String) -> Result<Value, Fail> {
     use unbrowse_learn::graph::Class;
-    let kept = store::load_route(&route_id).ok_or((StatusCode::NOT_FOUND, "no such route: search, or say what you want with unbrowse_do".into()))?;
+    let mut kept = store::load_route(&route_id).ok_or((StatusCode::NOT_FOUND, "no such route: search, or say what you want with unbrowse_do".into()))?;
+    // What the route carries for its signing bridge is shown too: its page's code, read back from its file.
+    kept.graph.rejoined();
     // Shown as an agent is shown a kept route: nothing the owner's own session gave the page, whole or in an address.
     let route = kept.shown_to_an_agent();
     let class = |c: &Class| -> &'static str {
@@ -24,6 +26,7 @@ pub(super) fn do_inspect(route_id: String) -> Result<Value, Fail> {
             Class::Unconfirmed { .. } => "unconfirmed",
             Class::Fresh { .. } => "fresh",
             Class::File { .. } => "file",
+            Class::CookieIn { .. } => "cookie_in",
         }
     };
     let mut steps = Vec::new();
@@ -81,6 +84,21 @@ pub(super) fn waits_for_the_browser(route: &store::Route) -> bool {
     route.browser_assisted || route.graph.steps.iter().any(|s| s.is_page_signed() || s.needs_browser)
 }
 
+tokio::task_local! {
+    /// Whether the ask this task answers said `browser: never` ([`with_the_browser_shut`]).
+    static BROWSER_SHUT: bool;
+}
+
+/// `work`, every route call it makes holding to `shut`: an ask that said `browser: never` opens no browser for any
+/// call it makes (`run::with_the_browser_shut`), whichever path reaches the call.
+pub(crate) async fn with_the_browser_shut<F: std::future::Future>(shut: bool, work: F) -> F::Output {
+    BROWSER_SHUT.scope(shut, work).await
+}
+
+fn browser_shut() -> bool {
+    BROWSER_SHUT.try_with(|s| *s).unwrap_or(false)
+}
+
 /// A route called by an agent straight after it was learned: the node is still holding that route to a second walk,
 /// in the site's one browser. The call waits for the verdict, as a goal for the page does, so it runs the route
 /// that stood, and a repair it may need finds the browser free and not a page half loaded under another walk.
@@ -104,9 +122,12 @@ pub(crate) async fn do_call_when_settled(node: &Arc<Node>, a: &Agent, id: String
         if reply["ok"].as_bool() == Some(true) && a_check {
             reply["ok"] = json!(false);
             reply["error"] = json!("the site answered with a page that asks for a person, not the page asked for");
+            let page = json!({ "action": "look", "site": route.site, "url": route.root });
+            crate::outcome::Said::new(crate::outcome::Outcome::Challenge, "call.asks_a_person").then("unbrowse_challenge", page).put(reply);
         } else if reply["ok"].as_bool() == Some(true) && goal::answers_the_walk(&route, &asked, &reply["data"]) {
             reply["ok"] = json!(false);
             reply["error"] = json!("it answered what the route was learned on, not what this call asked: the value did not reach the site");
+            crate::outcome::Said::new(crate::outcome::Outcome::CallFailed, "call.answers_the_walk").put(reply);
         }
     }
     called
@@ -131,7 +152,7 @@ pub(crate) async fn do_call_fields(node: &Arc<Node>, a: &Agent, id: String, inpu
 /// not the route that was chosen, and is not sent. The check is made on the very record the call runs.
 pub(crate) async fn do_call_as_seen(node: &Arc<Node>, a: &Agent, id: String, inputs: HashMap<String, String>, fields: Vec<String>, seen_write: Option<bool>) -> Result<Value, Fail> {
     if store::load_settings().paused {
-        return Err((StatusCode::SERVICE_UNAVAILABLE, "the node is paused by its owner".into()));
+        return Err((StatusCode::SERVICE_UNAVAILABLE, crate::outcome::PAUSED.into()));
     }
     // The record loaded here is the one the vault is checked against and the call runs.
     let route = store::load_route(&id).or_else(|| is_network_entry(&id).then(|| share::cached(&id)).flatten());
@@ -154,6 +175,7 @@ pub(crate) async fn do_call_as_seen(node: &Arc<Node>, a: &Agent, id: String, inp
         return Err((StatusCode::NOT_FOUND, "no such route: search, or say what you want with unbrowse_do".into()));
     }
     let entry = entry_called(&id, route.as_ref());
+    let asked: Vec<String> = inputs.values().cloned().collect();
     let called = match route {
         // A body this node keeps runs free.
         // An agent's call runs the route without what the owner's own session gave it (`Route::usable_by_an_agent`): the
@@ -177,7 +199,7 @@ pub(crate) async fn do_call_as_seen(node: &Arc<Node>, a: &Agent, id: String, inp
                     Err((code, e)) => Err((code, said(Value::String(e)).as_str().unwrap_or_default().to_string())),
                 }
             };
-            let Some((e, bounty)) = due else { return named_now(finish(node, entry, free(inputs, fields).await), now.as_deref(), &id) };
+            let Some((e, bounty)) = due else { return named_now(finish(node, entry, free(inputs, fields).await), now.as_deref(), &id, &asked) };
             match call_entry(node, a, &format!("{e:#x}"), inputs.clone(), "", ForGoal::default(), fields.clone()).await {
                 // A paid try that couldn't start (the fee over the owner's maximum or the key's cap, no node serving the
                 // body, the chain unread) sent nothing: the call runs free, as it would have.
@@ -204,7 +226,7 @@ pub(crate) async fn do_call_as_seen(node: &Arc<Node>, a: &Agent, id: String, inp
         }
         None => call_entry(node, a, &id, inputs, "", ForGoal::default(), fields).await,
     };
-    named_now(finish(node, entry, called), now.as_deref(), &id)
+    named_now(finish(node, entry, called), now.as_deref(), &id, &asked)
 }
 
 /// A call's answer, once a use that ran and failed has demoted the entry in this node only (R5.4), as one a goal picked
@@ -219,7 +241,12 @@ fn finish(node: &Node, entry: Option<alloy::primitives::FixedBytes<32>>, called:
 }
 
 /// A call's answer under the route that took the place of the one asked for (`now`, `id` the one asked for), saying so.
-fn named_now(called: Result<Value, Fail>, now: Option<&str>, id: &str) -> Result<Value, Fail> {
+/// An answer that lists nothing for the values asked (`asked`) says so (`outcome::answered_with`).
+fn named_now(called: Result<Value, Fail>, now: Option<&str>, id: &str, asked: &[String]) -> Result<Value, Fail> {
+    let called = called.map(|mut answer| {
+        crate::outcome::answered_with(&mut answer, asked);
+        answer
+    });
     match (called, now) {
         (Ok(mut answer), Some(now)) => {
             if let Some(o) = answer.as_object_mut() {
@@ -577,6 +604,10 @@ pub(super) async fn run_route(node: &Arc<Node>, a: &Agent, route: store::Route, 
         node.events.emit("activity", ());
         return Err((StatusCode::FORBIDDEN, why));
     }
+    // A route reads on over a secret never: its next page is worked out from the value sent, so a count over a code,
+    // a PIN or a card number the vault fills would hand back the secret plus one. Refused before the vault is opened
+    // or the owner is asked, with nothing sent.
+    pages_over_no_secret(&route, &inputs)?;
     let keys = node.key().map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, e))?;
     let keep = crate::vault_keep(Ok(keys as &dyn unbrowse_core::KeyStore)).map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, e))?;
     let cards = vault::cards_in(&route, &inputs);
@@ -596,7 +627,11 @@ pub(super) async fn run_route(node: &Arc<Node>, a: &Agent, route: store::Route, 
     let frames = heal_frames(node, &id);
     let run = route.clone();
     let opener = node.clone();
-    let r = tokio::task::spawn_blocking(move || run::call_watched(run, &inputs, &who, Some(frames), &fields, Some(opener)))
+    // A call that heals by walking its page again ends that walk on its ask's stop flag.
+    let stop = super::mcp::ask_stop();
+    // An ask that said `browser: never` holds every call it makes to that, on the thread the call runs on.
+    let shut = browser_shut();
+    let r = tokio::task::spawn_blocking(move || unbrowse_learn::mint::stops_with(stop, || run::with_the_browser_shut(shut, || run::call_watched(run, &inputs, &who, Some(frames), &fields, Some(opener)))))
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
         .and_then(|r| r.map_err(|e| (StatusCode::BAD_REQUEST, e)));
@@ -627,6 +662,11 @@ pub(super) async fn run_route(node: &Arc<Node>, a: &Agent, route: store::Route, 
     // (`decide.failures-reported-off-chain`), each channel as its own switch allows.
     if !r.ok && !r.possible_commit {
         crate::report::failed_use(&route, paying.is_some(), r.ms, r.variant.as_deref());
+        // A failed line never reaches the chain, so the payer's own report is what takes its stake out of the
+        // route's rank (`rank.counted-stake`). Sent in the background: the call's answer never waits on it.
+        if let Some(f) = &route.fetched {
+            report_failed_stake(node, a, &f.entry_id);
+        }
     }
     let mut paid = None;
     let mut note = None;
@@ -706,6 +746,14 @@ pub(super) async fn run_route(node: &Arc<Node>, a: &Agent, route: store::Route, 
     if !notes.is_empty() {
         out["notes"] = json!(notes);
     }
+    // The sandbox ran none of the page's code: the reply names its reader, the fact and the next steps, typed; a call
+    // that failed for it says it as its outcome's cause.
+    if let Some(u) = &r.unheld {
+        out["held_back"] = crate::outcome::held_back(u);
+        if !r.ok {
+            crate::outcome::unheld_said(u).put(&mut out);
+        }
+    }
     if let Some(f) = &route.fetched {
         out["network"] = json!({
             "entry_id": f.entry_id,
@@ -718,6 +766,31 @@ pub(super) async fn run_route(node: &Arc<Node>, a: &Agent, route: store::Route, 
         });
     }
     Ok(out)
+}
+
+/// After a failed call on another contributor's route, clears its payer's latest-passed flag on the entry when the
+/// payer holds counted stake there (`chain::coins::report_failed`), at most once an epoch for each entry and payer. Only
+/// a payer whose key this node holds can report: a call paid from the owner's linked wallet (spec §76.1) is said and
+/// left, since that wallet's key isn't here. A report that couldn't be sent isn't tried again that epoch.
+fn report_failed_stake(node: &Arc<Node>, a: &Agent, entry_id: &str) {
+    let Ok(entry) = entry_id.parse::<alloy::primitives::B256>() else { return };
+    let (node, index) = (node.clone(), a.index);
+    tokio::spawn(async move {
+        let Ok(epoch) = chain::current_epoch(&node.chain).await else { return };
+        let (Ok(payer), Ok(me)) = (chain::payer_of(node.keys.as_ref(), index, epoch), chain::owner_address(node.keys.as_ref())) else { return };
+        if !chain::coins::first_report(entry, payer, epoch) {
+            return;
+        }
+        if payer != me {
+            eprintln!("coins: a call on entry {entry:#x} failed; its payer {payer:#x} is the owner's wallet, whose key this node doesn't hold, so its stake there still counts until that wallet reports it");
+            return;
+        }
+        match chain::coins::report_failed(&node.chain, node.keys.as_ref(), entry).await {
+            Ok(Some(_)) => node.events.emit("activity", ()),
+            Ok(None) => {}
+            Err(e) => eprintln!("coins: reporting a failed call on entry {entry:#x}: {e}"),
+        }
+    });
 }
 
 /// What the caller should know of how its values went out. A value with a space in a piece of the address reaches the
@@ -755,6 +828,19 @@ pub fn heal_frames(node: &Arc<Node>, route: &str) -> unbrowse_learn::screencast:
     node.walks.1.follow(&walk, move |note| events.emit("frame", note))
 }
 
+/// Refuses a call of a route that reads on to its next page with a secret: an input the route says is one, or one
+/// this call fills from the vault (a value naming a login, a code or a card), or whose default does. The next page is
+/// worked out from the value sent (`Paging::next`), so a count over it hands the secret back plus one.
+fn pages_over_no_secret(route: &store::Route, inputs: &HashMap<String, String>) -> Result<(), Fail> {
+    let Some(p) = &route.paging else { return Ok(()) };
+    let input = p.input();
+    let filled = inputs.get(input).or_else(|| route.inputs.iter().find(|i| i.name == input).and_then(|i| i.default.as_ref())).is_some_and(|v| vault::is_ref(v));
+    if p.over_secret(&route.graph) || filled {
+        return Err((StatusCode::FORBIDDEN, format!("this route reads on to its next page with {input}, a secret the vault fills: the next page would say it, so the call wasn't made and nothing reached the site. Give {input} a plain value, or use a route that reads on with a page number or a token the site hands over")));
+    }
+    Ok(())
+}
+
 /// A route's generic graph does not bind a charge amount and currency to the request it will send. Therefore every card
 /// route call asks the owner; a separate caller-supplied amount can never authorize it through a limit.
 async fn approve_route_payment(node: &Arc<Node>, a: &Agent, route: &store::Route, inputs: &HashMap<String, String>, cards: &[vault::CardRef]) -> Result<(), Fail> {
@@ -773,6 +859,33 @@ async fn approve_route_payment(node: &Arc<Node>, a: &Agent, route: &store::Route
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Audit 1118 H4 (16 Nov H8): a call whose route reads on with a secret is refused before the vault is opened: an
+    /// input the route marks secret, or one the caller names a vault login, code or card for. A plain page number still
+    /// pages.
+    #[test]
+    fn a_call_never_reads_on_over_a_secret() {
+        let route = |secret: bool| {
+            let mut r = store::Route::from_graph("r".into(), "codes".into(), "https://bank.example/".into(), serde_json::from_value(serde_json::json!({
+                "provisional": false,
+                "steps": [{ "exchange": 0, "method": "GET", "status": 200, "url": "https://bank.example/api/codes", "needs_browser": false, "sets_cookie": false, "fields": [
+                    { "loc": { "in": "query", "key": "pin" }, "class": "input", "name": "pin", "secret": secret },
+                ] }],
+            })).unwrap()).unwrap();
+            r.paging = Some(unbrowse_learn::paging::Paging::Count { input: "pin".into(), step: 1 });
+            r
+        };
+        let given = |v: &str| HashMap::from([("pin".to_string(), v.to_string())]);
+        let e = pages_over_no_secret(&route(true), &HashMap::new()).unwrap_err();
+        assert_eq!(e.0, StatusCode::FORBIDDEN);
+        assert!(e.1.contains("next page") && e.1.contains("nothing reached the site"), "{}", e.1);
+        assert!(pages_over_no_secret(&route(false), &given("vault:code:bank.example:me")).is_err(), "a vault code in a plain input");
+        assert!(pages_over_no_secret(&route(false), &given("vault:bank.example:me")).is_err(), "a vault login");
+        pages_over_no_secret(&route(false), &given("3")).unwrap();
+        let mut unpaged = route(true);
+        unpaged.paging = None;
+        pages_over_no_secret(&unpaged, &HashMap::new()).unwrap();
+    }
 
     /// A site that opts out for Unbrowse in its own /robots.txt is never called (R4.32): the call is refused before
     /// anything reaches the site, no line is written, the place the fetch took is given back, and nothing counts it a

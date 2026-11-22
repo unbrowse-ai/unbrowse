@@ -74,3 +74,79 @@ SELECT date(first_hour - ((first_hour / 86400 + 3) % 7) * 86400, 'unixepoch') AS
        SUM(good_hour IS NOT NULL AND good_hour - first_hour <= 7 * 86400) AS good_call_7d,
        SUM(last_hour - first_hour >= 7 * 86400) AS back_after_7d
 FROM firsts GROUP BY week ORDER BY week DESC LIMIT 12;
+
+-- name: funnel_by_from
+-- The funnel question, split by where each install came from: its source tag (`from`, sent on node_start), or
+-- 'direct' for an install that never sent one. An install's tag is the first one it sent (a node keeps one tag).
+WITH firsts AS (
+  SELECT install_id,
+         MIN(received_hour) AS first_hour,
+         MIN(CASE WHEN event = 'tool_call' THEN received_hour END) AS called_hour,
+         MIN(CASE WHEN event = 'tool_call' AND outcome = 'ok'
+                   AND tool IN ('unbrowse_do', 'unbrowse_call', '/v1/do', '/v1/routes/{id}/call', '/v1/remote/call/{id}')
+                  THEN received_hour END) AS good_hour,
+         MAX(received_hour) AS last_hour,
+         MIN(CASE WHEN from_tag IS NOT NULL THEN printf('%012d|%s', received_hour, from_tag) END) AS first_from
+  FROM events WHERE install_id != 'ffffffffffffffffffffffffffffffff'
+  GROUP BY install_id
+)
+SELECT date(first_hour - ((first_hour / 86400 + 3) % 7) * 86400, 'unixepoch') AS week,
+       COALESCE(substr(first_from, 14), 'direct') AS from_tag,
+       COUNT(*) AS installs,
+       SUM(called_hour IS NOT NULL) AS called,
+       SUM(good_hour IS NOT NULL) AS good_call,
+       SUM(good_hour IS NOT NULL AND good_hour - first_hour <= 7 * 86400) AS good_call_7d,
+       SUM(last_hour - first_hour >= 7 * 86400) AS back_after_7d
+FROM firsts
+WHERE first_hour >= CAST(strftime('%s', 'now', '-84 days') AS INTEGER)
+GROUP BY week, from_tag ORDER BY week DESC, installs DESC;
+
+-- name: arms
+-- The hero test judged on the first good call: for each arm, the installs whose source tag ends in -<arm> (one
+-- letter, as the site's arms are: `hn-e` is source hn, arm e), and how many got a first good call within 7 days of
+-- being first seen. `settled` counts only installs first seen 7 days ago or more, whose 7 days are over: judge on those.
+WITH firsts AS (
+  SELECT install_id,
+         MIN(received_hour) AS first_hour,
+         MIN(CASE WHEN event = 'tool_call' AND outcome = 'ok'
+                   AND tool IN ('unbrowse_do', 'unbrowse_call', '/v1/do', '/v1/routes/{id}/call', '/v1/remote/call/{id}')
+                  THEN received_hour END) AS good_hour,
+         MIN(CASE WHEN from_tag IS NOT NULL THEN printf('%012d|%s', received_hour, from_tag) END) AS first_from
+  FROM events WHERE install_id != 'ffffffffffffffffffffffffffffffff'
+  GROUP BY install_id
+),
+tagged AS (
+  SELECT substr(first_from, 14) AS tag, first_hour, good_hour FROM firsts WHERE first_from IS NOT NULL
+),
+armed AS (
+  SELECT substr(tag, -1) AS arm, first_hour,
+         good_hour IS NOT NULL AND good_hour - first_hour <= 7 * 86400 AS good_7d,
+         first_hour <= CAST(strftime('%s', 'now', '-7 days') AS INTEGER) AS settled
+  FROM tagged
+  WHERE length(tag) >= 3 AND substr(tag, -2, 1) = '-' AND substr(tag, -1) BETWEEN 'a' AND 'z'
+)
+SELECT arm,
+       COUNT(*) AS installs,
+       SUM(good_7d) AS good_call_7d,
+       SUM(settled) AS settled,
+       SUM(settled AND good_7d) AS settled_good_call_7d
+FROM armed GROUP BY arm ORDER BY arm;
+
+-- name: install
+-- One install, by its install id: GET /v1/stats/install?id=<32 hex>. The id is checked against its shape and bound as
+-- a value (src/sql.js PARAMS), never written into the SQL. When it was first and last seen, its first source tag, its
+-- first tool call and its first good call (Unix seconds, the hour each arrived), and how many calls and good calls it
+-- made. No row for an install with no events. The site's /admin Journey reads it for a signed-in node (UNB-179).
+SELECT install_id,
+       MIN(received_hour) AS first_seen,
+       substr(MIN(CASE WHEN from_tag IS NOT NULL THEN printf('%012d|%s', received_hour, from_tag) END), 14) AS from_tag,
+       MIN(CASE WHEN event = 'tool_call' THEN received_hour END) AS first_call,
+       MIN(CASE WHEN event = 'tool_call' AND outcome = 'ok'
+                 AND tool IN ('unbrowse_do', 'unbrowse_call', '/v1/do', '/v1/routes/{id}/call', '/v1/remote/call/{id}')
+                THEN received_hour END) AS first_good_call,
+       MAX(received_hour) AS last_seen,
+       SUM(event = 'tool_call') AS calls,
+       SUM(event = 'tool_call' AND outcome = 'ok'
+           AND tool IN ('unbrowse_do', 'unbrowse_call', '/v1/do', '/v1/routes/{id}/call', '/v1/remote/call/{id}')) AS good_calls
+FROM events WHERE install_id = ?
+GROUP BY install_id;

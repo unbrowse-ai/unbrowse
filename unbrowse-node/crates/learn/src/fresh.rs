@@ -34,10 +34,26 @@ pub enum Clock {
     Random,
 }
 
-/// Whether a value is written as a UUID is: thirty-two hex digits in groups of 8, 4, 4, 4 and 12.
+/// Whether a value is written as a random id is, however the page writes it: the canonical UUID (thirty-two hex digits
+/// in groups of 8, 4, 4, 4 and 12); the W3C trace context a tracing header carries (`00-<32hex>-<16hex>-<2hex>`); or a
+/// base64url correlation id long enough to mean something, with the entropy a random draw has — upper and lower case
+/// letters and digits together, which a word or a lowercase hex hash is not. Two sightings that move with nothing
+/// behind them are what settle it as a fresh draw (`graph::classify`); the shape alone never does.
 pub fn a_random_id(value: &str) -> bool {
     let groups: Vec<&str> = value.split('-').collect();
-    groups.iter().map(|g| g.len()).collect::<Vec<_>>() == [8, 4, 4, 4, 12] && groups.iter().all(|g| g.chars().all(|c| c.is_ascii_hexdigit()))
+    let lengths: Vec<usize> = groups.iter().map(|g| g.len()).collect();
+    let all_hex = || groups.iter().all(|g| g.chars().all(|c| c.is_ascii_hexdigit()));
+    if lengths == [8, 4, 4, 4, 12] && all_hex() {
+        return true;
+    }
+    if lengths == [2, 32, 16, 2] && all_hex() {
+        return true;
+    }
+    value.chars().count() >= 20
+        && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        && value.chars().any(|c| c.is_ascii_uppercase())
+        && value.chars().any(|c| c.is_ascii_lowercase())
+        && value.chars().any(|c| c.is_ascii_digit())
 }
 
 const DAY_SECS: i64 = 86_400;
@@ -299,5 +315,21 @@ mod tests {
     fn only_a_reading_that_stands_alone_as_digits_is_a_clock() {
         let r = readings("fb_uploader_1793383794019 and 17933837940190 and v1793383794");
         assert_eq!(r, vec![("1793383794019".to_string(), Clock::Millis), ("1793383794".to_string(), Clock::Seconds)]);
+    }
+
+    /// A random id is read by its shape, however the page writes it: the canonical UUID, the W3C trace context a
+    /// tracing header carries (`00-<32hex>-<16hex>-<2hex>`), and a base64url correlation id with the entropy a random
+    /// draw has (upper and lower case letters and digits together). A lowercase hex hash and a plain word are none of
+    /// these, so a value the site issued once is never read as a fresh draw.
+    #[test]
+    fn a_random_id_is_read_by_its_shape_however_the_page_writes_it() {
+        assert!(a_random_id("080dbce1-3f6b-4a45-b181-2c6c26f285ca"), "a canonical UUID");
+        assert!(a_random_id("00-18e9afb8c4c2225b5f8025390021dd54-757e1ea26bfc13cc-00"), "a W3C traceparent");
+        assert!(a_random_id("7HAITjek-F-zCUMUz_6aP6Fl3cv5SRFmdu7M"), "a base64url correlation id");
+        // A lowercase hex hash is no random draw, nor a word, nor a short token.
+        assert!(!a_random_id("9f36aeafbe60771e321a7cc95a78140772ab3e96"), "a sha1 is not a fresh id");
+        assert!(!a_random_id("customer"), "a word is not a fresh id");
+        assert!(!a_random_id("abc123"), "a short token is not a fresh id");
+        assert!(!a_random_id("trafficType=customer,deviceType=desktop"), "a baggage context is not a fresh id");
     }
 }

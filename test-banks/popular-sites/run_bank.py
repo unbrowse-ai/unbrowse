@@ -39,6 +39,11 @@ HERE = Path(__file__).resolve().parent
 
 OWNER_PORT = 7788
 WAIT_SECS = 340  # the agent API's call_wait_secs (330), and a little
+# A reply that says the node is still working (how: working) names an ask; the bank collects its answer this many times
+# at most, each waiting COLLECT_WAIT_MS (the node's MOST_WAIT). The node ends an ask's work 120 s behind its first reply
+# (param.ask.wall), so one collect is nearly always enough. Scoring the working reply itself scored no answer at all.
+COLLECTS = 3
+COLLECT_WAIT_MS = 300_000
 GAP_SECS = 4.0  # between two calls to one site
 SITE_GAP_SECS = 10.0  # between two sites
 MAX_BATCH = 5  # sites a run takes at once
@@ -367,7 +372,24 @@ def read_answer(data):
     records = largest_records(data)
     if records:
         return {"kind": "records", "lines": [record_line(r) or json.dumps(r, sort_keys=True, ensure_ascii=False)[:200] for r in records], "head": json.dumps(data, ensure_ascii=False)[:600], "count": len(records)}
+    if isinstance(data, list):
+        # Lists of lists with no object in them (Google Maps' `/search?tbm=map`: places as nested arrays): what it says is
+        # its strings, one line each. Read as one line it was 200 characters of its first place, and every right answer
+        # read as one that names nothing (UNB-165).
+        return {"kind": "object", "lines": list(dict.fromkeys(s.strip() for s in strings_in(data) if says_words(s))), "head": json.dumps(data, ensure_ascii=False)[:600], "count": None}
     return {"kind": "object", "lines": [f"{k}: {str(v)[:120]}" for k, v in data.items()] if isinstance(data, dict) else [str(data)[:200]], "head": json.dumps(data, ensure_ascii=False)[:600], "count": None}
+
+
+def strings_in(value):
+    """Every string in `value`, in the order it holds them."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for v in value:
+            yield from strings_in(v)
+    elif isinstance(value, dict):
+        for v in value.values():
+            yield from strings_in(v)
 
 
 def door_in(head):
@@ -559,7 +581,12 @@ class Node:
         return self.ask("GET", "/v1/routes")[1].get("routes", [])
 
     def do(self, goal, url):
-        return self.ask("POST", "/v1/do", {"goal": goal, "url": url})
+        status, reply = self.ask("POST", "/v1/do", {"goal": goal, "url": url})
+        for _ in range(COLLECTS):
+            if not (200 <= status < 300 and isinstance(reply, dict) and reply.get("how") == "working" and reply.get("ask")):
+                break
+            status, reply = self.ask("POST", "/v1/do", {"ask": reply["ask"], "wait_ms": COLLECT_WAIT_MS})
+        return status, reply
 
     def call(self, route_id, inputs):
         return self.ask("POST", f"/v1/routes/{route_id}/call", {"inputs": inputs})
@@ -1616,7 +1643,11 @@ def load(path, empty):
 
 
 def save(path, doc):
-    Path(path).write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    """Whole or not at all: a run stopped mid-write (a per-site time cap) leaves the last whole file, never half of one."""
+    file = Path(path)
+    part = file.with_name(file.name + ".part")
+    part.write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n")
+    os.replace(part, file)
 
 
 def digest(site):

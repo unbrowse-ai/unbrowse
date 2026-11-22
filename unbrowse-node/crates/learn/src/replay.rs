@@ -36,7 +36,15 @@ pub enum ReplayError {
     /// says which class the wall is and what earns a fresh credential, so the caller can recompute, open a browser,
     /// or hand the page to its owner — instead of treating the refusal as the site drifting.
     #[error("step {step} ({url}) met the site's door: answered {status}")]
-    Door { step: usize, url: String, status: u16, door: crate::graph::Door },
+    Door {
+        step: usize,
+        url: String,
+        status: u16,
+        door: crate::graph::Door,
+        /// What the answer itself was (`refusal::read`): a page that waits on its own code, a check for a person, a
+        /// plain refusal. It says what may clear the door (`Wall::sources`). None on an error built without the answer.
+        wall: Option<crate::refusal::Wall>,
+    },
     #[error("the target answered, but not in the recorded shape")]
     ShapeMismatch { expected: Value, got: Value },
     /// The target answered, but with no answer: a refusal, an error said in the site's words, a challenge, nothing,
@@ -248,12 +256,18 @@ pub trait Fetch {
     }
 
     /// The headers the page's own code adds to `req`: a runner that can run a recorded producer (a script sandbox, a
-    /// page kept warm, `crate::signing`) answers with them, and one that can't answers None — the step then goes to
-    /// the browser as a step with a computed value always has. `inputs` are the caller's values, which the page is
-    /// booted with so its own code asks for what this call asks.
+    /// page kept warm, `crate::signing`) answers with them, and one that can't answers None. None on a plain read (a
+    /// `GET` or a `HEAD`) sends the step as the route builds it, and the site's answer says whether it needed the
+    /// page's values; None on anything else is a step with a computed value, and it goes to the browser as one always
+    /// has. `inputs` are the caller's values, which the page is booted with so its own code asks for what this call asks.
     fn sign_request(&mut self, _req: &Request, _inputs: &std::collections::HashMap<String, String>) -> Option<crate::sandbox::Signed> {
         None
     }
+
+    /// What this runner did that the route does not say, in the call's own words: a step sent as the route builds it
+    /// because the page's code made nothing for it. The reply carries it in `notes`, so a call that answered cheaper
+    /// than the route says is never silent about it.
+    fn fell_back(&mut self, _why: String) {}
 
     /// The node's browser-minted session value for a cookie, if this runner holds one.
     /// A browser runner answers from its live cookie jar; plain HTTP holds none.
@@ -405,6 +419,30 @@ impl Fetch for HttpFetch {
     }
 }
 
+/// What a request says, for a question about the values in it: its address and its body, percent-decoded and
+/// lowercased. One reader for the question "does this request carry this value?", whether it is the request the route
+/// built, a step sent as the route builds it, or the call the page's own code made.
+pub fn what_it_says(url: &str, body: Option<&[u8]>) -> String {
+    let mut all = percent_encoding::percent_decode_str(&url.replace('+', " ")).decode_utf8_lossy().to_lowercase();
+    if let Some(b) = body {
+        let b = String::from_utf8_lossy(b);
+        all.push('\n');
+        all.push_str(&percent_encoding::percent_decode_str(&b.replace('+', " ")).decode_utf8_lossy().to_lowercase());
+        all.push('\n');
+        all.push_str(&b.to_lowercase());
+    }
+    all
+}
+
+/// The caller's values (`inputs`, two characters or more) that `said`, what a request says ([`what_it_says`]), does
+/// not carry, sorted: a request that asks another value is another value's answer, whenever it runs.
+pub fn values_it_lacks(said: &str, inputs: &HashMap<String, String>) -> Vec<String> {
+    let mut values: Vec<String> = inputs.values().map(|v| v.trim().to_lowercase()).filter(|v| v.chars().count() >= 2).collect();
+    values.sort();
+    values.retain(|v| !said.contains(v.as_str()));
+    values
+}
+
 /// What a successful HTTP replay did.
 #[derive(Debug)]
 pub struct HttpReplay {
@@ -546,6 +584,20 @@ pub fn page_reads(graph: &Graph) -> &'static str {
     if live { "live" } else if any { "text" } else { "none" }
 }
 
+/// Whether `step` answered the walk with a redirect that a later step reads: a value taken from the address its
+/// `location` header hands over, or the header itself.
+fn hands_over_its_redirect(graph: &Graph, step: &crate::graph::Step) -> bool {
+    use crate::provenance::At;
+    (300..400).contains(&step.status)
+        && graph.steps.iter().flat_map(|s| &s.fields).any(|f| match &f.class {
+            crate::graph::Class::Derived { origin } if origin.exchange == step.exchange => match &origin.at {
+                At::HeaderQuery { name, .. } | At::Header { name } => name.eq_ignore_ascii_case("location"),
+                _ => false,
+            },
+            _ => false,
+        })
+}
+
 fn carried_page(graph: &Graph, step: &crate::graph::Step, n: usize) -> Option<String> {
     // The first step (1-based in the replay loop) is the page the walk started on; a single-step route's page is its
     // target and is fetched live.
@@ -644,7 +696,9 @@ fn by_fields<F: Fetch>(
         if let Class::Recipe { recipe } = &f.class {
             let text = req.body.as_deref().map(|b| String::from_utf8_lossy(b).into_owned());
             let cookies = sent_cookies(&req);
-            let made = crate::signing::compute_with(recipe, &req, text.as_deref(), &cookies, reading.now, &mut chance);
+            // A cookie the session doesn't hold yet is signed over as nothing, as the page's own code does before it
+            // has one: a gateway that issues its own token answers that with the token (`resigned`).
+            let made = crate::signing::compute_before_token(recipe, &req, text.as_deref(), &cookies, reading.now, &mut chance);
             rung = rung.max(Rung::Expression);
             match (&f.loc, made) {
                 (Loc::Header(name), Some(value)) => {
@@ -701,6 +755,7 @@ fn said_by_name(n: usize, step: &Step) {
             Class::Recipe { recipe } => format!("recipe {:?} over {} parts", recipe.algo, recipe.parts.len()),
             Class::Generated { evidence, .. } => format!("generated program ({} sightings)", evidence.sightings),
             Class::File { name, .. } => format!("file {name}"),
+            Class::CookieIn { name, .. } => format!("jar {name} inside the page's value"),
         };
         eprintln!("   [debug]   {:?}: {what}", f.loc);
     }
@@ -811,6 +866,11 @@ fn run(
             }
             Err((stuck, built)) => Err(crate::body::refusal_of(&stuck, n, step, built.as_ref())),
         };
+        // Before either builder reads a value (the graph's fields or the body's filler, whichever sends): a stranger's
+        // step that would choose a credential's text itself is refused whole, with nothing of it sent.
+        if let Some(why) = chosen_credential(n, step).or_else(|| misplaced_session(n, step)) {
+            return Err(ReplayError::Refused(why));
+        }
         let made = match requests {
             Requests::Body(body) => {
                 said_by_name(n, step);
@@ -900,7 +960,28 @@ fn run(
                         continue;
                     }
                     let loc = step.page_producers.first().map(|p| p.loc.clone()).unwrap_or(Loc::Url);
-                    return Err(ReplayError::NeedsBrowser { step: n, url: req.url.to_string(), loc });
+                    // The page's own code made nothing for this step, and nothing else makes its values: a plain read
+                    // goes as the route builds it, and the site's answer says whether it needed them (`api::goal`'s
+                    // own reader holds it, and a call that fails is the browser's as any failed call is). Never a
+                    // step that can change the site. The write rule (`ledger::writes`) is this engine's one reader of
+                    // that question, so it is the one asked here too: a request it names a read — the page sent it as
+                    // it loaded, it answered with data and set no cookie, or its path is a query's — is sent as the
+                    // route builds it whatever its method, and a POST that only asked is no reason to open a browser.
+                    let a_plain_read = !crate::ledger::writes(step);
+                    if !a_plain_read {
+                        return Err(ReplayError::NeedsBrowser { step: n, url: req.url.to_string(), loc });
+                    }
+                    // A request that lost a value of the caller's on the way — the page computes it, so its place went
+                    // unsent — asks the site another value, and its answer is that value's: nothing is sent.
+                    if let Some(value) = values_it_lacks(&what_it_says(req.url.as_str(), req.body.as_deref()), inputs).first() {
+                        eprintln!("   [replay] step {} {} does not carry {value:?}: the page's code makes it, so nothing is sent", n, req.url.path());
+                        return Err(ReplayError::NeedsBrowser { step: n, url: req.url.to_string(), loc });
+                    }
+                    eprintln!("   [replay] step {} {} is sent as the route builds it: the page's code made nothing for it", n, req.url.path());
+                    fetch.fell_back(format!(
+                        "the page's own code made no call for step {n} ({}), so it was sent as the route builds it: the site's answer says whether it needed the page's values",
+                        req.url.path()
+                    ));
                 }
             }
         }
@@ -929,7 +1010,21 @@ fn run(
                 fetch.allows(&req)?;
                 // From here the request may reach the site, whatever the transport answers or fails with.
                 ledger.sending(n);
-                fetch.fetch(&req)?
+                // A step whose answer was a redirect, and whose redirect a later step reads (the address it hands over,
+                // a sign-in's one-time flow id in it), is sent without following it: the redirect is its answer.
+                let ex = if hands_over_its_redirect(graph, step) { fetch.fetch_unredirected(&req)? } else { fetch.fetch(&req)? };
+                // A gateway that signs with a token it issues itself hands the token over on the first call that
+                // lacks it: the call is signed again with it and sent once more. A write is never sent twice.
+                let ex = match resigned(step, &req, &ex, reading.now).filter(|_| !crate::ledger::writes(step)) {
+                    Some(again) => {
+                        eprintln!("   [replay] step {} {} handed over the token its signature is over: signed again and sent once more", n, req.url.path());
+                        fetch.allows(&again)?;
+                        req = again;
+                        fetch.fetch(&req)?
+                    }
+                    None => ex,
+                };
+                asked_again_when_busy(fetch, &req, ex, step)?
             }
         };
         ledger.heard(n, &req.url, &ex);
@@ -956,7 +1051,8 @@ fn run(
             let walled = crate::trace::REFUSED.contains(&ex.status) || crate::page::a_door(ex.status, ex.response_body.as_deref().unwrap_or_default(), &req.url);
             let met = known.or_else(|| crate::graph::Door::answered(&ex).filter(|_| walled));
             if let Some(door) = met {
-                return Err(ReplayError::Door { step: n, url: req.url.to_string(), status: ex.status, door });
+                let wall = crate::refusal::read(&crate::refusal::Answer { status: ex.status, body: ex.response_body.as_deref().unwrap_or_default(), url: &ex.url, asked: Some(&req.url) });
+                return Err(ReplayError::Door { step: n, url: req.url.to_string(), status: ex.status, door, wall });
             }
             return Err(ReplayError::Failed { step: n, url: req.url.to_string(), status: ex.status, body: ex.response_body.clone().unwrap_or_default() });
         }
@@ -965,8 +1061,16 @@ fn run(
         // than at the next for a value that was never going to be there.
         let body = ex.response_body.as_deref().unwrap_or_default();
         if n < graph.steps.len() && !from_markup && body.trim_start().starts_with('<') && crate::page::a_door(ex.status, body, &req.url) {
+            // But a step nothing after it reads is the page's own, and the site's check in its place is not what the
+            // call came for: the route goes on without it, as a browser that never loaded that page would, and as it
+            // already does for a step that answered an unexpected status. Its answer is never the call's request.
+            if !graph.feeds_later(n - 1) {
+                eprintln!("   [replay] step {} {} answered {} with the site's check for a person: skipped, nothing reads it", n + 1, req.url.path(), ex.status);
+                continue;
+            }
             if let Some(door) = graph.door.clone().or_else(|| crate::graph::Door::answered(&ex)) {
-                return Err(ReplayError::Door { step: n, url: req.url.to_string(), status: ex.status, door });
+                let wall = crate::refusal::read(&crate::refusal::Answer { status: ex.status, body: ex.response_body.as_deref().unwrap_or_default(), url: &ex.url, asked: Some(&req.url) });
+                return Err(ReplayError::Door { step: n, url: req.url.to_string(), status: ex.status, door, wall });
             }
             return Err(ReplayError::Failed { step: n, url: req.url.to_string(), status: ex.status, body: body.to_string() });
         }
@@ -1193,6 +1297,44 @@ fn upload(
     }
 }
 
+/// Where a step of a route this node didn't learn wraps a value an earlier answer gave in text of its own that can
+/// choose a credential: a header or cookie whose `Derived` origin puts anything around the value but an authentication
+/// scheme before it ([`crate::provenance::Origin::wraps_only_a_scheme`]). The wrap is the body's word, sent as it is:
+/// `Bearer <their token> ` before the site's value makes the whole `authorization` value theirs. Said as the field,
+/// never the text. The node's own step is what its own walk saw, and is never asked. `n` is the step's number, from 1.
+pub fn chosen_credential(n: usize, step: &Step) -> Option<String> {
+    if !step.foreign {
+        return None;
+    }
+    step.fields.iter().find_map(|f| match &f.class {
+        Class::Derived { origin } if matches!(f.loc, Loc::Header(_) | Loc::Cookie(_)) && !origin.wraps_only_a_scheme() => {
+            Some(format!("step {n} {} puts text of the route's own around a value the site gave: a route this node didn't learn sends a credential only as the site gave it, after an authentication scheme at most", f.loc))
+        }
+        _ => None,
+    })
+}
+
+/// Where a step of a route this node didn't learn puts a session value somewhere a browser never would, said as the
+/// field (`step 2 query sid`), never its value: a session value of the jar (`Minted`) anywhere but the cookie header or
+/// a header the session carries, or a cookie the site set during the call ([`crate::provenance::At::sets_a_cookie`])
+/// anywhere but the cookie header. A form, query, JSON or path field holding the session is how someone else's route
+/// would carry the owner's session where the site writes it down (a search box, a comment, a log line) and reads it
+/// back to its author. The node's own step is what its own walk saw the page send, and is never asked. `n` is the
+/// step's number, from 1.
+pub fn misplaced_session(n: usize, step: &Step) -> Option<String> {
+    if !step.foreign {
+        return None;
+    }
+    step.fields.iter().find_map(|f| {
+        let misplaced = match &f.class {
+            Class::Minted { .. } => !matches!(f.loc, Loc::Cookie(_) | Loc::Header(_)),
+            Class::Derived { origin } => origin.at.sets_a_cookie() && !matches!(f.loc, Loc::Cookie(_)),
+            _ => false,
+        };
+        misplaced.then(|| format!("step {n} {} puts the session somewhere other than the cookie header: a route this node didn't learn carries the session only as a browser sends it", f.loc))
+    })
+}
+
 /// Every field's value for this run.
 fn realize(
     graph: &Graph,
@@ -1204,6 +1346,11 @@ fn realize(
     fresh: &HashMap<String, String>,
     bridged: bool,
 ) -> Result<Vec<(Loc, String)>, ReplayError> {
+    // Checked before any value is read, whoever calls this: a stranger's step that wraps a value an answer gave in a
+    // credential text of its own, or puts the session outside the cookie header, is refused whole, with nothing sent.
+    if let Some(why) = chosen_credential(n, step).or_else(|| misplaced_session(n, step)) {
+        return Err(ReplayError::Refused(why));
+    }
     let mut out = Vec::new();
     for f in &step.fields {
         let value = match &f.class {
@@ -1261,6 +1408,14 @@ fn realize(
                         // the page, which hands over the page and not its headers. The header goes unsent, and the
                         // site says whether it needed it; a call refused for it fails as any refused call does.
                         Loc::Header(_) if matches!(origin.at, crate::provenance::At::Header { .. }) && responses.contains_key(&origin.exchange) => continue,
+                        // The walk's own reading, where the graph keeps it (`Step::fallback`): a value of the page's
+                        // own load that a later load leaves out (an experiment's code, a visitor's id, a piece of the
+                        // state it renders) is not the call failing, as a browser's page holds what its own load gave
+                        // it. The value is the walk's, never one made up, and holds no word the page was asked.
+                        _ if step.fallback(&f.loc).is_some() => {
+                            eprintln!("   [replay] step {} {:?}: the answer does not hold it, so it is sent as the walk read it", n + 1, f.loc);
+                            step.fallback(&f.loc).expect("just asked").to_string()
+                        }
                         _ => {
                             // Name what a page that answered didn't hold: a page whose state moved is diagnosed from
                             // the pointer, not from the step it landed in. (A step with no answer yet is the fast
@@ -1295,6 +1450,8 @@ fn realize(
             Class::Generated { .. } => continue,
             Class::Unconfirmed { value } => value.clone(),
             Class::Fresh { value, id, .. } => value.replace(id.as_str(), fresh.get(id).map(String::as_str).unwrap_or(id)),
+            // The caller's own cookie where the walker's stood; nothing there when the jar holds none.
+            Class::CookieIn { template, name } => Class::cookie_in(template, fetch.minted(name).as_deref()),
             Class::File { name, of } => {
                 let raw = inputs.get(name).ok_or_else(|| ReplayError::MissingInput(name.clone()))?;
                 let opened = crate::files::open_in(raw, &fetch.file_root()).map_err(|reason| ReplayError::File { input: name.clone(), reason })?;
@@ -1370,6 +1527,121 @@ fn followed_lists_from(step: &Step, exchange: Option<usize>) -> Vec<String> {
 }
 
 /// The cookies a request carries, by name: what a recipe's parts read, exactly as the call sends them.
+/// The cookies a signature's recipe is over, by name.
+fn cookie_parts(recipe: &crate::signing::Recipe) -> Vec<String> {
+    recipe
+        .parts
+        .iter()
+        .filter_map(|p| match p {
+            crate::signing::Part::Cookie { name } | crate::signing::Part::CookiePiece { name, .. } => Some(name.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// How many times a call asks a site that said it was out of asks, and how long it waits before each: the interval the
+/// site names in `Retry-After` when it names a whole number of seconds, else the node's own, growing. Bounded, so a
+/// call never hangs on a site's own number.
+const ASKED_AGAIN: usize = 2;
+const OUR_WAITS: [std::time::Duration; ASKED_AGAIN] = [std::time::Duration::from_millis(1000), std::time::Duration::from_millis(2500)];
+const LONGEST_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// A site that answers "too many requests" is asking to be asked again, not refusing: the answer is read as the wall it
+/// is (`refusal::read` names it `Wall::Rate`) and waiting is the only source that clears it (`Wall::sources`). So a
+/// step the write rule names a read is asked again, after the interval the site names when it names a short one, else
+/// after the node's own — at most [`ASKED_AGAIN`] more times, and never past [`LONGEST_WAIT`]. A step that may change
+/// the site is never sent twice, as a heal is never run on one.
+fn asked_again_when_busy(fetch: &mut impl Fetch, req: &Request, first: Exchange, step: &Step) -> Result<Exchange, ReplayError> {
+    let busy = |ex: &Exchange| {
+        matches!(
+            crate::refusal::read(&crate::refusal::Answer { status: ex.status, body: ex.response_body.as_deref().unwrap_or_default(), url: &ex.url, asked: Some(&req.url) }),
+            Some(crate::refusal::Wall::Rate)
+        )
+    };
+    if !busy(&first) || crate::ledger::writes(step) {
+        return Ok(first);
+    }
+    let mut ex = first;
+    for own in OUR_WAITS {
+        let wait = wait_called_for(&ex).unwrap_or(own).min(LONGEST_WAIT);
+        eprintln!("   [replay] step {} {} answered {} (out of asks): asked again after {} ms", step.url, req.url.path(), ex.status, wait.as_millis());
+        fetch.fell_back(format!("the site was out of asks ({}): asked again after {} ms", ex.status, wait.as_millis()));
+        std::thread::sleep(wait);
+        ex = fetch.fetch(req)?;
+        if !busy(&ex) {
+            return Ok(ex);
+        }
+    }
+    Ok(ex)
+}
+
+/// The interval the answer names, in `Retry-After`, as a whole number of seconds. A date is not read — the node's own
+/// wait stands in its place — so a site's own number can never hold a call for long.
+fn wait_called_for(ex: &Exchange) -> Option<std::time::Duration> {
+    ex.response_headers
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("retry-after"))
+        .and_then(|(_, v)| v.trim().parse::<u64>().ok())
+        .map(std::time::Duration::from_secs)
+}
+
+/// `req` again, carrying every cookie `answer` set and signed over the ones its signatures are over and it was sent
+/// without: the request a page's code sends once its gateway hands it the token. None when the step signs over no
+/// cookie it lacked, or the answer set none of them.
+fn resigned(step: &Step, req: &Request, answer: &Exchange, now: u64) -> Option<Request> {    let sent = sent_cookies(req);
+    let lacked: Vec<String> = step
+        .fields
+        .iter()
+        .filter_map(|f| match &f.class {
+            Class::Recipe { recipe } => Some(cookie_parts(recipe)),
+            _ => None,
+        })
+        .flatten()
+        .filter(|name| !sent.iter().any(|(k, v)| k == name && !v.is_empty()))
+        .collect();
+    if lacked.is_empty() {
+        return None;
+    }
+    let set: Vec<(String, String)> = answer
+        .response_headers
+        .iter()
+        .filter(|(k, _)| k.eq_ignore_ascii_case("set-cookie"))
+        .filter_map(|(_, line)| {
+            let (name, rest) = line.split_once('=')?;
+            Some((name.trim().to_string(), rest.split(';').next().unwrap_or_default().trim().to_string()))
+        })
+        .filter(|(_, value)| !value.is_empty())
+        .collect();
+    // Only an answer that handed over what the signature is over; and then everything it set goes back with the call,
+    // as a page's next request carries it (a gateway hands its token over in a pair: the token and its check).
+    if !set.iter().any(|(name, _)| lacked.contains(name)) {
+        return None;
+    }
+    // The cookie header with what the answer handed over in place of, or beside, what was sent.
+    let mut cookies: Vec<(String, String)> = sent.into_iter().filter(|(k, _)| !set.iter().any(|(n, _)| n == k)).collect();
+    cookies.extend(set);
+    let mut again = req.clone();
+    again.headers.retain(|(k, _)| !k.eq_ignore_ascii_case("cookie"));
+    again.headers.push(("cookie".into(), cookies.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("; ")));
+    let text = again.body.as_deref().map(|b| String::from_utf8_lossy(b).into_owned());
+    for f in &step.fields {
+        let Class::Recipe { recipe } = &f.class else { continue };
+        let value = crate::signing::compute_with(recipe, &again, text.as_deref(), &cookies, now, |_| String::new())?;
+        match &f.loc {
+            Loc::Header(name) => {
+                again.headers.retain(|(k, _)| !k.eq_ignore_ascii_case(name));
+                again.headers.push((name.clone(), value));
+            }
+            Loc::Query(key) => {
+                let others: Vec<(String, String)> = again.url.query_pairs().filter(|(k, _)| k != key).map(|(k, v)| (k.into_owned(), v.into_owned())).collect();
+                again.url.query_pairs_mut().clear().extend_pairs(others).append_pair(key, &value);
+            }
+            _ => return None,
+        }
+    }
+    Some(again)
+}
+
 fn sent_cookies(req: &Request) -> Vec<(String, String)> {
     req.headers
         .iter()
@@ -1592,6 +1864,68 @@ mod wrapped_answer_tests {
 
 #[cfg(test)]
 mod tests {
+    /// A request the write rule names a read goes as the route builds it whatever its method (`ledger::writes` is the
+    /// one reader of that question, and a method is not): a POST the page sent as it loaded, that answered with data
+    /// and set no cookie, asks and changes nothing, so the page's code making no call for it is no reason to open a
+    /// browser — the site's answer says whether it needed the page's signature (trip.com's flight list answers a
+    /// caller's cities without the page's tokens). A POST that may change the site still never goes without them.
+    #[test]
+    fn a_post_the_write_rule_names_a_read_goes_as_the_route_builds_it() {
+        struct Nothing { seen: RefCell<Vec<String>>, told: RefCell<Vec<String>> }
+        impl Fetch for Nothing {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.seen.borrow_mut().push(format!("{} {}", req.method, req.url.path()));
+                Ok(Exchange {
+                    method: req.method.clone(), url: req.url.clone(), request_headers: req.headers.clone(), request_body: None, status: 200,
+                    response_headers: vec![("content-type".into(), "application/json".into())],
+                    response_body: Some(r#"{"tiles":[{"title":"resume"}]}"#.into()), response_mime: "application/json".into(),
+                    resource_type: Some("XHR".into()), main_frame: None,
+                })
+            }
+
+            fn sign_request(&mut self, _req: &Request, _inputs: &HashMap<String, String>) -> Option<crate::sandbox::Signed> {
+                None
+            }
+
+            fn fell_back(&mut self, why: String) {
+                self.told.borrow_mut().push(why);
+            }
+        }
+        // The page sent this POST as it loaded, it answered 200 with data and set no cookie: the write rule names it a
+        // read. The page's own code makes nothing for it this run.
+        let asking: Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "steps": [{
+                "exchange": 0, "method": "POST", "status": 200, "url": "https://shop.example/_ajax/tiles",
+                "needs_browser": true, "page_signed": true, "on_load": true, "sets_cookie": false,
+                "page_producers": [{ "loc": { "in": "header", "key": "x-canva-analytics" }, "producer": { "script": "https://shop.example/app.js", "at": 12 } }],
+                "fields": []
+            }]
+        }))
+        .unwrap();
+        let mut sent = Nothing { seen: RefCell::new(vec![]), told: RefCell::new(vec![]) };
+        let ran = replay(&asking, &HashMap::new(), &mut sent).expect("a request the write rule names a read goes as the route builds it");
+        assert_eq!(ran.target.status, 200);
+        assert_eq!(&*sent.seen.borrow(), &["POST /_ajax/tiles"], "the POST was sent as the route builds it");
+        let told = sent.told.borrow().clone();
+        assert_eq!(told.len(), 1, "the call says what it did: {told:?}");
+        assert!(told[0].contains("sent as the route builds it"), "{told:?}");
+        // The same request, with the answer setting a cookie: a step that may hold something the site changed, so the
+        // page's own code is what sends it, as before.
+        let mut setting: Graph = asking.clone();
+        setting.steps[0].sets_cookie = true;
+        let mut write = Nothing { seen: RefCell::new(vec![]), told: RefCell::new(vec![]) };
+        assert!(
+            matches!(replay(&setting, &HashMap::new(), &mut write), Err(ReplayError::NeedsBrowser { step: 1, .. })),
+            "a write is never sent without the values the page's code makes"
+        );
+        assert!(write.seen.borrow().is_empty(), "nothing was sent: {:?}", write.seen.borrow());
+    }
+
     /// A value at a path segment fills that segment: a `..` or `.` never walks the request to another path of the site,
     /// and a slash or a percent sign in it is the segment's text.
     #[test]
@@ -1612,6 +1946,81 @@ mod tests {
     use super::*;
     use crate::graph::build;
     use std::cell::RefCell;
+
+    /// A step the page's own code makes, when that code makes nothing for it this run: a read goes as the route builds
+    /// it, and the site's answer says whether it needed the page's values; a write still goes to the browser. The call
+    /// says which it did (`Fetch::fell_back`), so a cheaper answer is never silent.
+    #[test]
+    fn a_page_signed_step_the_page_made_nothing_for_goes_as_the_route_builds_it_unless_it_writes() {
+        struct Nothing { seen: RefCell<Vec<String>>, told: RefCell<Vec<String>> }
+        impl Fetch for Nothing {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.seen.borrow_mut().push(req.url.path().to_string());
+                Ok(Exchange {
+                    method: req.method.clone(), url: req.url.clone(), request_headers: req.headers.clone(), request_body: None, status: 200,
+                    response_headers: vec![("content-type".into(), "application/json".into())],
+                    response_body: Some(r#"{"items":[{"title":"lamp"}]}"#.into()), response_mime: "application/json".into(),
+                    resource_type: Some("XHR".into()), main_frame: None,
+                })
+            }
+
+            fn sign_request(&mut self, _req: &Request, _inputs: &HashMap<String, String>) -> Option<crate::sandbox::Signed> {
+                None
+            }
+
+            fn fell_back(&mut self, why: String) {
+                self.told.borrow_mut().push(why);
+            }
+        }
+        let signed = |method: &str| -> Graph {
+            serde_json::from_value(serde_json::json!({
+                "provisional": false,
+                "steps": [{
+                    "exchange": 0, "method": method, "status": 200, "url": "https://shop.example/api/items?q={q}",
+                    "needs_browser": true, "page_signed": true,
+                    "page_producers": [{ "loc": { "in": "header", "key": "sentry-trace" }, "producer": { "script": "https://shop.example/app.js", "at": 7 } }],
+                    "fields": [{ "loc": { "in": "query", "key": "q" }, "class": "input", "name": "q", "secret": false, "default": "lamp" }]
+                }]
+            }))
+            .unwrap()
+        };
+        let inputs = HashMap::from([("q".to_string(), "jug".to_string())]);
+        let mut read = Nothing { seen: RefCell::new(vec![]), told: RefCell::new(vec![]) };
+        let ran = replay(&signed("GET"), &inputs, &mut read).expect("a read goes as the route builds it");
+        assert_eq!(ran.target.status, 200);
+        assert_eq!(&*read.seen.borrow(), &["/api/items"], "the read was sent");
+        let told = read.told.borrow().clone();
+        assert_eq!(told.len(), 1, "the call says what it did: {told:?}");
+        assert!(told[0].contains("sent as the route builds it"), "{told:?}");
+        let mut write = Nothing { seen: RefCell::new(vec![]), told: RefCell::new(vec![]) };
+        assert!(
+            matches!(replay(&signed("POST"), &inputs, &mut write), Err(ReplayError::NeedsBrowser { step: 1, .. })),
+            "a write is never sent without the values the page's code makes"
+        );
+        assert!(write.seen.borrow().is_empty(), "nothing was sent: {:?}", write.seen.borrow());
+        // A read whose own value the page computes is one the route builds without it: sending that asks the site
+        // another value, so nothing is sent and the browser serves it, as before.
+        let without_the_value: Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "steps": [{
+                "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/api/items?q={q}",
+                "needs_browser": true, "page_signed": true,
+                "page_producers": [{ "loc": { "in": "header", "key": "sentry-trace" }, "producer": { "script": "https://shop.example/app.js", "at": 7 } }],
+                "fields": [{ "loc": { "in": "query", "key": "q" }, "class": "computed" }]
+            }]
+        }))
+        .unwrap();
+        let mut lost = Nothing { seen: RefCell::new(vec![]), told: RefCell::new(vec![]) };
+        assert!(
+            matches!(replay(&without_the_value, &inputs, &mut lost), Err(ReplayError::NeedsBrowser { step: 1, .. })),
+            "a request that lost the caller's value is never sent"
+        );
+        assert!(lost.seen.borrow().is_empty(), "nothing was sent: {:?}", lost.seen.borrow());
+    }
 
     /// A refusal from a wall the route knows is said as a door, with the class and what earns a credential: not the
     /// site drifting, and not a value the page never had.
@@ -1636,6 +2045,7 @@ mod tests {
             credential: Some("_abck".into()),
             ttl: Some(3600),
             earn: crate::graph::Earn::BrowserOrOwner,
+            at: None,
         });
         struct Gated;
         impl Fetch for Gated {
@@ -1665,6 +2075,153 @@ mod tests {
         g.door = None;
         let r = replay(&g, &HashMap::new(), &mut Gated);
         assert!(matches!(r, Err(ReplayError::Failed { status: 403, .. })), "{:?}", r.as_ref().err());
+    }
+
+    /// A gateway that signs with a token it issues itself: a caller with no token signs over nothing, as the page's own
+    /// code does on its first call; the gateway refuses that and hands the token over in a cookie; the call is signed
+    /// again with it and sent once more, and answers. No session of anyone's, no browser. A write is never sent twice,
+    /// and a gateway that hands nothing over leaves its refusal as the answer.
+    #[test]
+    fn a_gateway_that_issues_its_own_token_is_signed_again_with_it() {
+        use md5::{Digest, Md5};
+        let md5 = |t: &str| Md5::digest(t.as_bytes()).iter().map(|b| format!("{b:02x}")).collect::<String>();
+        let (t, key, data) = ("1794402610160", "24677475", r#"{"q":"lamps"}"#);
+        let walked = |method: &str| Exchange {
+            method: method.into(),
+            url: url::Url::parse_with_params("https://api.shop.example/h5/find/1.0/", &[("appKey", key), ("t", t), ("data", data), ("sign", "0123456789abcdef0123456789abcdef")]).unwrap(),
+            request_headers: vec![],
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(r#"{"ret":["SUCCESS"],"data":{"items":[{"title":"green lamp"}]}}"#.into()),
+            response_mime: "application/json".into(),
+            resource_type: Some("XHR".into()),
+            main_frame: None,
+        };
+        let signed = |method: &str| {
+            let mut g = build(&[crate::trace::Trace { exchanges: vec![walked(method)], inputs: vec![] }], |_| true).unwrap();
+            for f in g.steps.iter_mut().flat_map(|s| s.fields.iter_mut()).filter(|f| f.loc == Loc::Query("sign".into())) {
+                f.class = Class::Recipe {
+                    recipe: crate::signing::Recipe {
+                        algo: crate::signing::Algo::Md5,
+                        separator: "&".into(),
+                        parts: vec![
+                            crate::signing::Part::CookiePiece { name: "_tk".into(), separator: "_".into(), index: 0 },
+                            crate::signing::Part::Query { key: "t".into() },
+                            crate::signing::Part::Query { key: "appKey".into() },
+                            crate::signing::Part::Query { key: "data".into() },
+                        ],
+                    },
+                };
+            }
+            g
+        };
+        struct Gateway {
+            hands_over: bool,
+            calls: usize,
+        }
+        impl Fetch for Gateway {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                use md5::{Digest, Md5};
+                self.calls += 1;
+                let q: HashMap<String, String> = req.url.query_pairs().map(|(k, v)| (k.into_owned(), v.into_owned())).collect();
+                let token = sent_cookies(req).into_iter().find(|(k, _)| k == "_tk").map(|(_, v)| v.split('_').next().unwrap_or_default().to_string()).unwrap_or_default();
+                let want: String = Md5::digest(format!("{token}&{}&{}&{}", q["t"], q["appKey"], q["data"]).as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
+                let (headers, body) = if token.is_empty() {
+                    let issued = if self.hands_over { vec![("set-cookie".to_string(), "_tk=9e107d9d372bb6826bd81d3542a419d6_1794402700000; Path=/".to_string()), ("set-cookie".to_string(), "_tk_enc=c0ffee; Path=/".to_string())] } else { vec![] };
+                    (issued, r#"{"ret":["FAIL_SYS_TOKEN_EMPTY"],"data":{}}"#)
+                } else if !sent_cookies(req).iter().any(|(k, v)| k == "_tk_enc" && v == "c0ffee") {
+                    (vec![], r#"{"ret":["FAIL_SYS_TOKEN_ILLEGAL"],"data":{}}"#)
+                } else if q["sign"] == want {
+                    (vec![], r#"{"ret":["SUCCESS"],"data":{"items":[{"title":"green lamp"}]}}"#)
+                } else {
+                    (vec![], r#"{"ret":["FAIL_SYS_ILLEGAL_ACCESS"],"data":{}}"#)
+                };
+                Ok(Exchange { method: req.method.clone(), url: req.url.clone(), request_headers: vec![], request_body: None, status: 200, response_headers: headers, response_body: Some(body.into()), response_mime: "application/json".into(), resource_type: None, main_frame: None })
+            }
+        }
+        let mut gateway = Gateway { hands_over: true, calls: 0 };
+        let r = replay(&signed("GET"), &HashMap::new(), &mut gateway).expect("signed again with the issued token, the call answers");
+        assert!(r.target.response_body.as_deref().is_some_and(|b| b.contains("SUCCESS")), "{:?}", r.target.response_body);
+        assert_eq!(gateway.calls, 2, "the tokenless call, then the one signed with the token");
+        assert_eq!(md5("9e107d9d372bb6826bd81d3542a419d6&1794402610160&24677475&{\"q\":\"lamps\"}"), r.target.url.query_pairs().find(|(k, _)| k == "sign").unwrap().1);
+        let mut write = Gateway { hands_over: true, calls: 0 };
+        let _ = replay(&signed("POST"), &HashMap::new(), &mut write);
+        assert_eq!(write.calls, 1, "a write is never sent twice");
+        let mut silent = Gateway { hands_over: false, calls: 0 };
+        let r = replay(&signed("GET"), &HashMap::new(), &mut silent);
+        assert_eq!(silent.calls, 1, "nothing handed over, nothing sent again");
+        assert!(r.as_ref().map_or(true, |r| r.target.response_body.as_deref().is_some_and(|b| b.contains("TOKEN_EMPTY"))), "{:?}", r.map(|r| r.target.response_body));
+    }
+
+    /// A sign-in service hands its one-time flow id over in the address its redirect sends the browser to (Fandom's
+    /// Ory Kratos: `GET /self-service/login/browser` answers 303 to `/signin?flow=…`), and the page and the login send
+    /// that id back. Learned from the walk, the id is read from the redirect's `location`; replayed, that step is sent
+    /// without following its redirect, so a fresh flow's id is what the later steps send, never the walked one.
+    #[test]
+    fn a_flow_id_a_redirect_hands_over_is_read_from_its_location() {
+        let ex = |method: &str, url: &str, status: u16, headers: Vec<(String, String)>, body: &str, kind: &str| Exchange {
+            method: method.into(),
+            url: url.parse().unwrap(),
+            request_headers: if method == "POST" { vec![("content-type".into(), "application/x-www-form-urlencoded".into())] } else { vec![] },
+            request_body: (method == "POST").then(|| "csrf=t0k3n-77aa91&identifier=me".to_string()),
+            status,
+            response_headers: headers,
+            response_body: Some(body.into()),
+            response_mime: if kind == "Document" { "text/html".into() } else { "application/json".into() },
+            resource_type: Some(kind.into()),
+            main_frame: Some(true),
+        };
+        let walked = "4b553b2d-d6ae-46ea-948b-3f8a46b12c44";
+        let trace = crate::trace::Trace {
+            exchanges: vec![
+                ex("GET", "https://id.shop.example/login/browser", 303, vec![("location".into(), format!("https://auth.shop.example/signin?flow={walked}"))], "", "Document"),
+                ex("GET", &format!("https://auth.shop.example/signin?flow={walked}"), 200, vec![], r#"<input name="csrf" value="t0k3n-77aa91">"#, "Document"),
+                ex("POST", &format!("https://id.shop.example/login?flow={walked}"), 200, vec![], r#"{"session":{"active":true}}"#, "XHR"),
+            ],
+            inputs: vec![crate::trace::Input::new("identifier", "me")],
+        };
+        let graph = build(&[trace], |e| e.method == "POST").unwrap();
+        let flow_of = |n: usize| graph.steps[n].fields.iter().find(|f| f.loc == Loc::Query("flow".into())).map(|f| f.class.clone());
+        assert!(
+            matches!(flow_of(graph.steps.len() - 1), Some(crate::graph::Class::Derived { origin }) if matches!(&origin.at, crate::provenance::At::HeaderQuery { name, key } if name == "location" && key == "flow")),
+            "{:?}",
+            graph.steps.iter().map(|s| (s.url.clone(), s.fields.iter().filter(|f| f.loc == Loc::Query("flow".into())).map(|f| f.class.clone()).collect::<Vec<_>>())).collect::<Vec<_>>()
+        );
+        struct Kratos {
+            sent: Vec<String>,
+        }
+        impl Fetch for Kratos {
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                // A runner that follows redirects: the first step's answer would be the page it leads to.
+                let at = self.fetch_unredirected(req)?;
+                match at.response_header("location") {
+                    Some(to) => self.fetch_unredirected(&Request { url: to.parse().unwrap(), method: "GET".into(), body: None, ..req.clone() }),
+                    None => Ok(at),
+                }
+            }
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.sent.push(req.url.to_string());
+                let fresh = "9c0ffee0-0000-4000-8000-000000000001";
+                let answer = |status: u16, headers: Vec<(String, String)>, body: &str, mime: &str| Exchange {
+                    method: req.method.clone(), url: req.url.clone(), request_headers: vec![], request_body: None, status,
+                    response_headers: headers, response_body: Some(body.into()), response_mime: mime.into(), resource_type: None, main_frame: None,
+                };
+                Ok(match req.url.path() {
+                    "/login/browser" => answer(303, vec![("location".into(), format!("https://auth.shop.example/signin?flow={fresh}"))], "", "text/html"),
+                    "/signin" => answer(200, vec![], r#"<input name="csrf" value="n3w-t0k3n-88"> "#, "text/html"),
+                    _ => answer(200, vec![], r#"{"session":{"active":true}}"#, "application/json"),
+                })
+            }
+        }
+        let mut site = Kratos { sent: Vec::new() };
+        let r = replay(&graph, &HashMap::from([("identifier".to_string(), "me".to_string())]), &mut site);
+        assert!(r.is_ok(), "{:?} sent {:?}", r.err(), site.sent);
+        assert!(site.sent.iter().any(|u| u == "https://id.shop.example/login?flow=9c0ffee0-0000-4000-8000-000000000001"), "the fresh flow is sent: {:?}", site.sent);
+        assert!(!site.sent.iter().any(|u| u.contains(walked)), "never the walked one: {:?}", site.sent);
     }
 
     /// A server-rendered page as the target: its answer is the state embedded in its HTML, read the same way the
@@ -1852,6 +2409,114 @@ mod tests {
         let api = stub.seen.borrow().last().unwrap().clone();
         let cookie = api.headers.iter().find(|(k, _)| k == "cookie").unwrap();
         assert_eq!(cookie.1, "_pxhd=px_ccc_333333");
+    }
+
+    /// Audit 1118 M7 (16 Nov H5): replay itself refuses a step of a route this node didn't learn that puts a session
+    /// value in a form, query, JSON or path field, or a cookie the site set (one of a `Set-Cookie` line, or the line
+    /// read whole) outside the cookie header, with nothing of that step sent and no value in what it says. The same
+    /// step as the node's own sends it as its walk saw, and a stranger's session cookie in the cookie header goes.
+    #[test]
+    fn a_strangers_step_never_puts_the_session_in_a_field() {
+        let g = build(&traces(), |e| e.url.path() == "/api/p/list").unwrap();
+        let with = |loc: Loc, class: Class, foreign: bool| {
+            let mut g = g.clone();
+            let s = g.steps.last_mut().unwrap();
+            s.foreign = foreign;
+            s.fields = vec![crate::graph::Field { loc, class }];
+            g
+        };
+        let minted = || Class::Minted { name: "_pxhd".into() };
+        let origin = |at: crate::provenance::At| Class::Derived { origin: crate::provenance::Origin { exchange: 0, url: "https://shop.example/".into(), at, wrap: None } };
+        let set = origin(crate::provenance::At::SetCookie { name: "_pxhd".into() });
+        // The whole `Set-Cookie` line, read as a header, is the same cookie with its value in it.
+        let line = |name: &str| origin(crate::provenance::At::Header { name: name.into() });
+        for (loc, class) in [
+            (Loc::Query("q".into()), minted()),
+            (Loc::Form("q".into()), minted()),
+            (Loc::Json("/q".into()), minted()),
+            (Loc::Path(0), minted()),
+            (Loc::Query("q".into()), set.clone()),
+            (Loc::Header("x-echo".into()), set.clone()),
+            (Loc::Query("q".into()), line("set-cookie")),
+            (Loc::Json("/note".into()), line("Set-Cookie")),
+            (Loc::Header("x-echo".into()), line("SET-COOKIE2")),
+        ] {
+            let mut stub = Stub { seen: RefCell::new(vec![]) };
+            let refused = replay(&with(loc.clone(), class.clone(), true), &HashMap::new(), &mut stub);
+            assert!(matches!(&refused, Err(ReplayError::Refused(why)) if why.contains("cookie header") && !why.contains("px_ccc")), "{loc}: {:?}", refused.err());
+            assert!(stub.seen.borrow().is_empty(), "{loc}: nothing was sent");
+            assert!(misplaced_session(1, &with(loc.clone(), class, false).steps[0]).is_none(), "{loc}: the node's own step is never asked");
+        }
+        let mut stub = Stub { seen: RefCell::new(vec![]) };
+        replay(&with(Loc::Query("q".into()), minted(), false), &HashMap::new(), &mut stub).unwrap();
+        assert!(stub.seen.borrow()[0].url.query().unwrap_or_default().contains("px_ccc_333333"), "the node's own route sends what its walk saw");
+        let mut stub = Stub { seen: RefCell::new(vec![]) };
+        replay(&with(Loc::Cookie("_pxhd".into()), minted(), true), &HashMap::new(), &mut stub).unwrap();
+        assert!(stub.seen.borrow()[0].headers.iter().any(|(k, v)| k == "cookie" && v.contains("px_ccc_333333")), "the cookie header carries it");
+    }
+
+    /// Audit 1118 H2 (16 Nov H6), the runner's half. A stranger's step that wraps a value an earlier answer gave in
+    /// text of its own, in a header, must not send that text: `Bearer <their token> ` before the site's value makes the
+    /// whole `authorization` value theirs. The node refuses such a step before anything is sent, or sends the site's
+    /// value alone; either way no header carries the body's own text. An authentication scheme alone before the value,
+    /// or none, is sent as it is.
+    #[test]
+    fn a_strangers_credential_carries_no_text_of_its_own() {
+        /// A site that hands out a token and answers every other call with an empty list, remembering what it was sent.
+        struct Site {
+            seen: RefCell<Vec<Request>>,
+        }
+        impl Fetch for Site {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.seen.borrow_mut().push(req.clone());
+                let body = if req.url.path() == "/api/token" { r#"{"token":"site_tok_7f3a9c"}"# } else { r#"{"items":[]}"# };
+                Ok(Exchange {
+                    method: req.method.clone(),
+                    url: req.url.clone(),
+                    request_headers: vec![],
+                    request_body: None,
+                    status: 200,
+                    response_headers: vec![],
+                    response_body: Some(body.into()),
+                    response_mime: "application/json".into(),
+                    resource_type: None,
+                    main_frame: None,
+                })
+            }
+        }
+        let graph = |loc: &str, wrap: Option<(&str, &str)>| -> Graph {
+            let mut origin = serde_json::json!({ "exchange": 0, "url": "https://shop.example/api/token", "at": { "from": "json", "pointer": "/token" } });
+            if let Some((before, after)) = wrap {
+                origin["wrap"] = serde_json::json!([before, after]);
+            }
+            serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [
+                { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/api/token", "fields": [], "needs_browser": false },
+                { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/list", "needs_browser": false, "foreign": true, "fields": [
+                    { "loc": { "in": "header", "key": loc }, "class": "derived", "origin": origin },
+                ] },
+            ] }))
+            .unwrap()
+        };
+        let sent_in = |graph: &Graph, loc: &str| -> Vec<String> {
+            let mut site = Site { seen: RefCell::new(vec![]) };
+            let _ = replay(graph, &HashMap::new(), &mut site);
+            let seen = site.seen.borrow();
+            seen.iter().flat_map(|r| r.headers.iter()).filter(|(k, _)| k.eq_ignore_ascii_case(loc)).map(|(_, v)| v.clone()).collect()
+        };
+        assert_eq!(sent_in(&graph("authorization", None), "authorization"), ["site_tok_7f3a9c"], "control: the site's value as it gave it");
+        assert_eq!(sent_in(&graph("authorization", Some(("Bearer ", ""))), "authorization"), ["Bearer site_tok_7f3a9c"], "control: after a scheme");
+        for (loc, wrap) in [
+            ("authorization", ("Bearer attacker_tok_9911 ", "")),
+            ("authorization", ("Bearer ", " attacker_tok_9911")),
+            ("x-api-key", ("ak_attacker_", "")),
+        ] {
+            let sent = sent_in(&graph(loc, Some(wrap)), loc);
+            assert!(sent.iter().all(|v| !v.contains("attacker")), "{loc} {wrap:?}: the step sent text of the route's own: {sent:?}");
+        }
     }
 }
 
@@ -2149,6 +2814,52 @@ mod signing_tests {
         assert_eq!(types, vec!["text/event-stream"], "{:?}", sent[0].headers);
     }
 
+    /// A step nothing after it reads that comes back as the site's check for a person (a challenge page, served 2xx) is
+    /// the page's own: the route goes on without it, as a browser that never loaded that page would, and a later step
+    /// that holds what the walk read for a value (`Step::fallback`) still sends that value. Measured on a site whose
+    /// page is challenged plain and whose own search call answers: the page was the whole refusal.
+    #[test]
+    fn a_challenged_step_nothing_reads_is_skipped_and_the_call_goes_on() {
+        let graph: Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "steps": [
+                { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/templates?query=lamp", "needs_browser": false, "fields": [] },
+                { "exchange": 1, "method": "POST", "status": 200, "url": "https://shop.example/_ajax/masonry", "needs_browser": false,
+                  "fallbacks": [[{ "in": "header", "key": "x-app" }, "seo_landing_page"]],
+                  "fields": [{ "loc": { "in": "header", "key": "x-app" }, "class": "derived",
+                               "origin": { "exchange": 0, "url": "https://shop.example/templates", "at": { "from": "text", "before": "<meta name=\"app-name\" content=\"", "after": "\"", "nth": 0 } } }] }
+            ]
+        }))
+        .unwrap();
+        struct Challenged { seen: RefCell<Vec<(String, String)>> }
+        impl Fetch for Challenged {
+            /// This runner follows no redirect itself: its plain fetch is the unredirected one.
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                let app = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-app")).map(|(_, v)| v.clone()).unwrap_or_default();
+                self.seen.borrow_mut().push((req.url.path().to_string(), app));
+                let (mime, body) = if req.url.path() == "/templates" {
+                    ("text/html", "<html><head><title>Client Challenge</title><script src=\"/_fs-ch/errors.js\"></script></head><body></body></html>")
+                } else {
+                    ("application/json", r#"{"results":[{"title":"Lamp resume"}]}"#)
+                };
+                Ok(Exchange {
+                    method: req.method.clone(), url: req.url.clone(), request_headers: vec![], request_body: None, status: 200,
+                    response_headers: vec![("content-type".into(), mime.into())],
+                    response_body: Some(body.into()), response_mime: mime.into(), resource_type: None, main_frame: None,
+                })
+            }
+        }
+        let mut fetch = Challenged { seen: RefCell::new(vec![]) };
+        let run = replay(&graph, &HashMap::new(), &mut fetch).expect("the call answers without the page");
+        assert_eq!(&*fetch.seen.borrow(), &[("/templates".to_string(), String::new()), ("/_ajax/masonry".to_string(), "seo_landing_page".to_string())], "the target is sent with what the walk read");
+        assert_eq!(run.steps.len(), 1, "the challenged page is not one of the call's steps");
+        assert!(run.target.response_body.unwrap_or_default().contains("Lamp resume"));
+    }
+
     /// A one-time bootstrap the page skips on a warm session is not a browser step when the jar already holds what
     /// later steps read from it: the step is skipped and the jar answers.
     #[test]
@@ -2331,8 +3042,10 @@ mod signing_tests {
         assert_eq!(sent[0].headers.iter().find(|(k, _)| k == "x-sig").map(|(_, v)| v.as_str()), Some("sig-of-POST"));
     }
 
-    /// A transport with no signing bridge says so, and the step goes to the browser exactly as a computed value always
-    /// did: nothing about a route learned on a signed call changes for a runner that cannot run its producer.
+    /// A transport with no signing bridge says so, and a step that may change the site goes to the browser exactly as a
+    /// computed value always did: nothing about a route learned on a signed call changes for a runner that cannot run
+    /// its producer. (A step the write rule names a read goes as the route builds it instead: the site's answer says
+    /// whether it needed the page's values — see `a_post_the_write_rule_names_a_read_goes_as_the_route_builds_it`.)
     #[test]
     fn a_script_signed_step_with_no_bridge_still_goes_to_the_browser() {
         struct Plain;
@@ -2346,7 +3059,9 @@ mod signing_tests {
                 panic!("a script-signed step must not be sent unsigned")
             }
         }
-        let err = replay(&signed(), &HashMap::new(), &mut Plain).unwrap_err();
+        let mut writing = signed();
+        writing.steps[0].url = "https://shop.example/api/cart/items".into();
+        let err = replay(&writing, &HashMap::new(), &mut Plain).unwrap_err();
         assert!(matches!(err, ReplayError::NeedsBrowser { step: 1, .. }), "{err:?}");
     }
 
@@ -2597,8 +3312,29 @@ mod reseed_tests {
     }
 }
 
+/// Fake wires for tests: a type that answers a request one way, plain or redirected alike, and may stand in for a
+/// runner's session, is a [`Fetch`] by this one impl, so no test restates the two fetches.
+#[cfg(test)]
+pub(crate) mod fake_wire {
+    use super::*;
+
+    pub trait Answer {
+        fn answer(&mut self, req: &Request) -> Result<Exchange, ReplayError>;
+        fn session_values(&mut self, _exchange: usize) -> Option<Vec<(String, String)>> { None }
+        fn minted(&self, _name: &str) -> Option<String> { None }
+    }
+
+    impl<T: Answer> Fetch for T {
+        fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> { self.answer(req) }
+        fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> { self.answer(req) }
+        fn session_values(&mut self, exchange: usize) -> Option<Vec<(String, String)>> { Answer::session_values(self, exchange) }
+        fn minted(&self, name: &str) -> Option<String> { Answer::minted(self, name) }
+    }
+}
+
 #[cfg(test)]
 mod rekey_tests {
+    use super::fake_wire::Answer;
     use super::*;
 
     /// A value read from an entry keyed by what the caller sent follows what the caller sends now: the item's page
@@ -2696,6 +3432,7 @@ mod rekey_tests {
             fields: vec![piece("/date", 0, 10), piece("/time", 11, 5)],
             body: Some(Body::Json { template: serde_json::json!({"date": null, "time": null}), types: [("/date", "string"), ("/time", "string")].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect() }),
             response_shape: None, needs_browser: false, sets_cookie: false, on_load: false, foreign: false, held: Vec::new(), reads_page: false,
+            fallbacks: Vec::new(),
         };
         let graph = Graph { steps: vec![step], provisional: false, page_origin: None, ..Graph::default() };
         let mut seen = None;
@@ -2740,6 +3477,7 @@ mod rekey_tests {
             on_load: false,
             foreign: false,
             held: vec![held(Loc::Query("data".into()), "kitchen", Written::Json), held(Loc::Query("from".into()), "kitchen", Written::Percent)],
+            fallbacks: Vec::new(),
         };
         let graph = Graph { steps: vec![step], provisional: false, page_origin: None, ..Graph::default() };
         let mut seen = None;
@@ -2774,6 +3512,7 @@ mod rekey_tests {
             page_producers: Vec::new(),
             exchange: 0, method: "POST".into(), status: 200, url: "https://book.example/api".into(), fields, body: Some(body),
             response_shape: None, needs_browser: false, sets_cookie: false, on_load: false, foreign: false, held: Vec::new(), reads_page: false,
+            fallbacks: Vec::new(),
         };
         let list = step(
             Body::Json {
@@ -2808,6 +3547,7 @@ mod rekey_tests {
                 types: (0..4).map(|n| (format!("/ids/{n}"), "number".to_string())).collect(),
             }),
             response_shape: None, needs_browser: false, sets_cookie: false, on_load: false, foreign: false, held: Vec::new(), reads_page: false,
+            fallbacks: Vec::new(),
         };
         assert!(follows_a_list(&step, &Loc::Json("/ids/2".into()), 0) && !follows_a_list(&step, &Loc::Json("/ids/0".into()), 0));
         let read = |ns: &[usize]| ns.iter().map(|n| (Loc::Json(format!("/ids/{n}")), (n + 7).to_string())).collect::<Vec<_>>();
@@ -2832,6 +3572,7 @@ mod rekey_tests {
             ],
             body: Some(Body::Form { fields: vec![("q".into(), None), ("count".into(), Some("10".into())), ("first".into(), Some("0".into()))] }),
             response_shape: None, needs_browser: false, sets_cookie: false, on_load: false, foreign: false, held: Vec::new(), reads_page: false,
+            fallbacks: Vec::new(),
         };
         let given = [(Loc::Form("q".into()), "index funds".to_string()), (Loc::Form("count".into()), "25".to_string())];
         assert_eq!(request_body(0, &step, &given).unwrap().unwrap(), "q=index+funds&count=25&first=0");
@@ -2853,6 +3594,7 @@ mod rekey_tests {
             fields: vec![Field { loc: Loc::Json("/offset".into()), class: Class::Unconfirmed { value: "10".into() } }],
             body: Some(Body::Json { template: serde_json::json!({ "q": "backup", "size": 10, "offset": 0 }), types: Default::default() }),
             response_shape: None, needs_browser: false, sets_cookie: false, on_load: false, foreign: false, held: Vec::new(), reads_page: false,
+            fallbacks: Vec::new(),
         };
         let given = [(Loc::Json("/offset".into()), "10".to_string())];
         assert_eq!(request_body(0, &step, &given).unwrap().unwrap(), r#"{"q":"backup","size":10,"offset":0}"#, "unopened, the walk's copy");
@@ -2888,15 +3630,85 @@ mod rekey_tests {
         assert!(matches!(refused, ReplayError::Door { .. }), "{refused:?}");
     }
 
+    /// A site that says it is out of asks (429) is asking to be asked again, not refusing: the second ask is the
+    /// call's answer. The wait is the interval the site names, so the test costs nothing.
     #[test]
-    fn an_unset_optional_input_is_not_sent() {
-        use crate::graph::{Body, Class, Field, Step};
+    fn a_site_out_of_asks_is_asked_again_and_the_second_ask_is_the_calls_answer() {
+        let graph: Graph = serde_json::from_value(serde_json::json!({
+            "steps": [{"exchange": 0, "method": "GET", "status": 200, "url": "https://site.example/search?q={q}", "needs_browser": false,
+                "fields": [{"loc": {"in": "query", "key": "q"}, "class": "input", "name": "q", "secret": false, "default": "mars"}]}],
+            "provisional": false
+        }))
+        .unwrap();
+        let mut answers = BusyThenFree { busy: 2, asked: 0 };
+        let got = replay(&graph, &HashMap::new(), &mut answers).expect("the second ask is the answer");
+        assert_eq!(got.target.response_body.as_deref(), Some("{\"results\":[{\"title\":\"Mars\"}]}"));
+        assert_eq!(answers.asked, 3, "one ask and the two the site asked for");
+    }
+
+    /// A site that keeps saying it is busy is refused with its own status, after a bounded number of asks: a call
+    /// never sits on a wall that only time clears.
+    #[test]
+    fn a_site_that_keeps_saying_it_is_busy_is_refused_with_its_own_status() {
+        let graph: Graph = serde_json::from_value(serde_json::json!({
+            "steps": [{"exchange": 0, "method": "GET", "status": 200, "url": "https://site.example/search?q={q}", "needs_browser": false,
+                "fields": [{"loc": {"in": "query", "key": "q"}, "class": "input", "name": "q", "secret": false, "default": "mars"}]}],
+            "provisional": false
+        }))
+        .unwrap();
+        let mut answers = BusyThenFree { busy: 99, asked: 0 };
+        let refused = replay(&graph, &HashMap::new(), &mut answers).expect_err("still busy");
+        assert!(matches!(refused, ReplayError::Failed { status: 429, .. }), "{refused:?}");
+        assert_eq!(answers.asked, 1 + ASKED_AGAIN, "asked, and asked the bounded number of times more");
+    }
+
+    /// A step that may change the site is never sent twice, whatever the site says: the same rule that holds a heal
+    /// holds this.
+    #[test]
+    fn a_step_that_may_write_is_not_sent_again_when_the_site_says_it_is_busy() {
+        let graph: Graph = serde_json::from_value(serde_json::json!({
+            "steps": [{"exchange": 0, "method": "POST", "status": 200, "url": "https://site.example/api/orders", "needs_browser": false,
+                "fields": [], "body": {"kind": "json", "template": {"q": "mars"}, "types": {}}}],
+            "provisional": false
+        }))
+        .unwrap();
+        let mut answers = BusyThenFree { busy: 1, asked: 0 };
+        let refused = replay(&graph, &HashMap::new(), &mut answers).expect_err("a write is not retried");
+        assert!(matches!(refused, ReplayError::Failed { status: 429, .. }), "{refused:?}");
+        assert_eq!(answers.asked, 1, "the commit was sent once");
+    }
+
+    /// A site that answers "too many requests" a few times and then the answer, and counts the asks, each answered
+    /// with the interval the node's own wait is held to (`Retry-After: 0`), so a test is not spent on waiting.
+    struct BusyThenFree {
+        busy: usize,
+        asked: usize,
+    }
+    impl Fetch for BusyThenFree {
+        fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            self.asked += 1;
+            let (status, headers, body) = if self.asked <= self.busy {
+                (429, vec![("retry-after".to_string(), "0".to_string())], "429 Too Many Requests".to_string())
+            } else {
+                (200, Vec::new(), "{\"results\":[{\"title\":\"Mars\"}]}".to_string())
+            };
+            Ok(Exchange { method: req.method.clone(), url: req.url.clone(), request_headers: vec![], request_body: None, status,
+                response_headers: headers, response_body: Some(body), response_mime: "application/json".into(), resource_type: None, main_frame: None })
+        }
+        fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            self.fetch(req)
+        }
+    }
+
+    #[test]
+    fn an_unset_optional_input_is_not_sent() {        use crate::graph::{Body, Class, Field, Step};
         let optional = |loc: Loc, name: &str| Field { loc, class: Class::Input { name: name.into(), secret: false, default: None, optional: true } };
         let step = |body: Option<Body>, fields: Vec<Field>| Step {
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0, method: "POST".into(), status: 200, url: "https://shop.example/api".into(), fields, body,
             response_shape: None, needs_browser: false, sets_cookie: false, on_load: false, foreign: false, held: Vec::new(), reads_page: false,
+            fallbacks: Vec::new(),
         };
         let json = step(
             Some(Body::Json { template: serde_json::json!({"q": "lamp", "after": null}), types: [("/after".to_string(), "string".to_string())].into() }),
@@ -2918,6 +3730,191 @@ mod rekey_tests {
         let e = ReplayError::Failed { step: 1, url: "https://shop.example/x".into(), status: 404, body: "<!doctype html><html><head><title>Gone</title><script>var a=1</script></head><body><h1>Nothing here</h1></body></html>".into() };
         let said = e.to_string();
         assert!(said.contains("Gone") && said.contains("Nothing here") && !said.contains('<'), "{said}");
+    }
+
+    /// A site that has moved on since the route was learned (a refusal of the session, a door, a source or shape that
+    /// is not where it was, a session value gone) is stale, and a reseed may mend it; a call that was wrong, or a
+    /// failure that is the site's own, is not.
+    #[test]
+    fn an_answer_that_says_the_session_moved_is_stale_and_one_that_says_otherwise_is_not() {
+        use super::*;
+        let failed = |status: u16| ReplayError::Failed { step: 1, url: "https://shop.example/x".into(), status, body: String::new() };
+        let missing = || ReplayError::SourceMissing { step: 1, url: "https://shop.example/x".into(), loc: Loc::Url };
+        let shape = || ReplayError::ShapeMismatch { expected: serde_json::json!({}), got: serde_json::json!([]) };
+        for stale in [failed(401), failed(403), missing(), shape(), ReplayError::MissingMinted("sid".into())] {
+            assert!(stale.is_stale(), "{stale}");
+        }
+        for fine in [failed(404), failed(500), ReplayError::MissingInput("q".into()), ReplayError::Transport("EOF".into()), ReplayError::Refused("rule".into())] {
+            assert!(!fine.is_stale(), "{fine}");
+        }
+    }
+
+    /// A runner that implements only the two fetches keeps no session and no storage: it holds no cookie, no stored
+    /// value, no session-only step and no page of its own, a reseed is nothing to do, and no step is the browser's.
+    #[test]
+    fn a_runner_that_keeps_no_session_holds_nothing() {
+        use super::*;
+        struct Bare;
+        impl Fetch for Bare {
+            fn fetch(&mut self, _: &Request) -> Result<Exchange, ReplayError> { Err(ReplayError::Transport("never".into())) }
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> { self.fetch(req) }
+        }
+        let mut bare = Bare;
+        let root = Request { method: "GET".into(), url: "https://shop.example/".parse().unwrap(), exchange: 0, headers: vec![], body: None };
+        assert_eq!(bare.minted("sid"), None);
+        assert_eq!(bare.minted_cookie("sid", Some("shop.example")), None);
+        assert_eq!(bare.stored(unbrowse_route::expr::Area::Local, "seed"), None);
+        assert_eq!(bare.session_values(0), None);
+        assert!(bare.reseed(&root).is_ok(), "a reseed with no session to mint is nothing to do");
+        assert!(!bare.browser_made(0));
+        assert!(bare.allows(&root).is_ok());
+        assert_eq!(bare.file_root(), crate::files::root());
+        assert!(matches!(bare.fetch_unredirected(&root), Err(ReplayError::Transport(_))), "its plain fetch is its only fetch");
+    }
+
+    /// What a route reads from the page it carries: a text marker is read off the carried markup, a live value (a
+    /// header, a parsed script) needs the page fetched, and a route that reads nothing from it, or carries none, says so.
+    #[test]
+    fn a_route_says_whether_it_reads_the_page_it_carries_as_text_live_or_not_at_all() {
+        use super::*;
+        let reading = |at: serde_json::Value, page: bool| -> Graph {
+            let mut graph = serde_json::json!({
+                "provisional": false,
+                "steps": [
+                    { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/", "reads_page": true, "needs_browser": false, "fields": [] },
+                    { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/items", "needs_browser": false,
+                      "fields": [{ "loc": { "in": "header", "key": "x-build" }, "class": "derived", "origin": { "exchange": 0, "url": "https://shop.example/", "at": at } }] }
+                ]
+            });
+            if page {
+                graph["page_html"] = serde_json::json!("<html>shop</html>");
+            }
+            serde_json::from_value(graph).unwrap()
+        };
+        let text = serde_json::json!({ "from": "text", "before": "content=\"", "after": "\"", "nth": 0 });
+        let header = serde_json::json!({ "from": "header", "name": "x-build" });
+        assert_eq!(page_reads(&reading(text.clone(), true)), "text");
+        assert_eq!(page_reads(&reading(header, true)), "live");
+        assert_eq!(page_reads(&reading(text, false)), "none", "no carried page, nothing to read");
+        let mut unread = reading(serde_json::json!({ "from": "header", "name": "x" }), true);
+        unread.steps[1].fields.clear();
+        assert_eq!(page_reads(&unread), "none", "a page nothing reads");
+    }
+
+    /// A step answered from the runner's store (a challenge's clearance cookie) never touches the network: its
+    /// headers stand as its answer, and a later step reads a value off them.
+    #[test]
+    fn a_step_the_store_answers_is_never_sent_and_its_headers_feed_the_next() {
+        use super::*;
+        let graph: Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "steps": [
+                { "exchange": 0, "method": "POST", "status": 200, "url": "https://shop.example/challenge", "needs_browser": false, "fields": [] },
+                { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/items", "needs_browser": false,
+                  "fields": [{ "loc": { "in": "header", "key": "x-clear" }, "class": "derived", "origin": { "exchange": 0, "url": "https://shop.example/challenge", "at": { "from": "header", "name": "x-clearance" } } }] }
+            ]
+        }))
+        .unwrap();
+        struct Store { sent: Vec<Request> }
+        impl Answer for Store {
+            fn answer(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.sent.push(req.clone());
+                Ok(Exchange { method: req.method.clone(), url: req.url.clone(), request_headers: vec![], request_body: None, status: 200, response_headers: vec![], response_body: Some(r#"{"items":[]}"#.into()), response_mime: "application/json".into(), resource_type: None, main_frame: None })
+            }
+            fn session_values(&mut self, exchange: usize) -> Option<Vec<(String, String)>> {
+                (exchange == 0).then(|| vec![("x-clearance".to_string(), "clear-9".to_string())])
+            }
+        }
+        let mut store = Store { sent: vec![] };
+        let run = replay(&graph, &HashMap::new(), &mut store).unwrap();
+        assert_eq!(store.sent.len(), 1, "only the target goes out");
+        assert_eq!(store.sent[0].url.path(), "/api/items");
+        assert!(store.sent[0].headers.iter().any(|(k, v)| k == "x-clear" && v == "clear-9"), "{:?}", store.sent[0].headers);
+        assert_eq!(run.steps.len(), 2, "the store's step is counted as answered");
+        assert_eq!(run.rungs[0], Rung::Walk);
+    }
+
+    /// A call the page made that the site now refuses, and that nothing after it reads, is the page's own: the route
+    /// goes on without it. The target's own refusal is the call's failure.
+    #[test]
+    fn a_refused_step_nothing_reads_is_skipped_and_the_targets_refusal_fails_the_call() {
+        use super::*;
+        let graph: Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "steps": [
+                { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/api/ping", "needs_browser": false, "fields": [] },
+                { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/items", "needs_browser": false, "fields": [] }
+            ]
+        }))
+        .unwrap();
+        struct Refuses { target: u16 }
+        impl Answer for Refuses {
+            fn answer(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                let status = if req.url.path() == "/api/ping" { 404 } else { self.target };
+                Ok(Exchange { method: req.method.clone(), url: req.url.clone(), request_headers: vec![], request_body: None, status, response_headers: vec![], response_body: Some(r#"{"items":[]}"#.into()), response_mime: "application/json".into(), resource_type: None, main_frame: None })
+            }
+        }
+        let run = replay(&graph, &HashMap::new(), &mut Refuses { target: 200 }).expect("the ping is the page's own");
+        assert_eq!(run.steps.len(), 1, "the refused step is not counted");
+        assert_eq!(run.steps[0].0, "https://shop.example/api/items");
+        let refused = replay(&graph, &HashMap::new(), &mut Refuses { target: 500 });
+        assert!(matches!(&refused, Err(ReplayError::Failed { step: 2, status: 500, .. })), "{refused:?}");
+    }
+
+    /// A caller's word that rides inside a longer text of a JSON body is written into that text, where no type says how.
+    #[test]
+    fn a_callers_word_is_written_into_the_json_leaf_it_rode_in() {
+        use super::*;
+        use crate::graph::{Body, Held, Step, Written};
+        let step = Step {
+            page_signed: false,
+            page_producers: Vec::new(),
+            exchange: 0, method: "POST".into(), status: 200, url: "https://shop.example/api".into(), fields: Vec::new(),
+            body: Some(Body::Json { template: serde_json::json!({"q": "red lamp, cheap", "n": 3}), types: Default::default() }),
+            response_shape: None, needs_browser: false, sets_cookie: false, on_load: false, foreign: false,
+            held: vec![Held { loc: Loc::Json("/q".into()), input: "q".into(), sits: "red lamp".into(), written: Written::Plain, inside: None }],
+            reads_page: false,
+            fallbacks: Vec::new(),
+        };
+        let given = [(Loc::Json("/q".into()), "blue desk, cheap".to_string())];
+        assert_eq!(request_body(0, &step, &given).unwrap().unwrap(), r#"{"q":"blue desk, cheap","n":3}"#);
+    }
+
+    /// A one-time bootstrap is held for later only when the jar already holds what later steps read from it: a header's
+    /// token the jar keeps, and not one a later step reads into a query.
+    #[test]
+    fn a_bootstrap_is_held_for_later_only_when_the_jar_holds_what_later_steps_read_from_it() {
+        use super::*;
+        let graph = |key: serde_json::Value| -> Graph {
+            serde_json::from_value(serde_json::json!({
+                "provisional": false,
+                "page": "https://shop.example/search",
+                "steps": [
+                    { "exchange": 0, "method": "POST", "status": 200, "url": "https://shop.example/bootstrap", "needs_browser": true,
+                      "page_signed": true,
+                      "page_producers": [{ "loc": { "in": "header", "key": "x-sig" }, "producer": { "script": "https://shop.example/app.js", "at": 1 } }],
+                      "fields": [] },
+                    { "exchange": 1, "method": "POST", "status": 200, "url": "https://shop.example/api/target", "needs_browser": false,
+                      "fields": [{ "loc": key, "class": "derived", "origin": { "exchange": 0, "url": "https://shop.example/bootstrap", "at": { "from": "json", "pointer": "/tok" } } }] }
+                ]
+            }))
+            .unwrap()
+        };
+        struct Jar { held: bool }
+        impl Answer for Jar {
+            fn answer(&mut self, _: &Request) -> Result<Exchange, ReplayError> { Err(ReplayError::Transport("never".into())) }
+            fn minted(&self, name: &str) -> Option<String> {
+                (self.held && name == "x-tok").then(|| "jar-tok".into())
+            }
+        }
+        let held = |key: serde_json::Value, held: bool| {
+            let graph = graph(key);
+            held_for_later(&graph, &graph.steps[0], &mut Jar { held })
+        };
+        let header = || serde_json::json!({ "in": "header", "key": "x-tok" });
+        assert!(held(header(), true), "the jar holds the token the later step reads");
+        assert!(!held(header(), false), "the jar lacks it");
+        assert!(!held(serde_json::json!({ "in": "query", "key": "x-tok" }), true), "a query is not the jar's");
     }
 }
 

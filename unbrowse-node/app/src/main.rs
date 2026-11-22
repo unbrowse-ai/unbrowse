@@ -4,7 +4,13 @@ mod agents;
 mod agent_user;
 mod api;
 mod apischema;
+mod connect;
+// The classifier of an older Unbrowse's entries, which `connect` shares with `unb`.
+#[path = "bin/unb/legacy.rs"]
+#[allow(dead_code)]
+mod legacy;
 mod signed_client;
+mod solver;
 mod applinks;
 mod arc;
 mod autobounty;
@@ -23,16 +29,21 @@ mod erc8004;
 #[cfg(test)]
 mod formats;
 mod frames;
+mod gateway;
 mod hands;
 mod health;
 mod import;
+mod keychain_logins;
 mod inflight;
 mod leak;
 mod learn;
 mod listing;
 mod link;
+mod login;
+mod onboard;
 mod money;
 mod network;
+mod owner_authn;
 mod owner_dialog;
 mod tty;
 mod owner_nodes;
@@ -42,8 +53,10 @@ mod passkey;
 mod peers;
 #[cfg(test)]
 mod primitives;
+mod prune;
 mod rank;
 mod recipe;
+mod remote;
 mod report;
 mod reserve;
 mod routelink;
@@ -56,11 +69,15 @@ mod share;
 mod session_held;
 mod socket;
 mod challenge;
+mod clearance;
+mod outcome;
 mod store;
 mod telemetry;
 mod terms;
 #[cfg(test)]
 mod testchain;
+#[cfg(test)]
+mod test_alloc;
 mod update;
 mod vault;
 mod watchtower;
@@ -677,7 +694,10 @@ async fn vault_import(node: St<'_>, text: String) -> Result<vault::Imported, Str
 }
 
 fn vault_add(node: St, site: String, account: String, kind: String, password: Option<String>) -> Result<vault::Login, String> {
-    vault::add(&node_vault(node)?, &site, &account, &kind, password.as_deref(), "You")
+    let login = vault::add(&node_vault(node)?, &site, &account, &kind, password.as_deref(), "You")?;
+    // An agent waiting on the owner for this login (`vault:ask:`) goes on now: the vault holds it.
+    hands::login_added(&login.site, &login.account);
+    Ok(login)
 }
 
 /// The window's card, read as `vault card add` reads one: its security code is kept only while the vault keeps them
@@ -1213,7 +1233,7 @@ fn chain_status(node: St) -> ChainStatus {
             // On a live network the chain can be up with no Settlement to use yet: that is why the money is down.
             settlement_missing = error.is_none() && d.is_none();
             error = error.or_else(|| node.chain.deployed().err());
-            (net.name.to_string(), chain::url().to_string())
+            (net.name.to_string(), crate::gateway::shown(chain::url().as_str()))
         }
         None => (chain::DEVNET.to_string(), "Local devnet (Anvil)".into()),
     };
@@ -1813,6 +1833,90 @@ fn agent_token_cli(args: &[String]) -> i32 {
     }
 }
 
+// ---- MCP clients: the window's Connect (`connect.rs`) ----
+
+/// The node's address and the entry its Connect writes: `unb` beside this node, this node's own port.
+fn client_entry(node: St<'_>) -> (String, serde_json::Value) {
+    let base = format!("http://127.0.0.1:{}", node.info.api_port);
+    let entry = connect::entry(std::path::Path::new(&agents::unb_program()), &base);
+    (base, entry)
+}
+
+/// Where each connect run keeps what it changed, for `agent_connect_undo`.
+fn connect_records() -> std::path::PathBuf {
+    store::home().join("connect")
+}
+
+fn agent_clients(node: St<'_>) -> serde_json::Value {
+    let (base, entry) = client_entry(node);
+    serde_json::json!({ "clients": connect::clients(&legacy::Machine::here(&base), &entry) })
+}
+
+/// The agent `unb mcp --agent first` speaks for, as `hand_out_token` picks it: the key the node made itself, else the
+/// first live one.
+fn first_live_agent() -> Option<agents::Agent> {
+    let now = store::now();
+    let live: Vec<agents::Agent> = agents::list().into_iter().filter(|a| !a.revoked && a.expires > now && a.gateway.is_none()).collect();
+    live.iter().find(|a| a.auto).or_else(|| live.first()).cloned()
+}
+
+/// The first agent's name when connecting a client would hand out its token for the first time, which the owner is asked
+/// about (`commands::asks_the_owner`); `None` when its grant is already there or the root key is in a plain file.
+fn connect_needs_yes() -> Option<String> {
+    if root_in_file() {
+        return None;
+    }
+    match first_live_agent() {
+        Some(a) if agents::read_grant(a.index).is_some() && std::fs::read_to_string(agents::first_path()).ok().and_then(|f| f.trim().parse::<u32>().ok()) == Some(a.index) => None,
+        Some(a) => Some(a.name),
+        None => Some(agents::FIRST.to_string()),
+    }
+}
+
+/// Connects the named clients: the first agent's grant is written (the owner's yes was asked for before this ran), then
+/// `connect::connect` checks the entry answers and writes each client's config.
+async fn agent_connect(node: St<'_>, ids: Vec<String>) -> Result<serde_json::Value, String> {
+    let chosen = ids.iter().map(|i| connect::Client::from_id(i).ok_or_else(|| format!("{}: not a client Unbrowse connects", i.chars().take(40).collect::<String>()))).collect::<Result<Vec<_>, _>>()?;
+    if chosen.is_empty() {
+        return Err("name the clients to connect".into());
+    }
+    let keys = node.key()?;
+    let agent = match first_live_agent() {
+        Some(a) => a,
+        None => agents::ensure_first(keys, node.info.api_port)?.ok_or("this node has no live agent key: add one in Money, Agents, then connect")?,
+    };
+    let root = unbrowse_core::RootKey::load(keys).map_err(|e| format!("couldn't read the node's root key: {e}"))?;
+    agents::write_grant(agent.index, &agents::token_of(&root, &agent), true)?;
+    let (base, entry) = client_entry(node);
+    let outcomes = tokio::task::spawn_blocking(move || {
+        let m = legacy::Machine::here(&base);
+        connect::connect(&m, &chosen, &entry, &connect_records(), &connect::stamp(store::now()), connect::find_claude(&m).as_deref(), &mut connect::verify)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let done: Vec<&str> = outcomes.iter().filter(|o| o.ok).map(|o| o.name).collect();
+    if !done.is_empty() {
+        store::log_activity(&store::Activity {
+            at: store::now(),
+            who: "You".into(),
+            site: "This node".into(),
+            what: format!("Connected {} as {}", done.join(", "), agent.name),
+            kind: "key".into(),
+            result: "done".into(),
+            ms: None,
+            unb: None,
+            tx: None,
+            note: None,
+        });
+    }
+    Ok(serde_json::json!({ "results": outcomes }))
+}
+
+async fn agent_connect_undo() -> Result<serde_json::Value, String> {
+    let restored = tokio::task::spawn_blocking(|| connect::undo(&connect_records())).await.map_err(|e| e.to_string())??;
+    Ok(serde_json::json!({ "restored": restored.into_iter().map(|(c, p)| serde_json::json!({ "id": c.id(), "name": c.name(), "path": p.display().to_string() })).collect::<Vec<_>>() }))
+}
+
 /// Why an agent's token wasn't handed out.
 #[derive(Debug)]
 enum Handout {
@@ -1831,7 +1935,8 @@ enum Handout {
 /// user's to read already: nothing is asked then, as for every command that uses it (`shell_owner_yes`).
 fn hand_out_token(keys: &dyn unbrowse_core::KeyStore, key_in_file: bool, index: Option<u32>) -> Result<String, Handout> {
     let now = store::now();
-    let live: Vec<agents::Agent> = agents::list().into_iter().filter(|a| !a.revoked && a.expires > now).collect();
+    // A remote key is handed out by `remote`, never here: it opens the node only through its gateway.
+    let live: Vec<agents::Agent> = agents::list().into_iter().filter(|a| !a.revoked && a.expires > now && a.gateway.is_none()).collect();
     let Some(agent) = (match index {
         Some(i) => live.iter().find(|a| a.index == i),
         None => live.iter().find(|a| a.auto).or_else(|| live.first()),
@@ -2366,6 +2471,42 @@ const AGENT_USER_USAGE: &str = "usage: unbrowse-node agent-user install [--agent
        unbrowse-node agent-user status                                             check, as that user, that none of the owner's secrets can be read
        unbrowse-node agent-user remove [--yes]                                     remove the user and its home";
 
+const LEARN_WALK_USAGE: &str = "usage: UNBROWSE_LAB=1 unbrowse-node learn-walk <capture.jsonl> <url> <goal>";
+
+/// The lab's own words, for measuring the engine, not for owners: run only with `UNBROWSE_LAB=1`, and left out of
+/// `NODE_COMMAND_WORDS`, `--help` and the SDKs' command tables. Without it the word is a command the node doesn't have.
+/// `None` when the words aren't a lab command (or the lab is off); `Some(code)` when one ran.
+fn lab_cli(args: &[String]) -> Option<i32> {
+    if !std::env::var("UNBROWSE_LAB").is_ok_and(|v| v.trim() == "1") {
+        return None;
+    }
+    match args.get(1).map(String::as_str) {
+        Some("learn-walk") => Some(learn_walk_cli(&args[2..])),
+        _ => None,
+    }
+}
+
+/// `UNBROWSE_LAB=1 unbrowse-node learn-walk <capture.jsonl> <url> <goal>`: learn the goal's route from a walk kept on
+/// disk, with no browser and no site asked (`learn::learn_kept_walk`), and keep it in this home's routes. Prints the
+/// route's id. A fresh home learns it with an empty jar, so whatever answers the route afterwards answers from the
+/// route alone. The bank loop's measure (UNB-246, UNB-256); not an owner's command.
+fn learn_walk_cli(args: &[String]) -> i32 {
+    let [capture, url, goal] = args else {
+        eprintln!("{LEARN_WALK_USAGE}");
+        return 2;
+    };
+    match learn::learn_kept_walk(std::path::Path::new(capture), url, goal) {
+        Ok(route) => {
+            println!("{}", route.id);
+            0
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            1
+        }
+    }
+}
+
 /// `unbrowse-node agent-user …`: agents as an OS user of their own (`agent_user`).
 fn agent_user_cli(args: &[String]) -> i32 {
     let flag = |f: &str| args.iter().any(|a| a == f);
@@ -2723,12 +2864,27 @@ fn network_cli(args: &[String]) -> i32 {
                 "kept off: the node announces only the routes you list; using a route says nothing to the network"
             }
         }
+        // Where another machine reaches this node: for `unb mcp --peer` (graph `gateway.direct`).
+        Some("addrs") => {
+            let (peer, addrs) = peers::dial_addresses();
+            let Some(peer) = peer else {
+                println!("the node hasn't published where it is yet: it does once it has joined the peer network");
+                return 0;
+            };
+            println!("peer {peer}");
+            for a in &addrs {
+                println!("{a}");
+            }
+            println!("From another machine: unb mcp --peer {peer}{}", addrs.iter().map(|a| format!(" --addr {a}")).collect::<String>());
+            println!("with a key made for the peer network (`unbrowse-node remote peer key`): until there is one, the node takes no MCP over it");
+            return 0;
+        }
         Some("full") => {
             s.light = false;
             "full: once no call is under way the node restarts, then answers lookups (and seeds the route bodies it fetched, if you serve kept routes)"
         }
         _ => {
-            eprintln!("usage: unbrowse-node network [on|off|light|full|kept on|kept off]");
+            eprintln!("usage: unbrowse-node network [on|off|light|full|kept on|kept off|addrs]");
             return 2;
         }
     };
@@ -2946,53 +3102,42 @@ fn share_route_cli(id: &str, on: bool) -> Result<(), String> {
     Ok(())
 }
 
-/// `sign-in`: links another wallet to this node, on the website with Privy, or with a wallet of their own. Never needed
-/// to join: the node is on the network with its own wallet (spec §86). A linked wallet receives withdrawals, and its
-/// deposit can pay for several nodes.
-/// - `sign-in` opens the website's sign-in and waits for it;
+/// `sign-in`: links another wallet to this node, on the website with Privy, or with a wallet of their own, through the
+/// headless sign-in (`login`), which needs no window. Never needed to join: the node is on the network with its own
+/// wallet (spec §86). A linked wallet receives withdrawals, and its deposit can pay for several nodes.
+/// - `sign-in` opens the website's sign-in (or, with no browser here, says its address) and waits for it;
 /// - `sign-in --wallet <address>` prints the message that wallet signs, and its nonce;
-/// - `sign-in --wallet <address> --nonce <nonce> --signature <0x…>` links it with what it signed.
+/// - `sign-in --wallet <address> --nonce <nonce> --signature <0x…>` links it with what it signed;
+/// - `sign-in --key-file <path>` signs with the wallet key in that file (the owner's alone), here: nothing else needed.
 ///
 /// Then it says what linking does and shows which routes the node will share, which the first listing waits for.
 fn sign_in_cli(args: &[String]) -> i32 {
     let a: Vec<&str> = args.iter().map(String::as_str).collect();
     let done = (|| -> Result<(), String> {
-        match a.as_slice() {
-            [] => {
-                let started = owner_call("link_start", serde_json::json!({}))?;
-                println!("sign in with email or Google at {}", started["url"].as_str().unwrap_or_default());
-                if started["opened"] == true {
+        let way = match a.as_slice() {
+            [] => login::Way::Website,
+            ["--wallet", owner] => login::Way::Message { owner: owner.to_string() },
+            ["--wallet", owner, "--nonce", nonce, "--signature", sig] => login::Way::Signed { owner: owner.to_string(), nonce: nonce.to_string(), signature: sig.to_string() },
+            ["--key-file", path] => login::Way::Key(login::key_from_file(std::path::Path::new(path))?),
+            _ => return Err("usage: unbrowse-node sign-in [--wallet <address> [--nonce <nonce> --signature <0x…>] | --key-file <path>]".into()),
+        };
+        let said = &mut |step: login::Step| match step {
+            login::Step::Page { url, opened } => {
+                println!("sign in with email or Google at {url}");
+                if opened {
                     println!("(opened in your browser)");
                 }
-                println!("waiting for you to sign in…");
-                let mut linked = false;
-                for _ in 0..(15 * 60 / 2) {
-                    std::thread::sleep(std::time::Duration::from_secs(2));
-                    let st = owner_call("link_status", serde_json::json!({}))?;
-                    if let Some(e) = st["error"].as_str() {
-                        return Err(e.to_string());
-                    }
-                    if let Some(owner) = finished_link(&st) {
-                        println!("linked {owner} to this node");
-                        linked = true;
-                        break;
-                    }
-                }
-                if !linked {
-                    return Err("the sign-in wasn't finished in 15 minutes; run `unbrowse-node sign-in` again".into());
-                }
             }
-            ["--wallet", owner] => {
-                let m = owner_call("link_message", serde_json::json!({ "owner": owner }))?;
-                println!("sign this message with {} (as a plain message, personal_sign):\n\n{}\n", m["owner"].as_str().unwrap_or(owner), m["message"].as_str().unwrap_or_default());
-                println!("then: unbrowse-node sign-in --wallet {} --nonce {} --signature <0x…>", m["owner"].as_str().unwrap_or(owner), m["nonce"].as_str().unwrap_or_default());
+            login::Step::Waiting => println!("waiting for you to sign in…"),
+            login::Step::Asking { owner } => println!("linking {owner}: allow it in the dialog the node opens, or, on a machine with no screen, with `unbrowse-node confirm` on its terminal"),
+        };
+        match login::sign_in(&owner_call_within, way, &login::Waits::default(), said)? {
+            login::Done::ToSign { owner, message, nonce } => {
+                println!("sign this message with {owner} (as a plain message, personal_sign):\n\n{message}\n");
+                println!("then: unbrowse-node sign-in --wallet {owner} --nonce {nonce} --signature <0x…>");
                 return Ok(());
             }
-            ["--wallet", owner, "--nonce", nonce, "--signature", sig] => {
-                let st = owner_call("link_wallet", serde_json::json!({ "owner": owner, "nonce": nonce, "signature": sig }))?;
-                println!("linked {} to this node", st["owner"].as_str().unwrap_or(owner));
-            }
-            _ => return Err("usage: unbrowse-node sign-in [--wallet <address> [--nonce <nonce> --signature <0x…>]]".into()),
+            login::Done::Linked { owner } => println!("linked {owner} to this node"),
         }
         println!("{}", link::signed_in_note(store::load_settings().share_routes));
         println!();
@@ -3206,8 +3351,19 @@ fn vault_cli(args: &[String]) -> i32 {
             }
         }
         ("import", 2) => read_input(a(1)).and_then(|text| vault_import_cli(&text, a(1))),
+        ("keychain", 1) => {
+            let kept = vault::list();
+            for s in keychain_logins::listed() {
+                let held = if kept.iter().any(|l| l.site == s.server && l.account == s.account) { "in the vault" } else { "not in the vault yet" };
+                println!("vault:{}:{}\t{held}", s.server, s.account);
+            }
+            Ok(())
+        }
+        ("keychain", 4) if a(1) == "take" => cli_vault_keep()
+            .and_then(|k| vault::take_from_login_keychain(&k, a(2), a(3)))
+            .map(|l| println!("kept vault:{}:{} from the login keychain (sealed in the vault)", l.site, l.account)),
         _ => {
-            eprintln!("usage: unbrowse-node vault list | add <site> <account> [--stored] | remove <site> <account> | rotate <site> <account> | code <site> <account> | import <export | -> | card add <label> | card remove <label> | card codes [on | off] (keep cards' security codes, which card rules (PCI DSS) forbid keeping after a payment is authorised; off by default) | card approver [sdk | dialog] (who approves a card payment: the dialog, or also the owner SDK, such as the daemon hub's Telegram bot; dialog by default) (a site's cookies: `unbrowse-node session import`)");
+            eprintln!("usage: unbrowse-node vault list | add <site> <account> [--stored] | keychain [take <site> <account>] (web logins saved in the macOS login keychain: listed, or kept in the vault now; any is kept on its first use anyway) | remove <site> <account> | rotate <site> <account> | code <site> <account> | import <export | -> | card add <label> | card remove <label> | card codes [on | off] (keep cards' security codes, which card rules (PCI DSS) forbid keeping after a payment is authorised; off by default) | card approver [sdk | dialog] (who approves a card payment: the dialog, or also the owner SDK, such as the daemon hub's Telegram bot; dialog by default) (a site's cookies: `unbrowse-node session import`)");
             return 2;
         }
     };
@@ -3343,7 +3499,7 @@ fn vault_import_cli(text: &str, path: &str) -> Result<(), String> {
         Err(_) if passkeys > 0 => vault::Imported::default(),
         Err(e) => return Err(e),
     };
-    let no_logins = logins.added + logins.known == 0 && logins.skipped.is_empty();
+    let no_logins = logins.added + logins.known + logins.restored == 0 && logins.skipped.is_empty();
     if json && no_logins && passkeys == 0 {
         return Err(format!("nothing to import: no logins in this file, and {}", passkey::NONE_IN_FILE));
     }
@@ -3355,6 +3511,9 @@ fn vault_import_cli(text: &str, path: &str) -> Result<(), String> {
             logins.codes,
             logins.known
         );
+        if logins.restored > 0 {
+            println!("restored {} logins the vault couldn't read (an older build kept their passwords in the system's keystore)", logins.restored);
+        }
         for s in &logins.skipped {
             println!("left out {}: {}", s.count, s.why);
         }
@@ -3525,11 +3684,6 @@ fn passkey_cli(args: &[String]) -> i32 {
     }
 }
 
-/// The wallet a sign-in under way has linked, once it has: until it ends, `owner` is the link from before.
-fn finished_link(status: &serde_json::Value) -> Option<&str> {
-    (status["waiting"] != true).then(|| status["owner"].as_str()).flatten()
-}
-
 /// How long `passkey enrol` arms the site, in whole minutes as the node takes it (1 to 30, `passkey::arm`), and how long
 /// the command waits, in seconds: the same span. A shorter wait would say nothing was kept while a passkey could still be.
 fn enrol_span(asked: u64) -> (u64, u64) {
@@ -3653,6 +3807,10 @@ pub async fn owner(node: &Arc<Node>, cmd: &str, a: serde_json::Value) -> Result<
                 if !c.has_its_arguments(&a) {
                     return Err(OwnerError::Failed(format!("{cmd} is missing an argument it needs: nothing was done")));
                 }
+                // A malformed entry id is refused by name before the dialog, not after the owner said yes.
+                if a.get("entry").is_some() {
+                    entry_arg(&a, "entry")?;
+                }
                 owner_dialog::ask(node.key().ok(), question).await.map_err(OwnerError::Failed)?;
             }
             c.run(node, &a).await
@@ -3671,9 +3829,72 @@ fn backoff(wait: &mut std::time::Duration) -> std::time::Duration {
     now
 }
 
+/// How long the chain's start waits for the node's key to open before it reads the network's public RPC instead.
+const GATEWAY_KEY_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Signs and holds the running node's pass for Unbrowse's RPC gateway on the network it runs on (`gateway`), before its
+/// chain starts, and again every `gateway::RENEW`: the chain reads through the gateway while it takes the node, and the
+/// network's public RPC otherwise. Nothing on the devnet, and nothing while `UNBROWSE_RPC` names an RPC by hand.
+async fn hold_gateway_pass(n: &Arc<Node>) {
+    let Ok(chain::Mode::Live(l)) = chain::chosen() else { return };
+    if std::env::var("UNBROWSE_RPC").is_ok_and(|v| !v.trim().is_empty()) || crate::gateway::base().is_none() {
+        return;
+    }
+    // The key opens beside the chain's start (the identity is read in parallel): wait for it a little, so a node whose
+    // key opens a moment later still reads through the gateway, and say so when it never opens.
+    let waited = std::time::Instant::now();
+    let keys = loop {
+        match n.key() {
+            Ok(k) => break k,
+            Err(e) if waited.elapsed() >= GATEWAY_KEY_WAIT => {
+                eprintln!("rpc: no pass for Unbrowse's RPC, the node's key isn't open ({e}): the node reads the network's public RPC until it starts again");
+                return;
+            }
+            Err(_) => tokio::time::sleep(std::time::Duration::from_millis(250)).await,
+        }
+    };
+    if let Err(e) = crate::gateway::hold(keys, l.net.name) {
+        eprintln!("rpc: no pass for Unbrowse's RPC ({e}): the node reads the network's public RPC");
+        return;
+    }
+    let node = n.clone();
+    let network = l.net.name;
+    tokio::spawn(async move {
+        // Every RETAKE: a node off the gateway (refused before its owner signed in, or the gateway didn't answer) asks
+        // it again and moves back when it answers; every RENEW the pass is renewed, and a node on the gateway reads
+        // with the new one.
+        let mut renewed_at = std::time::Instant::now();
+        loop {
+            tokio::time::sleep(crate::gateway::RETAKE).await;
+            if renewed_at.elapsed() >= crate::gateway::RENEW {
+                renewed_at = std::time::Instant::now();
+                match node.key().and_then(|k| crate::gateway::hold(k, network)) {
+                    Ok(()) if chain::on_gateway() => {
+                        if let Some(url) = crate::gateway::url_for(network) {
+                            chain::use_rpc(&url);
+                        }
+                    }
+                    Ok(()) => {}
+                    Err(e) => eprintln!("rpc: couldn't renew the pass for Unbrowse's RPC: {e}"),
+                }
+            }
+            if chain::on_gateway() {
+                continue;
+            }
+            if let Some(url) = crate::gateway::url_held(network) {
+                if chain::retake(&url).await {
+                    crate::gateway::unrefuse();
+                    eprintln!("chain: {network} is read through Unbrowse's RPC again: it takes this node now");
+                }
+            }
+        }
+    });
+}
+
 /// Starts the chain, trying again until it starts: an RPC that doesn't answer yet, or a devnet that can't start yet,
 /// is said in the chain's status meanwhile.
 async fn start_chain(n: &Arc<Node>) {
+    hold_gateway_pass(n).await;
     let mut wait = BOOT_RETRY;
     loop {
         match n.chain.start().await {
@@ -3681,12 +3902,14 @@ async fn start_chain(n: &Arc<Node>) {
                 *n.chain_error.locked() = None;
                 if let Some(net) = n.chain.network() {
                     let settlement = d.map(|d| format!("Settlement {:#x}", d.settlement)).or_else(|| n.chain.deployed().err()).unwrap_or_default();
-                    eprintln!("chain: {} at {}; {settlement}", net.name, chain::url());
+                    eprintln!("chain: {} at {}; {settlement}", net.name, crate::gateway::shown(chain::url().as_str()));
                 }
                 n.events.emit("chain", ());
                 return;
             }
             Err(e) => {
+                // The chain's status is read by anyone on this machine (`health`), and the log is kept: no pass in either.
+                let e = crate::gateway::scrub(&e);
                 eprintln!("chain: {e}; trying again in {}s", wait.as_secs());
                 *n.chain_error.locked() = Some(e);
                 n.events.emit("chain", ());
@@ -3944,25 +4167,57 @@ pub async fn top_up(n: &Node) -> bool {
 use antithesis_instrumentation as _;
 
 /// The words `main` runs a command for, in the order it checks them.
-const NODE_COMMAND_WORDS: [&str; 27] = [
-    "agent new", "agent token", "agent cap", "earnings", "nodes", "browser", "vault", "terms", "checkout", "network", "coin", "max-fetch", "chain", "bounty",
-    "passkey", "session", "wallet", "share", "sign-in", "telemetry", "update", "restart", "reports", "passphrase", "confirm", "agent-user", "--help",
+const NODE_COMMAND_WORDS: [&str; 31] = [
+    "agent new", "agent token", "agent cap", "money", "earnings", "nodes", "browser", "vault", "terms", "checkout", "network", "remote", "coin", "max-fetch", "chain", "bounty", "domain",
+    "passkey", "session", "wallet", "share", "sign-in", "onboard", "telemetry", "update", "restart", "reports", "passphrase", "confirm", "agent-user", "--help",
 ];
+
+/// Whether the words after the program's name start the node, and the source tag they give: `Some(None)` for no
+/// words, `Some(Some(tag))` for `--from <tag>` or `--from=<tag>` alone, `None` for anything else (a command, help, a
+/// word it doesn't know). A `--from` with nothing after it still starts the node, with an empty tag for the start's
+/// warning to name (`telemetry::offered_from`): a wrong tag is never fatal.
+fn start_words(words: &[String]) -> Option<Option<String>> {
+    match words {
+        [] => Some(None),
+        [flag] if flag == "--from" => Some(Some(String::new())),
+        [flag, tag] if flag == "--from" => Some(Some(tag.clone())),
+        [one] => one.strip_prefix("--from=").map(|t| Some(t.to_string())),
+        _ => None,
+    }
+}
+
+/// Holds glibc to two heaps for the whole node. By default each thread that allocates gets a heap of its own (up to eight
+/// per core), and a heap keeps what was freed in it: the node's many worker threads each held the peak of the work they
+/// last did, so its memory only ever rose (UNB-139, measured on a copy of a node's routes: three searches in a row took
+/// it to 1,013, 1,425 and 1,710 MB with the default, and stayed near 1,110 MB with two heaps). An owner's own
+/// `MALLOC_ARENA_MAX` wins.
+fn few_heaps() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    if std::env::var_os("MALLOC_ARENA_MAX").is_none() {
+        // SAFETY: mallopt only sets an allocator parameter; it is called before the node starts a thread.
+        unsafe {
+            libc::mallopt(libc::M_ARENA_MAX, 2);
+        }
+    }
+}
 
 fn main() {
     // Registers the harness's assertion catalog before anything can reach an assertion.
     #[cfg(feature = "antithesis")]
     antithesis_sdk::antithesis_init();
+    few_heaps();
     let args: Vec<String> = std::env::args().collect();
+    // `--from <tag>` alone runs the node, as no words do (`unbrowse start --from <tag>`): it is a start, not a command.
+    let start = start_words(&args[1..]);
     // A shell's write the window's command would ask about is asked the same way, before it runs: an agent can reach a
     // shell, and the owner's yes is what the window's path asks for.
     if let Err(e) = shell_write_allowed(&args.iter().skip(1).map(String::as_str).collect::<Vec<_>>()) {
         eprintln!("{e}");
         std::process::exit(1);
     }
-    // Any word makes this a shell's command, never the node: each settings write it makes that the window's
-    // `save_settings` would ask about is asked about the same way, whichever command makes it.
-    if args.len() > 1 {
+    // Any word but a start's `--from` makes this a shell's command, never the node: each settings write it makes that
+    // the window's `save_settings` would ask about is asked about the same way, whichever command makes it.
+    if start.is_none() {
         store::ask_before_shell_writes(shell_settings_yes);
     }
     if args.get(1).map(String::as_str) == Some("agent") && args.get(2).map(String::as_str) == Some("new") {
@@ -4001,6 +4256,9 @@ fn main() {
     if args.get(1).map(String::as_str) == Some("network") {
         std::process::exit(network_cli(&args[2..]));
     }
+    if args.get(1).map(String::as_str) == Some("remote") {
+        std::process::exit(remote::cli(&args[2..]));
+    }
     if args.get(1).map(String::as_str) == Some("coin") {
         std::process::exit(coin_cli(&args[2..]));
     }
@@ -4031,6 +4289,9 @@ fn main() {
     if args.get(1).map(String::as_str) == Some("sign-in") {
         std::process::exit(sign_in_cli(&args[2..]));
     }
+    if args.get(1).map(String::as_str) == Some("onboard") {
+        std::process::exit(onboard::cli(&args[2..]));
+    }
     if args.get(1).map(String::as_str) == Some("telemetry") {
         std::process::exit(telemetry::cli(&args[2..]));
     }
@@ -4049,15 +4310,18 @@ fn main() {
     if args.get(1).map(String::as_str) == Some("confirm") {
         std::process::exit(confirm_cli(&args[2..]));
     }
+    if let Some(code) = lab_cli(&args) {
+        std::process::exit(code);
+    }
     if args.get(1).map(String::as_str) == Some("agent-user") {
         std::process::exit(agent_user_cli(&args[2..]));
     }
-    // Started with no words, it runs the node. Anything else is a command it doesn't have, or a request for help:
-    // neither starts a node (a second one, behind the one already serving, fights it for the port).
-    if let Some(word) = args.get(1) {
+    // Started with no words, or `--from <tag>` alone, it runs the node. Anything else is a command it doesn't have, or a
+    // request for help: neither starts a node (a second one, behind the one already serving, fights it for the port).
+    if let (None, Some(word)) = (&start, args.get(1)) {
         let help = matches!(word.as_str(), "--help" | "-h" | "help");
         let out = format!(
-            "usage: unbrowse-node            run the node (the app starts it)\n       unbrowse-node <command> …  one of: {}\n",
+            "usage: unbrowse-node [--from <tag>]  run the node (the app starts it); the tag says where the install came from\n       unbrowse-node <command> …       one of: {}\n",
             NODE_COMMAND_WORDS.join(", ")
         );
         if help {
@@ -4067,8 +4331,28 @@ fn main() {
         eprint!("unbrowse-node: no command {word:?}\n{out}");
         std::process::exit(2);
     }
+    // One node to a home, held from before it reads its key: a second one started while the first is still coming up
+    // (the window starting one each time nothing answers, while the first waits on the owner at the keystore's dialog)
+    // stops here, rather than ask the owner everything again and fight the first for the port. One an update or a
+    // restart starts waits for the node it replaces to let go.
+    let wait = if update::handed_over() { std::time::Duration::from_secs(60) } else { std::time::Duration::ZERO };
+    let _running = match store::hold_node(wait) {
+        Ok(Ok(held)) => Some(held),
+        Ok(Err(pid)) => {
+            let who = pid.map(|p| format!(" (pid {p})")).unwrap_or_default();
+            eprintln!("unbrowse-node: a node is already running or starting here{who}: that one serves, and this one stops");
+            update::reached(&format!("it stopped: a node was already running or starting here{who}"));
+            std::process::exit(0);
+        }
+        Err(e) => {
+            eprintln!("unbrowse-node: couldn't take the node's lock on its home ({e}): starting without it");
+            None
+        }
+    };
     // A newer release unpacked here runs instead of this one.
     update::run_newest();
+    // A release on trial notes each step of its start, so a start that doesn't last can be said to have stopped there.
+    update::reached("it started");
     // Settings a newer node wrote stop this one from starting: run on the defaults instead, it could turn back on
     // what the owner turned off there.
     if let Err(e) = store::settings_readable() {
@@ -4141,6 +4425,9 @@ fn main() {
             keep_opening(
                 || open_identity(n.keys.as_ref()),
                 |read| {
+                    if read.is_ok() {
+                        update::reached("it opened its key");
+                    }
                     *n.identity.writing() = Some(read);
                     n.events.emit("identity", ());
                 },
@@ -4200,6 +4487,24 @@ fn main() {
                 let _ = tokio::task::spawn_blocking(browse::sweep_idle).await;
             }
         });
+        // What walks and browsing leave on disk is kept under its caps (`prune`): the walks' captures, the profiles'
+        // caches. As the node starts, once the browsers a dead node left are closed, and hourly after.
+        let n = node.clone();
+        tokio::spawn(async move {
+            loop {
+                let needed = prune::needed_walks(&n.walks);
+                let _ = tokio::task::spawn_blocking(move || prune::run(&needed)).await;
+                tokio::time::sleep(prune::EVERY).await;
+            }
+        });
+        // This node's own remote MCP address, while the owner has it on (`unbrowse-node remote on`). It needs no chain
+        // and no peer network: it starts with the node, not after the chain.
+        let remote = node.clone();
+        tokio::spawn(sync::keep_running("remote", move || remote::keep_attached(remote.clone())));
+        // A sign-in with a kept passkey that waits on the owner's yes asks them as any ask does (`passkey`).
+        passkey::set_node(node.clone());
+        // A sign-in's own request, read from the owner's browsing, is sealed in the vault under the node's key (`setups`).
+        setups::set_node(node.clone());
         // The chain: start it, then claim what agents paid for, once a minute (FR-6b: claimed automatically,
         // batched, always inside the payer's window). Each step that can fail at boot is tried again until it
         // works, so a node that booted while its chain didn't answer comes all the way up once it does.
@@ -4220,7 +4525,7 @@ fn main() {
             .await;
         });
         eprintln!("unbrowse-node: agents and the window reach this node at 127.0.0.1:{port}");
-        telemetry::start(&node.info.version, DEV);
+        telemetry::start(&node.info.version, DEV, start.as_ref().and_then(|f| f.as_deref()));
         report::start(&node.info.version, DEV, &node.info.name);
         // A stop the owner or the system asks for (SIGTERM from a service stop or a logout, SIGINT from the terminal,
         // SIGHUP when it closes) is a clean one: the node tells its peers it is leaving before it goes, so it drops
@@ -4230,6 +4535,7 @@ fn main() {
             served = api::serve(node.clone(), port, owner_token) => {
                 if let Err(e) = served {
                     eprintln!("agent API: {e}");
+                    update::reached(&format!("it stopped: agent API: {e}"));
                     peers::leave(&node).await;
                     close_own_browsers();
                     std::process::exit(1);
@@ -4290,6 +4596,21 @@ async fn stop_asked() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `unbrowse start --from <tag>` reaches the node as `--from <tag>`: that alone starts it, with the tag, as no words
+    /// do. A wrong or missing tag still starts it (the warning is telemetry's); anything more is a command, not a start.
+    #[test]
+    fn from_alone_starts_the_node() {
+        let w = |s: &[&str]| s.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        assert_eq!(start_words(&w(&[])), Some(None));
+        assert_eq!(start_words(&w(&["--from", "hn-e"])), Some(Some("hn-e".into())));
+        assert_eq!(start_words(&w(&["--from=hn-e"])), Some(Some("hn-e".into())));
+        assert_eq!(start_words(&w(&["--from", "Not A Tag"])), Some(Some("Not A Tag".into())), "a wrong tag still starts it");
+        assert_eq!(start_words(&w(&["--from"])), Some(Some(String::new())), "no tag still starts it");
+        for not_a_start in [&["telemetry"][..], &["--help"], &["--from", "hn", "wallet"], &["wallet", "--from", "hn"], &["--frm", "hn"], &["start"]] {
+            assert_eq!(start_words(&w(not_a_start)), None, "{not_a_start:?}");
+        }
+    }
 
     /// While the root key is in the OS keystore, an agent's token leaves it only on the owner's yes, asked apart for each
     /// agent, the node's first key included: a no leaves nothing behind, a yes is kept as that agent's grant and isn't
@@ -4522,17 +4843,6 @@ mod tests {
         let url = format!("http://{}/owner/restart", gone.local_addr().unwrap());
         drop(gone);
         assert!(matches!(ask_at(&url, "t", serde_json::json!({}), wait), Err(Unanswered::NoNode(_))), "nothing listening is no node");
-    }
-
-    /// A sign-in started on a node already linked: the old wallet is in `owner` the whole time the new page is open, and
-    /// reading it as success said "linked" for a wallet the owner was replacing.
-    #[test]
-    fn a_link_from_before_is_not_the_sign_in_under_way() {
-        let status = |owner: Option<&str>, waiting: bool| serde_json::json!({ "owner": owner, "waiting": waiting, "error": null });
-        assert_eq!(finished_link(&status(Some("0xold"), true)), None);
-        assert_eq!(finished_link(&status(Some("0xnew"), false)), Some("0xnew"));
-        assert_eq!(finished_link(&status(None, true)), None);
-        assert_eq!(finished_link(&status(None, false)), None);
     }
 
     /// The command and the node's window on the site are one span, whatever is asked: the command never says nothing was

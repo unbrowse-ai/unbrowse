@@ -40,6 +40,10 @@ pub struct Agent {
     /// with one wallet share its deposit, each with its own key and cap; `(epoch, None)` back to the node's own wallet.
     /// Empty: the node's own, as every key before. A stream already begun in an epoch keeps the payer it began under.
     pub payers: Vec<(u64, Option<String>)>,
+    /// The gateway this key was made for (its host, `unbrowse.ai`), when it is a remote key (graph `gateway.remote-key`):
+    /// it opens the node only on a message that came over the node's attachment to that gateway (`remote.rs`), and never
+    /// at the node's own door, signed or bearer. None for every other key.
+    pub gateway: Option<String>,
 }
 
 /// An agent key as `agents.json` and the owner's API write it. The cap goes out under both names: `cap_usdc`, and
@@ -67,19 +71,21 @@ struct AgentWire {
     cap_set: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     payers: Vec<(u64, Option<String>)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    gateway: Option<String>,
 }
 
 impl From<AgentWire> for Agent {
     fn from(w: AgentWire) -> Self {
-        let AgentWire { index, name, address, cap_usdc, cap_unb, expires, created, revoked, tx, salt, auto, cap_set, payers } = w;
-        Agent { index, name, address, cap_usdc: cap_usdc.or(cap_unb).unwrap_or(0.0), expires, created, revoked, tx, salt, auto, cap_set, payers }
+        let AgentWire { index, name, address, cap_usdc, cap_unb, expires, created, revoked, tx, salt, auto, cap_set, payers, gateway } = w;
+        Agent { index, name, address, cap_usdc: cap_usdc.or(cap_unb).unwrap_or(0.0), expires, created, revoked, tx, salt, auto, cap_set, payers, gateway }
     }
 }
 
 impl From<Agent> for AgentWire {
     fn from(a: Agent) -> Self {
-        let Agent { index, name, address, cap_usdc, expires, created, revoked, tx, salt, auto, cap_set, payers } = a;
-        AgentWire { index, name, address, cap_usdc: Some(cap_usdc), cap_unb: Some(cap_usdc), expires, created, revoked, tx, salt, auto, cap_set, payers }
+        let Agent { index, name, address, cap_usdc, expires, created, revoked, tx, salt, auto, cap_set, payers, gateway } = a;
+        AgentWire { index, name, address, cap_usdc: Some(cap_usdc), cap_unb: Some(cap_usdc), expires, created, revoked, tx, salt, auto, cap_set, payers, gateway }
     }
 }
 
@@ -170,12 +176,25 @@ pub fn token_of(root: &RootKey, a: &Agent) -> String {
 
 /// Creates the next agent key and returns it with its one-time setup string.
 pub fn create(keys: &dyn KeyStore, name: &str, cap_usdc: f64, days: u64, port: u16) -> Result<(Agent, String), String> {
-    make(keys, name, cap_usdc, days, port, false)
+    make(keys, name, cap_usdc, days, port, false, None)
+}
+
+/// Creates a remote key for `gateway` (its host): one that opens this node only through that gateway
+/// (`gateway.remote-key`). Returns it with its token.
+pub fn create_for_gateway(keys: &dyn KeyStore, name: &str, cap_usdc: f64, days: u64, gateway: &str) -> Result<(Agent, String), String> {
+    let gateway = gateway.trim().to_ascii_lowercase();
+    if gateway.is_empty() || gateway.contains('/') {
+        return Err(format!("{gateway} isn't a gateway's host"));
+    }
+    let (a, _) = make(keys, name, cap_usdc, days, 0, false, Some(gateway))?;
+    let root = RootKey::load(keys).map_err(|e| e.to_string())?;
+    let token = token_of(&root, &a);
+    Ok((a, token))
 }
 
 /// The next agent key, `auto` when the node makes it for itself. Written whole in one go: a crash can't leave the node's
 /// own key marked as the owner's, which nothing renews, so the only key lapses after its first 30 days.
-fn make(keys: &dyn KeyStore, name: &str, cap_usdc: f64, days: u64, port: u16, auto: bool) -> Result<(Agent, String), String> {
+fn make(keys: &dyn KeyStore, name: &str, cap_usdc: f64, days: u64, port: u16, auto: bool, gateway: Option<String>) -> Result<(Agent, String), String> {
     if name.trim().is_empty() {
         return Err("give the agent a name".into());
     }
@@ -203,6 +222,7 @@ fn make(keys: &dyn KeyStore, name: &str, cap_usdc: f64, days: u64, port: u16, au
         auto,
         cap_set: false,
         payers: vec![],
+        gateway,
     };
     all.push(agent.clone());
     save(&all)?;
@@ -225,7 +245,7 @@ fn make(keys: &dyn KeyStore, name: &str, cap_usdc: f64, days: u64, port: u16, au
 }
 
 /// `unb` beside this program (the app bundle and the npm platform package keep them together), else the name on PATH.
-fn unb_program() -> String {
+pub fn unb_program() -> String {
     let name = if cfg!(windows) { "unb.exe" } else { "unb" };
     std::env::current_exe()
         .ok()
@@ -280,7 +300,7 @@ pub fn ensure_first(keys: &dyn KeyStore, port: u16) -> Result<Option<Agent>, Str
     if !list_strict()?.is_empty() {
         return Ok(None);
     }
-    make(keys, FIRST, AUTO_CAP_USDC, AUTO_DAYS, port, true).map(|(agent, _)| Some(agent))
+    make(keys, FIRST, AUTO_CAP_USDC, AUTO_DAYS, port, true, None).map(|(agent, _)| Some(agent))
 }
 
 fn owed_path() -> std::path::PathBuf {
@@ -602,12 +622,23 @@ pub fn constant_time_eq(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |d, (x, y)| d | (x ^ y)) == 0
 }
 
-/// Which agent a bearer token belongs to, if any live one.
+/// Which agent a bearer token belongs to, if any live one that opens the node's own door: never a remote key
+/// (`gateway.remote-key`), which opens it only through its gateway (`by_gateway_token`).
 pub fn by_token(keys: &dyn KeyStore, token: &str) -> Option<Agent> {
     let root = RootKey::load(keys).ok()?;
     list()
         .into_iter()
-        .filter(|a| !a.revoked && a.expires > store::now())
+        .filter(|a| !a.revoked && a.expires > store::now() && a.gateway.is_none())
+        .find(|a| constant_time_eq(&token_of(&root, a), token))
+}
+
+/// Which remote key made for `gateway` a bearer token belongs to, if any live one: what a message that came over the
+/// node's attachment to that gateway is checked against (`remote.rs`). No other key opens the node that way.
+pub fn by_gateway_token(keys: &dyn KeyStore, token: &str, gateway: &str) -> Option<Agent> {
+    let root = RootKey::load(keys).ok()?;
+    list()
+        .into_iter()
+        .filter(|a| !a.revoked && a.expires > store::now() && a.gateway.as_deref() == Some(gateway))
         .find(|a| constant_time_eq(&token_of(&root, a), token))
 }
 
@@ -631,7 +662,7 @@ mod tests {
     /// Only the chain's own word sends a revoke: a live grant on a key revoked here, and nothing else.
     #[test]
     fn a_revoke_goes_to_the_chain_only_where_the_chain_still_pays() {
-        let live = Agent { index: 1, name: "live".into(), address: String::new(), cap_usdc: 1.0, expires: 0, created: 0, revoked: false, tx: None, salt: None, auto: false, cap_set: false, payers: vec![] };
+        let live = Agent { index: 1, name: "live".into(), address: String::new(), cap_usdc: 1.0, expires: 0, created: 0, revoked: false, tx: None, salt: None, auto: false, cap_set: false, payers: vec![], gateway: None };
         let gone = Agent { index: 2, revoked: true, ..live.clone() };
         let all = [live, gone];
         assert_eq!(to_revoke(&all, &|_| Some(Some((1.0, 0))), 100), vec![2], "a grant with no expiry, on the revoked key alone");
@@ -674,7 +705,7 @@ mod tests {
     /// or couldn't be read for, is left as the file has it.
     #[test]
     fn a_key_the_chain_revoked_is_revoked_here_whatever_the_file_says() {
-        let live = Agent { index: 1, name: "live".into(), address: String::new(), cap_usdc: 1.0, expires: 0, created: 0, revoked: false, tx: None, salt: None, auto: false, cap_set: false, payers: vec![] };
+        let live = Agent { index: 1, name: "live".into(), address: String::new(), cap_usdc: 1.0, expires: 0, created: 0, revoked: false, tx: None, salt: None, auto: false, cap_set: false, payers: vec![], gateway: None };
         let back = Agent { index: 2, ..live.clone() };
         let gone = Agent { index: 3, revoked: true, ..live.clone() };
         let all = [live, back, gone];
@@ -717,7 +748,7 @@ mod tests {
         let _home = store::scratch_home("first-one-write");
         let keys = unbrowse_core::MemoryStore::default();
         unbrowse_core::load_or_create(&keys).unwrap();
-        let (a, _) = make(&keys, FIRST, AUTO_CAP_USDC, AUTO_DAYS, 7788, true).unwrap();
+        let (a, _) = make(&keys, FIRST, AUTO_CAP_USDC, AUTO_DAYS, 7788, true, None).unwrap();
         assert!(a.auto && list_strict().unwrap().iter().all(|k| k.auto));
     }
 
@@ -782,7 +813,7 @@ mod tests {
     fn grants_are_written_where_the_chain_lacks_them_and_the_nodes_own_key_is_renewed() {
         let now = 1_000_000;
         let day = 86_400;
-        let mine = Agent { index: 0, name: "mine".into(), address: String::new(), cap_usdc: AUTO_CAP_USDC, expires: now + 2 * day, created: 0, revoked: false, tx: None, salt: None, auto: true, cap_set: false, payers: vec![] };
+        let mine = Agent { index: 0, name: "mine".into(), address: String::new(), cap_usdc: AUTO_CAP_USDC, expires: now + 2 * day, created: 0, revoked: false, tx: None, salt: None, auto: true, cap_set: false, payers: vec![], gateway: None };
         let theirs = Agent { index: 1, name: "theirs".into(), expires: now + 20 * day, auto: false, cap_usdc: 10.0, ..mine.clone() };
         let lapsed = Agent { index: 2, name: "lapsed".into(), expires: now - 1, auto: false, ..mine.clone() };
         let gone = Agent { index: 3, name: "gone".into(), revoked: true, ..theirs.clone() };
@@ -821,7 +852,7 @@ mod tests {
         assert_eq!(AUTO_CAP_USDC, 5.0);
         let now = 1_000_000;
         let day = 86_400;
-        let old = Agent { index: 0, name: FIRST.into(), address: String::new(), cap_usdc: 100.0, expires: now + 20 * day, created: 0, revoked: false, tx: None, salt: None, auto: true, cap_set: false, payers: vec![] };
+        let old = Agent { index: 0, name: FIRST.into(), address: String::new(), cap_usdc: 100.0, expires: now + 20 * day, created: 0, revoked: false, tx: None, salt: None, auto: true, cap_set: false, payers: vec![], gateway: None };
         let chain = |_: &Agent| Some(Some((100.0, now + 20 * day)));
         assert!(to_grant(std::slice::from_ref(&old), &chain, now).is_empty(), "before its renewal an older key keeps its cap and works");
         let due = Agent { expires: now + day, ..old.clone() };
@@ -907,6 +938,41 @@ mod tests {
         assert!(!std::fs::read_to_string(home.join("agents.json")).unwrap().contains("approval_usd"), "the threshold is no longer written");
         revoke(a.index).unwrap();
         assert!(by_token(&keys, &token(&keys, &a)).is_none());
+    }
+
+    /// M04: a key carries a spend cap and an expiry, and no list of routes or sites it may reach. A file that names such
+    /// a list (written by something else, or a later node) still opens the key, the key works the same, and the list
+    /// is not kept: the next save writes none of it. Nothing in a key's own record is a limit but the cap and the expiry.
+    #[test]
+    fn a_key_is_limited_by_its_cap_and_expiry_and_never_by_a_list_of_routes_or_sites() {
+        let home = store::scratch_home("agents-no-allow-list");
+        let keys = keys();
+        let (a, _) = create(&keys, "first", 1.0, 30, 7788).unwrap();
+        let fields = ["allowed_routes", "allowed_domains", "domains", "allow", "allowed_sites", "routes", "sites", "allow_list"];
+        let mut file = serde_json::to_value(vec![a.clone()]).unwrap();
+        for f in fields {
+            file[0][f] = serde_json::json!(["only.example", "route-1"]);
+        }
+        std::fs::write(home.join("agents.json"), file.to_string()).unwrap();
+        let read = by_token(&keys, &token(&keys, &a)).expect("a file naming allow-lists still opens the key");
+        assert_eq!(serde_json::to_value(&read).unwrap(), serde_json::to_value(&a).unwrap(), "the key read is the key made: the lists changed nothing about it");
+        // Whatever site or route the key is used for, what it may do is its cap and its expiry: the same record answers.
+        for _site in ["a.example", "b.example"] {
+            let again = by_token(&keys, &token(&keys, &a)).expect("opens for any site");
+            assert_eq!((again.cap_usdc, again.expires, again.revoked), (a.cap_usdc, a.expires, false));
+        }
+        // The next save writes the file again, and none of the lists is in it.
+        set_cap(a.index, 2.0).unwrap();
+        let saved = std::fs::read_to_string(home.join("agents.json")).unwrap();
+        for f in fields {
+            assert!(!saved.contains(f), "{f} was written back: {saved}");
+        }
+        assert!(!saved.contains("only.example") && !saved.contains("route-1"), "{saved}");
+        // The record has the cap and the expiry as its limits, and nothing else that limits where it goes.
+        let saved = serde_json::to_value(list()).unwrap();
+        let limits: std::collections::BTreeSet<&str> = saved[0].as_object().unwrap().keys().map(String::as_str).filter(|k| ["cap", "expire", "limit", "allow", "route", "domain", "site", "scope"].iter().any(|w| k.contains(w))).collect();
+        assert_eq!(limits, ["cap_set", "cap_unb", "cap_usdc", "expires"].into_iter().collect(), "{saved}");
+        assert_eq!(saved[0]["cap_usdc"], serde_json::json!(2.0));
     }
 
     /// The token comparison agrees with `==` on every pair — a token opens the node exactly when it is the key's —

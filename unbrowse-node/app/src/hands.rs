@@ -5,7 +5,8 @@
 //! owner gives the page back; the owner can also take a page over whenever they like.
 //!
 //! Only the owner's window drives it: these are `/owner/*` commands, behind the owner's token. Nothing the owner types
-//! is told to an agent or kept as typed. What they type into a password or one-time-code field leaves the walk record
+//! is told to an agent or kept as typed. What they type into a secret field (a password, a one-time code, a card's
+//! number, expiry or code: `is_secret_field`), and a card number they type anywhere, leaves the walk record
 //! (the browser names it, as it names a vault login) and is said as `[typed by the owner]` in anything the browser
 //! returns to an agent, and the page runs no agent script while it may still hold it. The learner's flow ends where
 //! the owner took the page and again where they gave it back, so a sign-in done by hand never becomes a route. The
@@ -58,6 +59,10 @@ pub struct Ask {
     /// A payment the owner is asked to approve, when the ask is one: done approves it, declined refuses it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pay: Option<Pay>,
+    /// A login the owner is asked to add to the vault, when the ask is one (`vault:ask:`): the window opens its Add login
+    /// form for it, and the ask is answered once the vault holds it ([`login_added`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub login: Option<Login>,
     /// The tab of the session asking (`browse::tab_of`), when the ask is about a page: the one the owner's window
     /// shows while the ask waits, whichever session's command acted on the site last. The node's own.
     #[serde(skip)]
@@ -86,6 +91,13 @@ pub struct Pay {
     /// truth the owner checks it against.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub amount: Option<f64>,
+}
+
+/// A login an agent asked the owner for (`vault:ask:<site>:<account>`): the site and account it names, never a password.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct Login {
+    pub site: String,
+    pub account: String,
 }
 
 /// How an ask ended.
@@ -196,21 +208,40 @@ pub fn parse_ask(args: &[String]) -> Result<(String, Duration), String> {
 /// `tab` is the asking session's tab of the site's browser, the page the window shows them. `told` hears the ask once
 /// it is waiting.
 pub async fn ask(site: &str, tab: Option<&str>, why: &str, agent: &str, wait: Duration, pay: Option<Pay>, told: impl FnOnce(&Ask)) -> Answer {
-    waits_on_owner(site, tab, why, agent, wait, pay, false, told).await.unwrap_or(Answer::NoAnswer)
+    waits_on_owner(site, tab, why, agent, wait, pay, None, false, told).await.unwrap_or(Answer::NoAnswer)
+}
+
+/// Waits for the owner to add `login` to the vault, up to `wait`: the window shows them its Add login form with the site
+/// and account filled in, and the ask is answered when the vault holds it ([`login_added`]) or they say they can't.
+/// `None` when `site`'s page already waits on the owner.
+pub async fn ask_login(site: &str, tab: Option<&str>, why: &str, agent: &str, wait: Duration, login: Login, told: impl FnOnce(&Ask)) -> Option<Answer> {
+    waits_on_owner(site, tab, why, agent, wait, None, Some(login), true, told).await
+}
+
+/// Answers, as done, every ask waiting on the owner to add `account` on `site` to the vault: they just did. Returns how
+/// many there were.
+pub fn login_added(site: &str, account: &str) -> usize {
+    let on: Vec<(String, String)> = ASKS
+        .locked()
+        .iter()
+        .filter(|(a, _)| a.login.as_ref().is_some_and(|l| l.site == site && l.account == account))
+        .map(|(a, _)| (a.site.clone(), a.id.clone()))
+        .collect();
+    on.iter().map(|(s, id)| answer_where(s, Answer::Done, |a| &a.id == id)).sum()
 }
 
 /// [`ask`], unless `site`'s page is already waiting on the owner: read and joined under one lock, since reaching the
 /// owner takes a while and two asks checked before it would both go on. `None` when it was.
 pub async fn ask_alone(site: &str, tab: Option<&str>, why: &str, agent: &str, wait: Duration, told: impl FnOnce(&Ask)) -> Option<Answer> {
-    waits_on_owner(site, tab, why, agent, wait, None, true, told).await
+    waits_on_owner(site, tab, why, agent, wait, None, None, true, told).await
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn waits_on_owner(site: &str, tab: Option<&str>, why: &str, agent: &str, wait: Duration, pay: Option<Pay>, alone: bool, told: impl FnOnce(&Ask)) -> Option<Answer> {
+async fn waits_on_owner(site: &str, tab: Option<&str>, why: &str, agent: &str, wait: Duration, pay: Option<Pay>, login: Option<Login>, alone: bool, told: impl FnOnce(&Ask)) -> Option<Answer> {
     let (tx, rx) = oneshot::channel();
     let now = store::now();
     let n = ASKED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let a = Ask { id: format!("ask-{now}-{n}"), site: site.to_string(), why: why.to_string(), agent: agent.to_string(), asked_at: now, expires_at: now + wait.as_secs(), pay, tab: tab.map(String::from) };
+    let a = Ask { id: format!("ask-{now}-{n}"), site: site.to_string(), why: why.to_string(), agent: agent.to_string(), asked_at: now, expires_at: now + wait.as_secs(), pay, login, tab: tab.map(String::from) };
     {
         let mut asks = ASKS.locked();
         if alone && asks.iter().any(|(x, _)| x.site == site) {
@@ -227,8 +258,20 @@ async fn waits_on_owner(site: &str, tab: Option<&str>, why: &str, agent: &str, w
         }
     }
     let _leaves = Leaves(a.id.clone());
+    // The agent's call can be cancelled while its request stays open (MCP `notifications/cancelled` sets its stop
+    // flag): the wait ends then, with no answer, and the page is the agents' again (B07).
+    let stop = crate::api::asks::current().map(|c| c.stop.clone());
+    let cancelled = async move {
+        let Some(stop) = stop else { return std::future::pending().await };
+        while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    };
     told(&a);
-    Some(tokio::time::timeout(wait, rx).await.ok().and_then(Result::ok).unwrap_or(Answer::NoAnswer))
+    Some(tokio::select! {
+        answer = tokio::time::timeout(wait, rx) => answer.ok().and_then(Result::ok).unwrap_or(Answer::NoAnswer),
+        () = cancelled => Answer::NoAnswer,
+    })
 }
 
 /// How long an ask waits for the owner's window to come up, once it has been opened, before saying the owner can't
@@ -259,6 +302,17 @@ pub async fn reach_owner(watchers: impl Fn() -> usize, open: impl FnOnce() -> Re
     Err(format!(
         "the owner can't see this: no Unbrowse window is open, and {why}. Nothing was asked. The owner can open the window (`unbrowse-window`, or `unbrowse app`) and you ask again; or tell the user what you need them to do."
     ))
+}
+
+/// Whether an ask can reach the owner, as an agent is told before it asks (`unbrowse_whoami`): a window of theirs is
+/// `watching`; none is, and the node opens one at the ask (`can_open`); or the owner keeps windows off this node
+/// (`off`), where [`reach_owner`] refuses every ask at once. Said up front so an agent doesn't find out by asking.
+pub fn owner_reach(watchers: usize, windows_off: bool) -> &'static str {
+    match (watchers > 0, windows_off) {
+        (true, _) => "watching",
+        (false, false) => "can_open",
+        (false, true) => "off",
+    }
 }
 
 /// Opens the owner's window, `unbrowse-window`: the one beside this program, else the one on the PATH. The window is
@@ -334,12 +388,12 @@ fn answer_where(site: &str, how: Answer, which: impl Fn(&Ask) -> bool) -> usize 
 /// Why an agent's command on `site` waits, if the page is the owner's now: they hold it, or an agent asked for them.
 pub fn busy(site: &str) -> Option<String> {
     if held(site) {
-        return Some(format!("the owner has {site}'s page in the node's window: wait until they give it back (ask_owner answers when they do)"));
+        return Some(format!("the owner has {site}'s page in the node's window: you can read it (snapshot, screenshot, get url/title/text), and anything that would change it waits until they give it back (ask_owner answers when they do)"));
     }
     ASKS.locked()
         .iter()
         .find(|(a, _)| a.site == site)
-        .map(|(a, _)| format!("{site}'s page is waiting on the owner ({}: \"{}\"): ask_owner answers when they give it back", a.agent, a.why))
+        .map(|(a, _)| format!("{site}'s page is waiting on the owner ({}: \"{}\"): you can read it (snapshot, screenshot, get url/title/text), and anything that would change it waits until ask_owner answers", a.agent, a.why))
 }
 
 /// The tab of `site`'s browser an ask waiting on the owner is about: the asking session's.
@@ -351,6 +405,21 @@ pub fn asking_tab(site: &str) -> Option<String> {
 pub fn held(site: &str) -> bool {
     lapse_held();
     HELD.locked().iter().any(|(s, _)| s == site)
+}
+
+/// Held by a test that keeps the one picture of the node's browser running, and by the test that runs every owner
+/// command (`hands_stop` among them), so the second never stops the first's picture midway.
+#[cfg(test)]
+pub(crate) static WATCH_FOR_TEST: Mutex<()> = Mutex::new(());
+
+/// The owner takes `site`'s page (`on`) or gives it back, for a test elsewhere in the node: no window, no flow.
+#[cfg(test)]
+pub(crate) fn hold_for_test(site: &str, on: bool) {
+    let mut held = HELD.locked();
+    held.retain(|(s, _)| s != site);
+    if on {
+        held.push((site.to_string(), Instant::now()));
+    }
 }
 
 // ---- where a click lands, what a key is ----
@@ -434,7 +503,8 @@ static RUN: Mutex<Run> = Mutex::new(Run { site: String::new(), page: String::new
 /// The field the page's focus is in, as the owner's own line to it reads it.
 #[derive(Debug, PartialEq)]
 pub enum Field {
-    /// A password or one-time-code field, with what it holds.
+    /// A secret field ([`is_secret_field`]: a password, a one-time code, a card's number, expiry or security code),
+    /// with what it holds.
     Secret(String),
     /// A field that holds no secret: a search box, an email address.
     Plain,
@@ -444,7 +514,9 @@ pub enum Field {
     Unknown,
 }
 
-/// Reads where the focus is: through open shadow roots and same-site frames to the field itself.
+/// Reads where the focus is: through open shadow roots and same-site frames to the field itself, and what the field
+/// says of itself (its type, its autocomplete, its name, id, label and placeholder) with its value. It decides
+/// nothing: [`is_secret_field`] does, in the node, where a test reads it. A plain field's value is dropped there.
 const FOCUS_JS: &str = r#"(() => {
   const deep = (d) => { let e = d.activeElement; while (e && e.shadowRoot && e.shadowRoot.activeElement) e = e.shadowRoot.activeElement; return e; };
   let e = deep(document);
@@ -452,26 +524,121 @@ const FOCUS_JS: &str = r#"(() => {
     while (e && /^(IFRAME|FRAME)$/.test(e.tagName)) { const d = e.contentDocument; if (!d) return { kind: "unknown" }; e = deep(d); }
   } catch (_) { return { kind: "unknown" }; }
   if (!e || !("value" in e)) return { kind: "none" };
-  const type = String(e.type || "").toLowerCase();
-  const ac = String((e.getAttribute && e.getAttribute("autocomplete")) || "").toLowerCase();
-  const secret = type === "password" || /(current|new)-password|one-time-code/.test(ac);
-  return secret ? { kind: "secret", value: String(e.value) } : { kind: "plain" };
+  const attr = (n) => String((e.getAttribute && e.getAttribute(n)) || "");
+  let labels = "";
+  try { labels = Array.from(e.labels || []).map((l) => l.textContent || "").join(" "); } catch (_) {}
+  let named = "";
+  try { named = attr("aria-labelledby").split(/\s+/).map((id) => { const l = id && document.getElementById(id); return (l && l.textContent) || ""; }).join(" "); } catch (_) {}
+  return {
+    kind: "field",
+    type: String(e.type || ""),
+    autocomplete: attr("autocomplete"),
+    words: [attr("name"), String(e.id || ""), attr("aria-label"), attr("placeholder"), attr("title"), attr("data-elements-stable-field-name"), labels, named].join(" "),
+    value: String(e.value),
+  };
 })()"#;
+
+/// The autocomplete tokens of a secret field (WHATWG autofill): a password, a one-time code, and a card's number,
+/// expiry (whole or in parts) and security code. A card's holder name and type are not secret.
+const SECRET_AUTOCOMPLETE: &[&str] = &["current-password", "new-password", "one-time-code", "cc-number", "cc-exp", "cc-exp-month", "cc-exp-year", "cc-csc"];
+
+/// What a card's number, expiry or security code field, or a password or PIN shown as text, calls itself in its name,
+/// id, label, title or placeholder, letters and digits only, run together: what a checkout that sets no autocomplete,
+/// or a sign-in whose "show password" made the field text, still says of the field.
+const CARD_WORDS: &[&str] = &[
+    "cardnumber", "cardnum", "cardno", "ccnumber", "ccnum", "numberoncard", "pan",
+    "cvc", "cvv", "cvn", "csc", "securitycode", "cardcode", "cardverification", "verificationcode",
+    "expiry", "expiration", "expdate", "expmonth", "expyear", "ccexp", "cardexp", "mmyy", "mmyyyy", "validthru", "validuntil",
+    "cvv2", "cvc2", "ccv", "cardcvv", "cardcvc", "securitynumber", "cardidentification", "cid",
+    "password", "passwd", "pwd", "passcode", "pin",
+];
+
+/// Word starts that say a card's expiry or code however the rest of the word runs (`Expires`, `cvvCode`, `cvcNumber`):
+/// a field's name or label word that begins with one ([`is_secret_field`]).
+const CARD_STEMS: &[&str] = &["expir", "cvv", "cvc", "csc", "ccv"];
+
+/// Whether a field is secret from what it says of itself: a password field, a field whose autocomplete names a
+/// secret ([`SECRET_AUTOCOMPLETE`]), or one whose name, id, label or placeholder says a card's number, expiry or code
+/// ([`CARD_WORDS`], read as whole words or run together). What the owner types into one leaves the walk record and is
+/// held and masked as a vault fill is (audit 1118 H6: only password and one-time-code fields were, so a card typed by
+/// hand came back as typed, and its page let scripts in).
+pub fn is_secret_field(kind: &str, autocomplete: &str, words: &str) -> bool {
+    if kind.eq_ignore_ascii_case("password") {
+        return true;
+    }
+    let ac = autocomplete.to_ascii_lowercase();
+    if ac.split_ascii_whitespace().any(|t| SECRET_AUTOCOMPLETE.contains(&t)) {
+        return true;
+    }
+    let lower = words.to_lowercase();
+    let tokens: Vec<&str> = lower.split(|c: char| !c.is_alphanumeric()).filter(|t| !t.is_empty()).collect();
+    let joined: String = tokens.concat();
+    // A short word ("pan", "cvc", "csc") only as a word of its own; a longer one anywhere, run together or not.
+    CARD_WORDS.iter().any(|w| tokens.contains(w) || (w.len() > 3 && joined.contains(w)))
+        || tokens.contains(&"exp")
+        || tokens.iter().any(|t| CARD_STEMS.iter().any(|s| t.starts_with(s)))
+}
 
 fn field_of(v: &Value) -> Field {
     let r = v.pointer("/result/value").unwrap_or(&Value::Null);
+    let text = |k: &str| r.get(k).and_then(|v| v.as_str()).unwrap_or_default();
     match r.get("kind").and_then(|k| k.as_str()) {
-        Some("secret") => Field::Secret(r.get("value").and_then(|v| v.as_str()).unwrap_or_default().to_string()),
-        Some("plain") => Field::Plain,
+        Some("field") if is_secret_field(text("type"), text("autocomplete"), text("words")) => Field::Secret(text("value").to_string()),
+        Some("field") => Field::Plain,
         Some("none") => Field::None,
         _ => Field::Unknown,
     }
 }
 
+/// The card numbers in what the owner typed, as typed: each run of digits with at most one separator (a space, a
+/// dash, a dot or a slash) between two: the whole run when it is 12 to 19 digits that pass the Luhn check, and each
+/// of the first 13 to 19 digits of a longer run that pass it. Typing runs on until a click, Tab or Enter, so a page
+/// that moves the focus itself from the number to the expiry, the code and on to a name field leaves one run whose
+/// digits start with the number and go on with the rest.
+fn card_numbers_in(typed: &str) -> Vec<String> {
+    let b = typed.as_bytes();
+    let separator = |c: u8| matches!(c, b' ' | b'-' | b'.' | b'/');
+    let (mut out, mut i) = (Vec::new(), 0);
+    while i < b.len() {
+        if !b[i].is_ascii_digit() {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        // Each digit of the run, with the byte just past it.
+        let (mut digits, mut ends) = (Vec::new(), Vec::new());
+        while i < b.len() {
+            if b[i].is_ascii_digit() {
+                digits.push(b[i]);
+                i += 1;
+                ends.push(i);
+            } else if separator(b[i]) && b.get(i + 1).is_some_and(u8::is_ascii_digit) {
+                i += 1;
+            } else {
+                break;
+            }
+        }
+        let n = digits.len();
+        // A run that is a number's length is one whole or not at all; a longer one (17 digits or more: a number and
+        // what followed it) holds one in any of its first 13 to 19 digits, each kept, since which is the number
+        // can't be told.
+        let lengths: Vec<usize> = if n >= 17 { (13..=19.min(n)).collect() } else if n >= 12 { vec![n] } else { vec![] };
+        for k in lengths {
+            if unbrowse_detector::card::luhn(&digits[..k]) {
+                out.push(typed[start..ends[k - 1]].to_string());
+            }
+        }
+    }
+    out
+}
+
 /// What leaves the walk record when typing into `field` ends: a secret field's whole value (what the owner typed,
-/// pasted or picked from autofill), or what was typed into a field nobody can read.
+/// pasted or picked from autofill), what was typed into a field nobody can read, and a card number typed anywhere,
+/// whatever the field the focus ended in says of itself (a page that moves the focus from the card's fields to a
+/// plain one, or a card field named in words no list holds, would let the number through as plain text).
 pub fn secrets_of(field: &Field, typed: &str) -> Vec<String> {
     let mut out = Vec::new();
+    let cards = card_numbers_in(typed);
     match field {
         Field::Secret(v) => {
             out.push(v.clone());
@@ -480,10 +647,14 @@ pub fn secrets_of(field: &Field, typed: &str) -> Vec<String> {
             }
         }
         Field::Unknown => out.push(typed.to_string()),
+        Field::Plain | Field::None if !cards.is_empty() => out.push(typed.to_string()),
         Field::Plain | Field::None => {}
     }
+    // The number on its own too: the record keeps it as its own field's value, apart from what came after it.
+    out.extend(cards);
     out.retain(|s| !s.trim().is_empty());
-    out.dedup();
+    let mut seen = Vec::new();
+    out.retain(|s| if seen.contains(s) { false } else { seen.push(s.clone()); true });
     out
 }
 
@@ -560,9 +731,15 @@ pub async fn watch(site: &str, events: &Events) -> Result<Value, String> {
     }
     stop();
     let ws = ws.ok_or_else(|| format!("{site}'s browser isn't open: it opens when an agent browses the site (unbrowse_browse open <url>)"))?;
-    let client = Arc::new(CdpClient::connect(&ws).await?);
+    watch_on(site, &ws, front.as_deref(), events).await
+}
+
+/// Shows the owner `site`'s page in the browser at DevTools address `ws`: the tab `front` names, else the one attached,
+/// else the first.
+async fn watch_on(site: &str, ws: &str, front: Option<&str>, events: &Events) -> Result<Value, String> {
+    let client = Arc::new(CdpClient::connect(ws).await?);
     let targets = client.send_command("Target.getTargets", Some(json!({})), None).await?;
-    let target = pick_page(&targets, front.as_deref()).ok_or("no page is open in that browser")?;
+    let target = pick_page(&targets, front).ok_or("no page is open in that browser")?;
     let attached = client.send_command("Target.attachToTarget", Some(json!({ "targetId": target, "flatten": true })), None).await?;
     let session = attached["sessionId"].as_str().ok_or("the browser didn't let the window attach")?.to_string();
     let _ = client.send_command("Page.enable", None, Some(&session)).await;
@@ -823,16 +1000,27 @@ async fn read_what_was_typed(w: &Watch) {
         return;
     }
     let page = w.url.locked().clone();
-    put_away(&w.site, secrets_of(&field, &typed), &page).await;
+    let secrets = secrets_of(&field, &typed);
+    // The document is held with its address: a page can change its address without loading another (`pushState`).
+    let document = if secrets.is_empty() { None } else { document_of(w).await };
+    put_away(&w.site, secrets, &page, document.as_deref()).await;
+}
+
+/// The document the watched page shows, as the browse side names it (`document:<loader id>`, the main frame's loader
+/// id, which only a new load changes). `None` when the page doesn't say within 2 s.
+async fn document_of(w: &Watch) -> Option<String> {
+    let asked = w.client.send_command("Page.getFrameTree", None, Some(&w.session));
+    let tree = tokio::time::timeout(Duration::from_secs(2), asked).await.ok()?.ok()?;
+    tree.pointer("/frameTree/frame/loaderId").and_then(|d| d.as_str()).filter(|d| !d.is_empty()).map(|d| format!("document:{d}"))
 }
 
 /// `secrets` leave the walk record of `site`, and every reply says them as the owner's.
-async fn put_away(site: &str, secrets: Vec<String>, page: &str) {
+async fn put_away(site: &str, secrets: Vec<String>, page: &str, document: Option<&str>) {
     for secret in secrets {
-        let (s, page) = (site.to_string(), page.to_string());
+        let (s, page, document) = (site.to_string(), page.to_string(), document.map(str::to_string));
         let forgot = tokio::task::spawn_blocking(move || {
             // Said as the owner's in every reply whether or not the record could be rewritten.
-            crate::browse::owner_typed(&s, &secret, &page);
+            crate::browse::owner_typed_in(&s, &secret, &page, document.as_deref());
             crate::browse::forget(&s, &secret)
         })
         .await
@@ -853,7 +1041,7 @@ async fn put_away_unread(site: &str) {
         }
         std::mem::take(&mut *run)
     };
-    put_away(site, secrets_of(&Field::Unknown, &run.text), &run.page).await;
+    put_away(site, secrets_of(&Field::Unknown, &run.text), &run.page, None).await;
     crate::browse::owner_done_typing(site);
 }
 
@@ -940,6 +1128,129 @@ async fn give_back_inner(site: &str, how: Answer, approved: Option<&Pay>, events
     Ok(json!({ "site": site, "answered": answered }))
 }
 
+// ---- the owner answers from another device (UNB-147) ----
+
+/// When a device of the owner's that answers asks away from the machine (the daemon hub's Telegram bot) last said it
+/// was there (`remote_answers` with `via`).
+static AWAY_SEEN: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// How long that device counts as there after it last said so: it says so every few seconds while it runs.
+pub const AWAY_FRESH: Duration = Duration::from_secs(30);
+
+/// A device of the owner's that answers asks away from the machine is there now.
+pub fn away_seen() {
+    *AWAY_SEEN.locked() = Some(Instant::now());
+}
+
+/// Whether such a device said it was there within [`AWAY_FRESH`]: then an ask reaches the owner with no window open.
+pub fn away_there() -> bool {
+    AWAY_SEEN.locked().is_some_and(|t| away_fresh(t, Instant::now()))
+}
+
+fn away_fresh(seen: Instant, now: Instant) -> bool {
+    now.saturating_duration_since(seen) < AWAY_FRESH
+}
+
+/// The most a code from another device may be: a two-step code, a backup code, a short word.
+pub const CODE_MOST: usize = 64;
+
+/// Finds the page's field for a code and puts the focus in it: one marked `one-time-code`, else one named for a code
+/// (otp, 2fa, verification, passcode, pin, token), else a numeric one, else the field that has the focus. Through
+/// same-site frames. Answers which it found, never what it holds.
+pub const CODE_FIELD_JS: &str = r#"(() => {
+  const docs = [document];
+  for (const f of document.querySelectorAll("iframe,frame")) { try { if (f.contentDocument) docs.push(f.contentDocument); } catch (_) {} }
+  const seen = (e) => { const r = e.getBoundingClientRect(); const st = e.ownerDocument.defaultView.getComputedStyle(e); return r.width > 0 && r.height > 0 && st.visibility !== "hidden" && st.display !== "none"; };
+  const skip = /^(hidden|checkbox|radio|submit|button|file|image|reset|range|color|email|search|url|date|time|password)$/i;
+  const fields = docs.flatMap((d) => [...d.querySelectorAll("input")]).filter((e) => !e.disabled && !e.readOnly && !skip.test(e.type || "") && seen(e));
+  const words = (e) => [e.name, e.id, e.placeholder, e.getAttribute("aria-label"), e.className].join(" ").toLowerCase();
+  const score = (e) => {
+    if (String(e.autocomplete || "").toLowerCase() === "one-time-code") return 3;
+    if (/otp|totp|2fa|mfa|one.?time|verif|passcode|security.?code|sms.?code|\bcode\b|\bpin\b|token/.test(words(e))) return 2;
+    if (String(e.inputMode || "").toLowerCase() === "numeric" || e.type === "tel" || e.type === "number") return 1;
+    return 0;
+  };
+  let best = null, top = 0;
+  for (const e of fields) { const n = score(e); if (n > top) { top = n; best = e; } }
+  if (!best) { const a = document.activeElement; if (a && fields.includes(a)) best = a; }
+  if (!best) return { found: false, fields: fields.length };
+  best.focus();
+  if (best.select) best.select();
+  return { found: true, field: String(best.name || best.id || best.placeholder || best.type || "field").slice(0, 40), boxes: fields.filter((e) => e.maxLength === 1).length };
+})()"#;
+
+/// Whether a code from another device may be typed: printable, one line, up to [`CODE_MOST`] characters.
+pub fn code_ok(code: &str) -> bool {
+    let code = code.trim();
+    !code.is_empty() && code.chars().count() <= CODE_MOST && !code.chars().any(char::is_control)
+}
+
+/// Answers the ask `id` waiting at `site` with a code the owner sent from another device: typed into the page's code
+/// field as the owner's own typing (`input`), said as [typed by the owner] in anything the browser returns to an agent
+/// and kept out of the walk record before anything can send it, Enter pressed when `submit`, and the page given back
+/// with done, which tells the asking agent the owner did it, and nothing of what they typed. Refused, with nothing
+/// typed, when the ask no longer waits, is a card payment, or the page has no field for a code.
+pub async fn answer_code(site: &str, id: &str, code: &str, submit: bool, via: &str, events: &Events) -> Result<Value, String> {
+    if !code_ok(code) {
+        return Err(format!("a code is 1 to {CODE_MOST} printable characters on one line: nothing was typed"));
+    }
+    let code = code.trim();
+    let ask = asks().into_iter().find(|a| a.site == site && a.id == id).ok_or_else(|| {
+        format!("the ask {} on {site} isn't waiting any more (it was answered or it lapsed): nothing was typed", crate::owner_dialog::plain(id).chars().take(60).collect::<String>())
+    })?;
+    if ask.pay.is_some() {
+        return Err("that ask is a card payment: answer it with hands_give_back, which the payment approver decides on. Nothing was typed".into());
+    }
+    let w = match current(site) {
+        Some(w) => w,
+        None => {
+            watch(site, events).await?;
+            current(site).ok_or("the page went away: nothing was typed")?
+        }
+    };
+    let asked = w.client.send_command("Runtime.evaluate", Some(json!({ "expression": CODE_FIELD_JS, "returnByValue": true })), Some(&w.session));
+    let found = match tokio::time::timeout(Duration::from_secs(5), asked).await {
+        Ok(Ok(v)) => v.pointer("/result/value").cloned().unwrap_or(Value::Null),
+        _ => return Err(format!("{site}'s page didn't answer: nothing was typed")),
+    };
+    if found["found"] != true {
+        return Err(format!("{site}'s page has no field for a code that the node could find: nothing was typed. The owner can type it in the node's window"));
+    }
+    let field = found["field"].as_str().unwrap_or("field").to_string();
+    // A code split into one-character boxes takes one character at a time: the page moves the focus on after each,
+    // and a box that holds one character would keep only the first of the whole code.
+    if found["boxes"].as_u64().unwrap_or(0) > 1 {
+        for c in code.chars() {
+            input(site, &json!({ "kind": "text", "text": c.to_string() }), events).await?;
+        }
+    } else {
+        input(site, &json!({ "kind": "text", "text": code }), events).await?;
+    }
+    // A code field the page doesn't mark as one (no one-time-code) reads as plain to the window's own check: the code
+    // leaves the walk record here, before Enter can send it.
+    let page = w.url.locked().clone();
+    let document = document_of(&w).await;
+    put_away(site, vec![code.to_string()], &page, document.as_deref()).await;
+    if submit {
+        input(site, &json!({ "kind": "key", "key": "Enter" }), events).await?;
+    }
+    store::log_activity(&Activity {
+        at: store::now(),
+        who: "You".into(),
+        site: site.to_string(),
+        what: format!("Typed a code from {via} into the page {} asked about", ask.agent),
+        kind: "hands".into(),
+        result: "done".into(),
+        ms: None,
+        unb: None,
+        tx: None,
+        note: None,
+    });
+    let mut given = give_back(site, Answer::Done, events).await?;
+    given["field"] = json!(field);
+    Ok(given)
+}
+
 /// The browsers the owner can take over (the sites agents have open), the asks waiting, and the site watched.
 pub async fn list() -> Value {
     let watching = WATCH.locked().as_ref().map(|w| (w.site.clone(), w.url.locked().clone()));
@@ -974,6 +1285,80 @@ pub async fn list() -> Value {
 mod tests {
     use super::*;
 
+    /// Audit 1118 H6 (16 Nov H12). A card's number, expiry and security code fields are secret fields, as a password is:
+    /// what the owner types there is held and masked. Runs the shipped `FOCUS_JS` in node against a stub focus, then
+    /// reads the answer as the hands do. Ported in spirit from c7b1a22b.
+    #[test]
+    fn a_card_field_the_owner_types_into_is_secret_whatever_the_page_calls_it() {
+        let focus = |kind: &str, ac: &str, name: &str, value: &str| -> Field {
+            let stub = format!(
+                "const el = {{ value: {value:?}, type: {kind:?}, name: {name:?}, id: {name:?}, placeholder: '', tagName: 'INPUT', \
+                 getAttribute: (a) => ({{ autocomplete: {ac:?}, name: {name:?}, id: {name:?} }})[a] || null }}; \
+                 const document = {{ activeElement: el }}; \
+                 console.log(JSON.stringify({{ result: {{ value: {FOCUS_JS} }} }}));"
+            );
+            let out = std::process::Command::new("node").arg("-e").arg(&stub).output().expect("this test runs FOCUS_JS in node");
+            assert!(out.status.success(), "node: {}", String::from_utf8_lossy(&out.stderr));
+            field_of(&serde_json::from_slice(&out.stdout).expect("FOCUS_JS answers JSON"))
+        };
+        assert_eq!(focus("password", "", "pw", "hunter2"), Field::Secret("hunter2".into()), "the control: a password is secret");
+        for (kind, ac, name, value) in [
+            ("text", "cc-number", "", "4111 1111 1111 1111"),
+            ("tel", "cc-number", "cardnumber", "4111111111111111"),
+            ("text", "cc-exp", "", "12 / 29"),
+            ("text", "cc-exp-month", "", "12"),
+            ("text", "cc-exp-year", "", "2029"),
+            ("text", "cc-csc", "", "123"),
+            ("text", "", "cvc", "123"),
+        ] {
+            assert_eq!(focus(kind, ac, name, value), Field::Secret(value.into()), "a {ac} {name} field the owner types is a secret");
+        }
+        assert_eq!(focus("text", "cc-name", "", "A Person"), Field::Plain, "a card's holder name stays plain");
+        assert_eq!(focus("email", "email", "email", "me@example.com"), Field::Plain);
+    }
+
+    /// Audit 1118 H6. What a card field calls itself when it sets no autocomplete is read too, and a card's holder
+    /// name, an email or a search box stays plain.
+    #[test]
+    fn a_card_field_named_only_in_words_is_a_secret_field() {
+        for words in ["cardnumber", "card-number Card number", "ccnum", "cvc", "CVV", "Security code", "exp-date", "Expiration date", "MM / YY", "exp", "cvv2", "cc_cvv2", "CVC2", "ccv", "card-cvv"] {
+            assert!(is_secret_field("text", "", words), "{words}");
+        }
+        for (kind, ac, words) in [("email", "email", "Email"), ("text", "cc-name", "Name on card"), ("search", "", "q Search"), ("text", "", "experience"), ("text", "organization", "company")] {
+            assert!(!is_secret_field(kind, ac, words), "{kind} {ac} {words}");
+        }
+    }
+
+    /// Audit 1118 H6. A card number the owner types leaves the walk record whatever the field the focus ended in: a
+    /// checkout that moves the focus itself from the number to the expiry, the code and a name field ends the typing
+    /// on a plain field. A number that fails the Luhn check, an email or a phone number typed into a plain field
+    /// stays plain.
+    #[test]
+    fn a_card_number_typed_before_a_plain_field_is_still_the_owners_secret() {
+        let run = "4242 4242 4242 42421226123Ada Lovelace";
+        let out = secrets_of(&Field::Plain, run);
+        assert!(out.contains(&run.to_string()), "{out:?}");
+        assert!(out.contains(&"4242 4242 4242 4242".to_string()), "the number on its own: {out:?}");
+        assert_eq!(secrets_of(&Field::None, "4111-1111-1111-1111"), vec!["4111-1111-1111-1111".to_string()]);
+        assert_eq!(secrets_of(&Field::Plain, "378282246310005"), vec!["378282246310005".to_string()], "a 15-digit Amex");
+        let typed = secrets_of(&Field::Secret("123".into()), "42424242424242421226123");
+        assert!(typed.contains(&"4242424242424242".to_string()), "{typed:?}");
+        for plain in ["me@example.com", "4242 4242 4242 4241", "+65 6123 4567", "order 12345678"] {
+            assert!(secrets_of(&Field::Plain, plain).is_empty(), "{plain}");
+        }
+    }
+
+    /// UNB-147: a device away from the machine counts as there for 30 s after it last said so, and a code it sends is
+    /// one printable line of up to 64 characters.
+    #[test]
+    fn an_away_device_counts_while_fresh_and_a_code_is_one_short_line() {
+        let now = Instant::now();
+        assert!(away_fresh(now, now + Duration::from_secs(29)));
+        assert!(!away_fresh(now, now + AWAY_FRESH));
+        assert!(code_ok("482913") && code_ok(" ABCD-1234 ") && code_ok(&"9".repeat(CODE_MOST)));
+        assert!(!code_ok("") && !code_ok("   ") && !code_ok("48\n29") && !code_ok(&"9".repeat(CODE_MOST + 1)));
+    }
+
     /// A window that went away without giving the page back ends its hold: one click no longer refuses every agent on
     /// the site until the node restarts. A window that still shows the page keeps it.
     #[test]
@@ -1005,7 +1390,7 @@ mod tests {
 
     fn asked(site: &str, card: Option<&str>) -> Ask {
         let pay = card.map(|c| Pay { card: c.into(), merchant: site.into(), route: None, inputs: Vec::new(), over: None, amount: None });
-        Ask { id: "a".into(), site: site.into(), why: "".into(), agent: "a".into(), asked_at: 0, expires_at: 0, pay, tab: None }
+        Ask { id: "a".into(), site: site.into(), why: "".into(), agent: "a".into(), asked_at: 0, expires_at: 0, pay, login: None, tab: None }
     }
 
     /// The owner's plain give-back of a page with a payment still waiting on it approved nothing, and the log says what
@@ -1097,6 +1482,32 @@ mod tests {
         assert_eq!(answer("wait.example", Answer::Done), 0, "nothing left to answer");
     }
 
+    /// A login asked of the owner (`vault:ask:`) is answered by the vault taking it, not by the page coming back: adding
+    /// that login answers it, and adding another one, or another account's, doesn't.
+    #[tokio::test]
+    async fn a_login_ask_is_answered_when_the_vault_takes_that_login() {
+        let told = Arc::new(Mutex::new(None));
+        let t = told.clone();
+        let login = Login { site: "signin.example".into(), account: "me".into() };
+        let waiting = tokio::spawn(async move { ask_login("signin.example", None, "add the login", "agent", Duration::from_secs(30), login, move |a| *t.locked() = Some(a.clone())).await });
+        while told.locked().is_none() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        let a = told.locked().clone().unwrap();
+        assert_eq!(a.login, Some(Login { site: "signin.example".into(), account: "me".into() }));
+        let shown = serde_json::to_value(&a).unwrap();
+        assert_eq!(shown["login"], json!({ "site": "signin.example", "account": "me" }), "the window is told which login to ask for");
+        assert_eq!(login_added("signin.example", "someone-else"), 0);
+        assert_eq!(login_added("other.example", "me"), 0);
+        assert!(asks().iter().any(|x| x.id == a.id), "still waiting");
+        assert_eq!(login_added("signin.example", "me"), 1);
+        assert_eq!(waiting.await.unwrap(), Some(Answer::Done));
+        assert!(!asks().iter().any(|x| x.id == a.id));
+        // A plain ask says nothing of a login.
+        let plain = Ask { id: "p".into(), site: "s.example".into(), why: "sign in".into(), agent: "x".into(), asked_at: 0, expires_at: 1, pay: None, login: None, tab: None };
+        assert!(serde_json::to_value(&plain).unwrap().get("login").is_none());
+    }
+
     #[tokio::test]
     async fn an_ask_nobody_answers_ends_with_no_answer() {
         let started = Instant::now();
@@ -1105,6 +1516,16 @@ mod tests {
         assert!(started.elapsed() >= Duration::from_millis(150), "it waited the whole time");
         assert!(!asks().iter().any(|a| a.site == "late.example"), "a lapsed ask leaves the list");
         assert!(busy("late.example").is_none(), "and the page is the agents' again");
+    }
+
+    /// An agent is told before it asks whether an ask can reach the owner: a window watching takes it whatever the
+    /// setting, none watching is opened at the ask, and with windows kept off the ask would only be refused.
+    #[test]
+    fn an_agent_is_told_before_it_asks_whether_the_owner_can_be_asked() {
+        assert_eq!(owner_reach(1, false), "watching");
+        assert_eq!(owner_reach(2, true), "watching");
+        assert_eq!(owner_reach(0, false), "can_open");
+        assert_eq!(owner_reach(0, true), "off");
     }
 
     /// An ask reaches the owner or says at once that it can't: a window already watching takes it; with none, the
@@ -1169,6 +1590,23 @@ mod tests {
         assert!(busy("left-behind.example").is_none());
     }
 
+    /// B07: an agent can cancel its ask_owner while its request is still open (MCP `notifications/cancelled` sets the
+    /// call's stop flag): the wait ends at once with no answer, and the page is the agents' again. Before, the flag was
+    /// never read, and the site stayed held until the owner answered or the ask's time ran out.
+    #[tokio::test]
+    async fn an_ask_its_agent_cancels_ends_and_frees_the_page() {
+        let call = crate::api::asks::Ask::begin("unbrowse_browse");
+        let stop = call.stop.clone();
+        let waiting = tokio::spawn(crate::api::asks::within(call, ask_alone("cancelled.example", None, "sign in", "agent", Duration::from_secs(30), |_| {})));
+        while !asks().iter().any(|a| a.site == "cancelled.example") {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let ended = tokio::time::timeout(Duration::from_secs(5), waiting).await;
+        assert_eq!(ended.ok().map(Result::unwrap), Some(Some(Answer::NoAnswer)), "the ask still waited 5 s after its agent cancelled it");
+        assert!(busy("cancelled.example").is_none(), "the page is the agents' again");
+    }
+
     /// A payment ask carries what the owner approves (the card, the site, and for a route what it does and sends),
     /// and an ordinary ask carries none of it.
     #[tokio::test]
@@ -1191,7 +1629,7 @@ mod tests {
         assert!(payment_waiting("pay.example").is_some(), "not approved by the token alone, nor by a yes to another payment");
         give_back_approving("pay.example", Answer::Done, Some(&pay), &events).await.unwrap();
         assert_eq!(waiting.await.unwrap(), Answer::Done);
-        let plain = Ask { id: "a".into(), site: "s.example".into(), why: "sign in".into(), agent: "x".into(), asked_at: 0, expires_at: 1, pay: None, tab: None };
+        let plain = Ask { id: "a".into(), site: "s.example".into(), why: "sign in".into(), agent: "x".into(), asked_at: 0, expires_at: 1, pay: None, login: None, tab: None };
         assert!(serde_json::to_value(plain).unwrap().get("pay").is_none());
     }
 
@@ -1223,10 +1661,104 @@ mod tests {
     #[test]
     fn the_focus_is_read_as_the_field_it_is() {
         let v = |r: Value| json!({ "result": { "type": "object", "value": r } });
-        assert_eq!(field_of(&v(json!({ "kind": "secret", "value": "pw" }))), Field::Secret("pw".into()));
-        assert_eq!(field_of(&v(json!({ "kind": "plain" }))), Field::Plain);
+        assert_eq!(field_of(&v(json!({ "kind": "field", "type": "password", "autocomplete": "", "words": "", "value": "pw" }))), Field::Secret("pw".into()));
+        assert_eq!(field_of(&v(json!({ "kind": "field", "type": "email", "autocomplete": "email", "words": "email", "value": "me@example.com" }))), Field::Plain);
         assert_eq!(field_of(&v(json!({ "kind": "none" }))), Field::None);
         assert_eq!(field_of(&json!({ "exceptionDetails": {} })), Field::Unknown, "a page that won't say is taken as holding a secret");
+    }
+
+    /// W03: the owner's live view follows the site's page across a navigation to another site (its own process under
+    /// site isolation): the window hears the new address, and pictures of the new page keep coming. Before, a view that
+    /// lost its page on such a move showed the last picture of the old one.
+    #[test]
+    #[ignore = "drives Chrome: cargo test -p unbrowse-node-app --bin unbrowse-node the_live_view_follows -- --ignored"]
+    fn the_live_view_follows_the_page_to_another_site() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for mut stream in listener.incoming().flatten() {
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                // Each page paints, and keeps painting, so a live view of it has pictures to send.
+                let (title, colour) = if req.starts_with("GET /second") { ("second", "#36c") } else { ("first", "#c63") };
+                let body = format!(
+                    r#"<!doctype html><html><head><title>{title}</title></head><body style="background:{colour}"><h1 id="n">0</h1>
+<script>let n = 0; setInterval(() => document.getElementById('n').textContent = ++n, 100);</script></body></html>"#
+                );
+                let _ = write!(stream, "HTTP/1.1 200 OK\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+            }
+        });
+        let path = agent_browser_core::cdp::chrome::find_chrome().expect("Chrome, or Chrome for Testing from `agent-browser install`");
+        let profile = std::env::temp_dir().join(format!("live-view-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&profile);
+        let mut chrome = std::process::Command::new(path)
+            .args(["--headless=new", "--remote-debugging-port=0", "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--site-per-process", "--no-sandbox"])
+            .arg(format!("--user-data-dir={}", profile.display()))
+            .arg(format!("http://127.0.0.1:{port}/first"))
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut ws = None;
+        for _ in 0..150 {
+            if let Some((p, path)) = agent_browser_core::cdp::chrome::read_devtools_active_port(&profile) {
+                ws = Some(format!("ws://127.0.0.1:{p}{path}"));
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let ws = ws.expect("Chrome opened its DevTools");
+        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
+        let result: Result<(), String> = rt.block_on(async {
+            let events = Events::default();
+            let mut heard = events.subscribe_for_test();
+            let site = "live-view.example";
+            // The first page has loaded and painted before the view starts.
+            let cdp = CdpClient::connect(&ws).await?;
+            for _ in 0..100 {
+                let t = cdp.send_command("Target.getTargets", Some(json!({})), None).await?;
+                if t["targetInfos"].as_array().is_some_and(|ts| ts.iter().any(|t| t["type"] == "page" && t["title"] == "first")) {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            watch_on(site, &ws, None, &events).await?;
+            let mut before = 0;
+            let until = tokio::time::Instant::now() + Duration::from_secs(10);
+            while before < 3 {
+                let Ok(Ok((event, _))) = tokio::time::timeout_at(until, heard.recv()).await else { break };
+                before += usize::from(event == "hands_frame");
+            }
+            assert!(before >= 3, "the view shows the first page: {before} pictures in 10 s");
+            // The page moves itself to another site: 127.0.0.1 and localhost are two sites, so two processes.
+            let targets = cdp.send_command("Target.getTargets", Some(json!({})), None).await?;
+            let page = targets["targetInfos"].as_array().and_then(|ts| ts.iter().find(|t| t["type"] == "page")).and_then(|t| t["targetId"].as_str()).unwrap().to_string();
+            let s = cdp.send_command("Target.attachToTarget", Some(json!({ "targetId": page, "flatten": true })), None).await?;
+            let session = s["sessionId"].as_str().unwrap().to_string();
+            cdp.send_command("Runtime.evaluate", Some(json!({ "expression": format!("location.href = 'http://localhost:{port}/second'") })), Some(&session)).await?;
+            let mut moved = None;
+            let mut after = 0;
+            let until = tokio::time::Instant::now() + Duration::from_secs(15);
+            while after < 3 {
+                let Ok(Ok((event, payload))) = tokio::time::timeout_at(until, heard.recv()).await else { break };
+                match event.as_str() {
+                    "hands" if payload["kind"] == "page" => moved = payload["url"].as_str().map(String::from),
+                    "hands_frame" if moved.is_some() => after += 1,
+                    _ => {}
+                }
+            }
+            assert_eq!(moved.as_deref(), Some(format!("http://localhost:{port}/second").as_str()), "the window hears the page's new address");
+            assert!(after >= 3, "pictures of the new page keep coming: {after} in 15 s after the move");
+            assert_eq!(current(site).map(|w| w.url.locked().clone()), moved, "and the view says where the page is");
+            stop();
+            Ok(())
+        });
+        let _ = chrome.kill();
+        let _ = chrome.wait();
+        let _ = std::fs::remove_dir_all(&profile);
+        result.unwrap();
     }
 
     #[test]
@@ -1263,5 +1795,214 @@ mod tests {
         .join();
         assert!(!held("never-held.example"));
         assert!(busy("never-held.example").is_none());
+    }
+
+    /// A DevTools endpoint that answers as a browser with one page open does, and keeps every command it was sent.
+    struct FakeBrowser {
+        ws: String,
+        seen: Arc<Mutex<Vec<(String, Value)>>>,
+        code_field: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl FakeBrowser {
+        /// The params of every command named `method` it was sent, in order.
+        fn got(&self, method: &str) -> Vec<Value> {
+            self.seen.locked().iter().filter(|(m, _)| m == method).map(|(_, p)| p.clone()).collect()
+        }
+    }
+
+    /// The page it shows is `https://fakecdp.example/login`, 1000 x 500; once a screencast starts it sends pictures
+    /// of a 1200 x 600 page and, now and then, a move to `/code`. What the focus holds, as the page reads it, is `focus`.
+    async fn fake_browser(focus: Value) -> FakeBrowser {
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws = format!("ws://{}", listener.local_addr().unwrap());
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let code_field = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let (log, field) = (seen.clone(), code_field.clone());
+        tokio::spawn(async move {
+            let Ok((stream, _)) = listener.accept().await else { return };
+            let Ok(socket) = tokio_tungstenite::accept_async(stream).await else { return };
+            let (mut write, mut read) = socket.split();
+            let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+            tokio::spawn(async move {
+                while let Some(m) = rx.recv().await {
+                    if write.send(Message::Text(m)).await.is_err() {
+                        break;
+                    }
+                }
+            });
+            while let Some(Ok(Message::Text(text))) = read.next().await {
+                let Ok(cmd) = serde_json::from_str::<Value>(&text) else { continue };
+                let method = cmd["method"].as_str().unwrap_or_default().to_string();
+                let params = cmd["params"].clone();
+                log.locked().push((method.clone(), params.clone()));
+                let result = match method.as_str() {
+                    "Target.getTargets" => json!({ "targetInfos": [{ "targetId": "T1", "type": "page", "url": "https://fakecdp.example/login", "attached": true }] }),
+                    "Target.attachToTarget" => json!({ "sessionId": "S1" }),
+                    "Page.getLayoutMetrics" => json!({ "cssVisualViewport": { "clientWidth": 1000.0, "clientHeight": 500.0 } }),
+                    "Runtime.evaluate" if params["expression"] == CODE_FIELD_JS => {
+                        let found = field.load(std::sync::atomic::Ordering::SeqCst);
+                        json!({ "result": { "type": "object", "value": { "found": found, "field": "otp", "boxes": 0 } } })
+                    }
+                    "Runtime.evaluate" => json!({ "result": { "type": "object", "value": focus.clone() } }),
+                    "Page.getFrameTree" => json!({ "frameTree": { "frame": { "id": "F1", "loaderId": "LOADER1" } } }),
+                    _ => json!({}),
+                };
+                let _ = tx.send(json!({ "id": cmd["id"], "result": result }).to_string());
+                if method == "Page.startScreencast" {
+                    let pictures = tx.clone();
+                    tokio::spawn(async move {
+                        for n in 0u64.. {
+                            tokio::time::sleep(Duration::from_millis(40)).await;
+                            let frame = json!({ "method": "Page.screencastFrame", "sessionId": "S1",
+                                "params": { "data": "anBlZw==", "sessionId": n + 1, "metadata": { "deviceWidth": 1200, "deviceHeight": 600 } } });
+                            let moved = json!({ "method": "Page.frameNavigated", "sessionId": "S1", "params": { "frame": { "url": "https://fakecdp.example/code" } } });
+                            let sent = pictures.send(frame.to_string()).is_ok() && (n % 5 != 4 || pictures.send(moved.to_string()).is_ok());
+                            if !sent {
+                                break;
+                            }
+                        }
+                    });
+                }
+            }
+        });
+        FakeBrowser { ws, seen, code_field }
+    }
+
+    /// The owner takes a page of the node's browser from their window: they see its pictures and its moves, scroll
+    /// (which only looks), click (which takes the page), type and press keys. What they type into a secret field is
+    /// kept out of the walk record and said as theirs; a second device's code is typed the same way, only into a page
+    /// that has a field for it and an ask that still waits; and once stopped the pictures end and the browser is let go.
+    #[test]
+    fn the_owner_drives_the_page_and_what_they_type_is_kept_out_of_the_record() {
+        let _one = WATCH_FOR_TEST.locked();
+        let home = store::scratch_home("hands-fake-cdp");
+        let h = home.clone();
+        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().on_thread_start(move || store::use_home(&h)).build().unwrap();
+        let site = "fakecdp.example";
+        rt.block_on(async {
+            let browser = fake_browser(json!({ "kind": "field", "type": "password", "autocomplete": "current-password", "words": "password", "value": "hunter2" })).await;
+            let events = Events::default();
+            let mut heard = events.subscribe_for_test();
+            let shown = watch_on(site, &browser.ws, None, &events).await.unwrap();
+            assert_eq!((shown["url"].as_str(), shown["width"].as_f64(), shown["height"].as_f64(), shown["held"].as_bool()), (Some("https://fakecdp.example/login"), Some(1000.0), Some(500.0), Some(false)), "{shown}");
+            // Its pictures reach the window, and so does the page's move to another address.
+            let (mut frames, mut moved) = (0, None);
+            let until = tokio::time::Instant::now() + Duration::from_secs(10);
+            while frames == 0 || moved.is_none() {
+                match tokio::time::timeout_at(until, heard.recv()).await {
+                    Ok(Ok((event, payload))) => match event.as_str() {
+                        "hands_frame" => frames += 1,
+                        "hands" if payload["kind"] == "page" => moved = payload["url"].as_str().map(String::from),
+                        _ => {}
+                    },
+                    Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(_))) => {}
+                    _ => break,
+                }
+            }
+            assert!(frames > 0, "pictures of the page reach the window");
+            assert_eq!(moved.as_deref(), Some("https://fakecdp.example/code"), "and the page's move");
+            // `watch` asks the node's own browser for the site, which a test has none of: the picture already shown is kept.
+            let now = watch(site, &events).await.unwrap();
+            assert_eq!((now["url"].as_str(), now["width"].as_f64(), now["height"].as_f64()), (Some("https://fakecdp.example/code"), Some(1200.0), Some(600.0)), "{now}");
+            assert!(frame(&walk_of(site)).is_some_and(|f| f == b"jpeg"), "the window fetches the latest picture");
+
+            // Scrolling only looks; a click takes the page, as many times as it says, up to a triple.
+            input(site, &json!({ "kind": "scroll", "x": 0.5, "y": 0.5, "dy": 99999 }), &events).await.unwrap();
+            assert_eq!(browser.got("Input.dispatchMouseEvent")[0]["deltaY"], 5000.0, "a scroll is held to what a page can take");
+            assert!(!held(site), "scrolling takes nothing");
+            input(site, &json!({ "kind": "click", "x": 0.25, "y": 0.5, "clicks": 2 }), &events).await.unwrap();
+            assert!(held(site), "a click takes the page");
+            let mouse = browser.got("Input.dispatchMouseEvent");
+            let pressed: Vec<(f64, f64, u64)> = mouse.iter().filter(|m| m["type"] == "mousePressed").map(|m| (m["x"].as_f64().unwrap(), m["y"].as_f64().unwrap(), m["clickCount"].as_u64().unwrap())).collect();
+            assert_eq!(pressed, [(300.0, 300.0, 1), (300.0, 300.0, 2)], "a double click is two presses at the point on the page the picture shows");
+            // Refused: a point off the picture, text a keyboard can't make, a key the window doesn't pass, anything else.
+            for bad in [json!({ "kind": "click", "x": 1.5, "y": 0.5 }), json!({ "kind": "text", "text": "a\nb" }), json!({ "kind": "text", "text": "" }), json!({ "kind": "key", "key": "F13" }), json!({ "kind": "drag" })] {
+                assert!(input(site, &bad, &events).await.is_err(), "{bad}");
+            }
+            assert!(browser.got("Input.insertText").is_empty(), "nothing refused was typed");
+
+            // What they type goes to the page; ending the typing reads the field, and a secret leaves the record.
+            input(site, &json!({ "kind": "text", "text": "hunter2" }), &events).await.unwrap();
+            assert_eq!(browser.got("Input.insertText"), [json!({ "text": "hunter2" })]);
+            input(site, &json!({ "kind": "key", "key": "Backspace" }), &events).await.unwrap();
+            input(site, &json!({ "kind": "key", "key": "Enter" }), &events).await.unwrap();
+            let keys: Vec<String> = browser.got("Input.dispatchKeyEvent").iter().map(|k| format!("{}:{}", k["type"].as_str().unwrap(), k["key"].as_str().unwrap())).collect();
+            assert_eq!(keys.len(), 4, "{keys:?}");
+            assert!(keys[2].ends_with(":Enter") && keys[3] == "keyUp:Enter", "{keys:?}");
+            assert!(crate::browse::secrets_of(site).iter().any(|(secret, name)| secret == "hunter2" && name == BY_OWNER), "what they typed is said as theirs");
+
+            // A code from the owner's other device: refused before anything is typed unless an ask for the page waits
+            // and the page has a field for it.
+            let waiting = tokio::spawn(async move { ask_alone(site, None, "type the two-step code", "claude-code", Duration::from_secs(30), |_| {}).await });
+            while !asks().iter().any(|a| a.site == site) {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+            assert!(owner_busy());
+            let id = asks().into_iter().find(|a| a.site == site).unwrap().id;
+            let listed = list().await;
+            assert_eq!(listed["watching"], site, "{listed}");
+            assert!(listed["asks"].as_array().unwrap().iter().any(|a| a["id"] == id.as_str()), "{listed}");
+            let refused = |why: Result<Value, String>| why.unwrap_err();
+            assert!(refused(answer_code(site, &id, "   ", false, "telegram", &events).await).contains("1 to 64"));
+            assert!(refused(answer_code(site, "ask-gone", "482913", false, "telegram", &events).await).contains("isn't waiting"));
+            browser.code_field.store(false, std::sync::atomic::Ordering::SeqCst);
+            assert!(refused(answer_code(site, &id, "482913", false, "telegram", &events).await).contains("no field for a code"));
+            assert!(browser.got("Input.insertText").iter().all(|t| t["text"] != "482913"), "nothing was typed into a page with no field for it");
+            browser.code_field.store(true, std::sync::atomic::Ordering::SeqCst);
+            let paying = tokio::spawn(async move {
+                let pay = Pay { card: "visa (card ending 4242)".into(), merchant: "paycode.example".into(), route: None, inputs: Vec::new(), over: None, amount: None };
+                ask("paycode.example", None, "approve paying", "agent", Duration::from_secs(30), Some(pay), |_| {}).await
+            });
+            while !asks().iter().any(|a| a.site == "paycode.example") {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+            let pay_id = asks().into_iter().find(|a| a.site == "paycode.example").unwrap().id;
+            assert!(refused(answer_code("paycode.example", &pay_id, "482913", false, "telegram", &events).await).contains("card payment"), "a code never approves a payment");
+            assert_eq!(answer("paycode.example", Answer::Declined), 1);
+            assert_eq!(paying.await.unwrap(), Answer::Declined);
+
+            let entered = |b: &FakeBrowser| b.got("Input.dispatchKeyEvent").iter().filter(|k| k["key"] == "Enter" && k["type"] == "keyUp").count();
+            let before = entered(&browser);
+            let given = answer_code(site, &id, "482913", true, "telegram", &events).await.unwrap();
+            assert_eq!((given["answered"].as_u64(), given["field"].as_str()), (Some(1), Some("otp")), "{given}");
+            assert_eq!(waiting.await.unwrap(), Some(Answer::Done), "the agent's ask hears the owner did it");
+            assert!(browser.got("Input.insertText").iter().any(|t| t["text"] == "482913"), "the code was typed");
+            assert_eq!(entered(&browser), before + 1, "and sent, with Enter");
+            assert!(!held(site), "the page went back to the agents");
+
+            // Stopped, the pictures end, the browser is let go, and the window can't drive a page that isn't shown.
+            stop();
+            let until = tokio::time::Instant::now() + Duration::from_secs(10);
+            let mut stopped = false;
+            while !stopped {
+                match tokio::time::timeout_at(until, heard.recv()).await {
+                    Ok(Ok((event, payload))) => stopped = event == "hands" && payload["kind"] == "stopped" && payload["why"] == "Asked",
+                    Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(_))) => {}
+                    _ => break,
+                }
+            }
+            assert!(stopped, "the picture said why it stopped");
+            assert!(current(site).is_none());
+            assert!(!browser.got("Page.stopScreencast").is_empty() && !browser.got("Target.detachFromTarget").is_empty(), "the browser is let go of the page");
+            let err = input(site, &json!({ "kind": "click", "x": 0.5, "y": 0.5 }), &events).await.unwrap_err();
+            assert!(err.contains("isn't open"), "{err}");
+        });
+        drop(rt);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    // ---- audit 1118 review (R7): words the first list missed ----
+    /// Audit 1118 H6 (adversarial). Words a card's expiry, code or a visible password field go by that the first list missed.
+    #[test]
+    fn more_names_a_card_expiry_code_or_password_goes_by() {
+        for words in ["Expires", "Expire date", "cvvCode", "cvcCode", "cvvNumber", "securityNumber", "CID", "Card Identification Number", "password", "pwd", "PIN"] {
+            assert!(is_secret_field("text", "", words), "{words}");
+        }
+        for words in ["Email", "Search", "Company", "experience", "Phone"] {
+            assert!(!is_secret_field("text", "", words), "{words}");
+        }
     }
 }

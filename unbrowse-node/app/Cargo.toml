@@ -24,8 +24,10 @@ unbrowse-net = { path = "../crates/net" }
 # The pinned credential detector (R6.36): run before listing and on every fetched body.
 unbrowse-detector = { path = "../crates/detector" }
 # The engine's DevTools client, for the vault's passkey authenticator (passkey.rs).
-agent-browser-core = { path = "../../unbrowse-browser/core" }
+agent-browser-core = { path = "../crates/browser" }
 axum = "0.8"
+# Runs a request through the node's own router, for one that came over the peer network (`api/direct.rs`).
+tower = { version = "0.5", default-features = false, features = ["util"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "sync", "signal"] }
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
@@ -38,8 +40,12 @@ url = "2"
 psl = "2"
 percent-encoding = "2"
 aho-corasick = "1"
-alloy = { version = "1", features = ["full"] }
+alloy = { version = "1", features = ["full", "json-rpc"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking", "json"] }
+# The reqwest alloy's HTTP transport sends every RPC request through (0.13), named only to turn on decoding: some RPC
+# providers compress every answer whether or not the request asked, and in whichever encoding their cache holds (gzip,
+# or brotli when gzip was asked for), and a body the node can't decode is no answer.
+rpc-reqwest = { package = "reqwest", version = "0.13", default-features = false, features = ["gzip", "brotli", "deflate"] }
 # Updates: the release key's signature, the packages' sha512, and their tarballs.
 ed25519-dalek = "3"
 sha2 = "0.10"
@@ -55,6 +61,19 @@ tar = { version = "0.4", default-features = false }
 # is built unless a feature below asks for it.
 antithesis_sdk = { version = "0.3", optional = true }
 antithesis-instrumentation = { version = "0.1", optional = true }
+# The owner's own authenticator for a page's passkey request (`owner_authn`): CTAP2 here, and on macOS a security key
+# over USB and a phone over the hybrid QR as well (below). Pinned: its caBLE and CTAP code is read against this version.
+webauthn-authenticator-rs = { version = "=0.6.2", default-features = false, features = ["ctap2"] }
+webauthn-rs-proto = "=0.6.2"
+serde_cbor_2 = "0.13"
+# The QR a phone scans to answer a page's passkey request (`owner_authn`).
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+
+[dev-dependencies]
+# A software authenticator, standing in for the owner's key in owner_authn's tests.
+webauthn-authenticator-rs = { version = "=0.6.2", default-features = false, features = ["softtoken"] }
+# Compresses a test RPC answer in brotli, as a provider's cache may (rpc::tests::an_rpc_that_compresses_its_answer_is_read).
+brotli = "8"
 
 [features]
 # The SDK's assertions at the places the harness can't see from outside (`antithesis.rs`). Off by default: a build
@@ -67,6 +86,15 @@ antithesis-coverage = ["antithesis", "dep:antithesis-instrumentation"]
 # The OS's own store for keys: the Keychain, Windows' Credential Manager, the Secret Service on Linux.
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3", features = ["apple-native"] }
+# Reading a Chromium-family browser's cookie store when the browser can't (import::direct).
+aes = "0.8"
+cbc = "0.1"
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+sha1 = "0.10"
+# Web logins the owner saved in the login keychain, listed and read where the vault holds none (keychain_logins).
+security-framework = "3"
+# The owner's security key over USB, and their phone over the hybrid QR (Bluetooth nearby, then a tunnel) (`owner_authn`).
+webauthn-authenticator-rs = { version = "=0.6.2", default-features = false, features = ["ctap2", "usb", "cable"] }
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
 # The console, read with echo off for the owner passphrase (`tty`).

@@ -518,7 +518,24 @@ impl std::fmt::Display for Unlearned {
 /// walks say it ([`crate::lab::answer`]), and that call with the steps its reads need, as [`route`] writes it. A
 /// route whose answer is the page read, not a state it embeds, says so. Where the walks settle nothing, nothing is written and the
 /// reason is said: what one walk would guess is no answer here.
+///
+/// Two walks of one page are one experiment, and neither is the earlier: a door that stopped the walk a corpus sorts
+/// first is no sighting of the page it stopped, and says nothing against what the site served the other walk. So the
+/// same two walks are asked the other way round before the experiment is called void, and the route is written from
+/// whichever walk it settles on; where neither order settles, the reason is the one the first reading gave.
 pub fn learn(walks: &[Walk], site: &str) -> Result<route::Route, Unlearned> {
+    match settled(walks, site) {
+        Ok(body) => Ok(body),
+        Err(why) if walks.len() > 1 => {
+            let other_way: Vec<Walk> = walks.iter().rev().map(|w| Walk { trace: w.trace, asked: w.asked.clone(), session: w.session }).collect();
+            settled(&other_way, site).map_err(|_| why)
+        }
+        Err(why) => Err(why),
+    }
+}
+
+/// [`learn`] in one order: the answer the walks settle on, written from the first of them.
+fn settled(walks: &[Walk], site: &str) -> Result<route::Route, Unlearned> {
     let at = settle(walks).map_err(Unlearned::Unsettled)?;
     route(&Lab::new(walks), at, site).ok_or(Unlearned::Unwritten(at))
 }
@@ -942,5 +959,255 @@ mod tests {
         assert_eq!(page_for_another_word(&plan, "zqx").as_deref(), Some("https://a.example/s?q=zqx&sort=new"));
         let none = plan_of("https://a.example/s?adults=2", &[], "search", &pairs(&[("adults", "2")]), &[], Vec::new()).unwrap();
         assert_eq!(page_for_another_word(&none, "zqx"), None);
+    }
+
+    /// One walk's capture in a folder of its own, read as a recording: the page, the call its script `app.js` sent, the
+    /// script itself (which ships a table of cities and sends the city's code), and what the page kept in its storage
+    /// when it settled and at the end.
+    fn recorded_walk(name: &str, script: &str, frame: (usize, usize)) -> crate::recording::Recording {
+        let dir = std::env::temp_dir().join(format!("compile-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let lines = [
+            serde_json::json!({"type": "request", "t": 1.0, "requestId": "1", "method": "GET", "url": "https://shop.example/search?q=Lisbon", "headers": {}, "resourceType": "Document", "frameId": "MAIN", "initiator": {"type": "other"}}),
+            serde_json::json!({"type": "response", "t": 1.5, "requestId": "1", "url": "https://shop.example/search?q=Lisbon", "status": 200, "mimeType": "text/html", "headers": {}, "body": "<html></html>"}),
+            serde_json::json!({"type": "request", "t": 3.0, "requestId": "2", "method": "GET", "url": "https://shop.example/api/search?city=LIS&n=2", "headers": {}, "resourceType": "Fetch", "frameId": "MAIN",
+                "initiator": {"type": "script", "frames": [{"scriptId": "7", "url": "https://shop.example/app.js", "function": "go", "line": frame.0, "column": frame.1}], "parents": []}}),
+            serde_json::json!({"type": "response", "t": 3.5, "requestId": "2", "url": "https://shop.example/api/search?city=LIS&n=2", "status": 200, "mimeType": "application/json", "headers": {}, "body": r#"{"items":[{"name":"Lisbon hotel"}]}"#}),
+            serde_json::json!({"type": "script", "t": 1.1, "scriptId": "7", "url": "https://shop.example/app.js", "language": "js", "sha256": crate::blobs::sha256_hex(script.as_bytes()), "length": script.len(), "source": script}),
+            serde_json::json!({"type": "origin_storage", "t": 2.0, "at": "settle", "origin": "https://shop.example", "local": {"theme": "dark", "tok": "at-settle"}, "session": {"tab": "one"}}),
+            serde_json::json!({"type": "origin_storage", "t": 5.0, "at": "end", "origin": "https://shop.example", "local": {"theme": "dark", "tok": "at-end", "late": "after-settle"}, "session": {}}),
+        ];
+        let text: String = lines.iter().map(|l| format!("{l}\n")).collect();
+        std::fs::write(agent_browser_core::session::capture_path(&dir, "w"), text).unwrap();
+        let recording = crate::recording::Recording::read(&dir, "w").expect("the walk reads");
+        let _ = std::fs::remove_dir_all(&dir);
+        recording
+    }
+
+    const CITY_SCRIPT: &str = "var CITIES = [{ name: \"Lisbon\", code: \"LIS\" }, { name: \"Oslo\", code: \"OSL\" }, { name: \"Porto\", code: \"OPO\" }];\nfunction go(q) {\n  var code = CITIES.filter(function (c) { return c.name === q; })[0].code;\n  return fetch('/api/search?city=' + code + '&n=2');\n}\n";
+
+    /// What the page kept in its storage when its call was made is read from its recording by origin: what it held when it
+    /// settled, with what it stored by the end beside it (a key written later is still one the call could read), the
+    /// settled value standing where both hold a key. A recording with nothing of the page's origin, or a page that is
+    /// no address, says nothing.
+    #[test]
+    fn the_pages_storage_is_what_it_held_when_it_settled_with_what_it_stored_by_the_end() {
+        let recording = recorded_walk("storage", CITY_SCRIPT, (3, 9));
+        let kept = storage_when_called(&recording, "https://shop.example/search?q=Lisbon").expect("the origin kept storage");
+        assert_eq!(kept.local, std::collections::HashMap::from([("theme".to_string(), "dark".to_string()), ("tok".to_string(), "at-settle".to_string()), ("late".to_string(), "after-settle".to_string())]));
+        assert_eq!(kept.session, std::collections::HashMap::from([("tab".to_string(), "one".to_string())]));
+        assert!(storage_when_called(&recording, "https://other.example/").is_none(), "another origin's storage is none of this page's");
+        assert!(storage_when_called(&recording, "not an address").is_none());
+    }
+
+    /// A call whose recording names the script that sent it learns from that script: the table of cities it ships turns
+    /// the caller's word into the city's code, as a lookup the route keeps, and the script's hash is noted on the step's
+    /// test, so a deploy that changes the script is seen when the body is checked again. A walk of the page for another
+    /// city is a sighting too.
+    #[test]
+    fn a_call_whose_sending_script_ships_a_table_learns_a_lookup_noted_against_that_script() {
+        use crate::lab::sighting::tests::{call, trace};
+        if !crate::sandbox::available() {
+            eprintln!("no runtime on this machine: the table-reading test is skipped");
+            return;
+        }
+        let line = CITY_SCRIPT.lines().position(|l| l.contains("fetch(")).unwrap();
+        let column = CITY_SCRIPT.lines().nth(line).unwrap().find("fetch(").unwrap();
+        let recording = recorded_walk("table", CITY_SCRIPT, (line, column));
+        let mut first = recording.trace.clone();
+        first.inputs = vec![crate::trace::Input::new("q", "Lisbon")];
+        let mut other_page = call("GET", "https://shop.example/search?q=Oslo", &[], None, "<html></html>");
+        other_page.resource_type = Some("Document".into());
+        let second = trace(vec![other_page, call("GET", "https://shop.example/api/search?city=OSL&n=2", &[], None, r#"{"items":[{"name":"Oslo hotel"}]}"#)]);
+        let is_target = |e: &Exchange| e.url.path() == "/api/search";
+        let stores = [None];
+        let learned = body_by_example_stored(&first, "https://shop.example/search?q=Lisbon", &[&second], is_target, Some(&recording), &stores).expect("a body");
+        let step = learned.body.steps.iter().find(|s| s.url.contains("/api/search")).expect("the search is a step");
+        let city = step.holes.iter().find(|h| h.at == route::Place::Query("city".into())).unwrap_or_else(|| panic!("no hole at city: {}", serde_json::to_string(&learned.body).unwrap()));
+        assert!(matches!(&city.ways[0].expr, Expr::Lookup { take, .. } if take == "/code"), "{:?}", city.ways[0].expr);
+        assert_eq!(learned.body.asked(), ["q"]);
+        let sha = crate::blobs::sha256_hex(CITY_SCRIPT.as_bytes());
+        let test = learned.body.tests.iter().find(|t| t.step == step.id).expect("the step's test");
+        assert_eq!(test.over_scripts, vec![sha], "the script that ships the table is noted on the step's test");
+        assert_eq!(test.sightings.len(), 2, "a sighting a walk of the page");
+        assert_eq!(learned.body.meaning.kinds.get("q"), Some(&route::meaning::Kind::Listed), "a word the site's table lists is one of its words");
+        assert_eq!(learned.body.slots[0].choices, vec!["Lisbon".to_string(), "Oslo".to_string(), "Porto".to_string()]);
+    }
+
+    /// A learn from a walk of a page and another walk of it for another word writes a body asked that one word, and the
+    /// size of the body and of the graph that says it is told as a person reads it: its steps, and the inputs it asks.
+    #[test]
+    fn a_learn_from_two_walks_of_a_page_tells_its_size_in_steps_and_inputs() {
+        use crate::lab::sighting::tests::{call, trace};
+        let walked = |word: &str, found: &str| {
+            let mut page = call("GET", &format!("https://shop.example/p/search?q={word}"), &[], None, "<html></html>");
+            page.resource_type = Some("Document".into());
+            let hits = (0..6).map(|n| format!(r#"{{"name":"{found} number {n}"}}"#)).collect::<Vec<_>>().join(",");
+            let mut t = trace(vec![page, call("GET", &format!("https://shop.example/api/search?q={word}"), &[], None, &format!(r#"{{"items":[{hits}]}}"#))]);
+            t.inputs = vec![crate::trace::Input::new("q", word)];
+            t
+        };
+        let (first, second) = (walked("lamp", "Desk lamp"), walked("sofa", "Red sofa"));
+        let is_target = |e: &Exchange| e.url.path() == "/api/search";
+        let learned = body_by_example(&first, "https://shop.example/p/search?q=lamp", &[&second], is_target, None).expect("a body");
+        assert_eq!(learned.body.asked(), ["q"]);
+        assert_eq!(counted_body(&learned.body), "1 step, 1 input");
+        let graph = graph_by_example(&first, "https://shop.example/p/search?q=lamp", &[&second], is_target).expect("a graph says the body");
+        assert_eq!(counted(&graph), "1 step, 1 input");
+        assert_eq!(graph.steps.len(), 1);
+        // Without the other walk, the same call is still one step and one input; a body of two inputs says both, plural.
+        let two = {
+            let mut t = first.clone();
+            t.inputs.push(crate::trace::Input::new("page", "1"));
+            t.exchanges[1].url = "https://shop.example/api/search?q=lamp&page=1".parse().unwrap();
+            t.exchanges[0].url = "https://shop.example/p/search?q=lamp&page=1".parse().unwrap();
+            t
+        };
+        let learned = body_by_example(&two, "https://shop.example/p/search?q=lamp&page=1", &[], is_target, None).expect("a body");
+        assert_eq!(counted_body(&learned.body), "1 step, 2 inputs");
+        assert_eq!(counted(&learned.graph.expect("a graph")), "1 step, 2 inputs");
+    }
+
+    /// The two walks of one page are one experiment, and neither is the earlier: a door that stopped the walk a corpus
+    /// sorts first is no sighting of the page, so the same two walks asked the other way round settle on the page the
+    /// site served (eBay Germany walls one walk and serves its results to the other, and the walled walk is the one
+    /// whose folder sorts first). The page's own text sets each result of what it was asked, so the route is that
+    /// page with the caller's word; where neither order settles, the reason is the one the first reading gave.
+    #[test]
+    fn a_door_that_stopped_one_walk_leaves_the_experiment_settling_the_other_way_round() {
+        use crate::lab::sighting::tests::{call, trace, walk};
+        let results = |word: &str| {
+            let items: String = (0..6).map(|n| format!("<li><a href='/p/{word}{n}'>{word} machine number {n}</a></li>")).collect();
+            format!("<html><head><title>{word} | results</title></head><body><main><h1>Results for {word}</h1><ul>{items}</ul></main></body></html>")
+        };
+        let page = |word: &str| {
+            let mut e = call("GET", &format!("https://shop.example/s?q={word}"), &[], None, &results(word));
+            e.response_mime = "text/html".into();
+            e.resource_type = Some("Document".into());
+            e.main_frame = Some(true);
+            e
+        };
+        let door = |word: &str| {
+            let mut e = call("GET", &format!("https://shop.example/s?q={word}"), &[], None, "<html><body><p>Access denied: a check is running</p></body></html>");
+            e.status = 403;
+            e.response_mime = "text/html".into();
+            e.resource_type = Some("Document".into());
+            e.main_frame = Some(true);
+            e
+        };
+        let (stopped, served) = (trace(vec![door("glass")]), trace(vec![page("brass")]));
+        let walled_first = [walk(&stopped, &[("q", "glass")]), walk(&served, &[("q", "brass")])];
+        assert!(settle(&walled_first).is_err(), "the walled walk first settles nothing as the experiment reads it");
+        let body = learn(&walled_first, "shop.example").expect("the same experiment settles the other way round");
+        assert_eq!(body.steps.iter().map(|s| s.url.as_str()).collect::<Vec<_>>(), ["https://shop.example/s"], "the route is the page the site served");
+        assert_eq!(body.asked(), ["q"]);
+        assert!(body.answer.page, "the page's own text is the answer");
+        // Written from the walk that was served, the same route is what the other order writes.
+        let served_first = [walk(&served, &[("q", "brass")]), walk(&stopped, &[("q", "glass")])];
+        assert_eq!(learn(&served_first, "shop.example").map(|b| (b.steps.len(), b.asked().join(","))).ok(), Some((body.steps.len(), body.asked().join(","))));
+        // Two walks that settle nothing either way round say why as the first reading said it.
+        let (one, two) = (trace(vec![page("brass")]), trace(vec![page("glass")]));
+        let shells = [walk(&one, &[("q", "brass")]), walk(&two, &[("q", "glass")])];
+        let said = learn(&shells, "shop.example").expect_err("a page that answers both values settles nothing");
+        assert_eq!(said, Unlearned::Unsettled(settle(&shells).expect_err("nothing settled")));
+    }
+
+    /// Why a learn wrote no route is said in plain words: the walks settled no answer, with what unsettled them; or the
+    /// answer's call could not be written as a step, naming its place.
+    #[test]
+    fn why_a_learn_wrote_no_route_is_said_in_words() {
+        use crate::lab::sighting::tests::{call, trace, walk};
+        assert_eq!(Unlearned::Unwritten(3).to_string(), "call 3 of the first walk could not be written as a step");
+        let first = trace(vec![call("GET", "https://shop.example/api/search?q=lamp", &[], None, "{}")]);
+        let err = learn(&[walk(&first, &[("q", "lamp")])], "shop.example").expect_err("one walk settles nothing");
+        assert_eq!(err, Unlearned::Unsettled(crate::lab::answer::Unsettled::OneWalk));
+        assert!(err.to_string().starts_with("the walks settle no answer: "), "{err}");
+    }
+
+    /// A step is written by the kind of body its call sent: a form's fields (the asked field a hole, a field the walks
+    /// agree on its own fixed text), a body that is neither JSON nor a form kept as one the learner does not write, a
+    /// multipart body the same, and a JSON leaf the caller makes keeps the kind the walk sent it as.
+    #[test]
+    fn a_step_is_written_by_the_kind_of_body_its_call_sent() {
+        use crate::lab::sighting::tests::{call, trace, walk};
+        let step_of_bodies = |content_type: &str, bodies: [&str; 2], asked: [&[(&str, &str)]; 2]| {
+            let walked = |body: &str| trace(vec![call("POST", "https://shop.example/api/send", &[("content-type", content_type)], Some(body), r#"{"ok":true}"#)]);
+            let (first, second) = (walked(bodies[0]), walked(bodies[1]));
+            let walks = [walk(&first, asked[0]), walk(&second, asked[1])];
+            step(&Lab::new(&walks), 0).expect("a step")
+        };
+        let form = step_of_bodies("application/x-www-form-urlencoded", ["q=lamp&page=1", "q=sofa&page=1"], [&[("q", "lamp")], &[("q", "sofa")]]);
+        let Some(route::Form::Fields { fields }) = &form.body else { panic!("{:?}", form.body) };
+        assert!(fields.contains(&("q".to_string(), None)) && fields.contains(&("page".to_string(), Some("1".to_string()))), "{fields:?}");
+        assert_eq!(form.holes.iter().map(|h| h.at.clone()).filter(|at| matches!(at, route::Place::Form(_))).collect::<Vec<_>>(), vec![route::Place::Form("q".into())], "the asked field is the one field made for the call");
+        let text = step_of_bodies("text/plain", ["hello there", "hello again"], [&[("q", "lamp")], &[("q", "sofa")]]);
+        assert_eq!(text.body, Some(route::Form::Other), "a body no reader opens is one the learner does not write");
+        let multipart = |word: &str| format!("--XyZ\r\nContent-Disposition: form-data; name=\"q\"\r\n\r\n{word}\r\n--XyZ--\r\n");
+        let parts = step_of_bodies("multipart/form-data; boundary=XyZ", [&multipart("lamp"), &multipart("sofa")], [&[("q", "lamp")], &[("q", "sofa")]]);
+        assert_eq!(parts.body, Some(route::Form::Other), "a multipart body is not written yet");
+        let json = step_of_bodies("application/json", [r#"{"term":"lamp","page":2,"exact":false}"#, r#"{"term":"sofa","page":3,"exact":true}"#], [&[("term", "lamp"), ("page", "2"), ("exact", "false")], &[("term", "sofa"), ("page", "3"), ("exact", "true")]]);
+        let Some(route::Form::Json { template, types, .. }) = &json.body else { panic!("{:?}", json.body) };
+        assert_eq!(template, &serde_json::json!({"term": null, "page": null, "exact": null}));
+        assert_eq!(types.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect::<Vec<_>>(), [("/exact", "bool"), ("/page", "number"), ("/term", "string")]);
+    }
+
+    /// Whether a step writes is read from the body it sends as the ledger's one rule reads it, whatever the body's kind:
+    /// a form's fixed field, a multipart part's JSON or text, a binary body's field, and a route's own text beside the
+    /// template (a hole whose way is a fixed text) all say what the call asks. A POST that asks a GraphQL query reads;
+    /// one that holds a mutation anywhere writes.
+    #[test]
+    fn a_post_is_a_read_by_whatever_body_says_its_query_and_a_write_where_any_says_a_mutation() {
+        use route::{Expr, Form, Hole, Part, Place, Way};
+        let post = |url: &str, body: Option<Form>, holes: Vec<Hole>| route::Step { id: "x0".into(), method: "POST".into(), url: url.into(), holes, body, expect: 200, script: None, page: false, writes: true, on_load: false, sets_cookie: false, lifetime: None, shape: None };
+        let text = |at: Place, is: &str| Hole { at, ways: vec![Way { rung: 0, expr: Expr::text(is) }], over: false, open: false };
+        const ASKS: &str = "query Find { find { id } }";
+        const CHANGES: &str = "mutation Add { add { ok } }";
+        let graphql = "https://shop.example/graphql";
+        let fields = |q: &str| Some(Form::Fields { fields: vec![("query".into(), Some(q.into())), ("note".into(), None)] });
+        assert!(!writes(&post(graphql, fields(ASKS), Vec::new())), "a form that asks a query");
+        assert!(writes(&post(graphql, fields(CHANGES), Vec::new())), "a form that holds a mutation");
+        let multipart = |part: Part| Some(Form::Multipart { boundary: "b".into(), parts: vec![part] });
+        let part = |name: &str| Part { name: name.into(), filename: None, content_type: None, text: None, json: None, types: Default::default() };
+        assert!(!writes(&post(graphql, multipart(Part { text: Some(ASKS.into()), ..part("operations") }), Vec::new())), "a part's text that asks");
+        assert!(writes(&post(graphql, multipart(Part { text: Some(CHANGES.into()), ..part("operations") }), Vec::new())), "a part's text that changes");
+        assert!(!writes(&post(graphql, multipart(Part { json: Some(serde_json::json!({"query": ASKS})), ..part("operations") }), Vec::new())), "a part's JSON that asks");
+        assert!(writes(&post(graphql, multipart(Part { json: Some(serde_json::json!({"query": CHANGES})), ..part("operations") }), Vec::new())), "a part's JSON that changes");
+        let message = |word: &str| {
+            let mut b = vec![0x0a, word.len() as u8];
+            b.extend(word.as_bytes());
+            b
+        };
+        let wire = |word: &str| Some(Form::Wire { codec: route::wire::Codec::Protobuf, template: route::wire::open(route::wire::Codec::Protobuf, &message(word)).expect("the message opens") });
+        assert!(!writes(&post(graphql, wire(ASKS), Vec::new())), "a binary body's field that asks");
+        assert!(writes(&post(graphql, wire(CHANGES), Vec::new())), "a binary body's field that changes");
+        // A route's own text at a place of the call is what the call says, wherever the place is.
+        let own = |at: Place, is: &str| writes(&post(graphql, None, vec![text(at, is)]));
+        assert!(!own(Place::Json("/query".into()), ASKS) && own(Place::Json("/query".into()), CHANGES));
+        assert!(!own(Place::Form("query".into()), ASKS) && own(Place::Form("query".into()), CHANGES));
+        assert!(!own(Place::Part("operations".into(), "/query".into()), ASKS) && own(Place::Part("operations".into(), "/query".into()), CHANGES));
+        assert!(!own(Place::Query("query".into()), ASKS) && own(Place::Query("query".into()), CHANGES));
+        // A text joined around the caller's word is the route's own text; the caller's word is none of it.
+        let joined = Hole { at: Place::Json("/query".into()), ways: vec![Way { rung: 0, expr: Expr::Join { parts: vec![Expr::text("mutation Add { add(q: \""), Expr::Slot { name: "q".into(), or: None, optional: false }, Expr::text("\") { ok } }")], with: String::new() } }], over: false, open: false };
+        assert!(writes(&post(graphql, None, vec![joined])), "the fixed pieces around a word say a mutation");
+        let by_the_caller = Hole { at: Place::Json("/query".into()), ways: vec![Way { rung: 0, expr: Expr::Slot { name: "q".into(), or: Some(CHANGES.into()), optional: false } }], over: false, open: false };
+        assert!(writes(&post(graphql, None, vec![by_the_caller])), "a POST nothing says asks is a write: the caller's value proves nothing");
+    }
+
+    /// A call a script made goes out from the page that made it: the origin the call names, or else the origin of the page
+    /// that referred it; a page asked for as a page has no script's origin at all.
+    #[test]
+    fn a_call_a_script_made_is_said_to_come_from_the_page_that_sent_it() {
+        use crate::lab::sighting::tests::{call, trace, walk};
+        let step_of = |headers: &[(&str, &str)], resource_type: &str| {
+            let mut e = call("GET", "https://api.shop.example/find?q=lamp", headers, None, "{}");
+            e.resource_type = Some(resource_type.into());
+            let t = trace(vec![e]);
+            step(&Lab::new(&[walk(&t, &[("q", "lamp")])]), 0).expect("a step")
+        };
+        assert_eq!(step_of(&[("origin", "https://www.shop.example")], "Fetch").script, Some(route::Caller { origin: Some("https://www.shop.example".into()) }));
+        assert_eq!(step_of(&[("referer", "https://www.shop.example/p/1?x=2")], "XHR").script, Some(route::Caller { origin: Some("https://www.shop.example".into()) }));
+        assert_eq!(step_of(&[], "XHR").script, Some(route::Caller { origin: None }), "a script's call that names no page");
+        assert_eq!(step_of(&[("origin", "https://www.shop.example")], "Document").script, None, "a page is asked for as a page");
     }
 }

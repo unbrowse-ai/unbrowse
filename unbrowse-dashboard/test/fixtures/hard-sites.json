@@ -1,0 +1,1 @@
+{"sites":30,"counts":{"right":0,"wrong":8,"needs a browser":6,"walled":16,"unknown":0},"rows":[{"site":"etsy.com","label":"walled","gate":"DataDome","seconds":44},{"site":"g2.com","label":"wrong","gate":"DataDome + Cloudflare","seconds":164},{"site":"uniqlo.com/sg","label":"walled","gate":"Akamai + queue-it","seconds":62}]}

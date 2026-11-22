@@ -163,16 +163,12 @@ async fn collect_storage_in_target(
     client
         .send_command_no_params("Page.enable", Some(temp_session))
         .await?;
-    // Nothing here reads a runtime event: the loop below watches Fetch and Page
-    // only. The runtime domain is readable from the page itself, so enabling it
-    // would say more about the caller than it would tell us.
+    client
+        .send_command_no_params("Runtime.enable", Some(temp_session))
+        .await?;
 
     // Blank HTML response body, pre-encoded to avoid repeated base64 work per request
     let blank_html_b64 = base64::engine::general_purpose::STANDARD.encode("<html></html>");
-
-    // This session's events come only here: the daemon's fetch handler answers every pause it sees by letting the request
-    // go, with the session's cookies.
-    let mut event_rx = client.subscribe_session(temp_session);
 
     let _ = client
         .send_command(
@@ -182,38 +178,29 @@ async fn collect_storage_in_target(
         )
         .await;
 
+    let mut event_rx = client.subscribe();
     let mut results = Vec::new();
 
     for target_origin in origins {
         let nav_url = format!("{}/", target_origin.trim_end_matches('/'));
-
-        // Chrome answers Page.navigate only once the navigation commits, and it can't commit until its paused request is
-        // answered, so the two are waited on together. Awaiting the answer first left the pause to the daemon's fetch
-        // handler, which let it go: every save really loaded every visited origin.
-        let navigate = client.send_command(
-            "Page.navigate",
-            Some(json!({ "url": nav_url })),
-            Some(temp_session),
-        );
-        tokio::pin!(navigate);
-        let mut navigating = true;
+        if client
+            .send_command(
+                "Page.navigate",
+                Some(json!({ "url": nav_url })),
+                Some(temp_session),
+            )
+            .await
+            .is_err()
+        {
+            continue;
+        }
 
         // Fulfill intercepted requests with blank HTML until the page loads
         let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(5);
         let mut page_loaded = false;
         while tokio::time::Instant::now() < deadline {
-            let event = tokio::select! {
-                answer = &mut navigate, if navigating => {
-                    navigating = false;
-                    if answer.is_err() {
-                        break;
-                    }
-                    continue;
-                }
-                event = tokio::time::timeout(tokio::time::Duration::from_secs(2), event_rx.recv()) => event,
-            };
-            match event {
-                Ok(Some(evt)) => {
+            match tokio::time::timeout(tokio::time::Duration::from_secs(2), event_rx.recv()).await {
+                Ok(Ok(evt)) if evt.session_id.as_deref() == Some(temp_session) => {
                     if evt.method == "Fetch.requestPaused" {
                         if let Some(request_id) =
                             evt.params.get("requestId").and_then(|v| v.as_str())
@@ -238,8 +225,9 @@ async fn collect_storage_in_target(
                         break;
                     }
                 }
-                Ok(None) => break, // connection closed
-                Err(_) => break,   // outer timeout elapsed
+                Ok(Ok(_)) => continue,  // event for a different session
+                Ok(Err(_)) => continue, // lagged or closed — retry within deadline
+                Err(_) => break,        // outer timeout elapsed
             }
         }
 
@@ -254,7 +242,6 @@ async fn collect_storage_in_target(
         }
     }
 
-    client.unsubscribe_session(temp_session);
     Ok(results)
 }
 
@@ -403,30 +390,36 @@ pub async fn save_auto_state_transactional(
         return Err(err);
     }
 
-    promote_state(std::path::Path::new(&candidate_path), &final_path)?;
+    let previous_path = PathBuf::from(format!("{}.previous", final_path.to_string_lossy()));
+    if final_path.exists() {
+        let _ = fs::remove_file(&previous_path);
+        fs::rename(&final_path, &previous_path).map_err(|e| {
+            format!(
+                "Failed to rotate previous state {} to {}: {}",
+                final_path.display(),
+                previous_path.display(),
+                e
+            )
+        })?;
+    }
 
-    Ok(final_path.to_string_lossy().to_string())
-}
-
-/// Puts a checked candidate in place of the saved state. The rename replaces the old file in one step, so a crash leaves
-/// the old state or the new one, never neither. A plain copy from before a key was set goes once the encrypted one is in
-/// place: the owner asked for those cookies to stop being readable.
-fn promote_state(candidate: &std::path::Path, final_path: &std::path::Path) -> Result<(), String> {
-    fs::rename(candidate, final_path).map_err(|err| {
-        format!(
+    let candidate = PathBuf::from(&candidate_path);
+    if let Err(err) = fs::rename(&candidate, &final_path) {
+        if previous_path.exists() && !final_path.exists() {
+            let _ = fs::rename(&previous_path, &final_path);
+        }
+        return Err(format!(
             "Failed to promote state {} to {}: {}",
             candidate.display(),
             final_path.display(),
             err
-        )
-    })?;
-    let saved = final_path.to_string_lossy();
-    let _ = fs::remove_file(format!("{saved}.previous"));
-    if let Some(plain) = saved.strip_suffix(".enc") {
-        let _ = fs::remove_file(plain);
-        let _ = fs::remove_file(format!("{plain}.previous"));
+        ));
     }
-    Ok(())
+    if previous_path.exists() {
+        let _ = fs::remove_file(&previous_path);
+    }
+
+    Ok(final_path.to_string_lossy().to_string())
 }
 
 fn read_state_json(path: &str) -> Result<String, String> {
@@ -467,13 +460,19 @@ pub fn validate_state_file(path: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn load_state(client: &CdpClient, session_id: &str, path: &str) -> Result<(), String> {
+/// Restore cookies and per-origin storage from a state file.
+///
+/// Storage is written through CDP DOMStorage, so no page script sees the values and Chrome only accepts the write when a frame is at the saved origin. Origins that redirect elsewhere or fail to load are skipped and returned.
+pub async fn load_state(
+    client: &CdpClient,
+    session_id: &str,
+    path: &str,
+) -> Result<Vec<String>, String> {
     let json_str = read_state_json(path)?;
 
     let state: StorageState =
         serde_json::from_str(&json_str).map_err(|e| format!("Invalid state file: {}", e))?;
 
-    // Load cookies
     if !state.cookies.is_empty() {
         let cookie_values: Vec<Value> = state
             .cookies
@@ -483,64 +482,63 @@ pub async fn load_state(client: &CdpClient, session_id: &str, path: &str) -> Res
         cookies::set_cookies(client, session_id, cookie_values, None).await?;
     }
 
-    // Load storage per origin
+    let mut skipped = Vec::new();
     for origin in &state.origins {
         if origin.local_storage.is_empty() && origin.session_storage.is_empty() {
             continue;
         }
-
-        // Navigate to origin to set storage
-        let navigate_url = format!("{}/", origin.origin.trim_end_matches('/'));
-        client
-            .send_command(
-                "Page.navigate",
-                Some(json!({ "url": navigate_url })),
-                Some(session_id),
-            )
-            .await?;
-
-        // Brief wait for navigation
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-        for entry in &origin.local_storage {
-            let js = format!(
-                "localStorage.setItem({}, {})",
-                serde_json::to_string(&entry.name).unwrap_or_default(),
-                serde_json::to_string(&entry.value).unwrap_or_default(),
-            );
-            let _ = client
-                .send_command_typed::<_, super::cdp::types::EvaluateResult>(
-                    "Runtime.evaluate",
-                    &EvaluateParams {
-                        expression: js,
-                        return_by_value: Some(true),
-                        await_promise: Some(false),
-                    },
-                    Some(session_id),
-                )
-                .await;
-        }
-
-        for entry in &origin.session_storage {
-            let js = format!(
-                "sessionStorage.setItem({}, {})",
-                serde_json::to_string(&entry.name).unwrap_or_default(),
-                serde_json::to_string(&entry.value).unwrap_or_default(),
-            );
-            let _ = client
-                .send_command_typed::<_, super::cdp::types::EvaluateResult>(
-                    "Runtime.evaluate",
-                    &EvaluateParams {
-                        expression: js,
-                        return_by_value: Some(true),
-                        await_promise: Some(false),
-                    },
-                    Some(session_id),
-                )
-                .await;
+        if restore_origin_storage(client, session_id, origin)
+            .await
+            .is_err()
+        {
+            skipped.push(origin.origin.clone());
         }
     }
 
+    Ok(skipped)
+}
+
+async fn restore_origin_storage(
+    client: &CdpClient,
+    session_id: &str,
+    origin: &OriginStorage,
+) -> Result<(), String> {
+    let security_origin = url::Url::parse(&origin.origin)
+        .ok()
+        .map(|u| u.origin())
+        .filter(|o| o.is_tuple())
+        .map(|o| o.ascii_serialization())
+        .unwrap_or_else(|| origin.origin.trim_end_matches('/').to_string());
+    client
+        .send_command(
+            "Page.navigate",
+            Some(json!({ "url": format!("{}/", security_origin) })),
+            Some(session_id),
+        )
+        .await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    let entries = origin
+        .local_storage
+        .iter()
+        .map(|e| (true, e))
+        .chain(origin.session_storage.iter().map(|e| (false, e)));
+    for (is_local_storage, entry) in entries {
+        client
+            .send_command(
+                "DOMStorage.setDOMStorageItem",
+                Some(json!({
+                    "storageId": {
+                        "securityOrigin": security_origin,
+                        "isLocalStorage": is_local_storage,
+                    },
+                    "key": entry.name,
+                    "value": entry.value,
+                })),
+                Some(session_id),
+            )
+            .await?;
+    }
     Ok(())
 }
 
@@ -757,25 +755,41 @@ fn decrypt_data(data: &[u8], key_str: &str) -> Result<Vec<u8>, String> {
     Ok(plaintext)
 }
 
-/// The state saved under exactly this restore key and session id, the most recent form of it. Names may hold `-`, so a
-/// file can't be read back into its key and session: only the whole name says whose it is. Matching by prefix handed the
-/// key `shop` the cookies saved under `shop-eu`, and the next save wrote them under `shop`. A `.previous` left by an
-/// older save that crashed between its two renames is that session's last good state, used when nothing newer is there.
-pub fn find_auto_state_file(session_name: &str, session_id: &str) -> Option<String> {
-    if !is_valid_session_name(session_name) || !is_valid_session_name(session_id) {
+pub fn find_auto_state_file(session_name: &str) -> Option<String> {
+    if !is_valid_session_name(session_name) {
         return None;
     }
 
     let dir = get_sessions_dir();
-    let newest = |endings: [&str; 2]| {
-        endings
-            .iter()
-            .map(|ending| dir.join(format!("{session_name}-{session_id}{ending}")))
-            .filter_map(|path| Some((fs::metadata(&path).ok()?.modified().unwrap_or(std::time::UNIX_EPOCH), path)))
-            .max_by_key(|(modified, _)| *modified)
-            .map(|(_, path)| path.to_string_lossy().to_string())
-    };
-    newest([".json", ".json.enc"]).or_else(|| newest([".json.previous", ".json.enc.previous"]))
+    if !dir.exists() {
+        return None;
+    }
+    let prefix = format!("{}-", session_name);
+    let mut best_path: Option<(String, std::time::SystemTime)> = None;
+
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let fname = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let is_match = fname.starts_with(&prefix)
+                && (fname.ends_with(".json") || fname.ends_with(".json.enc"));
+            if !is_match {
+                continue;
+            }
+            let modified = fs::metadata(&path)
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .unwrap_or(std::time::UNIX_EPOCH);
+            if best_path.as_ref().is_none_or(|(_, t)| modified > *t) {
+                best_path = Some((path.to_string_lossy().to_string(), modified));
+            }
+        }
+    }
+    best_path.map(|(p, _)| p)
 }
 
 /// Dispatch a state management command from its JSON payload.
@@ -817,7 +831,7 @@ pub fn dispatch_state_command(cmd: &Value) -> Option<Result<Value, String>> {
 /// `<tempdir>/agent-browser` when the home directory can't be resolved).
 /// This is the parent of `sessions/`, auth storage, and the encryption key.
 pub fn get_state_dir() -> PathBuf {
-    let base = if let Some(home) = dirs::home_dir() {
+    let base = if let Some(home) = std::env::home_dir() {
         home.join(".agent-browser")
     } else {
         std::env::temp_dir().join("agent-browser")
@@ -840,69 +854,6 @@ pub fn get_sessions_dir() -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A browser that pauses the temp page's navigation and finishes it once the pause is fulfilled.
-    async fn browser_that_pauses_navigation() -> (std::sync::Arc<CdpClient>, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
-        use futures_util::{SinkExt, StreamExt};
-        use tokio_tungstenite::tungstenite::Message;
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let url = format!("ws://127.0.0.1:{}/devtools/browser/mock", listener.local_addr().unwrap().port());
-        let methods = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-        let recorded = methods.clone();
-        tokio::spawn(async move {
-            let (stream, _) = listener.accept().await.unwrap();
-            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
-            let mut held_navigate = None;
-            while let Some(Ok(Message::Text(text))) = ws.next().await {
-                let command: Value = serde_json::from_str(&text).unwrap();
-                let method = command["method"].as_str().unwrap().to_string();
-                recorded.lock().unwrap().push(method.clone());
-                // Chrome holds this answer until the navigation commits.
-                if method == "Page.navigate" {
-                    held_navigate = Some(command["id"].clone());
-                    let paused = json!({
-                        "method": "Fetch.requestPaused",
-                        "sessionId": "S-TEMP",
-                        "params": { "requestId": "R1", "request": { "url": "https://visited.test/" } }
-                    });
-                    ws.send(Message::Text(paused.to_string())).await.unwrap();
-                    continue;
-                }
-                let result = match method.as_str() {
-                    "Target.createTarget" => json!({ "targetId": "T-TEMP" }),
-                    "Target.attachToTarget" => json!({ "sessionId": "S-TEMP" }),
-                    "Runtime.evaluate" => json!({ "result": { "type": "object", "value": {
-                        "origin": "https://visited.test", "localStorage": [], "sessionStorage": []
-                    }}}),
-                    _ => json!({}),
-                };
-                let reply = json!({ "id": command["id"], "result": result });
-                ws.send(Message::Text(reply.to_string())).await.unwrap();
-                if method == "Fetch.fulfillRequest" {
-                    let navigated = json!({ "id": held_navigate.take(), "result": { "frameId": "F" } });
-                    ws.send(Message::Text(navigated.to_string())).await.unwrap();
-                    let loaded = json!({ "method": "Page.loadEventFired", "sessionId": "S-TEMP", "params": {} });
-                    ws.send(Message::Text(loaded.to_string())).await.unwrap();
-                }
-            }
-        });
-        (std::sync::Arc::new(CdpClient::connect(&url).await.unwrap()), methods)
-    }
-
-    /// Saving reads storage on a blank page it serves itself. A pause on that page is the save's alone: the daemon's fetch
-    /// handler, which lets every pause it sees go, must never see it, or the visited origin is really loaded.
-    #[tokio::test]
-    async fn a_save_keeps_its_own_page_from_the_network() {
-        let (client, methods) = browser_that_pauses_navigation().await;
-        let mut fetch_handler = client.subscribe_methods(&["Fetch.requestPaused"]);
-
-        collect_storage_via_temp_target(&client, &["https://visited.test".to_string()], "(() => 1)()")
-            .await
-            .unwrap();
-
-        assert!(methods.lock().unwrap().iter().any(|method| method == "Fetch.fulfillRequest"));
-        assert!(fetch_handler.try_recv().is_err(), "the daemon's handler must not get the save's pause");
-    }
 
     #[test]
     fn test_storage_state_serialization() {
@@ -993,64 +944,6 @@ mod tests {
         assert!(!sessions.join("auth-test.json").exists());
         assert!(!sessions.join("auth-test.json.previous").exists());
         assert!(!sessions.join("auth-test.json.enc.previous").exists());
-    }
-
-    fn sessions_in_a_new_home() -> (crate::test_utils::EnvGuard<'static>, tempfile::TempDir, PathBuf) {
-        let guard = crate::test_utils::EnvGuard::new(&["HOME", "AGENT_BROWSER_NAMESPACE"]);
-        let dir = tempfile::tempdir().unwrap();
-        guard.set("HOME", dir.path().to_str().unwrap());
-        guard.remove("AGENT_BROWSER_NAMESPACE");
-        let sessions = get_sessions_dir();
-        fs::create_dir_all(&sessions).unwrap();
-        (guard, dir, sessions)
-    }
-
-    /// One identity's cookies are never another's: `shop` and `shop-eu` start with the same letters, and that's all.
-    #[test]
-    fn a_key_finds_only_the_state_saved_under_it() {
-        let (_guard, _dir, sessions) = sessions_in_a_new_home();
-        fs::write(sessions.join("shop-eu-default.json"), "{}").unwrap();
-        assert_eq!(find_auto_state_file("shop", "default"), None);
-
-        fs::write(sessions.join("shop-default.json"), "{}").unwrap();
-        let found = find_auto_state_file("shop", "default").unwrap();
-        assert!(found.ends_with("/shop-default.json"), "{found}");
-        assert_eq!(find_auto_state_file("../shop", "default"), None);
-    }
-
-    /// A crash that left only the rotated copy still leaves the session its last good state.
-    #[test]
-    fn a_state_left_as_previous_is_found_when_nothing_newer_is_there() {
-        let (_guard, _dir, sessions) = sessions_in_a_new_home();
-        fs::write(sessions.join("shop-default.json.previous"), "{}").unwrap();
-        assert!(find_auto_state_file("shop", "default").unwrap().ends_with(".json.previous"));
-        fs::write(sessions.join("shop-default.json"), "{}").unwrap();
-        assert!(find_auto_state_file("shop", "default").unwrap().ends_with("/shop-default.json"));
-    }
-
-    /// A save takes the old state's place in one rename, and leaves nothing beside it to be read instead.
-    #[test]
-    fn a_save_replaces_the_state_in_one_step() {
-        let dir = tempfile::tempdir().unwrap();
-        let (candidate, saved) = (dir.path().join("candidate.json"), dir.path().join("k-s.json"));
-        fs::write(&candidate, "new").unwrap();
-        fs::write(&saved, "old").unwrap();
-        fs::write(dir.path().join("k-s.json.previous"), "older").unwrap();
-        promote_state(&candidate, &saved).unwrap();
-        assert_eq!(fs::read_to_string(&saved).unwrap(), "new");
-        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
-    }
-
-    /// Setting a key means the plain copy of those cookies should stop existing, once the encrypted one is in place.
-    #[test]
-    fn an_encrypted_save_leaves_no_plain_copy() {
-        let dir = tempfile::tempdir().unwrap();
-        let (candidate, plain) = (dir.path().join("candidate.json.enc"), dir.path().join("k-s.json"));
-        let sealed = dir.path().join("k-s.json.enc");
-        fs::write(&candidate, "sealed").unwrap();
-        fs::write(&plain, "cookies").unwrap();
-        promote_state(&candidate, &sealed).unwrap();
-        assert!(sealed.exists() && !plain.exists());
     }
 
     #[test]

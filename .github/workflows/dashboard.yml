@@ -1,0 +1,29 @@
+# The test dashboard's feed for workflows that take pull requests (CI, Coverage), for Bank and for the nightly
+# fresh-seed run (UNB-250): when one of them ends on staging or main, its numbers are posted by dashboard-post.yml. QA
+# and Gate bank post from their own last job. A pull request's run, or a run from another repository, is never posted.
+#
+# One post per run that ended, not one per push: a post is one run's record (its id, workflow, conclusion, wall-clock
+# and the numbers in its own artifacts), the dashboard keeps a row per run, and the collector reads a run only once it
+# has ended. CI and Coverage end at different times, so a push posts twice (three times while Bank ran on every push,
+# until UNB-166). Fresh seeds posts its conclusion and wall-clock, so a failed night shows.
+name: Dashboard
+
+on:
+  workflow_run:
+    workflows: [CI, Coverage, Bank, Fresh seeds]
+    types: [completed]
+    branches: [staging, main]
+
+permissions: {}
+
+jobs:
+  post:
+    if: github.event.workflow_run.event != 'pull_request' && github.event.workflow_run.head_repository.full_name == github.repository
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/dashboard-post.yml
+    with:
+      run_id: ${{ github.event.workflow_run.id }}
+    secrets:
+      DASHBOARD_INGEST_KEY: ${{ secrets.DASHBOARD_INGEST_KEY }}

@@ -50,6 +50,21 @@ impl Built {
             .unwrap_or_default()
     }
 
+    /// This request with each of `names` among its cookies, empty where it carries none of that name: what a signature
+    /// over a cookie the session doesn't hold yet reads.
+    pub fn with_blank_cookies(&self, names: &[String]) -> Built {
+        let mut cookies = self.cookies();
+        for name in names {
+            if !cookies.iter().any(|(k, _)| k == name) {
+                cookies.push((name.clone(), String::new()));
+            }
+        }
+        let mut built = self.clone();
+        built.headers.retain(|(k, _)| !k.eq_ignore_ascii_case("cookie"));
+        built.headers.push(("cookie".into(), cookies.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("; ")));
+        built
+    }
+
     /// The highest rung any of its holes needed.
     pub fn rung(&self) -> u8 {
         self.made.iter().map(|(_, rung)| *rung).max().unwrap_or(0)
@@ -373,5 +388,125 @@ fn body(step: &Step, values: &[(Place, String)], unset: &[&Place]) -> Result<Opt
             out.push_str(&format!("--{boundary}--\r\n"));
             Ok(Some(out))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::body::{Form, Part};
+    use crate::expr::tests::Desk;
+    use crate::expr::Expr;
+    use serde_json::json;
+
+    /// A world with only what the caller wrote.
+    fn said(pairs: &[(&str, &str)]) -> Desk {
+        Desk::saying(pairs)
+    }
+
+    fn hole(at: Place, slot: &str) -> Hole {
+        Hole { at, ways: vec![crate::body::Way { rung: 0, expr: Expr::Slot { name: slot.into(), or: None, optional: false } }], over: false, open: false }
+    }
+
+    fn post(body: Form, holes: Vec<Hole>) -> Step {
+        Step { id: "send".into(), method: "POST".into(), url: "https://shop.example/api/send".into(), holes, body: Some(body), expect: 200, script: None, page: false, writes: false, on_load: false, sets_cookie: false, lifetime: None, shape: None }
+    }
+
+    fn part(name: &str) -> Part {
+        Part { name: name.into(), filename: None, content_type: None, text: None, json: None, types: Default::default() }
+    }
+
+    /// A multipart body is written part by part on its own boundary: a part's fixed text as walked, a JSON part with the
+    /// caller's value at its leaf as the kind the walk sent, a part the caller fills whole, a file's name and type.
+    #[test]
+    fn a_multipart_body_is_written_part_by_part_with_the_callers_values() {
+        let body = Form::Multipart {
+            boundary: "XB".into(),
+            parts: vec![
+                Part { text: Some("fixed".into()), ..part("kind") },
+                Part { json: Some(json!({ "n": null, "keep": 1 })), types: [("/n".to_string(), "number".to_string())].into(), ..part("meta") },
+                Part { filename: Some("a.txt".into()), content_type: Some("text/plain".into()), ..part("note") },
+            ],
+        };
+        let step = post(body, vec![hole(Place::Part("meta".into(), "/n".into()), "count"), hole(Place::Part("note".into(), String::new()), "note")]);
+        let built = request(&step, &mut said(&[("count", "42"), ("note", "hello")])).expect("builds");
+        assert_eq!(
+            built.body.as_deref(),
+            Some(concat!(
+                "--XB\r\nContent-Disposition: form-data; name=\"kind\"\r\n\r\nfixed\r\n",
+                "--XB\r\nContent-Disposition: form-data; name=\"meta\"\r\n\r\n{\"n\":42,\"keep\":1}\r\n",
+                "--XB\r\nContent-Disposition: form-data; name=\"note\"; filename=\"a.txt\"\r\nContent-Type: text/plain\r\n\r\nhello\r\n",
+                "--XB--\r\n"
+            ))
+        );
+        // A value that holds the boundary would close its part and open another.
+        let e = request(&step, &mut said(&[("count", "1"), ("note", "x\r\n--XB\r\nContent-Disposition: form-data; name=\"evil\"")])).unwrap_err();
+        assert_eq!(e.why, Why::Breaks { part: "note".into() });
+        // A part nobody fills is empty.
+        let none = request(&post(Form::Multipart { boundary: "B".into(), parts: vec![part("blank")] }, vec![]), &mut said(&[])).unwrap();
+        assert!(none.body.unwrap().contains("name=\"blank\"\r\n\r\n\r\n--B--"));
+    }
+
+    /// A binary body is written by filling the leaves of the tree the walk's bytes opened as and encoding it again: a
+    /// text body goes as text, bytes that are no text go marked, and a tree the codec cannot write stops the call.
+    #[test]
+    fn a_binary_body_is_filled_at_its_leaves_and_encoded_again() {
+        let wire = |template: serde_json::Value| Form::Wire { codec: crate::wire::Codec::Protobuf, template };
+        let step = post(wire(json!([{ "n": 1, "text": null }, { "n": 2, "int": 7 }])), vec![hole(Place::Json("/0/text".into()), "q")]);
+        let built = request(&step, &mut said(&[("q", "kettle")])).expect("builds");
+        let bytes = crate::wire::bytes_of(built.body.as_deref().unwrap());
+        assert_eq!(bytes, [&[0x0a, 6][..], b"kettle", &[0x10, 7]].concat());
+        // A leaf that is no text is carried marked.
+        let raw = post(wire(json!([{ "n": 1, "int": 300 }])), vec![]);
+        let carried = request(&raw, &mut said(&[])).unwrap().body.unwrap();
+        assert!(carried.starts_with(crate::wire::BYTES_MARK), "0xac alone is no text");
+        assert_eq!(crate::wire::bytes_of(&carried), [0x08, 0xac, 0x02]);
+        // A value the field cannot hold: a number field given words.
+        let number = post(wire(json!([{ "n": 2, "int": null }])), vec![hole(Place::Json("/0/int".into()), "q")]);
+        assert_eq!(request(&number, &mut said(&[("q", "many")])).unwrap_err().why, Why::Body);
+    }
+
+    /// A body this node cannot build stops the call and says so; a file upload is built around, never with its bytes.
+    #[test]
+    fn a_body_that_is_no_kind_this_node_builds_stops_the_call() {
+        let other = post(Form::Other, vec![]);
+        assert_eq!(request(&other, &mut said(&[])).unwrap_err(), Stuck { at: None, why: Why::Body });
+        let upload = post(Form::Upload { slot: "file".into(), protocol: json!({}), content_type: None }, vec![]);
+        assert_eq!(request(&upload, &mut said(&[])).unwrap().body, None);
+        assert_eq!(request(&post(Form::Json { template: json!({}), types: Default::default(), follows: vec![] }, vec![]), &mut said(&[])).unwrap().body.as_deref(), Some("{}"));
+    }
+
+    /// A form's field the caller left unset is not sent, a field a caller fills is sent as they wrote it, and a field
+    /// of the walk's own text keeps it.
+    #[test]
+    fn a_form_sends_the_callers_field_the_walks_text_or_nothing() {
+        let step = post(
+            Form::Fields { fields: vec![("q".into(), Some("walked".into())), ("sort".into(), Some("new".into())), ("page".into(), None)] },
+            vec![hole(Place::Form("q".into()), "q"), Hole { at: Place::Form("page".into()), ways: vec![crate::body::Way { rung: 0, expr: Expr::Slot { name: "p".into(), or: None, optional: true } }], over: false, open: false }],
+        );
+        let built = request(&step, &mut said(&[("q", "a b&c")])).unwrap();
+        assert_eq!(built.body.as_deref(), Some("q=a+b%26c&sort=new"));
+    }
+
+    /// The host a step's address names is its own in small letters, and none where the address builds it at call time.
+    #[test]
+    fn a_steps_host_is_the_one_its_address_names() {
+        assert_eq!(host_of("https://API.Shop.example/a?b=1#c").as_deref(), Some("api.shop.example"));
+        assert_eq!(host_of("https://{host}/a"), None);
+        assert_eq!(host_of("/relative"), None);
+        assert_eq!(host_of("https:///nohost"), None);
+        assert_eq!(host_of("https://shop.example{path[0]}/a").as_deref(), None);
+    }
+
+    /// A JSON body's leaf a hole fills is written as the kind the walk sent (a number, a flag, a text), and a fixed leaf
+    /// keeps its own value and kind.
+    #[test]
+    fn a_leaf_a_hole_gives_is_written_as_the_kind_the_walk_sent() {
+        let step = post(
+            Form::Json { template: json!({ "n": null, "b": null, "s": null, "keep": 5 }), types: [("/n".to_string(), "number".to_string()), ("/b".to_string(), "bool".to_string())].into(), follows: vec![] },
+            vec![hole(Place::Json("/n".into()), "n"), hole(Place::Json("/b".into()), "b"), hole(Place::Json("/s".into()), "s"), hole(Place::Json("/keep".into()), "k")],
+        );
+        let built = request(&step, &mut said(&[("n", "12"), ("b", "true"), ("s", "12"), ("k", "9")])).unwrap();
+        assert_eq!(serde_json::from_str::<serde_json::Value>(built.body.as_deref().unwrap()).unwrap(), json!({ "n": 12, "b": true, "s": "12", "keep": 5 }), "a fixed leaf keeps its value and its kind");
     }
 }

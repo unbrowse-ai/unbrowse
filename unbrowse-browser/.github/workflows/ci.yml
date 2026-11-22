@@ -1,7 +1,5 @@
 name: CI
 
-permissions: {}
-
 on:
   push:
     branches: [main]
@@ -11,18 +9,14 @@ on:
 
 jobs:
   version-sync:
-    permissions:
-      contents: read
     name: Version Sync Check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
 
@@ -30,21 +24,17 @@ jobs:
         run: node scripts/check-version-sync.js
 
   launcher:
-    permissions:
-      contents: read
     name: Launcher
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
 
@@ -52,8 +42,6 @@ jobs:
         run: pnpm run test:launcher
 
   docs:
-    permissions:
-      contents: read
     name: Docs (${{ matrix.environment }})
     runs-on: ubuntu-latest
     strategy:
@@ -63,15 +51,13 @@ jobs:
       VERCEL_ENV: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -85,6 +71,10 @@ jobs:
       - name: Typecheck documentation
         run: pnpm --filter docs type-check
 
+      # Also check with the official TypeScript compiler while tsc-ts is new.
+      - name: Typecheck documentation (tsc)
+        run: pnpm --filter docs type-check:tsc
+
       - name: Build documentation
         run: pnpm --filter docs build
 
@@ -92,24 +82,19 @@ jobs:
         run: pnpm --filter docs test:routes ${{ matrix.environment == 'preview' && '--preview' || '' }}
 
   rust:
-    permissions:
-      contents: read
     name: Rust
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.99.1
           components: rustfmt, clippy
 
       - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: cli
 
@@ -123,23 +108,19 @@ jobs:
         run: cargo test --profile ci --manifest-path cli/Cargo.toml
 
   dashboard:
-    permissions:
-      contents: read
     name: Dashboard
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
 
       - name: Install pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        uses: pnpm/action-setup@v4
 
       - name: Install dependencies
         run: pnpm install --filter dashboard
@@ -150,21 +131,17 @@ jobs:
         working-directory: packages/dashboard
 
   sandbox-package:
-    permissions:
-      contents: read
     name: Sandbox Package
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -176,21 +153,17 @@ jobs:
         run: pnpm --filter @agent-browser/sandbox test
 
   eve-package:
-    permissions:
-      contents: read
     name: Eve Package
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -201,12 +174,14 @@ jobs:
       - name: Typecheck Eve package
         run: pnpm --filter @agent-browser/eve typecheck
 
+      # Also check with the official TypeScript compiler while tsc-ts is new.
+      - name: Typecheck Eve package (tsc)
+        run: pnpm --filter @agent-browser/eve typecheck:tsc
+
       - name: Test Eve package
         run: pnpm --filter @agent-browser/eve test
 
   rust-cross:
-    permissions:
-      contents: read
     name: Rust (${{ matrix.os }} - ${{ matrix.target }})
     if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
@@ -222,18 +197,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.99.1
           targets: ${{ matrix.target }}
 
       - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: cli
 
@@ -241,25 +213,19 @@ jobs:
         run: cargo test --profile ci --manifest-path cli/Cargo.toml --target ${{ matrix.target }}
 
   native-e2e:
-    permissions:
-      contents: read
     name: Native E2E Tests
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     needs: rust
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
-        with:
-          toolchain: 1.99.1
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: cli
 
@@ -281,8 +247,6 @@ jobs:
         run: cargo test --profile ci --manifest-path cli/Cargo.toml e2e -- --ignored --test-threads=1
 
   windows-integration:
-    permissions:
-      contents: read
     name: Windows Integration Test
     if: github.event_name != 'pull_request'
     runs-on: windows-latest
@@ -290,18 +254,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.99.1
           targets: x86_64-pc-windows-msvc
 
       - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: cli
 
@@ -343,8 +304,6 @@ jobs:
         timeout-minutes: 5
 
   global-install:
-    permissions:
-      contents: read
     name: Global Install (${{ matrix.os }})
     if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
@@ -354,55 +313,75 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            package: cli-linux-x64-gnu
             binary: agent-browser-linux-x64
           - os: macos-latest
             target: aarch64-apple-darwin
+            package: cli-darwin-arm64
             binary: agent-browser-darwin-arm64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            package: cli-win32-x64-msvc
             binary: agent-browser-win32-x64.exe
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.99.1
           targets: ${{ matrix.target }}
 
       - name: Cache Rust build artifacts
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        uses: Swatinem/rust-cache@v2
         with:
           workspaces: cli
 
       - name: Build Rust CLI
         run: cargo build --release --manifest-path cli/Cargo.toml --target ${{ matrix.target }}
 
-      - name: Copy CLI binary to bin directory (Unix)
-        if: runner.os != 'Windows'
-        run: cp cli/target/${{ matrix.target }}/release/agent-browser bin/${{ matrix.binary }}
-
-      - name: Copy CLI binary to bin directory (Windows)
-        if: runner.os == 'Windows'
-        run: Copy-Item cli/target/${{ matrix.target }}/release/agent-browser.exe bin/${{ matrix.binary }}
-
-      - name: Test npm global install
+      - name: Copy CLI binary into its platform package
         run: |
-          npm pack
-          npm install -g agent-browser-*.tgz
+          dir=packages/@agent-browser/${{ matrix.package }}/bin
+          mkdir -p "$dir"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cp cli/target/${{ matrix.target }}/release/agent-browser.exe "$dir/agent-browser.exe"
+          else
+            cp cli/target/${{ matrix.target }}/release/agent-browser "$dir/agent-browser"
+          fi
+        shell: bash
+
+      # pnpm pack resolves the workspace:* optionalDependencies to this version.
+      # npm pack keeps the binary's execute bit, as the release workflow does.
+      - name: Pack agent-browser and the platform package
+        run: |
+          pnpm install --frozen-lockfile --filter agent-browser
+          mkdir -p packs
+          pnpm pack --pack-destination packs
+          (cd packages/@agent-browser/${{ matrix.package }} && npm pack --pack-destination ../../../packs)
+          ls -la packs
+        shell: bash
+
+      # The platform package is installed next to agent-browser instead of being
+      # fetched as its optional dependency, so the binary under test is the one
+      # built above. The launcher resolves it from the global node_modules.
+      - name: Install with install scripts blocked
+        run: |
+          npm install -g --omit=optional --ignore-scripts packs/*.tgz
+          agent-browser --version
           agent-browser --version
         shell: bash
 
-      - name: Verify symlink points to native binary (Unix)
+      - name: Verify first run linked the native binary (Unix)
         if: runner.os != 'Windows'
         run: |
           SYMLINK=$(npm prefix -g)/bin/agent-browser
@@ -416,7 +395,7 @@ jobs:
           echo "Symlink correctly points to native binary"
         shell: bash
 
-      - name: Verify shim points to native binary (Windows)
+      - name: Verify first run linked the native binary (Windows)
         if: runner.os == 'Windows'
         run: |
           $shimPath = "$(npm prefix -g)\agent-browser.cmd"
@@ -429,4 +408,49 @@ jobs:
             exit 1
           }
           echo "Shim correctly points to native binary"
+        shell: pwsh
+
+      - name: Verify skills resolve from the linked binary
+        run: agent-browser skills list | grep -qE '^[[:space:]]*core[[:space:]]'
+        shell: bash
+
+      - name: Verify uninstall removes the linked bin entry
+        run: |
+          npm uninstall -g agent-browser @agent-browser/${{ matrix.package }}
+          if command -v agent-browser; then
+            echo "ERROR: agent-browser is still on PATH after uninstall"
+            exit 1
+          fi
+        shell: bash
+
+      - name: Install with install scripts allowed
+        run: npm install -g --omit=optional packs/*.tgz
+        shell: bash
+
+      - name: Verify postinstall linked the native binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          SYMLINK=$(npm prefix -g)/bin/agent-browser
+          TARGET=$(readlink "$SYMLINK")
+          echo "Symlink: $SYMLINK"
+          echo "Target: $TARGET"
+          if [[ "$TARGET" != *"${{ matrix.binary }}"* ]]; then
+            echo "ERROR: Symlink should point to native binary, not JS wrapper"
+            exit 1
+          fi
+          agent-browser --version
+        shell: bash
+
+      - name: Verify postinstall linked the native binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $shimPath = "$(npm prefix -g)\agent-browser.cmd"
+          $content = Get-Content $shimPath -Raw
+          echo "Shim content:"
+          echo $content
+          if ($content -notmatch "agent-browser-win32-x64\.exe") {
+            echo "ERROR: Shim should point to native .exe, not JS wrapper"
+            exit 1
+          }
+          agent-browser --version
         shell: pwsh

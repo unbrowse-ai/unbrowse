@@ -104,51 +104,82 @@ pub struct Exchange {
 thread_local! {
     /// A learn's decoders for replies no standard reader reads: the programs cut from the scripts that read them
     /// (`app::learn` fills them from the walk's recording). The last resort of [`Exchange::own_json`] runs them over a
-    /// reply nothing else reads, so a ciphered or obfuscated answer reads as what the page showed — one reading, asked
-    /// by every place that judges a reply. Empty by default: a reply a standard reader reads, and every reply at call
-    /// time, never runs a decoder, so it changes nothing there.
+    /// reply nothing else reads that could be an answer the page's code unpacked
+    /// ([`Exchange::could_be_unpacked_by_the_page`]), so a ciphered or obfuscated answer reads as what the page showed —
+    /// one reading, asked by every place that judges a reply. Empty by default: a reply a standard reader reads, and
+    /// every reply at call time, never runs a decoder, so it changes nothing there.
     static DECODERS: std::cell::RefCell<std::rc::Rc<Vec<String>>> = std::cell::RefCell::new(std::rc::Rc::new(Vec::new()));
-    /// What a decoder made of each reply body it was run over, so a reply read many times in one learn is decoded once.
-    static DECODED_CACHE: std::cell::RefCell<std::collections::HashMap<String, Option<serde_json::Value>>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    /// What each decoder made of each reply body it was run over, by the decoder and the body: a decoder that failed on
+    /// a body is never run on it again in the learn, and a reply read many times is decoded once. Kept across nested
+    /// scopes (a decoder's reading of a body is a pure function of the two) and emptied when the outermost scope ends.
+    static DECODED_CACHE: std::cell::RefCell<std::collections::HashMap<(u64, u64, usize), Option<serde_json::Value>>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    /// How deep the nested `DecodedGuard` scopes are on this thread.
+    static DECODED_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// How many times a decoder was run on this thread (each run is one sandbox child): what a learn's log reports, and
+    /// what a test counts.
+    static DECODER_RUNS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// `DECODER_RUNS` when the outermost scope began, so its end can say how many runs the learn made.
+    static DECODER_RUNS_AT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// The decoders this thread's learn has set (`DecodedGuard`): what `own_json` reads a reply no standard reader reads
+/// through, so part of what any reading built on it depends on.
+pub fn decoders_in_force() -> std::rc::Rc<Vec<String>> {
+    DECODERS.with(|d| d.borrow().clone())
+}
+
+/// How many times a decoder has been run over a reply on this thread ([`decoded_overlay`]): each is one child process
+/// started in the sandbox (`generated::decode`).
+pub fn decoder_runs() -> usize {
+    DECODER_RUNS.with(|n| n.get())
+}
+
+fn hash_of(text: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    text.hash(&mut h);
+    h.finish()
 }
 
 /// What the page's own code turns `body` into, when a learn set its decoders (`DecodedGuard`): the first decoder whose
-/// output is JSON, cached by body. None when no decoder is set (call time, and every learn with no such reply) or none
-/// reads it. Only reached when every standard reader of `own_json` returned nothing, so a normal reply never runs one.
+/// output is JSON, cached by decoder and body. None when no decoder is set (call time, and every learn with no such
+/// reply) or none reads it. Only reached when every standard reader of `own_json` returned nothing, and only for a reply
+/// that could be an answer the page's code unpacked, so a normal reply or a resource never runs one.
 fn decoded_overlay(body: &str) -> Option<serde_json::Value> {
     let decoders = DECODERS.with(|d| d.borrow().clone());
     if decoders.is_empty() {
         return None;
     }
-    if let Some(hit) = DECODED_CACHE.with(|c| c.borrow().get(body).cloned()) {
-        return hit;
-    }
+    let (of_body, len) = (hash_of(body), body.len());
     let env = crate::generated::Environment::default();
-    let out = decoders.iter().find_map(|prog| {
-        let text = crate::generated::decode(prog, body, &env)?;
-        serde_json::from_str::<serde_json::Value>(&text).ok()
-    });
-    DECODED_CACHE.with(|c| c.borrow_mut().insert(body.to_string(), out.clone()));
-    out
+    decoders.iter().find_map(|prog| {
+        let key = (hash_of(prog), of_body, len);
+        if let Some(hit) = DECODED_CACHE.with(|c| c.borrow().get(&key).cloned()) {
+            return hit;
+        }
+        DECODER_RUNS.with(|n| n.set(n.get() + 1));
+        let out = crate::generated::decode(prog, body, &env).and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
+        DECODED_CACHE.with(|c| c.borrow_mut().insert(key, out.clone()));
+        out
+    })
 }
 
 /// Sets `decoders` as the reading of replies no standard reader reads for its lifetime, restoring the previous reading
-/// on drop (and emptying the per-reply cache for the scope). A learn holds it over recognising and building a route,
-/// so every place that asks `own_json` reads a ciphered reply as what the page showed. Nested scopes restore. Empty at
-/// call time and for every normal reply, so it changes nothing there.
+/// on drop. A learn holds it over recognising and building a route, so every place that asks `own_json` reads a
+/// ciphered reply as what the page showed. Nested scopes restore the decoders and share what each decoder already made
+/// of a body; the outermost scope empties that on drop. Empty at call time and for every normal reply, so it changes
+/// nothing there.
 #[must_use]
 pub struct DecodedGuard {
     decoders: std::rc::Rc<Vec<String>>,
-    cache: std::collections::HashMap<String, Option<serde_json::Value>>,
 }
 
 impl DecodedGuard {
     pub fn set(decoders: Vec<String>) -> Self {
-        let was = DecodedGuard {
-            decoders: DECODERS.with(|d| d.replace(std::rc::Rc::new(decoders))),
-            cache: DECODED_CACHE.with(|c| std::mem::take(&mut *c.borrow_mut())),
-        };
-        was
+        if DECODED_DEPTH.with(|d| d.replace(d.get() + 1)) == 0 {
+            DECODER_RUNS_AT.with(|at| at.set(decoder_runs()));
+        }
+        DecodedGuard { decoders: DECODERS.with(|d| d.replace(std::rc::Rc::new(decoders))) }
     }
 
     /// Whether no decoder was set: no reply of the walk needed the page's own code to read it.
@@ -160,7 +191,22 @@ impl DecodedGuard {
 impl Drop for DecodedGuard {
     fn drop(&mut self) {
         DECODERS.with(|d| *d.borrow_mut() = std::mem::take(&mut self.decoders));
-        DECODED_CACHE.with(|c| *c.borrow_mut() = std::mem::take(&mut self.cache));
+        let outermost = DECODED_DEPTH.with(|d| {
+            d.set(d.get().saturating_sub(1));
+            d.get() == 0
+        });
+        if outermost {
+            let replies = DECODED_CACHE.with(|c| {
+                let mut c = c.borrow_mut();
+                let replies = c.keys().map(|k| (k.1, k.2)).collect::<std::collections::HashSet<_>>().len();
+                c.clear();
+                replies
+            });
+            let runs = decoder_runs() - DECODER_RUNS_AT.with(|at| at.get());
+            if runs > 0 {
+                eprintln!("   [decode] the page's decoders ran {runs} times over {replies} replies a script was handed (one sandbox run each)");
+            }
+        }
     }
 }
 
@@ -196,7 +242,33 @@ impl Exchange {
         if let Some(padded) = self.padded_json() {
             return serde_json::from_str(padded).ok();
         }
-        guarded_json(body).or_else(|| event_stream_json(body)).or_else(|| encoded_json(body)).or_else(|| decoded_overlay(body))
+        guarded_json(body)
+            .or_else(|| event_stream_json(body))
+            .or_else(|| encoded_json(body))
+            .or_else(|| self.could_be_unpacked_by_the_page().then(|| decoded_overlay(body)).flatten())
+    }
+
+    /// Whether this reply could be an answer the page's own code unpacked, and so one a learn's decoder may be run over
+    /// (`DecodedGuard`). Read from the walk: a decoder is the code of a script that fetched a reply and read its body,
+    /// so the only reply it can stand for is one handed to a script as data. Not a resource the browser loaded and
+    /// consumed itself: a document or frame it rendered, a script it ran, a stylesheet it applied, an image, a font or
+    /// media it drew, by the recorded resource type ([`Exchange::is_asset`]). Not a reply that declares itself one of
+    /// those kinds whatever loaded it ([`Exchange::declares_an_asset`]: a script a worker imported is recorded as
+    /// `Other`, and is still a script): it is read as the text of the kind it declares, not undecodable. Nor a reply
+    /// that reads as markup (`page::is_markup`), read as the page it is.
+    ///
+    /// Why this hides no ciphered answer: a page's code can only unpack a reply its script was handed as data, and the
+    /// browser hands a script the body of what it fetched (`fetch`, `XMLHttpRequest`, an event stream), never the body
+    /// of a document, script, stylesheet, image or font it loaded as a resource. A ciphered answer declared as a script
+    /// or a stylesheet would say it is code to run rather than data to read. The ciphered answers the engine knows are
+    /// fetched and read as text or bytes, and declare a data type (`text/plain`, `application/x-msgpack`, the matrix's
+    /// `cipher-answer`, `msgpack-answer` and `protobuf-*` rows).
+    pub fn could_be_unpacked_by_the_page(&self) -> bool {
+        if self.is_asset() || self.declares_an_asset() || self.resource_type.as_deref() == Some("Document") {
+            return false;
+        }
+        let body = self.response_body.as_deref().unwrap_or_default();
+        !crate::page::is_markup(self.response_header("content-type").unwrap_or(&self.response_mime), body)
     }
 
     /// Every JSON document the body holds: the body itself when it is JSON, a padded or event-stream answer, or each
@@ -358,6 +430,12 @@ impl Exchange {
                 "Stylesheet" | "Script" | "Font" | "Image" | "Media" | "Manifest" | "Prefetch" | "Ping"
             );
         }
+        self.declares_an_asset()
+    }
+
+    /// Whether the reply declares itself a resource's kind: a stylesheet, a script, an image, a font or media, by the
+    /// type it was served as. What [`Exchange::is_asset`] reads where the walk recorded no resource type.
+    pub fn declares_an_asset(&self) -> bool {
         matches!(
             self.response_mime.split(';').next().unwrap_or_default().trim(),
             "text/css" | "application/javascript" | "text/javascript" | "image/svg+xml"
@@ -644,17 +722,32 @@ pub fn carries_text(text: &str, value: &str) -> bool {
 /// Whether `text` holds `value` whole, read the same way as [`carries_text`]: not as part of a longer word or number
 /// (`1234` isn't said back by `12345`), so a short value doesn't turn up in a big answer by chance.
 pub fn carries_whole(text: &str, value: &str) -> bool {
-    let value = value.to_lowercase();
-    if value.trim().is_empty() {
-        return false;
+    Readings::of(text).carries_whole(value)
+}
+
+/// A text's layers ([`readings`]), read once to be searched many times: a learn asks whether one page's text holds
+/// each of hundreds of words, and reading a megabyte's layers afresh for every word took minutes.
+pub struct Readings(Vec<String>);
+
+impl Readings {
+    pub fn of(text: &str) -> Self {
+        Readings(readings(text))
     }
-    readings(text).iter().any(|r| {
-        r.match_indices(value.as_str()).any(|(at, _)| {
-            let before = r[..at].chars().next_back();
-            let after = r[at + value.len()..].chars().next();
-            !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
+
+    /// [`carries_whole`] of the text these are the readings of.
+    pub fn carries_whole(&self, value: &str) -> bool {
+        let value = value.to_lowercase();
+        if value.trim().is_empty() {
+            return false;
+        }
+        self.0.iter().any(|r| {
+            r.match_indices(value.as_str()).any(|(at, _)| {
+                let before = r[..at].chars().next_back();
+                let after = r[at + value.len()..].chars().next();
+                !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
+            })
         })
-    })
+    }
 }
 
 /// One layer of the ways a value may be written as text (each with whether it sits inside longer text by nature): as
@@ -1311,6 +1404,69 @@ mod tests {
         assert_eq!(out.0, Some(serde_json::json!({"real": 1})), "a plain JSON reply reads as itself, not the decoder's");
         assert_eq!(out.1.as_ref().and_then(|v| v.get("real")), Some(&serde_json::json!(2)), "base64 of JSON reads as its JSON, not the decoder's");
         assert_eq!(out.2, Some(serde_json::json!({"decoded": true})), "only a reply no standard reader reads reaches the decoder");
+    }
+
+    /// An ordinary page walked with a learn's decoder set (one that would turn any text into a fixed object): its
+    /// document, its three scripts and its two stylesheets are resources the browser loaded and consumed, never a reply
+    /// a script was handed, so no decoder is run over any of them, however often recognition asks; its one data call
+    /// answers JSON and reads as itself. No decoder run is no sandbox child: the walk starts none.
+    #[test]
+    fn a_resource_the_browser_loaded_is_never_run_through_a_decoder() {
+        let ex = |url: &str, kind: &str, mime: &str, body: &str| Exchange {
+            method: "GET".into(), url: url.parse().unwrap(), request_headers: vec![], request_body: None, status: 200,
+            response_headers: vec![("content-type".into(), mime.into())], response_body: Some(body.into()), response_mime: mime.into(),
+            resource_type: Some(kind.into()), main_frame: Some(true),
+        };
+        let walk = [
+            ex("https://store.example/blogs/read/a-day-out", "Document", "text/html", "<!doctype html><html><head><title>A day out</title></head><body><article>A day out</article></body></html>"),
+            ex("https://store.example/s/theme.js", "Script", "application/javascript", "(function(){ window.theme = { cart: function () { return fetch('/cart.js'); } }; })();"),
+            ex("https://store.example/s/vendor.js", "Script", "text/javascript", "var a=1;function b(c){return c*2}window.vendor={b:b};"),
+            // A script a worker imported: recorded as `Other`, declared a script.
+            ex("https://store.example/s/pixel.js", "Other", "text/javascript", "!function(){var q=[];self.track=function(e){q.push(e)}}();"),
+            ex("https://store.example/s/theme.css", "Stylesheet", "text/css", "body{margin:0}article{font:16px/1.5 serif}"),
+            ex("https://store.example/s/fonts.css", "Stylesheet", "text/css", "@font-face{font-family:Body;src:url(/f/body.woff2)}"),
+            ex("https://store.example/api/articles/a-day-out", "Fetch", "application/json", r#"{"title":"A day out","body":"..."}"#),
+        ];
+        let _guard = super::DecodedGuard::set(vec!["function sign(ctx){ return JSON.stringify({ decoded: true }); }".to_string()]);
+        let before = super::decoder_runs();
+        for _ in 0..3 {
+            for e in &walk[..6] {
+                assert_eq!(e.own_json(), None, "{} is a resource, not an answer the page unpacked", e.url);
+                assert!(!e.could_be_unpacked_by_the_page(), "{}", e.url);
+            }
+            assert_eq!(walk[6].own_json(), Some(serde_json::json!({"title": "A day out", "body": "..."})));
+        }
+        assert_eq!(super::decoder_runs() - before, 0, "no decoder was run, so no sandbox child was started");
+    }
+
+    /// The data call whose answer only the page's own function unpacks is the one reply a decoder is run over: once,
+    /// however often it is read, and a decoder that made nothing of a body is not run on it again in the learn, nested
+    /// scopes included.
+    #[test]
+    fn a_decoder_runs_once_on_the_one_reply_a_script_was_handed() {
+        let ex = |kind: &str, body: &str| Exchange {
+            method: "GET".into(), url: "https://shop.example/api/search?q=lamp".parse().unwrap(), request_headers: vec![], request_body: None,
+            status: 200, response_headers: vec![], response_body: Some(body.into()), response_mime: "text/plain".into(), resource_type: Some(kind.into()), main_frame: None,
+        };
+        let ciphered = ex("Fetch", "@@not-json-not-base64-%%");
+        let unread = ex("XHR", "##another-reply-nothing-reads##");
+        assert!(ciphered.could_be_unpacked_by_the_page() && unread.could_be_unpacked_by_the_page());
+        let decoder = "function sign(ctx){ return ctx.body.indexOf('@@') === 0 ? JSON.stringify({ decoded: true }) : ''; }".to_string();
+        let _guard = super::DecodedGuard::set(vec![decoder.clone()]);
+        let before = super::decoder_runs();
+        let first = ciphered.own_json();
+        let _ = unread.own_json();
+        assert_eq!(super::decoder_runs() - before, 2, "one run for each reply a script was handed");
+        {
+            let _inner = super::DecodedGuard::set(vec![decoder]);
+            assert_eq!(ciphered.own_json(), first);
+            assert_eq!(unread.own_json(), None);
+        }
+        assert_eq!(ciphered.own_json(), first);
+        assert_eq!(super::decoder_runs() - before, 2, "a body a decoder was run on is not run again, in a nested scope or after it");
+        if crate::sandbox::available() {
+            assert_eq!(first, Some(serde_json::json!({"decoded": true})), "the ciphered reply reads as what the page's code unpacks");
+        }
     }
 
     /// An answer behind a guard is its JSON: the guard is read past as the site's own code reads past it. Text that

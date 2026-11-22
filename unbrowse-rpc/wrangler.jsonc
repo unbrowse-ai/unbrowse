@@ -1,0 +1,24 @@
+// The RPC gateway in production: rpc.unbrowse.ai. Deployed by the release train (.deploy/manifest.json), never by hand.
+// Secrets, never here: ALCHEMY_KEY (the "Unbrowse" team's app on Alchemy, Arc mainnet and testnet enabled).
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "unbrowse-rpc",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": false,
+  // The custom domain makes the DNS record and certificate; the zone route is what answers. The zone's catch-all
+  // `*.unbrowse.ai/*` route (another Worker) wins over a custom domain, and only a more specific route wins over it.
+  "routes": [{ "pattern": "rpc.unbrowse.ai", "custom_domain": true }, { "pattern": "rpc.unbrowse.ai/*", "zone_name": "unbrowse.ai" }],
+  // Privy's app id is public (every page that signs in with it names it); the origins are the link page's sites.
+  "vars": {
+    "PRIVY_APP_ID": "cmpalnem701z00cjmncqve4q0",
+    "SITE_ORIGINS": "https://unbrowse.ai,https://www.unbrowse.ai,https://unbrowse.si,https://www.unbrowse.si"
+  },
+  // One member list for the whole gateway (src/worker.js `Members`).
+  "durable_objects": { "bindings": [{ "name": "MEMBERS", "class_name": "Members" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Members"] }],
+  // Each member node's calls, per minute: well above a node's steady pace, low enough that one key can't run up the bill.
+  "ratelimits": [{ "name": "PER_NODE", "namespace_id": "5042", "simple": { "limit": 600, "period": 60 } }],
+  // Invocation logs would record each request's URL, a node's pass among it: kept off, and the worker logs nothing.
+  "observability": { "enabled": false }
+}

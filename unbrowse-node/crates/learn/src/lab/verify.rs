@@ -541,4 +541,127 @@ mod tests {
         assert!(!nonsense("lamp").chars().any(|c| "aeiou".contains(c)), "no vowels: not a word on any site");
         assert_eq!(nonsense("12345"), "999999", "a value with no letters keeps its own shape");
     }
+
+    /// Five records of the walk's own answer: enough lines to tell two answers apart.
+    fn lamps() -> Exchange {
+        reply(200, "application/json", r#"{"items":[{"name":"desk reading light 60w"},{"name":"brass bedside glow"},{"name":"floor standing arc"},{"name":"clip on task bright"},{"name":"vintage edison bulb set"},{"name":"dimmable ring halo"}]}"#)
+    }
+
+    /// A site that answers the walk's own word with `lamps`, and every other word as `other` says (unheard, refused, or
+    /// a reply).
+    struct Others<F: FnMut(&str) -> Said>(F);
+    impl<F: FnMut(&str) -> Said> Site for Others<F> {
+        fn ask(&mut self, _step: &route::Step, built: &route::Built) -> Said {
+            let word = built.url.query_pairs().find(|(k, _)| k == "q").map(|(_, v)| v.into_owned()).unwrap_or_default();
+            if word == "lamp" {
+                Said::Reply { at: None, reply: lamps() }
+            } else {
+                (self.0)(&word)
+            }
+        }
+    }
+
+    /// A verdict is said a line per test, each with its name, how it came out in a few words, and why: a body that
+    /// writes says three could-not-ask lines and the write test held.
+    #[test]
+    fn a_verdict_says_a_line_per_test_with_how_it_came_out_and_why() {
+        let mut body = search_body();
+        body.steps[0].method = "POST".into();
+        body.steps[0].writes = true;
+        let v = verify(&body, &asked("lamp"), None, &HashMap::new(), 1, &mut Shop(|_: &str| lamps()));
+        let said = v.lines();
+        assert_eq!(said.len(), 4);
+        let why = "the body writes, and a write is learned from its walk, never sent to check";
+        assert_eq!(said[0], format!("the walk's own value answers as the walk did: could not ask ({why})"));
+        assert_eq!(said[1], format!("a second value answers as itself: could not ask ({why})"));
+        assert_eq!(said[2], format!("a nonsense value finds nothing: could not ask ({why})"));
+        assert_eq!(said[3], "no write is sent twice: held (the body writes and was not sent)");
+        let words: Vec<&str> = [Outcome::Held(String::new()), Outcome::FillsForAny(String::new()), Outcome::CouldNotAsk(String::new()), Outcome::Failed(String::new())].iter().map(Outcome::word).collect();
+        assert_eq!(words, ["held", "the site fills in for any word", "could not ask", "failed"]);
+    }
+
+    /// A walk whose own answer says too little (fewer than five lines) cannot tell a second value from itself: the second
+    /// test says so and the site is not asked the second value.
+    #[test]
+    fn a_walks_answer_that_says_too_little_cannot_tell_a_second_value_apart() {
+        let mut asked_words: Vec<String> = Vec::new();
+        let mut site = Shop(|word: &str| {
+            asked_words.push(word.to_string());
+            reply(200, "application/json", r#"{"items":[{"name":"desk reading light"},{"name":"brass bedside glow"}]}"#)
+        });
+        let v = verify(&search_body(), &asked("lamp"), Some(&asked("sofa")), &HashMap::new(), 1, &mut site);
+        assert!(matches!(outcome(&v, Test::SecondValue), Outcome::CouldNotAsk(w) if w.contains("says too little to tell two values apart")), "{:?}", outcome(&v, Test::SecondValue));
+        assert!(!asked_words.contains(&"sofa".to_string()), "the second value is never asked: {asked_words:?}");
+    }
+
+    /// A second value the site refuses to answer is said as it came: a reply that is no answer says the site did not
+    /// answer it, and a question that could not be put says so, in both the plain test and the records test.
+    #[test]
+    fn a_second_value_the_site_does_not_answer_is_said_as_it_came() {
+        use route::meaning::{Field, Meaning, Records};
+        let plain = search_body();
+        let mut by_records = search_body();
+        by_records.meaning = Meaning { kinds: Default::default(), records: Some(Records { list: "/items".into(), fields: vec![Field { name: "name".into(), at: "/name".into(), says: Some("q".into()) }] }) };
+        for (what, body) in [("plain", &plain), ("records", &by_records)] {
+            let v = verify(body, &asked("lamp"), Some(&asked("sofa")), &HashMap::new(), 1, &mut Others(|_: &str| Said::Reply { at: None, reply: reply(500, "application/json", r#"{"error":"down"}"#) }));
+            assert!(outcome(&v, Test::WalksOwnValue).held(), "{what}");
+            assert!(matches!(outcome(&v, Test::SecondValue), Outcome::CouldNotAsk(w) if w.contains("the site did not answer the second value") && w.contains("500")), "{what}: {:?}", outcome(&v, Test::SecondValue));
+            let v = verify(body, &asked("lamp"), Some(&asked("sofa")), &HashMap::new(), 1, &mut Others(|_: &str| Said::Refused("no network".into())));
+            assert!(matches!(outcome(&v, Test::SecondValue), Outcome::CouldNotAsk(w) if w.contains("the second value could not be asked") && w.contains("no network")), "{what}: {:?}", outcome(&v, Test::SecondValue));
+            let v = verify(body, &asked("lamp"), Some(&asked("sofa")), &HashMap::new(), 1, &mut Others(|_: &str| Said::Unheard { nearest: None, differs: Vec::new() }));
+            assert!(matches!(outcome(&v, Test::SecondValue), Outcome::CouldNotAsk(w) if w.contains("holds no answer for the second value")), "{what}: {:?}", outcome(&v, Test::SecondValue));
+        }
+    }
+
+    /// A nonsense value the site gives no answer to (a reply that is no answer) held: the site found nothing. One that
+    /// could not be asked (the site refuses the question) is not held, and says what it was.
+    #[test]
+    fn a_nonsense_value_the_site_gives_no_answer_to_is_held_and_one_it_refuses_is_not() {
+        let v = verify(&search_body(), &asked("lamp"), None, &HashMap::new(), 1, &mut Others(|_: &str| Said::Reply { at: None, reply: reply(500, "application/json", r#"{"error":"down"}"#) }));
+        assert!(matches!(outcome(&v, Test::NonsenseValue), Outcome::Held(w) if w.contains("gave no answer")), "{:?}", outcome(&v, Test::NonsenseValue));
+        let v = verify(&search_body(), &asked("lamp"), None, &HashMap::new(), 1, &mut Others(|_: &str| Said::Refused("no network".into())));
+        assert!(matches!(outcome(&v, Test::NonsenseValue), Outcome::CouldNotAsk(w) if w.contains("a nonsense value could not be asked") && w.contains("no network")), "{:?}", outcome(&v, Test::NonsenseValue));
+    }
+
+    /// The walk's own value not asked at all (the recording holds no answer, or the site refuses the question) is no
+    /// failure of the route: it could not be asked, and says which. Only a reply that is no answer is a failure.
+    #[test]
+    fn the_walks_own_value_that_could_not_be_asked_is_no_failure_of_the_route() {
+        let v = verify(&search_body(), &asked("lamp"), None, &HashMap::new(), 1, &mut Others(|_: &str| Said::Unheard { nearest: None, differs: Vec::new() }));
+        assert!(v.checks.iter().all(|(_, o)| !matches!(o, Outcome::Failed(_))), "{:?}", v.lines());
+        struct Silent(Said);
+        impl Site for Silent {
+            fn ask(&mut self, _step: &route::Step, _built: &route::Built) -> Said {
+                std::mem::replace(&mut self.0, Said::Refused("asked twice".into()))
+            }
+        }
+        let v = verify(&search_body(), &asked("lamp"), None, &HashMap::new(), 1, &mut Silent(Said::Unheard { nearest: Some(0), differs: vec!["query q".into()] }));
+        assert!(matches!(outcome(&v, Test::WalksOwnValue), Outcome::CouldNotAsk(w) if w == "the recording holds no answer for step x0"), "{:?}", outcome(&v, Test::WalksOwnValue));
+        assert!(matches!(outcome(&v, Test::NonsenseValue), Outcome::CouldNotAsk(_)));
+        let v = verify(&search_body(), &asked("lamp"), None, &HashMap::new(), 1, &mut Silent(Said::Refused("no network".into())));
+        assert!(matches!(outcome(&v, Test::WalksOwnValue), Outcome::CouldNotAsk(w) if w.contains("Refused") && w.contains("no network")), "{:?}", outcome(&v, Test::WalksOwnValue));
+    }
+
+    /// A body held to its own tests again says each place it now sends otherwise than its test saw: a place whose value
+    /// has another shape than the test kept, and a place the test saw that the body, as it stands, does not send.
+    #[test]
+    fn a_place_the_body_sends_otherwise_than_its_test_saw_is_said() {
+        use crate::lab::sighting::tests::{call, trace, walk};
+        let walked = |word: &str| trace(vec![call("GET", &format!("https://shop.example/api/search?q={word}&size=20"), &[], None, &format!(r#"{{"items":[{{"name":"{word} one"}},{{"name":"{word} two"}}]}}"#))]);
+        let (first, second) = (walked("lamp"), walked("sofa"));
+        let walks = [walk(&first, &[("q", "lamp")]), walk(&second, &[("q", "sofa")])];
+        let mut body = crate::lab::compile::route(&crate::lab::synth::Lab::new(&walks), 0, "shop.example").expect("a body");
+        let held = against_its_tests(&body, 0, &walks[0], &HashMap::new(), 1);
+        assert!(held.differ.is_empty() && held.held > 0, "{:?} ({} held)", held.differ, held.held);
+        // The body has since come to ask for a filter the walk never set: optional, so a call that gives none sends none.
+        body.steps[0].holes.push(route::Hole { at: route::Place::Query("opt".into()), ways: vec![route::Way { rung: 0, expr: Expr::Slot { name: "opt".into(), or: None, optional: true } }], over: false, open: false });
+        let seen = &mut body.tests[0].sightings[0].seen;
+        let q = seen.iter_mut().find(|s| s.at == route::Place::Query("q".into())).expect("the walk's word is a place");
+        q.shape = route::Shape { len: 9, of: route::Chars::Digits };
+        seen.push(route::Seen { at: route::Place::Query("opt".into()), from: route::Source::Caller, shape: route::Shape { len: 3, of: route::Chars::Letters } });
+        let run = against_its_tests(&body, 0, &walks[0], &HashMap::new(), 1);
+        assert_eq!(run.differ.len(), 2, "{:?}", run.differ);
+        assert!(run.differ.iter().any(|d| d.starts_with("step x0, query q:") && d.contains("where the test saw")), "{:?}", run.differ);
+        assert!(run.differ.iter().any(|d| d.starts_with("step x0, query opt: not sent, where the test saw")), "{:?}", run.differ);
+    }
 }

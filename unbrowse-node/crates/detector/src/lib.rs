@@ -27,7 +27,7 @@ pub mod random;
 pub mod synth;
 
 pub use keys::b64url;
-pub use named::random_value;
+pub use named::{random_value, secret_name};
 
 /// The detector's version string (`fraud.detector`).
 pub const VERSION: &str = "unbrowse-detector/1";

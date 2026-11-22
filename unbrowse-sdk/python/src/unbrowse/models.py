@@ -378,7 +378,8 @@ class NetworkEntry:
 class PageAnswer:
     """One page's answer among several (``do_pages``): ``how`` it went (called, learned, network, browse, error), its
     time, and its ``data``, or why it has none. A page that needs clicks or typing (``browse``) isn't opened: ask
-    ``do`` for it alone."""
+    ``do`` for it alone. One still being learned when the reply came is ``working``: its ``ask`` collects it alone
+    (``do("", ask=page.ask)``), and a ``do`` of the page alone joins its walk."""
 
     url: str
     how: str
@@ -389,13 +390,16 @@ class PageAnswer:
     error: Optional[str] = None
     why: Optional[str] = None
     route_failed: Optional[RouteFailure] = None
+    ask: Optional[str] = None
+    """The page's own ask; None from an older node."""
 
     @classmethod
     def of(cls, d: Dict[str, Any]) -> "PageAnswer":
         f = d.get("route_failed")
         failed = RouteFailure(route_id=str(f.get("route_id", f.get("entry_id", ""))), error=f.get("error") if isinstance(f.get("error"), str) else None) if f else None
         return cls(url=d.get("url") or "", how=d.get("how") or "", ms=int(d.get("ms") or 0), ok=d.get("ok") is True, route_id=d.get("route_id"),
-                   data=d.get("data"), error=d.get("error") if isinstance(d.get("error"), str) else None, why=d.get("why"), route_failed=failed)
+                   data=d.get("data"), error=d.get("error") if isinstance(d.get("error"), str) else None, why=d.get("why"), route_failed=failed,
+                   ask=d.get("ask") if isinstance(d.get("ask"), str) else None)
 
 
 @dataclass
@@ -409,6 +413,10 @@ class PagesResult:
     fields: Dict[str, List[AnswerField]]
     pending: List[str] = field(default_factory=list)
     """Pages still being learned when the reply came (within 40 seconds): they go on learning, so ask again for them."""
+    ask: Optional[str] = None
+    """The batch's ask: ``do_pages("", [], ask=r.ask)`` collects the whole batch. None from an older node."""
+    still_working: bool = False
+    """Whether pages were still being learned when the reply came (``outcome == "still_working"``)."""
 
     @classmethod
     def of(cls, d: Dict[str, Any]) -> "PagesResult":
@@ -421,6 +429,8 @@ class PagesResult:
                 for k, v in (d.get("fields") or {}).items()
             },
             pending=[str(u) for u in d.get("pending") or []],
+            ask=d.get("ask") if isinstance(d.get("ask"), str) else None,
+            still_working=d.get("outcome") == "still_working",
         )
 
 
@@ -435,6 +445,8 @@ class DoResult:
     - ``"browse"``: the page needs clicks or typing, and is open in the node's browser. Carry on with
       ``browser(site=...)``; ``page`` is a snapshot of its interactive elements and ``why`` says why loading it wasn't
       enough. The call your steps send becomes the route, and the next ``do`` with this goal calls it.
+    - ``"working"`` (``still_working``): the node answered before its work ended, and the work goes on; ``phase``
+      says what it is doing. ``do("", ask=r.ask)`` collects the answer.
 
     ``network_skipped`` names other contributors' routes passed over for costing more than the owner's maximum,
     ``network_offers`` the site's routes they list in other words, for you to judge and call by ``entry_id``, and
@@ -455,6 +467,15 @@ class DoResult:
     payment_refused: Optional[PaymentRefused] = None
     explored: bool = False
     """Set when this pick tried an unverified entry ahead of the route's default (a small share of read picks do)."""
+    ask: str = ""
+    """The ask this answers: what collects a still-working answer (``do("", ask=...)``)."""
+    phase: str = ""
+    """For ``"working"``: what the node is doing now."""
+
+    @property
+    def still_working(self) -> bool:
+        """Whether the node answered before its work ended: collect the answer by ``ask``."""
+        return self.how == "working"
 
     @classmethod
     def of(cls, d: wire.DoResult) -> "DoResult":
@@ -464,6 +485,8 @@ class DoResult:
         skipped = NetworkSkipped.of(d.get("network_skipped"))
         offers = NetworkOffers.of(d.get("network_offers"))
         refused = PaymentRefused.of(d.get("payment_refused"))
+        if d.get("how") == "working":
+            return cls(how="working", ask=str(d.get("ask") or ""), phase=str(d.get("phase") or ""))
         if d.get("how") == "browse":
             return cls(how="browse", site=d.get("site") or "", page=d.get("page") or "", why=d.get("why") or "", route_failed=failed, network_skipped=skipped, network_offers=offers, payment_refused=refused)
         if d.get("how") == "network":
@@ -505,6 +528,14 @@ class LearnedRoute:
         return cls(route_id=d.get("route_id", ""), what=d.get("what", ""), inputs=list(d.get("inputs") or []), write=d.get("write") is True)
 
 
+def _browse_command(nxt: object) -> Optional[List[str]]:
+    """The browse command a reply's ``next`` names (``{"tool": "unbrowse_browse", "args": {"do": [...]}}``); a node
+    from before ``next`` was a call sent the command bare."""
+    if isinstance(nxt, dict):
+        nxt = (nxt.get("args") or {}).get("do") if nxt.get("tool") == "unbrowse_browse" else None
+    return [x for x in nxt or [] if isinstance(x, str)] or None
+
+
 @dataclass
 class BrowseReply:
     site: str
@@ -537,7 +568,7 @@ class BrowseReply:
             owner=d.get("owner") if d.get("owner") in ("done", "declined", "no_answer") else None,
             url=d.get("url") if isinstance(d.get("url"), str) else None,
             needs_owner=d.get("needs_owner") is True,
-            next=[x for x in d.get("next") or [] if isinstance(x, str)] or None,
+            next=_browse_command(d.get("next")),
         )
 
 
@@ -622,6 +653,10 @@ class Whoami:
     browser was optional."""
     browser_fetch: Optional[bool] = None
     """Whether the node fetches its browser itself the first time a goal needs it. None from an older node."""
+    owner: Optional[str] = None
+    """Whether the owner can be asked on a page (browse's ``ask_owner``): ``watching`` (a window of theirs is open),
+    ``can_open`` (none is, and the node opens one at the ask) or ``off`` (the owner keeps windows off this node, and
+    an ask is refused at once). None from an older node."""
 
 
 @dataclass
@@ -646,6 +681,8 @@ class Login:
     site: str
     code: Optional[str] = None
     """``vault:code:<site>:<account>``, when the vault makes this login's two-step codes."""
+    from_: Optional[str] = None
+    """``"login keychain"`` for a login saved in the owner's macOS login keychain that the vault keeps on its first use."""
 
 
 @dataclass

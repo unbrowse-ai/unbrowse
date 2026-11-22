@@ -1,0 +1,932 @@
+{
+ "_what": "Every journey Unbrowse promises a person or their agent, one entry each (UNB-235). Gathered on 21 Nov 2026 from README.md, PRODUCT.md, skills/, the landing page, the node's MCP tools, the unb and unbrowse-node commands, the window's screens, the task gate's bank, and the UNB tickets marked done since 1 Nov 2026. A journey is covered when a QA step names it: a check in checklist.md (its `Journeys:` line, walked by Claude), a step in mcp-journey.json (its `journeys`, walked with no model), a job named in `runs_in` that runs on every push to staging (`<workflow>#<job>`), or a task of the gate bank in `bank` (the slice runs on every push, the whole bank nightly). `waived` says, in words a person can check, why no CI run can walk it. journey_coverage.py fails the run when a journey has none of these, or a step names a journey that isn't here. `picture` says what the step's picture must show for it to prove the journey.",
+ "journeys": [
+  {
+   "id": "learn-then-call",
+   "surface": "mcp",
+   "promise": "Say what you want and the url of a page that does it: the first ask learns the site's call, every later ask calls it with no browser.",
+   "source": [
+    "README.md: unbrowse_do",
+    "skills/unbrowse/SKILL.md: unbrowse_do with a goal and url",
+    "docs/start/your-first-call.md",
+    "UNB-97"
+   ],
+   "steps": [
+    "unbrowse_do goal + url",
+    "the same unbrowse_do again"
+   ],
+   "expected": "First reply how learned (or called), result holds the page's items; second how called, same kind of result.",
+   "picture": "the page the goal was asked of, and the reply's items readable"
+  },
+  {
+   "id": "second-value-is-a-call",
+   "surface": "mcp",
+   "promise": "A new search value on a learned page is a new call of the same route, in a fraction of a second, not a second walk.",
+   "source": [
+    "docs/start/your-first-call.md: run it with q=zig",
+    "UNB-244"
+   ],
+   "steps": [
+    "unbrowse_do on https://hn.algolia.com/?q=rust",
+    "the same goal with ?q=zig"
+   ],
+   "expected": "The second reply is how called on the same route id, with stories about the new value.",
+   "picture": "the reply drawn: the second value's stories"
+  },
+  {
+   "id": "search-learned-route",
+   "surface": "mcp",
+   "promise": "Search finds the routes this node (and the network) knows for a task.",
+   "source": [
+    "README.md: unbrowse_search",
+    "docs/start/your-first-call.md: unb search hn stories"
+   ],
+   "steps": [
+    "unbrowse_search with the goal's words"
+   ],
+   "expected": "The route the learn kept is listed.",
+   "picture": "the reply drawn, naming the route id"
+  },
+  {
+   "id": "call-route-by-id",
+   "surface": "mcp",
+   "promise": "A route is called by its id, with inputs by name.",
+   "source": [
+    "README.md: unbrowse_call",
+    "docs/start/your-first-call.md: unb call <route id> q=tauri"
+   ],
+   "steps": [
+    "unbrowse_call route_id"
+   ],
+   "expected": "ok true and the data.",
+   "picture": "the route's page and the data"
+  },
+  {
+   "id": "inspect-route-makeup",
+   "surface": "mcp",
+   "promise": "A route's makeup shows with no call and no payment.",
+   "source": [
+    "unbrowse-node/app/src/api.rs: unbrowse_inspect"
+   ],
+   "steps": [
+    "unbrowse_inspect route_id"
+   ],
+   "expected": "The route's method, host, path and inputs, no values.",
+   "picture": "the reply drawn"
+  },
+  {
+   "id": "walk-pick-a-call",
+   "surface": "mcp",
+   "promise": "A page's calls are listed so an agent can pick the one that answers.",
+   "source": [
+    "unbrowse-node/app/src/api.rs: unbrowse_walk"
+   ],
+   "steps": [
+    "unbrowse_walk url goal"
+   ],
+   "expected": "The page's calls, with the answering one marked or pickable.",
+   "picture": "the page walked"
+  },
+  {
+   "id": "browse-when-page-needs-hands",
+   "surface": "mcp",
+   "promise": "A page that needs clicks or typing opens in the node's browser for the agent to drive; the call its steps send becomes a route.",
+   "source": [
+    "skills/unbrowse/SKILL.md: unbrowse_browse click, fill, press, snapshot -i",
+    "docs/guides/unbrowse-a-site.md"
+   ],
+   "steps": [
+    "unbrowse_do on a sign-in page",
+    "unbrowse_browse open, snapshot -i",
+    "unbrowse_observe"
+   ],
+   "expected": "how browse with the page's elements and what to do next; snapshot names the page's controls by ref.",
+   "picture": "the node's browser on that page"
+  },
+  {
+   "id": "vault-sign-in-without-password",
+   "surface": "mcp",
+   "promise": "An agent signs in from the owner's vault by reference; the password never reaches the agent.",
+   "source": [
+    "skills/unbrowse/SKILL.md: fill the password field with the reference vault:github.com:me",
+    "README.md: vault",
+    "UNB-146"
+   ],
+   "steps": [
+    "unbrowse_logins",
+    "unbrowse_browse fill username, fill vault:<site>:<account>, click Login, snapshot"
+   ],
+   "expected": "The secure area opens; no reply holds the password.",
+   "picture": "the signed-in page is not pictured by design (it held a password); the login page before it"
+  },
+  {
+   "id": "refuse-unsafe-commands",
+   "surface": "mcp",
+   "promise": "The node refuses what agents may not do, and the refusal names the door that works.",
+   "source": [
+    "README.md: safety",
+    "UNB-148"
+   ],
+   "steps": [
+    "unbrowse_browse open with --executable-path",
+    "unbrowse_browse cookies clear",
+    "eval reading a password field"
+   ],
+   "expected": "Each is a refusal, not a result; no password comes back.",
+   "picture": "the node's browser after the refusal, unchanged"
+  },
+  {
+   "id": "ask-owner-no-window",
+   "surface": "mcp",
+   "promise": "Asking the owner with no window open says so at once, instead of waiting.",
+   "source": [
+    "README.md: ask_owner",
+    "UNB-219"
+   ],
+   "steps": [
+    "unbrowse_browse ask_owner --timeout 10 with no window"
+   ],
+   "expected": "An error within seconds saying no Unbrowse window is open and nothing was asked; the page still works after.",
+   "picture": "the page still open after the error"
+  },
+  {
+   "id": "ask-owner-in-window",
+   "surface": "window",
+   "promise": "An agent that needs the owner's hands (a sign-in, a code) asks in the node's window, never in its chat.",
+   "source": [
+    "README.md: unbrowse_browse [\"ask_owner\", \"sign in to LinkedIn\"]",
+    "docs/start/the-app.md: Browser screen",
+    "UNB-219",
+    "UNB-210"
+   ],
+   "steps": [
+    "window open on the node",
+    "unbrowse_browse ask_owner on a login page"
+   ],
+   "expected": "The window shows the ask on its Browser screen; with no one to answer, the reply is owner no_answer after the timeout, not an error that no window is open.",
+   "picture": "the window showing the agent's ask"
+  },
+  {
+   "id": "unknown-goal-clear-error",
+   "surface": "mcp",
+   "promise": "A goal no route has, with no page given, is a clear error that says what is missing.",
+   "source": [
+    "unbrowse-node/app/src/api.rs: unbrowse_do"
+   ],
+   "steps": [
+    "unbrowse_do goal only"
+   ],
+   "expected": "An error naming the missing url; no crash, no hang.",
+   "picture": "the reply drawn"
+  },
+  {
+   "id": "data-url-and-site-refusal",
+   "surface": "mcp",
+   "promise": "A url that is data is its own route with no browser; a site's refusal comes back in the site's own words.",
+   "source": [
+    "unbrowse-node/app/src/api.rs: unbrowse_do"
+   ],
+   "steps": [
+    "unbrowse_do https://www.python.org/robots.txt",
+    "unbrowse_do a GitHub API 404"
+   ],
+   "expected": "robots.txt text with no browser opened; the 404 error carries 404 and Not Found.",
+   "picture": "the data url's page"
+  },
+  {
+   "id": "versions-read-as-themselves",
+   "surface": "mcp",
+   "promise": "A version number in a page's data reads as itself, never masked as {session}.",
+   "source": [
+    "UNB-212"
+   ],
+   "steps": [
+    "unbrowse_do on https://crates.io/api/v1/crates/serde",
+    "unbrowse_do on https://registry.npmjs.org/unbrowse/latest"
+   ],
+   "expected": "Real version numbers (digits and dots) and no {session} anywhere.",
+   "picture": "the reply drawn, the version readable"
+  },
+  {
+   "id": "browser-never",
+   "surface": "mcp",
+   "promise": "An ask that says browser never is answered by routes and plain requests only, or refused saying a browser would be needed.",
+   "source": [
+    "unbrowse-node/app/src/api.rs: unbrowse_do browser auto|if_present|never",
+    "UNB-228"
+   ],
+   "steps": [
+    "unbrowse_do a learned goal with browser never",
+    "unbrowse_do a page never learned with browser never"
+   ],
+   "expected": "The first is called with no browser; the second is an error with outcome browser_declined, declined true, and next names the call with browser auto.",
+   "picture": "the reply drawn"
+  },
+  {
+   "id": "many-pages-one-ask",
+   "surface": "mcp",
+   "promise": "Many pages of one kind come back from one ask, side by side, in a reply small enough for the agent to read.",
+   "source": [
+    "unbrowse-node/app/src/api.rs: unbrowse_do pages",
+    "UNB-138"
+   ],
+   "steps": [
+    "unbrowse_do with pages of three search values"
+   ],
+   "expected": "how pages, each page's how and data in order, all called on one route.",
+   "picture": "the reply drawn"
+  },
+  {
+   "id": "two-agents-own-tabs",
+   "surface": "mcp",
+   "promise": "Each MCP session gets its own tab: two agents on one site never read each other's page.",
+   "source": [
+    "docs/guides/unbrowse-a-site.md: each MCP session gets its own tab"
+   ],
+   "steps": [
+    "two sessions open two pages of one site",
+    "alternate get url and snapshot",
+    "close one, the other still answers"
+   ],
+   "expected": "Each session reads its own page throughout.",
+   "picture": "the first session's page"
+  },
+  {
+   "id": "browser-restart-recovers",
+   "surface": "mcp",
+   "promise": "When the node's browser closes or loses its tab, the next open works and the agent is told plainly what happened.",
+   "source": [
+    "UNB-145",
+    "UNB-232"
+   ],
+   "steps": [
+    "close every tab of a site",
+    "open the site again at once"
+   ],
+   "expected": "The reply says the browser closed; the next open answers the page, with no Invalid response.",
+   "picture": "the reopened page"
+  },
+  {
+   "id": "stale-element-says-next",
+   "surface": "mcp",
+   "promise": "A click on an element that moved or is gone tells the agent what to do next.",
+   "source": [
+    "UNB-144"
+   ],
+   "steps": [
+    "snapshot a page",
+    "go to another page",
+    "click a ref from the first snapshot"
+   ],
+   "expected": "An error that says the element is gone or stale and to snapshot again, not a silent success.",
+   "picture": "the page the click was tried on"
+  },
+  {
+   "id": "long-script-times-out-clearly",
+   "surface": "mcp",
+   "promise": "A long page script returns, or times out with a clear error, and the tab keeps working.",
+   "source": [
+    "unbrowse-node/app/src/api.rs: unbrowse_browse eval"
+   ],
+   "steps": [
+    "eval --timeout 45000 a 35 s promise",
+    "eval a 40 s promise with the default timeout"
+   ],
+   "expected": "waited, then an error saying the script didn't finish within 30 s; the next command works.",
+   "picture": "the tab after the timeout"
+  },
+  {
+   "id": "challenge-person-check",
+   "surface": "mcp",
+   "promise": "A person check is passed by eye: the node shows the page as a picture and says whether it still asks.",
+   "source": [
+    "skills/unbrowse/SKILL.md: unbrowse_challenge",
+    "README.md: challenge",
+    "UNB-131"
+   ],
+   "steps": [
+    "unbrowse_challenge look on a page with no check"
+   ],
+   "expected": "An image of the page and asks false.",
+   "picture": "the challenge's own picture"
+  },
+  {
+   "id": "report-wrong-data-scrubbed",
+   "surface": "mcp",
+   "promise": "An agent reports a problem; the report is scrubbed and nothing leaves until the owner sends it, and a node off the network sends nothing.",
+   "source": [
+    "README.md: unbrowse_report waits for you",
+    "UNB-230"
+   ],
+   "steps": [
+    "unbrowse_report wrong_data with an email and a token in it",
+    "the same report again"
+   ],
+   "expected": "report off, why says the node is off the network; scrubbed names email and query; contents hold no email, auth or page number.",
+   "picture": "the reply drawn"
+  },
+  {
+   "id": "judge-wrong-route",
+   "surface": "mcp",
+   "promise": "A route judged wrong for a page is passed over there, and judged right again it answers again.",
+   "source": [
+    "skills/unbrowse/SKILL.md: unbrowse_judge the route with verdict wrong"
+   ],
+   "steps": [
+    "unbrowse_judge wrong",
+    "unbrowse_do again",
+    "unbrowse_judge right",
+    "unbrowse_do again"
+   ],
+   "expected": "route_failed names the route after wrong; called again after right; a wrong with no url is refused.",
+   "picture": "the reply drawn"
+  },
+  {
+   "id": "network-link-preview",
+   "surface": "mcp",
+   "promise": "An unbrowse:// link previews what it names, with no call and no payment.",
+   "source": [
+    "docs/SHARING.md: unbrowse://example.com/0x<entry>",
+    "skills/unbrowse/SKILL.md: unb open"
+   ],
+   "steps": [
+    "unbrowse_open unbrowse://news.ycombinator.com"
+   ],
+   "expected": "A preview, or a plain answer that a node off the network can't look it up; never a call.",
+   "picture": "the reply drawn"
+  },
+  {
+   "id": "whoami-reaches-node",
+   "surface": "mcp",
+   "promise": "An agent checks it reaches its node: key, node, browser state, whether the owner can be reached.",
+   "source": [
+    "unbrowse-node/app/src/api.rs: unbrowse_whoami",
+    "README.md: unb whoami"
+   ],
+   "steps": [
+    "unbrowse_whoami",
+    "unb whoami"
+   ],
+   "expected": "The agent key's name and the node.",
+   "picture": "the reply drawn; the terminal"
+  },
+  {
+   "id": "mcp-app-answer-view",
+   "surface": "mcp",
+   "promise": "ChatGPT and other MCP app hosts draw a site's answer as cards, not walls of text.",
+   "source": [
+    "unbrowse-node/app/src/api/mcp_app.rs",
+    "UNB-234"
+   ],
+   "steps": [
+    "resources/list",
+    "resources/read ui://unbrowse/answer.html"
+   ],
+   "expected": "The answer view is listed and read as an MCP app page.",
+   "picture": "the reply drawn"
+  },
+  {
+   "id": "agent-reaches-for-node",
+   "surface": "mcp",
+   "promise": "Let Claude use the sites you use: an agent with other web tools on hand reaches for the node for what a site says right now.",
+   "source": [
+    "landing hero: Let Claude use the sites you use",
+    "landing Start: Try a prompt",
+    ".github/qa/tool-choice.json"
+   ],
+   "steps": [
+    "several sessions per task with WebFetch and WebSearch beside the node"
+   ],
+   "expected": "The pass rate tool-choice.json asks for.",
+   "picture": "the tool choice table in the report",
+   "runs_in": [
+    "qa.yml#qa"
+   ]
+  },
+  {
+   "id": "cli-ask-from-terminal",
+   "surface": "cli",
+   "promise": "Everything an agent does over MCP works from a terminal with unb: do, search, call, inspect.",
+   "source": [
+    "docs/start/your-first-call.md: unbrowse do \"search Rust crates\" --url",
+    "README.md: unb"
+   ],
+   "steps": [
+    "unb whoami",
+    "unb do <goal> --url <page>",
+    "unb search <words>",
+    "unb call <id>",
+    "unb inspect <id>"
+   ],
+   "expected": "Each prints the same answer the MCP tool gives, as JSON a person can read.",
+   "picture": "the terminal, per command"
+  },
+  {
+   "id": "vault-from-terminal",
+   "surface": "cli",
+   "promise": "The owner keeps logins in the vault from a terminal; agents see references, never passwords.",
+   "source": [
+    "README.md: vault",
+    "unbrowse-node/app/src/main.rs: vault list|add|remove",
+    "UNB-146"
+   ],
+   "steps": [
+    "unbrowse-node vault list",
+    "vault add <site> <account> --stored (password on stdin)",
+    "unb logins",
+    "vault remove"
+   ],
+   "expected": "The login is listed and removed; no output holds the password.",
+   "picture": "the terminal, per command"
+  },
+  {
+   "id": "sessions-from-cookie-file",
+   "surface": "cli",
+   "promise": "The owner brings a signed-in session from a cookies file; it is listed by host and cookie count, never values, and can be forgotten.",
+   "source": [
+    "README.md: unbrowse session import github.com",
+    "UNB-132",
+    "UNB-236"
+   ],
+   "steps": [
+    "unbrowse-node session import <host> --from <cookies.txt>",
+    "session list",
+    "session forget <host>"
+   ],
+   "expected": "Imported, listed with a count and no values, then gone; or, where the owner must say yes, a refusal that says so.",
+   "picture": "the terminal, per command"
+  },
+  {
+   "id": "agent-key-from-terminal",
+   "surface": "cli",
+   "promise": "The owner makes an agent key with a daily limit and an expiry; its setup is printed once.",
+   "source": [
+    "docs/start/your-first-call.md: unbrowse agent new my-agent",
+    "README.md: agent new"
+   ],
+   "steps": [
+    "unbrowse-node agent new <name> <limit> <days>"
+   ],
+   "expected": "A new key with that limit and expiry, and the setup to use it.",
+   "picture": "the terminal (the token shown as [redacted])"
+  },
+  {
+   "id": "node-switches-from-terminal",
+   "surface": "cli",
+   "promise": "The owner reads and sets the node's switches from a terminal: network, terms, telemetry, reports, sharing, the browser.",
+   "source": [
+    "README.md: unbrowse-node telemetry off",
+    "docs/start/install.md: network off",
+    "unbrowse-node/app/src/main.rs: help"
+   ],
+   "steps": [
+    "unbrowse-node --help",
+    "network",
+    "terms show",
+    "telemetry",
+    "reports",
+    "share",
+    "browser status"
+   ],
+   "expected": "Each prints its current state in words; help lists the commands.",
+   "picture": "the terminal, per command"
+  },
+  {
+   "id": "source-build-never-updates",
+   "surface": "cli",
+   "promise": "A release build keeps itself current; a build from source never replaces itself.",
+   "source": [
+    "docs/guides/updates.md: a source build never updates",
+    "UNB-233"
+   ],
+   "steps": [
+    "unbrowse-node update on the debug build"
+   ],
+   "expected": "It says a build from source does not update, and changes nothing.",
+   "picture": "the terminal"
+  },
+  {
+   "id": "install-npm-finds-programs",
+   "surface": "install",
+   "promise": "npm install -g unbrowse puts unbrowse on the path, and it finds the node, unb and the window.",
+   "source": [
+    "README.md: npm install -g unbrowse",
+    "landing Hero: npm install -g unbrowse"
+   ],
+   "steps": [
+    "the repository's npm package, built and packed as npm ships it",
+    "unbrowse where",
+    "unbrowse --help"
+   ],
+   "expected": "where names the node, unb and window programs; help lists the commands.",
+   "picture": "the terminal, per command"
+  },
+  {
+   "id": "skill-install",
+   "surface": "skill",
+   "promise": "unbrowse skill writes the skill where Claude reads it, and never deletes an edited copy.",
+   "source": [
+    "landing Start: Claude Desktop tab, unbrowse skill",
+    "docs/reference/the-skill.md"
+   ],
+   "steps": [
+    "unbrowse skill <dir>",
+    "unbrowse skill <dir> again"
+   ],
+   "expected": "SKILL.md written; the second run reports it current or keeps the old copy aside.",
+   "picture": "the terminal"
+  },
+  {
+   "id": "connect-claude-code",
+   "surface": "cli",
+   "promise": "npm i -g unbrowse && unbrowse connect is enough for Claude Code: it registers unb mcp --agent with no token in the command line.",
+   "source": [
+    "README.md: unbrowse connect is enough for Claude Code",
+    "landing Start: Claude Code tab"
+   ],
+   "steps": [
+    "unb connect --dry-run"
+   ],
+   "expected": "The registration it would make, naming unb mcp --agent and no token, and nothing changed.",
+   "picture": "the terminal"
+  },
+  {
+   "id": "window-opens-on-node",
+   "surface": "window",
+   "promise": "The window opens on the owner's node: the terms first, then the node at a glance.",
+   "source": [
+    "README.md: zig build run",
+    "docs/start/the-app.md: first-run screen",
+    "PRODUCT.md: the window",
+    "UNB-134"
+   ],
+   "steps": [
+    "start the window with the node's home"
+   ],
+   "expected": "It stays open and shows the first-run screen or the Node screen with this node's data.",
+   "picture": "the window, drawn by itself on this node",
+   "runs_in": [
+    "qa.yml#check"
+   ]
+  },
+  {
+   "id": "window-screens",
+   "surface": "window",
+   "promise": "The window's screens (Node, Live, Browser, My routes, Money, Vault, Agent access, Activity, Leaderboard, Settings) each render with the node's real data.",
+   "source": [
+    "PRODUCT.md: Node, Live, Browser, My routes, Money, Vault, Agent access, Activity, Leaderboard, Settings",
+    "unbrowse-node/window/src/app.zig: screen_labels"
+   ],
+   "steps": [
+    "click each screen's name in the sidebar in turn"
+   ],
+   "expected": "Each screen is drawn, with no blank screen and no crash.",
+   "picture": "the window, per screen"
+  },
+  {
+   "id": "skill-matches-tools",
+   "surface": "skill",
+   "promise": "The shipped skills name only tools the node really lists.",
+   "source": [
+    "skills/README.md",
+    ".github/qa/skill_check.py"
+   ],
+   "steps": [
+    "skill_check.py against the node's tool list"
+   ],
+   "expected": "Every tool a skill names is listed.",
+   "picture": "the skill check table in the run's summary",
+   "runs_in": [
+    "qa.yml#check"
+   ]
+  },
+  {
+   "id": "skill-chosen-when-it-should-be",
+   "surface": "skill",
+   "promise": "Each shipped skill is chosen for what it is for and kept clear of near misses.",
+   "source": [
+    "skills/unbrowse/SKILL.md: description",
+    ".github/qa/skill-evals.json"
+   ],
+   "steps": [
+    "several sessions per query with the skills installed"
+   ],
+   "expected": "The trigger rate skill-evals.json asks for.",
+   "picture": "the skill trigger table in the run's summary",
+   "runs_in": [
+    "qa.yml#skills"
+   ]
+  },
+  {
+   "id": "browser-fetched-when-missing",
+   "surface": "cli",
+   "promise": "With no browser on the machine, the node fetches Chrome for Testing itself.",
+   "source": [
+    "README.md: unbrowse browser install fetches it now",
+    "docs/guides/the-browser.md"
+   ],
+   "steps": [
+    "a fresh node with no browser starts",
+    "browser status --json names a chromium"
+   ],
+   "expected": "The node's browser is fetched and ready within minutes.",
+   "picture": "the node's browser status in the job's log",
+   "runs_in": [
+    "qa.yml#check"
+   ]
+  },
+  {
+   "id": "sdk-do-from-code",
+   "surface": "cli",
+   "promise": "From TypeScript or Python, new Unbrowse() and node.do(goal, {url}) give the same answer as the MCP.",
+   "source": [
+    "docs/start/your-first-call.md: new Unbrowse(); node.do(...)",
+    "skills/unbrowse/SKILL.md: SDK"
+   ],
+   "steps": [
+    "the SDKs' own tests"
+   ],
+   "expected": "The SDK tests pass.",
+   "picture": "the test job's log",
+   "runs_in": [
+    "ci.yml#sdk-typescript",
+    "ci.yml#sdk-python"
+   ]
+  },
+  {
+   "id": "verify-unbrowse-skill",
+   "surface": "skill",
+   "promise": "Agents check their own Unbrowse changes with the verify skill: a scratch node, a learn and a call, the MCP list, cleanup.",
+   "source": [
+    "skills/verify-unbrowse/SKILL.md",
+    "UNB-209"
+   ],
+   "steps": [
+    "the verify skill's own check"
+   ],
+   "expected": "Its check passes.",
+   "picture": "the job's log",
+   "runs_in": [
+    "ci.yml#short"
+   ]
+  },
+  {
+   "id": "hard-sites-answer",
+   "surface": "bank",
+   "promise": "The hardest sites we know of (bot walls, signed calls) are learned and answered.",
+   "source": [
+    "UNB-249",
+    "UNB-241",
+    "UNB-242",
+    "UNB-227",
+    "UNB-165"
+   ],
+   "steps": [
+    "the live-site check on the hard sites"
+   ],
+   "expected": "The hard-sites job's verdict.",
+   "picture": "the hard-sites report",
+   "runs_in": [
+    "bank.yml#hard-sites"
+   ]
+  },
+  {
+   "id": "bank-lookup-one-value",
+   "surface": "bank",
+   "promise": "An agent looks up one value on a public site (a code, a rate, a status) and gets it right.",
+   "source": [
+    "test-banks/gate/bank.json",
+    "AGENTS.md: The task gate"
+   ],
+   "steps": [
+    "a model asks the node, a model judges the answer against the task's check"
+   ],
+   "expected": "Right, or set aside when the site blocks; never confidently wrong.",
+   "picture": "the gate bank table in the report",
+   "bank": [
+    "u6:customs-broker-1",
+    "u6:court-researcher-4",
+    "u6:sg-gov-officer-4",
+    "u6:airline-revenue-4",
+    "u6:r1-tech-swe-60"
+   ]
+  },
+  {
+   "id": "bank-search-list-five",
+   "surface": "bank",
+   "promise": "An agent searches a site and lists the first five results with what was asked (name, price, link).",
+   "source": [
+    "test-banks/gate/bank.json",
+    "UNB-229",
+    "UNB-93"
+   ],
+   "steps": [
+    "as above"
+   ],
+   "expected": "Right, or set aside; never confidently wrong.",
+   "picture": "the gate bank table in the report",
+   "bank": [
+    "lundy:pypi.org",
+    "criteria:lazada.sg",
+    "criteria:carousell.sg",
+    "criteria:ticketmaster.com",
+    "lundy:ebay.de"
+   ]
+  },
+  {
+   "id": "bank-filtered-listing",
+   "surface": "bank",
+   "promise": "An agent asks for a filtered listing (patents by assignee and date, jobs, tenders) and gets the listing.",
+   "source": [
+    "test-banks/gate/bank.json"
+   ],
+   "steps": [
+    "as above"
+   ],
+   "expected": "Right, or set aside; never confidently wrong.",
+   "picture": "the gate bank table in the report",
+   "bank": [
+    "u6:patent-analyst-1"
+   ]
+  },
+  {
+   "id": "bank-ranked-list",
+   "surface": "bank",
+   "promise": "An agent reads a ranked or latest list from a fixed page (top gainers, trending, latest posts).",
+   "source": [
+    "test-banks/gate/bank.json"
+   ],
+   "steps": [
+    "as above"
+   ],
+   "expected": "Right, or set aside; never confidently wrong.",
+   "picture": "the gate bank table in the nightly report",
+   "bank": [
+    "u6:r2-crypto-trader-36",
+    "u6:r1-marketing-growth-38"
+   ]
+  },
+  {
+   "id": "install-release-programs",
+   "surface": "install",
+   "promise": "The release's disk image, archive and wheel hold the node, unb, the browser and the window, and they run.",
+   "source": [
+    "README.md: download the disk image",
+    "README.md: unbrowse-<version>-linux-<arch>.tar.gz"
+   ],
+   "waived": "Built and signed only by release.yml, which runs on a release, never on a push to staging; its 'Check the programs run' step runs them. QA runs the same programs built from the pushed commit."
+  },
+  {
+   "id": "connect-http-mcp",
+   "surface": "mcp",
+   "promise": "Cursor and other HTTP clients reach the node at POST http://127.0.0.1:7788/mcp; a plain bearer header is refused unless bearer is turned on.",
+   "source": [
+    "landing Start: Cursor tab",
+    "docs/guides/connect-your-agent.md"
+   ],
+   "waived": "Every QA node accepts bearer tokens (the model-free check and the bank need it), so the refusal can't be shown there, and the streamed reply the HTTP path gives is the one unb mcp reads on every QA step."
+  },
+  {
+   "id": "money-add-funds",
+   "surface": "window",
+   "promise": "Add funds in the window by card, Apple Pay, bank or USDC; unbrowse money prints the balance.",
+   "source": [
+    "README.md: Add funds in the window",
+    "docs/ONBOARDING.md"
+   ],
+   "waived": "A real payment through Circle's onramp, and no Arc network names a deployment the QA node could use."
+  },
+  {
+   "id": "network-fetch-paid-route",
+   "surface": "network",
+   "promise": "Another contributor's route is fetched and paid for within the owner's limits, and run locally.",
+   "source": [
+    "docs/start/your-first-call.md: Another contributor's route costs its fetch fee"
+   ],
+   "waived": "Needs peers on the network and funded payments; QA nodes stay off the network by design."
+  },
+  {
+   "id": "earn-list-and-cash-out",
+   "surface": "network",
+   "promise": "A route used enough is listed; its share of each fetch fee is cashed out to the owner's wallet.",
+   "source": [
+    "docs/ONBOARDING.md: List, Earn, Cash out",
+    "docs/SHARING.md"
+   ],
+   "waived": "Needs a second peer, a deployed settlement contract and funds."
+  },
+  {
+   "id": "link-wallet-sign-in",
+   "surface": "network",
+   "promise": "The owner links a wallet with email or Google at unbrowse.ai/link.",
+   "source": [
+    "docs/ONBOARDING.md: links one, with email or Google"
+   ],
+   "waived": "Needs a real Privy account and the live relay."
+  },
+  {
+   "id": "chatgpt-connect",
+   "surface": "mcp",
+   "promise": "A ChatGPT user adds Unbrowse as an app and signs in with ChatGPT's own Connect button.",
+   "source": [
+    "UNB-234",
+    "UNB-237"
+   ],
+   "waived": "Needs ChatGPT and a Privy account on the hosted gateway; the node's MCP app view itself is covered by mcp-app-answer-view."
+  },
+  {
+   "id": "card-checkout-approval",
+   "surface": "window",
+   "promise": "An agent fills a card by reference; above the card's limit the owner approves in the window (or from Telegram) and the agent never sees the card.",
+   "source": [
+    "skills/unbrowse/SKILL.md: vault:card:visa:number --amount",
+    "UNB-117",
+    "UNB-119",
+    "UNB-236"
+   ],
+   "waived": "A card enters the vault only through vault card add's interactive prompt, approval needs a person, and a real checkout charges money."
+  },
+  {
+   "id": "owner-answers-from-telegram",
+   "surface": "network",
+   "promise": "When a site needs the owner to sign in or type a code, the owner answers from Telegram.",
+   "source": [
+    "UNB-147"
+   ],
+   "waived": "Needs the owner's Telegram bot and a person to answer it."
+  },
+  {
+   "id": "peer-strangers-refused",
+   "surface": "network",
+   "promise": "A stranger reaching a node over the peer network sees only its public tools and can't use the owner's sessions.",
+   "source": [
+    "UNB-226"
+   ],
+   "waived": "Needs the peer network; QA nodes stay off it. The node's own tests hold the public tool list (remote.rs PUBLIC_TOOLS)."
+  },
+  {
+   "id": "website-passkeys",
+   "surface": "cli",
+   "promise": "Website passkeys are enrolled when the owner signs in by hand, and passkey off or never stops it.",
+   "source": [
+    "README.md: Website passkeys (on by default)"
+   ],
+   "waived": "Needs a site with real WebAuthn and a person signing in by hand."
+  },
+  {
+   "id": "agent-os-user",
+   "surface": "cli",
+   "promise": "Agents run as their own OS user, unable to read the owner's token.",
+   "source": [
+    "docs/guides/agents-os-user.md"
+   ],
+   "waived": "Needs root on a throwaway machine; the runner's user isn't."
+  },
+  {
+   "id": "exclude-site-and-pause",
+   "surface": "window",
+   "promise": "The owner excludes a site or pauses the node in Settings, and agents are told so.",
+   "source": [
+    "docs/guides/unbrowse-a-site.md: Settings, Mapping (excluded)"
+   ],
+   "waived": "Set only by clicking in the window's Settings, and the runner's window can't be clicked (no accessibility permission); the screen itself is pictured by window-screens."
+  },
+  {
+   "id": "route-healing",
+   "surface": "mcp",
+   "promise": "When a site changes its call, the node re-walks the route's page and retries once.",
+   "source": [
+    "docs/guides/learn-a-route.md"
+   ],
+   "waived": "Needs a site that changes its API between two calls on purpose; live sites don't, on cue."
+  },
+  {
+   "id": "auto-update",
+   "surface": "cli",
+   "promise": "A release build verifies and installs the next release by itself, then restarts.",
+   "source": [
+    "docs/guides/updates.md"
+   ],
+   "waived": "Needs a signed release in the registry; a QA node is a source build, which never updates (source-build-never-updates)."
+  },
+  {
+   "id": "map-a-site-skill",
+   "surface": "skill",
+   "promise": "unbrowse-map: browse a site twice in a headed browser and learn whether its call replays over plain HTTP.",
+   "source": [
+    "skills/unbrowse-map/SKILL.md"
+   ],
+   "waived": "A developer's skill that needs a headed browser driven by a person twice."
+  },
+  {
+   "id": "landing-lookup-and-install-copy",
+   "surface": "install",
+   "promise": "On unbrowse.ai a visitor looks up a site and copies the install line for their agent.",
+   "source": [
+    "landing src/home/Lookup.tsx",
+    "landing src/home/Hero.tsx"
+   ],
+   "waived": "Lives in the unbrowse-landing repository, tested by its own checks."
+  }
+ ]
+}

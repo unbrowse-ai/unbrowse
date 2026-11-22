@@ -15,6 +15,8 @@
 //! - `providers`: which of a body's providers a caller still tries, on R7.20's doubling schedule, kept across restarts.
 //! - `tower`: `/unbrowse/tower/1`, where a node hands a peer the signed vouchers and lines it would have claimed, so
 //!   the peer can claim what is still unclaimed as the window closes. The lines are opaque bytes here.
+//! - `mcp`: `/unbrowse/mcp/1`, where a client that signs its requests asks its owner's node over the peer network,
+//!   with no gateway between (graph `gateway.direct`), and `McpClient`, a swarm of its own for a client that only asks.
 //! - `node`: the running swarm and the handle the node uses: provide a site, find a site's listings; provide, find
 //!   and fetch a body; leave the network cleanly (`Net::stop`).
 
@@ -25,6 +27,8 @@ pub mod body;
 mod budget;
 mod dial;
 pub mod changes;
+pub mod mcp;
+pub mod link;
 pub mod node;
 pub mod position;
 pub mod providers;
@@ -35,14 +39,16 @@ pub mod wire;
 
 pub use admission::{admit, Claim, Identity, Refusal, Registry, Rules};
 pub use changes::{Change, ChangeKind, Heard};
+pub use link::{gateway_addr, Link, LinkState};
 pub use body::{body_key, Bodies, FetchError, NoBodies, BODY_PROTOCOL, MAX_BODY_BYTES, MAX_BODY_PROVIDERS, MAX_CONTENT_ID_BYTES, MAX_PAYMENT_BYTES};
 pub use libp2p::identity::Keypair;
 pub use libp2p::multiaddr::Protocol;
 pub use libp2p::{Multiaddr, PeerId};
+pub use mcp::{authority as mcp_authority, Mcp, McpAnswer, McpAsk, McpClient, McpDoor, MAX_MCP_ANSWER_BYTES, MAX_MCP_ASK_BYTES, MCP_PROTOCOL};
 pub use node::{Config, Found, Listing, Listings, Load, Net, Serve, Standing, KAD_PROTOCOL};
 pub use position::{grind, placed, position, target};
 pub use providers::{exclusion, load_kept, save_kept, Providers, MAX_EXCLUSION, MAX_KEPT, MAX_KEPT_BYTES};
 pub use reach::{dialable, listen_all, published};
-pub use site::{site_key, site_of};
+pub use site::{public_site_of, site_key, site_of};
 pub use tower::{HandError, NoTowers, Towers, MAX_HANDED_BYTES, TOWER_PROTOCOL};
 pub use wire::Speaks;

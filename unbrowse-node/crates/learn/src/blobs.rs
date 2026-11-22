@@ -144,6 +144,27 @@ mod tests {
         assert_eq!(blobs.get(&sha256_hex(b"never kept")).unwrap(), None);
     }
 
+    /// A store an earlier build wrote is read as it was written: `<dir>/<first two hex>/<hash>`, the body whole. A
+    /// route names its code by hash, so a store that moved its files would leave every earlier capture's code unread.
+    #[test]
+    fn a_body_an_earlier_build_kept_still_reads() {
+        let dir = Scratch::new("earlier");
+        let script = b"function sign(t) { return t.split('').reverse().join(''); }";
+        let sha = sha256_hex(script);
+        // Written by hand where the earlier build put it, not through `put`.
+        std::fs::create_dir_all(dir.path().join(&sha[..2])).unwrap();
+        std::fs::write(dir.path().join(&sha[..2]).join(&sha), script).unwrap();
+        let blobs = Blobs::at(dir.path());
+        assert!(blobs.has(&sha), "the earlier file is found under its hash");
+        assert_eq!(blobs.get(&sha).unwrap().as_deref(), Some(&script[..]), "and read back whole");
+        assert_eq!(blobs.put(script).unwrap(), sha, "putting the same body again names the earlier file");
+        assert_eq!(files_under(dir.path()), 1, "the earlier file is kept, not written beside");
+        // A capture of today keeps its bodies in the same place, so the next build reads them the same way.
+        let fresh: &[u8] = b"(module)";
+        let kept = blobs.put(fresh).unwrap();
+        assert_eq!(std::fs::read(dir.path().join(&kept[..2]).join(&kept)).unwrap(), fresh);
+    }
+
     #[test]
     fn a_blob_whose_bytes_changed_is_refused() {
         let dir = Scratch::new("changed");

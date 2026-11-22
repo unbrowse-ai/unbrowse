@@ -227,4 +227,112 @@ mod tests {
         assert!(matches!(site.ask(&read, &built), Said::Refused(why) if why.contains("no asks")));
         assert_eq!(transport.asked.len(), 2);
     }
+
+    /// A transport whose rule refuses what it is asked, or whose wire fails: it counts what reached it.
+    struct Walled {
+        refuses: bool,
+        reached: usize,
+    }
+    impl Fetch for Walled {
+        fn allows(&self, _req: &Request) -> Result<(), ReplayError> {
+            if self.refuses { Err(ReplayError::Refused("a private address".into())) } else { Ok(()) }
+        }
+        fn fetch(&mut self, _req: &Request) -> Result<Exchange, ReplayError> {
+            self.reached += 1;
+            Err(ReplayError::Transport("connection reset".into()))
+        }
+        fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            self.fetch(req)
+        }
+    }
+
+    /// A request the call's rule refuses is never made, so it costs no ask of the learn's budget.
+    #[test]
+    fn a_request_the_rule_refuses_costs_the_learn_no_ask() {
+        let mut transport = Walled { refuses: true, reached: 0 };
+        let (read, built) = step("GET", false);
+        let mut site = Live { fetch: &mut transport, left: 3 };
+        assert!(matches!(site.ask(&read, &built), Said::Refused(why) if why.contains("a private address")));
+        assert_eq!(site.left, 3, "nothing was sent, so nothing was spent");
+        assert_eq!(transport.reached, 0);
+    }
+
+    /// An ask the wire fails may have reached the site, so it is spent, and the site's failure is the answer.
+    #[test]
+    fn an_ask_that_fails_on_the_wire_is_spent_and_says_why() {
+        let mut transport = Walled { refuses: false, reached: 0 };
+        let (read, built) = step("GET", false);
+        let mut site = Live { fetch: &mut transport, left: 3 };
+        assert!(matches!(site.ask(&read, &built), Said::Refused(why) if why.contains("connection reset")));
+        assert_eq!(site.left, 2);
+        assert_eq!(transport.reached, 1);
+    }
+
+    fn walked_search(url: &str) -> crate::trace::Trace {
+        use crate::lab::sighting::tests::{call, trace};
+        trace(vec![call("GET", url, &[], None, r#"{"items":["lamp"]}"#)])
+    }
+
+    fn the_ask(url: &str, step: &route::Step) -> (route::Step, route::Built) {
+        (step.clone(), route::Built { method: "GET".into(), url: url.parse().unwrap(), headers: vec![], body: None, made: vec![] })
+    }
+
+    /// A recording answers the ask it holds, and names the ones it does not: the walked call nearest the ask and where
+    /// the ask differs from it (a value the walk sent otherwise, or one it never sent), or no call at all at that address.
+    #[test]
+    fn a_recording_answers_what_it_holds_and_names_what_it_does_not() {
+        use crate::lab::sighting::tests::walk;
+        let trace = walked_search("https://shop.example/api/x?q=lamp");
+        let walked = walk(&trace, &[("q", "lamp")]);
+        let (step, _) = step("GET", false);
+        let mut site = Recorded { walk: &walked };
+        let ask = |site: &mut Recorded, url: &str| { let (s, b) = the_ask(url, &step); site.ask(&s, &b) };
+        assert!(matches!(ask(&mut site, "https://shop.example/api/x?q=lamp"), Said::Reply { at: Some(0), .. }));
+        match ask(&mut site, "https://shop.example/api/x?q=lamp&extra=1") {
+            Said::Unheard { nearest: Some(0), differs } => assert!(differs.iter().any(|d| d.contains("extra") && d.contains("the walk sent none")), "{differs:?}"),
+            other => panic!("a value the walk never sent is unheard: {other:?}"),
+        }
+        match ask(&mut site, "https://shop.example/api/x?q=sofa") {
+            Said::Unheard { nearest: Some(0), differs } => assert!(differs.iter().any(|d| d.contains('q')), "{differs:?}"),
+            other => panic!("a value sent otherwise is unheard: {other:?}"),
+        }
+        let elsewhere = route::Step { url: "https://shop.example/api/other".into(), ..step.clone() };
+        let (s, b) = the_ask("https://shop.example/api/other?q=lamp", &elsewhere);
+        assert!(matches!(site.ask(&s, &b), Said::Unheard { nearest: None, differs } if differs.is_empty()), "no walked call is at that address");
+    }
+
+    /// A value made over a part of the request is as new as that part: one made over a clock reading (or a cookie, or the
+    /// browser's own header) differs between walks without telling the recording apart, and one made over a fixed value or
+    /// over the method does tell it apart.
+    #[test]
+    fn a_value_made_over_a_part_of_the_request_is_as_loose_as_that_part() {
+        use crate::lab::sighting::tests::walk;
+        use route::{Expr, Hole, Sent, Way};
+        let hole = |at: Place, expr: Expr| Hole { at, ways: vec![Way { rung: 0, expr }], over: false, open: false };
+        let clock = Expr::Stamp { form: "{ms}".into() };
+        let fixed = Expr::text("web-1");
+        let trace = walked_search("https://shop.example/api/x?sig=aaa");
+        let walked = walk(&trace, &[]);
+        // (what the signature is made over, the holes that are that part, whether the recording still hears the ask)
+        let cases: Vec<(&str, Sent, Vec<Hole>, bool)> = vec![
+            ("a query value that is a clock reading", Sent::Query("t".into()), vec![hole(Place::Query("t".into()), clock.clone())], true),
+            ("a query value that is fixed", Sent::Query("t".into()), vec![hole(Place::Query("t".into()), fixed.clone())], false),
+            ("a cookie", Sent::Cookie("sid".into()), vec![], true),
+            ("a header that is a clock reading", Sent::Header("x-ts".into()), vec![hole(Place::Header("x-ts".into()), clock.clone())], true),
+            ("a header the browser writes", Sent::Header("accept-language".into()), vec![], true),
+            ("a fixed header", Sent::Header("x-api".into()), vec![hole(Place::Header("x-api".into()), fixed.clone())], false),
+            ("the path and a query value that is a clock reading", Sent::Path, vec![hole(Place::Query("t".into()), clock.clone())], true),
+            ("the body and a body value that is a clock reading", Sent::Body, vec![hole(Place::Json("/ts".into()), clock.clone())], true),
+            ("the body with nothing in it that is new", Sent::Body, vec![hole(Place::Json("/id".into()), fixed.clone())], false),
+            ("the method", Sent::Method, vec![], false),
+        ];
+        for (name, part, mut others, hears) in cases {
+            let (mut step, _) = step("GET", false);
+            step.holes.append(&mut others);
+            step.holes.push(hole(Place::Query("sig".into()), Expr::Sent { part }));
+            let (s, b) = the_ask("https://shop.example/api/x?sig=bbb", &step);
+            let said = Recorded { walk: &walked }.ask(&s, &b);
+            assert_eq!(matches!(said, Said::Reply { .. }), hears, "a value made over {name}: {said:?}");
+        }
+    }
 }

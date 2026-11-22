@@ -1,4 +1,5 @@
-use crate::validation::{is_valid_session_name, sanitize_session_component, session_name_error};
+use crate::session_files::{remove_daemon_files, SessionFile};
+use crate::validation::sanitize_session_component;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::env;
@@ -17,7 +18,9 @@ use std::os::unix::net::UnixStream;
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::CloseHandle;
 #[cfg(windows)]
-use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+use windows_sys::Win32::System::Threading::{
+    GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+};
 
 pub(crate) const INTERNAL_DAEMON_SHUTDOWN_ACTION: &str = "__agent_browser_internal_shutdown";
 
@@ -41,6 +44,9 @@ pub struct Response {
     pub code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub warning: Option<String>,
+    /// Step number under which a `--capture flow` session recorded the command.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recorded: Option<Value>,
 }
 
 #[allow(dead_code)]
@@ -106,12 +112,12 @@ pub fn get_socket_dir() -> PathBuf {
         } else if let Ok(runtime_dir) = env::var("XDG_RUNTIME_DIR") {
             if !runtime_dir.is_empty() {
                 PathBuf::from(runtime_dir).join("agent-browser")
-            } else if let Some(home) = dirs::home_dir() {
+            } else if let Some(home) = std::env::home_dir() {
                 home.join(".agent-browser")
             } else {
                 env::temp_dir().join("agent-browser")
             }
-        } else if let Some(home) = dirs::home_dir() {
+        } else if let Some(home) = std::env::home_dir() {
             home.join(".agent-browser")
         } else {
             env::temp_dir().join("agent-browser")
@@ -119,12 +125,12 @@ pub fn get_socket_dir() -> PathBuf {
     } else if let Ok(runtime_dir) = env::var("XDG_RUNTIME_DIR") {
         if !runtime_dir.is_empty() {
             PathBuf::from(runtime_dir).join("agent-browser")
-        } else if let Some(home) = dirs::home_dir() {
+        } else if let Some(home) = std::env::home_dir() {
             home.join(".agent-browser")
         } else {
             env::temp_dir().join("agent-browser")
         }
-    } else if let Some(home) = dirs::home_dir() {
+    } else if let Some(home) = std::env::home_dir() {
         home.join(".agent-browser")
     } else {
         env::temp_dir().join("agent-browser")
@@ -142,158 +148,24 @@ pub fn get_socket_dir() -> PathBuf {
 
 #[cfg(unix)]
 fn get_socket_path(session: &str) -> PathBuf {
-    get_socket_dir().join(format!("{}.sock", session))
+    SessionFile::Socket.path(session)
 }
 
 fn get_pid_path(session: &str) -> PathBuf {
-    get_socket_dir().join(format!("{}.pid", session))
-}
-
-/// Beside a session's `.pid`: when the process that wrote it started ([`process_started`]). A pid alone names whatever
-/// has that number now; the number and its start time together name one process, for as long as it lives.
-fn get_started_path(session: &str) -> PathBuf {
-    get_socket_dir().join(format!("{}.started", session))
+    SessionFile::Pid.path(session)
 }
 
 fn get_version_path(session: &str) -> PathBuf {
-    get_socket_dir().join(format!("{}.version", session))
+    SessionFile::Version.path(session)
 }
 
 fn get_config_path(session: &str) -> PathBuf {
-    get_socket_dir().join(format!("{}.config", session))
+    SessionFile::Config.path(session)
 }
 
-/// Clean up stale socket and PID files for a session
-/// A session name becomes a file name in the socket dir (`<session>.sock`,
-/// `.pid`, `.config`, ...), so only a name that is one plain path component
-/// may reach those paths.
-pub fn check_session_name(session: &str) -> Result<(), String> {
-    if session == DASHBOARD_CLAIM {
-        return Err(format!("'{session}' is the name of the dashboard's own files: choose another session name"));
-    }
-    if is_valid_session_name(session) {
-        Ok(())
-    } else {
-        Err(session_name_error(session))
-    }
-}
-
+/// Clean up the stale daemon files of a session
 pub fn cleanup_stale_files(session: &str) {
-    if check_session_name(session).is_err() {
-        return;
-    }
-    // Held for the removing too: a daemon starting now can't write a file for this to take away.
-    if let Some(_nobody_else) = claim_session(session) {
-        remove_session_files(session);
-    }
-}
-
-/// The files a daemon's session has in the socket dir, besides its `.lock` (see `claim_session`).
-const SESSION_FILES: &[&str] = &[
-    "pid",
-    "started",
-    "version",
-    "config",
-    "stream",
-    "stream-token",
-    "engine",
-    "provider",
-    "extensions",
-    #[cfg(unix)]
-    "sock",
-    #[cfg(windows)]
-    "port",
-];
-
-/// Removes a session's files. Only for whoever holds the session (`claim_session`): its daemon, or a process that
-/// has found it has none.
-pub fn remove_session_files(session: &str) {
-    let dir = get_socket_dir();
-    for extension in SESSION_FILES {
-        let _ = fs::remove_file(dir.join(format!("{session}.{extension}")));
-    }
-}
-
-/// A session's ownership, for as long as this is held. The operating system lets go of it when the holder dies, however
-/// it dies, so unlike any file's presence it can't outlive its process, and no pid can be reused behind it.
-pub struct SessionClaim {
-    _lock: Option<fs::File>,
-}
-
-/// The `.lock` file stays in the socket dir: removing it would let two processes hold two different files of one name.
-fn session_lock(session: &str) -> std::io::Result<fs::File> {
-    fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(get_socket_dir().join(format!("{session}.lock")))
-}
-
-/// Claims a session, or None while another process holds it. A socket dir that can't hold a lock (no directory yet, a
-/// filesystem without locks) says nobody holds it, and each process then acts as it would with no lock at all.
-pub fn claim_session(session: &str) -> Option<SessionClaim> {
-    let Ok(lock) = session_lock(session) else {
-        return Some(SessionClaim { _lock: None });
-    };
-    match lock.try_lock() {
-        Ok(()) => Some(SessionClaim { _lock: Some(lock) }),
-        Err(fs::TryLockError::WouldBlock) => None,
-        Err(fs::TryLockError::Error(_)) => Some(SessionClaim { _lock: None }),
-    }
-}
-
-/// Whether a live process holds the session: its daemon, starting, running or on its way out.
-pub fn session_held(session: &str) -> bool {
-    claim_session(session).is_none()
-}
-
-/// The name the standalone dashboard holds, as a daemon holds its session. It is no session's name
-/// (`check_session_name`), so the two can't be taken for each other.
-pub const DASHBOARD_CLAIM: &str = "dashboard";
-
-/// Whether the process `pid` is the dashboard. A dashboard just started takes its claim a moment after its pid file is
-/// written, so a process that is there is given that moment.
-pub fn is_dashboard(pid: u32) -> bool {
-    let started = get_socket_dir().join(format!("{DASHBOARD_CLAIM}.started"));
-    let deadline = Instant::now() + Duration::from_secs(1);
-    while is_pid_alive(pid) && Instant::now() < deadline {
-        if session_held(DASHBOARD_CLAIM) {
-            return is_recorded_process(pid, &started);
-        }
-        thread::sleep(Duration::from_millis(25));
-    }
-    session_held(DASHBOARD_CLAIM) && is_recorded_process(pid, &started)
-}
-
-/// The pid of the process known to be this session's daemon. A `.pid` file alone names whatever now has that number,
-/// and the session being held proves only that *some* process holds it (a daemon starting, a CLI cleaning up) while
-/// the file may still be a dead daemon's: the pid is the daemon's only when the live process with that number is the
-/// very one that wrote it, started when its `.started` says.
-pub fn owned_daemon_pid(session: &str) -> Option<u32> {
-    let pid = session_held(session).then(|| daemon_pid(session)).flatten()?;
-    is_recorded_process(pid, &get_started_path(session)).then_some(pid)
-}
-
-/// When the process `pid` started, as the system keeps it: what tells a process from a later one given the same
-/// number ([`agent_browser_core::process::started`]).
-pub fn process_started(pid: u32) -> Option<u64> {
-    agent_browser_core::process::started(pid)
-}
-
-/// Records, at `path`, the process `pid` as the one a pid file beside it names. A system that can't say when a process
-/// started records nothing, and nothing then proves the pid file's process to anyone: it is never signalled.
-pub fn record_process(pid: u32, path: &std::path::Path) {
-    if let Some(started) = process_started(pid) {
-        let _ = fs::write(path, started.to_string());
-    }
-}
-
-/// Whether the live process `pid` is the very one recorded at `path` ([`record_process`]): the same number, started at
-/// the same moment. A record that is missing, unreadable or for another start says no, so a pid a file kept after its
-/// process died never reaches whatever has the number now.
-pub fn is_recorded_process(pid: u32, path: &std::path::Path) -> bool {
-    let recorded = fs::read_to_string(path).ok().and_then(|s| s.trim().parse::<u64>().ok());
-    recorded.is_some() && process_started(pid) == recorded
+    remove_daemon_files(&get_socket_dir(), session);
 }
 
 /// Returns whether a process with the given PID is currently alive.
@@ -311,42 +183,71 @@ pub fn is_pid_alive(pid: u32) -> bool {
     }
     #[cfg(windows)]
     unsafe {
+        // An exited process can still be opened while any handle to it is
+        // open, so check that it has not exited.
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-        if handle != 0 {
-            CloseHandle(handle);
-            true
-        } else {
-            false
-        }
-    }
-}
-
-/// The pid a session's daemon wrote, while its `.pid` file is there.
-pub fn daemon_pid(session: &str) -> Option<u32> {
-    fs::read_to_string(get_pid_path(session)).ok()?.trim().parse().ok()
-}
-
-/// A daemon answers `close` before it exits: for a moment after the answer its
-/// socket still takes a connection it then drops (the next command fails with
-/// no response, and a command that may have run is never retried), and its
-/// exit removes the socket a new daemon for the session would have bound.
-/// So a close is done only once the daemon that answered is gone: its socket
-/// refuses, its `.pid` file is removed, and the process `pid` has exited.
-/// Bounded by `timeout`; false when it ran out.
-pub fn wait_for_daemon_exit(session: &str, pid: Option<u32>, timeout: Duration) -> bool {
-    let deadline = Instant::now() + timeout;
-    loop {
-        let gone = !daemon_ready(session)
-            && !get_pid_path(session).exists()
-            && pid.is_none_or(|p| !is_pid_alive(p));
-        if gone {
-            return true;
-        }
-        if Instant::now() >= deadline {
+        if handle == 0 {
             return false;
         }
-        std::thread::sleep(Duration::from_millis(20));
+        let mut code = 0u32;
+        let ok = GetExitCodeProcess(handle, &mut code) != 0;
+        CloseHandle(handle);
+        ok && code == windows_sys::Win32::Foundation::STILL_ACTIVE as u32
     }
+}
+
+/// Returns true only when the process image name starts with "agent-browser" (case-insensitive), and false when it cannot be determined.
+/// Another agent-browser process that reuses the PID still passes.
+pub fn is_agent_browser_process(pid: u32) -> bool {
+    let path: Option<String>;
+    #[cfg(target_os = "linux")]
+    {
+        path = fs::read_link(format!("/proc/{}/exe", pid))
+            .ok()
+            .map(|p| p.to_string_lossy().into_owned());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let mut buf = vec![0u8; 4096];
+        let n =
+            unsafe { libc::proc_pidpath(pid as i32, buf.as_mut_ptr() as *mut libc::c_void, 4096) };
+        path = if n > 0 {
+            Some(String::from_utf8_lossy(&buf[..n as usize]).into_owned())
+        } else {
+            None
+        };
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::Threading::QueryFullProcessImageNameW;
+        path = unsafe {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if handle == 0 {
+                None
+            } else {
+                let mut buf = [0u16; 1024];
+                let mut len = buf.len() as u32;
+                let ok = QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut len);
+                CloseHandle(handle);
+                if ok != 0 {
+                    Some(String::from_utf16_lossy(&buf[..len as usize]))
+                } else {
+                    None
+                }
+            }
+        };
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+    {
+        let _ = pid;
+        path = None;
+    }
+    path.and_then(|p| {
+        p.rsplit(['/', '\\'])
+            .next()
+            .map(|n| n.to_ascii_lowercase().starts_with("agent-browser"))
+    })
+    .unwrap_or(false)
 }
 
 /// A currently-running daemon session discovered by [`walk_daemons`].
@@ -396,7 +297,7 @@ pub struct DaemonInventory {
 
 /// Read the session's `.version` sidecar if present and non-empty.
 pub fn read_session_version(session: &str) -> Option<String> {
-    let path = get_socket_dir().join(format!("{}.version", session));
+    let path = SessionFile::Version.path(session);
     fs::read_to_string(&path)
         .ok()
         .map(|s| s.trim().to_string())
@@ -490,7 +391,7 @@ pub fn walk_daemons() -> DaemonInventory {
                 if session_name.is_empty() {
                     continue;
                 }
-                let pid_path = socket_dir.join(format!("{}.pid", session_name));
+                let pid_path = SessionFile::Pid.path_in(&socket_dir, session_name);
                 if !pid_path.exists() {
                     cleanup_stale_files(session_name);
                     inventory.cleaned.push(CleanedSession {
@@ -507,26 +408,7 @@ pub fn walk_daemons() -> DaemonInventory {
 
 #[cfg(windows)]
 fn get_port_path(session: &str) -> PathBuf {
-    get_socket_dir().join(format!("{}.port", session))
-}
-
-/// A command as the session's daemon takes it. On Windows its door is a loopback port anyone on the machine can reach,
-/// so it takes a command only with the key it wrote, owner-only, beside its port file. A Unix socket is the owner's
-/// already, by its folder and its mode.
-pub fn for_the_door(cmd: &Value, session: &str) -> Value {
-    #[cfg(windows)]
-    {
-        let mut cmd = cmd.clone();
-        if let Some(key) = crate::owner_only::read_key(&get_socket_dir().join(format!("{}.key", session))) {
-            cmd[crate::owner_only::DOOR_KEY_FIELD] = json!(key);
-        }
-        cmd
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = session;
-        cmd.clone()
-    }
+    SessionFile::Port.path(session)
 }
 
 #[cfg(windows)]
@@ -552,15 +434,14 @@ pub fn get_port_for_session(session: &str) -> u16 {
 }
 
 /// Read the actual daemon port from the `.port` file written by the daemon.
-/// Falls back to the hash-derived port if the file does not exist or is
-/// unreadable (e.g. daemon has not started yet).
+/// There is no hash-derived fallback: the hash ignores the socket directory,
+/// so before this session's daemon writes its file that port can belong to
+/// another daemon with the same session name.
 #[cfg(windows)]
-pub fn resolve_port(session: &str) -> u16 {
-    let port_path = get_port_path(session);
-    fs::read_to_string(&port_path)
+pub fn resolve_port(session: &str) -> Option<u16> {
+    fs::read_to_string(get_port_path(session))
         .ok()
         .and_then(|s| s.trim().parse::<u16>().ok())
-        .unwrap_or_else(|| get_port_for_session(session))
 }
 
 pub fn daemon_ready(session: &str) -> bool {
@@ -569,20 +450,15 @@ pub fn daemon_ready(session: &str) -> bool {
         let socket_path = get_socket_path(session);
         UnixStream::connect(&socket_path).is_ok()
     }
-    // Only the port the daemon wrote: the name-derived one is a number anything on the machine may be listening on.
     #[cfg(windows)]
     {
-        let Some(port) = fs::read_to_string(get_port_path(session))
-            .ok()
-            .and_then(|s| s.trim().parse::<u16>().ok())
-        else {
-            return false;
-        };
-        TcpStream::connect_timeout(
-            &format!("127.0.0.1:{}", port).parse().unwrap(),
-            Duration::from_millis(50),
-        )
-        .is_ok()
+        resolve_port(session).is_some_and(|port| {
+            TcpStream::connect_timeout(
+                &format!("127.0.0.1:{}", port).parse().unwrap(),
+                Duration::from_millis(50),
+            )
+            .is_ok()
+        })
     }
 }
 
@@ -635,15 +511,60 @@ pub struct DaemonOptions<'a> {
     pub idle_timeout: Option<&'a str>,
     pub default_timeout: Option<u64>,
     pub cdp: Option<&'a str>,
+    pub cdp_headers: Option<&'a str>,
     pub no_auto_dialog: bool,
-    pub no_console: bool,
     pub plugins: Option<&'a str>,
+}
+
+impl DaemonOptions<'static> {
+    /// No option set: what a daemon started only to close its session needs.
+    pub fn bare() -> Self {
+        DaemonOptions {
+            headed: false,
+            debug: false,
+            executable_path: None,
+            extensions: &[],
+            init_scripts: &[],
+            enable: &[],
+            args: None,
+            user_agent: None,
+            proxy: None,
+            proxy_bypass: None,
+            proxy_username: None,
+            proxy_password: None,
+            ignore_https_errors: false,
+            allow_file_access: false,
+            hide_scrollbars: true,
+            webgpu: false,
+            profile: None,
+            state: None,
+            provider: None,
+            device: None,
+            session_name: None,
+            restore_save: None,
+            restore_check_url: None,
+            restore_check_text: None,
+            restore_check_fn: None,
+            download_path: None,
+            allowed_domains: None,
+            action_policy: None,
+            confirm_actions: None,
+            engine: None,
+            auto_connect: false,
+            pin_tab: false,
+            idle_timeout: None,
+            default_timeout: None,
+            cdp: None,
+            cdp_headers: None,
+            no_auto_dialog: false,
+            plugins: None,
+        }
+    }
 }
 
 fn apply_daemon_env(cmd: &mut Command, session: &str, opts: &DaemonOptions) {
     cmd.env("AGENT_BROWSER_DAEMON", "1")
-        .env("AGENT_BROWSER_SESSION", session)
-        .env(DAEMON_CONFIG_ENV, daemon_config_fingerprint(opts));
+        .env("AGENT_BROWSER_SESSION", session);
 
     if opts.headed {
         cmd.env("AGENT_BROWSER_HEADED", "1");
@@ -751,21 +672,16 @@ fn apply_daemon_env(cmd: &mut Command, session: &str, opts: &DaemonOptions) {
     if let Some(cdp) = opts.cdp {
         cmd.env("AGENT_BROWSER_CDP", cdp);
     }
+    if let Some(headers) = opts.cdp_headers {
+        cmd.env("AGENT_BROWSER_CDP_HEADERS", headers);
+    }
     if opts.no_auto_dialog {
         cmd.env("AGENT_BROWSER_NO_AUTO_DIALOG", "1");
-    }
-    if opts.no_console {
-        cmd.env("AGENT_BROWSER_NO_CONSOLE", "1");
     }
     if let Some(plugins) = opts.plugins {
         cmd.env("AGENT_BROWSER_PLUGINS", plugins);
     }
 }
-
-/// The fingerprint of what a daemon was started with. The daemon writes it down itself, before it listens: a CLI that
-/// wrote it afterwards could die first, and the next one would read the missing file as a reason to stop a healthy
-/// daemon.
-pub const DAEMON_CONFIG_ENV: &str = "AGENT_BROWSER_DAEMON_CONFIG";
 
 fn daemon_config_fingerprint(opts: &DaemonOptions) -> String {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -775,8 +691,61 @@ fn daemon_config_fingerprint(opts: &DaemonOptions) -> String {
     opts.idle_timeout.hash(&mut hasher);
     opts.default_timeout.hash(&mut hasher);
     opts.no_auto_dialog.hash(&mut hasher);
-    opts.no_console.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
+}
+
+/// Daemon-owned options as written to `<session>.config`. The daemon reads
+/// these from env at startup, so changing one requires a restart.
+fn daemon_config_json(opts: &DaemonOptions) -> String {
+    json!({
+        "debug": opts.debug,
+        "action_policy": opts.action_policy,
+        "confirm_actions": opts.confirm_actions,
+        "idle_timeout": opts.idle_timeout,
+        "default_timeout": opts.default_timeout,
+        "no_auto_dialog": opts.no_auto_dialog,
+    })
+    .to_string()
+}
+
+/// Whether the running daemon's stored config satisfies this invocation.
+/// Only `debug` needs a restart: it redirects the daemon's stderr at startup.
+/// Every other option is a session setting the daemon applies in place when
+/// the command carries it.
+fn daemon_config_compatible(stored: &str, opts: &DaemonOptions) -> bool {
+    let Ok(stored) = serde_json::from_str::<Value>(stored) else {
+        // Config from an older CLI is a bare hash: compare it exactly.
+        return stored.trim() == daemon_config_fingerprint(opts);
+    };
+    stored.get("debug") == Some(&Value::Bool(opts.debug))
+}
+
+/// Default timeout the session's running daemon was started with, so a
+/// command that omits it waits on the client as long as the daemon does.
+pub fn running_daemon_default_timeout(session: &str) -> Option<u64> {
+    let stored = fs::read_to_string(get_config_path(session)).ok()?;
+    serde_json::from_str::<Value>(&stored)
+        .ok()?
+        .get("default_timeout")?
+        .as_u64()
+}
+
+/// Records a default timeout changed while the daemon runs, so a command that
+/// omits the flag waits on the client as long as the daemon now does. `None`
+/// removes it. A missing or legacy config is left alone.
+pub fn record_daemon_default_timeout(session: &str, timeout: Option<u64>) {
+    let path = get_config_path(session);
+    let Ok(stored) = fs::read_to_string(&path) else {
+        return;
+    };
+    let Ok(Value::Object(mut config)) = serde_json::from_str::<Value>(&stored) else {
+        return;
+    };
+    match timeout {
+        Some(ms) => config.insert("default_timeout".to_string(), json!(ms)),
+        None => config.remove("default_timeout"),
+    };
+    let _ = fs::write(&path, Value::Object(config).to_string());
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -787,14 +756,11 @@ enum DaemonConfigStatus {
 }
 
 fn daemon_config_status(session: &str, opts: &DaemonOptions) -> DaemonConfigStatus {
-    let expected = daemon_config_fingerprint(opts);
     match fs::read_to_string(get_config_path(session)) {
-        Ok(actual) if actual.trim() == expected => DaemonConfigStatus::Matches,
+        Ok(stored) if daemon_config_compatible(&stored, opts) => DaemonConfigStatus::Matches,
         Ok(_) => DaemonConfigStatus::Different,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => DaemonConfigStatus::Missing,
-        // A file that can't be read says nothing about the daemon, and going on as it is costs nothing: a restart would
-        // cost the session its browser and pages.
-        Err(_) => DaemonConfigStatus::Matches,
+        Err(_) => DaemonConfigStatus::Different,
     }
 }
 
@@ -803,7 +769,7 @@ fn daemon_config_matches(session: &str, opts: &DaemonOptions) -> bool {
 }
 
 fn write_daemon_config(session: &str, opts: &DaemonOptions) {
-    let _ = fs::write(get_config_path(session), daemon_config_fingerprint(opts));
+    let _ = fs::write(get_config_path(session), daemon_config_json(opts));
 }
 
 fn daemon_pid_matches(session: &str, expected_pid: u32) -> bool {
@@ -893,64 +859,68 @@ fn daemon_version_matches(session: &str) -> bool {
     }
 }
 
-/// Stops a session's daemon. Only a process proved to be it is signalled (`owned_daemon_pid`): a pid file read on its
-/// own may name anything by now. A daemon from before sessions were held proves nothing, and goes by `close` or not at
-/// all.
-pub fn kill_stale_daemon(session: &str) {
-    if let Some(pid) = owned_daemon_pid(session) {
-        #[cfg(unix)]
+/// Kill a running daemon by reading its PID file and sending a kill signal.
+fn kill_stale_daemon(session: &str) {
+    // Remove the socket first so no new connections reach the old daemon
+    #[cfg(unix)]
+    {
+        let socket_path = get_socket_path(session);
+        let _ = fs::remove_file(&socket_path);
+    }
+
+    let pid_path = get_pid_path(session);
+    if let Ok(pid_str) = fs::read_to_string(&pid_path) {
+        if let Some(pid) = pid_str
+            .trim()
+            .parse::<u32>()
+            .ok()
+            .filter(|p| is_agent_browser_process(*p))
         {
-            let started = get_started_path(session);
-            unsafe {
-                libc::kill(pid as i32, libc::SIGTERM);
-            }
-            // Wait up to 1s for graceful shutdown, then force-kill
-            for _ in 0..10 {
-                thread::sleep(Duration::from_millis(100));
-                if !is_recorded_process(pid, &started) {
-                    break;
-                }
-            }
-            // Forced only while the number is still the daemon's: a daemon that went has left its number to anyone,
-            // and the session may be held by another process by now.
-            if is_recorded_process(pid, &started) {
+            #[cfg(unix)]
+            {
                 unsafe {
-                    libc::kill(pid as i32, libc::SIGKILL);
+                    libc::kill(pid as i32, libc::SIGTERM);
                 }
-                thread::sleep(Duration::from_millis(100));
+                // Wait up to 1s for graceful shutdown, then force-kill
+                for _ in 0..10 {
+                    thread::sleep(Duration::from_millis(100));
+                    if unsafe { libc::kill(pid as i32, 0) } != 0 {
+                        break;
+                    }
+                }
+                // Force-kill if still alive
+                if unsafe { libc::kill(pid as i32, 0) } == 0 {
+                    unsafe {
+                        libc::kill(pid as i32, libc::SIGKILL);
+                    }
+                    thread::sleep(Duration::from_millis(100));
+                }
             }
-        }
-        #[cfg(windows)]
-        {
-            let _ = Command::new("taskkill")
-                .args(["/PID", &pid.to_string(), "/F"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-            thread::sleep(Duration::from_millis(500));
+            #[cfg(windows)]
+            {
+                let _ = Command::new("taskkill")
+                    .args(["/PID", &pid.to_string(), "/F"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+                thread::sleep(Duration::from_millis(500));
+            }
         }
     }
 
-    // Leftovers go; a daemon that outlived all of the above keeps its own.
+    // Clean up leftover files regardless
     cleanup_stale_files(session);
 }
 
-/// How long a session held by a process that doesn't answer is given to answer: past the time `ensure_daemon` gives a
-/// daemon it started, so a slow start another command is waiting on isn't taken for a dead one.
-const HELD_SESSION_WAIT: Duration = Duration::from_secs(10);
-
-/// A session held by a daemon nothing can reach yet: it is starting or leaving, and answers or lets go soon. One that
-/// does neither has lost its socket and can't be reached by anyone, so it is stopped: nothing else would ever end it,
-/// and no new daemon can start beside it.
-fn settle_held_session(session: &str) {
-    let deadline = Instant::now() + HELD_SESSION_WAIT;
-    while Instant::now() < deadline {
-        if daemon_ready(session) || !session_held(session) {
-            return;
+fn wait_for_daemon_exit(session: &str, timeout: Duration) -> bool {
+    let start = Instant::now();
+    while start.elapsed() < timeout {
+        if !daemon_ready(session) {
+            return true;
         }
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep(Duration::from_millis(100));
     }
-    kill_stale_daemon(session);
+    !daemon_ready(session)
 }
 
 fn request_graceful_daemon_shutdown(session: &str) -> bool {
@@ -959,9 +929,8 @@ fn request_graceful_daemon_shutdown(session: &str) -> bool {
         "action": INTERNAL_DAEMON_SHUTDOWN_ACTION
     });
 
-    let pid = daemon_pid(session);
     match send_command(close_cmd, session) {
-        Ok(resp) if resp.success => wait_for_daemon_exit(session, pid, Duration::from_secs(5)),
+        Ok(resp) if resp.success => wait_for_daemon_exit(session, Duration::from_secs(5)),
         _ => false,
     }
 }
@@ -972,13 +941,30 @@ fn stop_existing_daemon_for_restart(session: &str) {
     }
 }
 
-pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult, String> {
-    check_session_name(session)?;
-    let mut restarted = false;
+/// Stops a session's daemon without a `close`, so the session's stored
+/// settings stay, the same way a restart stops it.
+pub fn stop_daemon(session: &str) {
+    stop_existing_daemon_for_restart(session);
+}
 
-    if !daemon_ready(session) && session_held(session) {
-        settle_held_session(session);
+/// Marks this process's stdout and stderr non-inheritable so a detached child cannot hold a reader's pipes open.
+#[cfg(windows)]
+pub(crate) fn prevent_stdio_handle_inheritance() {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::{SetHandleInformation, HANDLE, HANDLE_FLAG_INHERIT};
+
+    for handle in [
+        std::io::stdout().as_raw_handle(),
+        std::io::stderr().as_raw_handle(),
+    ] {
+        if !handle.is_null() {
+            unsafe { SetHandleInformation(handle as HANDLE, HANDLE_FLAG_INHERIT, 0) };
+        }
     }
+}
+
+pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult, String> {
+    let mut restarted = false;
 
     // Socket connectivity is the sole liveness check — no PID check — so
     // callers in a different PID namespace (e.g. unshare) can still reuse
@@ -1004,12 +990,6 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
             match ready_existing_daemon_result(session, opts, Duration::from_secs(1)) {
                 Some(result) => return Ok(result),
                 None => {
-                    // The session's browser goes with it, so this isn't done without saying.
-                    eprintln!(
-                        "{} Session '{}' was started with different settings, restarting it...",
-                        crate::color::warning_indicator(),
-                        session
-                    );
                     stop_existing_daemon_for_restart(session);
                     restarted = true;
                 }
@@ -1092,6 +1072,8 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
     {
         use std::os::windows::process::CommandExt;
 
+        prevent_stdio_handle_inheritance();
+
         let mut cmd = Command::new(&exe_path);
         cmd.env("AGENT_BROWSER_DAEMON", "1");
         apply_daemon_env(&mut cmd, session, opts);
@@ -1137,15 +1119,11 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
 
                 // If the daemon failed because another instance won the bind
                 // race ("Address already in use"), check whether that winner is
-                // now accepting connections and piggyback on it. It may still be
-                // starting: it holds the session until it answers or gives up.
+                // now accepting connections and piggyback on it.
                 if stderr_trimmed.contains("Address already in use")
                     || stderr_trimmed.contains("Failed to bind")
                 {
-                    let deadline = Instant::now() + Duration::from_secs(5);
-                    while !daemon_ready(session) && session_held(session) && Instant::now() < deadline {
-                        thread::sleep(Duration::from_millis(50));
-                    }
+                    thread::sleep(Duration::from_millis(200));
                     if daemon_ready(session) {
                         if wait_for_matching_ready_daemon(session, opts, Duration::from_secs(1)) {
                             return Ok(DaemonResult {
@@ -1181,12 +1159,12 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
     }
 
     #[cfg(unix)]
-    let endpoint_info = format!(
-        "socket: {}",
-        get_socket_dir().join(format!("{}.sock", session)).display()
-    );
+    let endpoint_info = format!("socket: {}", SessionFile::Socket.path(session).display());
     #[cfg(windows)]
-    let endpoint_info = format!("port: 127.0.0.1:{}", resolve_port(session));
+    let endpoint_info = match resolve_port(session) {
+        Some(port) => format!("port: 127.0.0.1:{}", port),
+        None => format!("no port file in {}", get_socket_dir().display()),
+    };
 
     Err(format!("Daemon failed to start ({})", endpoint_info))
 }
@@ -1201,7 +1179,8 @@ fn connect(session: &str) -> Result<Connection, String> {
     }
     #[cfg(windows)]
     {
-        let port = resolve_port(session);
+        let port = resolve_port(session)
+            .ok_or_else(|| "Failed to connect: daemon has not written its port".to_string())?;
         TcpStream::connect(format!("127.0.0.1:{}", port))
             .map(Connection::Tcp)
             .map_err(|e| format!("Failed to connect: {}", e))
@@ -1249,7 +1228,6 @@ fn is_read_only(cmd: &Value) -> bool {
 }
 
 pub fn send_command(cmd: Value, session: &str) -> Result<Response, String> {
-    check_session_name(session)?;
     send_with_retry(is_read_only(&cmd), || send_command_once(&cmd, session))
 }
 
@@ -1353,40 +1331,30 @@ fn has_os_error(error: &str, code: u32) -> bool {
 /// instead of 30s. Only commands that actually carry a `timeout` field get
 /// the extended budget, and that field is set client-side per invocation,
 /// avoiding the daemon's spawn-time env snapshot drifting from the client.
-pub(crate) use agent_browser_core::connection::read_timeout_for;
+pub(crate) fn read_timeout_for(cmd: &Value) -> Duration {
+    let mut op_ms = cmd.get("timeout").and_then(|v| v.as_u64()).unwrap_or(0);
+    if cmd.get("action").and_then(Value::as_str) == Some("mousemove") {
+        op_ms = op_ms.max(cmd.get("duration").and_then(Value::as_u64).unwrap_or(0));
+    }
+    Duration::from_millis(op_ms.saturating_add(10_000).max(30_000))
+}
 
 fn send_command_once(cmd: &Value, session: &str) -> Result<Response, SendError> {
-    let mut json_str = serde_json::to_string(&for_the_door(cmd, session)).map_err(|e| SendError::NotSent(e.to_string()))?;
+    let mut json_str = serde_json::to_string(cmd).map_err(|e| SendError::NotSent(e.to_string()))?;
     json_str.push('\n');
 
     let stream = connect(session).map_err(SendError::NotSent)?;
 
-    let waits = read_timeout_for(cmd);
-    stream.set_read_timeout(Some(waits)).ok();
+    stream.set_read_timeout(Some(read_timeout_for(cmd))).ok();
     stream.set_write_timeout(Some(Duration::from_secs(5))).ok();
 
-    exchange(stream, json_str.as_bytes(), waits)
-}
-
-/// Unbrowse fork: why reading the daemon's answer failed. A read that ran out of time comes back from
-/// the socket as EAGAIN on macOS ("Resource temporarily unavailable", os error 35), which reads like a
-/// fault; it is a daemon that was still working (a long command of its own, or another session's ahead
-/// of it), and is said so.
-fn read_failed(e: &std::io::Error, waits: Duration) -> String {
-    match e.kind() {
-        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => format!(
-            "Failed to read: the browser gave no answer within {} s: it is still busy with this command or one \
-             ahead of it, or the page has hung",
-            waits.as_secs()
-        ),
-        _ => format!("Failed to read: {}", e),
-    }
+    exchange(stream, json_str.as_bytes())
 }
 
 /// Write one request line and read one response line. Unlike write_all, the
 /// write loop tracks whether any byte was accepted, which decides whether a
 /// failure is safe to retry.
-fn exchange<S: Read + Write>(mut stream: S, request: &[u8], waits: Duration) -> Result<Response, SendError> {
+fn exchange<S: Read + Write>(mut stream: S, request: &[u8]) -> Result<Response, SendError> {
     let mut written = 0;
     while written < request.len() {
         let err = match stream.write(&request[written..]) {
@@ -1410,7 +1378,7 @@ fn exchange<S: Read + Write>(mut stream: S, request: &[u8], waits: Duration) -> 
     let mut response_line = String::new();
     reader
         .read_line(&mut response_line)
-        .map_err(|e| SendError::OutcomeUnknown(read_failed(&e, waits)))?;
+        .map_err(|e| SendError::OutcomeUnknown(format!("Failed to read: {}", e)))?;
 
     serde_json::from_str(&response_line)
         .map_err(|e| SendError::OutcomeUnknown(format!("Invalid response: {}", e)))
@@ -1420,6 +1388,18 @@ fn exchange<S: Read + Write>(mut stream: S, request: &[u8], waits: Duration) -> 
 mod tests {
     use super::*;
     use crate::test_utils::EnvGuard;
+
+    #[cfg(unix)]
+    #[test]
+    fn unrelated_process_is_not_agent_browser() {
+        let mut child = Command::new("sleep").arg("30").spawn().unwrap();
+        let unrelated = is_agent_browser_process(child.id());
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(!unrelated);
+        assert!(!is_agent_browser_process(0));
+        assert!(!is_agent_browser_process(u32::MAX));
+    }
 
     /// Repro for #2032: a daemon that reads the request and closes without
     /// replying must see the request once.
@@ -1512,50 +1492,25 @@ mod tests {
 
     #[test]
     fn exchange_classifies_failures_by_whether_bytes_were_written() {
-        let eof = exchange(MockStream::new(""), b"{}\n", Duration::from_secs(1));
+        let eof = exchange(MockStream::new(""), b"{}\n");
         assert!(matches!(eof, Err(SendError::OutcomeUnknown(_))));
 
-        let garbage = exchange(MockStream::new("garbage\n"), b"{}\n", Duration::from_secs(1));
+        let garbage = exchange(MockStream::new("garbage\n"), b"{}\n");
         assert!(matches!(garbage, Err(SendError::OutcomeUnknown(_))));
 
         let mut partial = MockStream::new("");
         partial.accept = 1;
-        let partial = exchange(partial, b"{}\n", Duration::from_secs(1));
+        let partial = exchange(partial, b"{}\n");
         assert!(matches!(partial, Err(SendError::OutcomeUnknown(_))));
 
         let mut blocked = MockStream::new("");
         blocked.accept = 0;
         blocked.write_err = std::io::ErrorKind::WouldBlock;
-        let blocked = exchange(blocked, b"{}\n", Duration::from_secs(1));
+        let blocked = exchange(blocked, b"{}\n");
         assert!(matches!(blocked, Err(SendError::NotSent(_))));
 
-        let ok = exchange(MockStream::new("{\"success\":true}\n"), b"{}\n", Duration::from_secs(1));
+        let ok = exchange(MockStream::new("{\"success\":true}\n"), b"{}\n");
         assert!(ok.unwrap().success);
-    }
-
-    /// Unbrowse fork: a read that runs out of time is a browser still working, said so with how long the
-    /// client waited, never as "Resource temporarily unavailable (os error 35)".
-    #[test]
-    fn a_read_that_runs_out_of_time_says_the_browser_is_busy() {
-        struct Busy;
-        impl Read for Busy {
-            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
-                Err(std::io::ErrorKind::WouldBlock.into())
-            }
-        }
-        impl Write for Busy {
-            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-                Ok(buf.len())
-            }
-            fn flush(&mut self) -> std::io::Result<()> {
-                Ok(())
-            }
-        }
-        let Err(SendError::OutcomeUnknown(e)) = exchange(Busy, b"{}\n", Duration::from_secs(40)) else {
-            panic!("a timed-out read is an unknown outcome");
-        };
-        assert!(e.contains("no answer within 40 s"), "{e}");
-        assert!(!e.contains("temporarily unavailable"), "{e}");
     }
 
     fn ok_response() -> Response {
@@ -1645,36 +1600,6 @@ mod tests {
             read_timeout_for(&json!({"action":"mousemove", "duration": 35_000})),
             Duration::from_secs(45)
         );
-    }
-
-    #[test]
-    fn a_session_name_never_reaches_a_path_outside_the_socket_dir() {
-        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "AGENT_BROWSER_NAMESPACE"]);
-        let base = std::env::temp_dir().join(format!(
-            "ab-session-name-{}-{}",
-            std::process::id(),
-            uuid::Uuid::new_v4()
-        ));
-        let run = base.join("run");
-        fs::create_dir_all(&run).unwrap();
-        fs::write(base.join("victim.pid"), "x").unwrap();
-        fs::write(base.join("victim.config"), "x").unwrap();
-        guard.set("AGENT_BROWSER_SOCKET_DIR", run.to_str().unwrap());
-        guard.remove("AGENT_BROWSER_NAMESPACE");
-
-        for name in ["../victim", "a/b", "", ".", "..", "x.y"] {
-            assert!(check_session_name(name).is_err(), "{name:?} must be refused");
-        }
-        assert!(check_session_name("browse_example_com").is_ok());
-        assert!(check_session_name("default").is_ok());
-
-        cleanup_stale_files("../victim");
-        assert!(send_command(json!({"action": "close"}), "../victim").is_err());
-        assert!(ensure_daemon("../victim", &test_daemon_options(None, false, None)).is_err());
-        assert_eq!(fs::read_to_string(base.join("victim.pid")).unwrap(), "x");
-        assert!(base.join("victim.config").exists());
-        assert!(!base.join("victim.sock").exists());
-        let _ = fs::remove_dir_all(base);
     }
 
     #[test]
@@ -1829,8 +1754,8 @@ mod tests {
             idle_timeout,
             default_timeout: None,
             cdp: None,
+            cdp_headers: None,
             no_auto_dialog,
-            no_console: false,
             plugins: None,
         }
     }
@@ -1842,8 +1767,6 @@ mod tests {
         let idle_changed = test_daemon_options(Some("1000"), false, None);
         let dialog_changed = test_daemon_options(None, true, None);
         let domains_changed = test_daemon_options(None, false, Some(&domains));
-        let mut console_changed = test_daemon_options(None, false, None);
-        console_changed.no_console = true;
 
         assert_ne!(
             daemon_config_fingerprint(&base),
@@ -1853,40 +1776,11 @@ mod tests {
             daemon_config_fingerprint(&base),
             daemon_config_fingerprint(&dialog_changed)
         );
-        assert_ne!(
-            daemon_config_fingerprint(&base),
-            daemon_config_fingerprint(&console_changed),
-            "capture is a session setting the daemon owns: changing it restarts"
-        );
         assert_eq!(
             daemon_config_fingerprint(&base),
             daemon_config_fingerprint(&domains_changed),
             "allowed domains are browser launch state, not daemon identity"
         );
-    }
-
-    /// A file nobody can read says nothing about the daemon. Reading it as different stops a healthy daemon, and its
-    /// browser and pages with it, for a fault in a file.
-    #[cfg(unix)]
-    #[test]
-    fn a_config_nobody_can_read_leaves_the_daemon_alone() {
-        use std::os::unix::fs::PermissionsExt;
-        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "AGENT_BROWSER_NAMESPACE"]);
-        let dir = tempfile::tempdir().unwrap();
-        guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        guard.remove("AGENT_BROWSER_NAMESPACE");
-        let session = "unread-config";
-        let opts = test_daemon_options(Some("1000"), false, None);
-
-        fs::create_dir_all(get_socket_dir()).unwrap();
-        write_daemon_config(session, &opts);
-        let path = get_config_path(session);
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
-
-        // Nothing stops root reading it, and then this says nothing.
-        if fs::read_to_string(&path).is_err() {
-            assert_eq!(daemon_config_status(session, &opts), DaemonConfigStatus::Matches);
-        }
     }
 
     #[test]
@@ -1898,7 +1792,8 @@ mod tests {
 
         let session = "race-config";
         let winner_opts = test_daemon_options(Some("1000"), false, None);
-        let loser_opts = test_daemon_options(Some("2000"), false, None);
+        let mut loser_opts = test_daemon_options(Some("1000"), false, None);
+        loser_opts.debug = true;
 
         fs::create_dir_all(get_socket_dir()).unwrap();
         fs::write(get_pid_path(session), "12345").unwrap();
@@ -1980,6 +1875,68 @@ mod tests {
         assert!(!result.already_running);
         assert!(result.restarted);
         assert!(daemon_config_matches(session, &opts));
+    }
+
+    #[test]
+    fn test_daemon_config_session_settings_never_require_restart() {
+        let mut started = test_daemon_options(Some("0"), false, None);
+        started.default_timeout = Some(90_000);
+        started.action_policy = Some("/tmp/policy.json");
+        let stored = daemon_config_json(&started);
+
+        let mut changed = test_daemon_options(Some("60000"), true, None);
+        changed.default_timeout = Some(5_000);
+        changed.action_policy = Some("/tmp/other.json");
+        changed.confirm_actions = Some("click");
+        assert!(daemon_config_compatible(&stored, &changed));
+        assert!(daemon_config_compatible(
+            &stored,
+            &test_daemon_options(None, false, None)
+        ));
+
+        let bare_daemon = daemon_config_json(&test_daemon_options(None, false, None));
+        assert!(daemon_config_compatible(&bare_daemon, &changed));
+    }
+
+    #[test]
+    fn test_daemon_config_debug_change_requires_restart() {
+        let base = test_daemon_options(None, false, None);
+        let mut debug = test_daemon_options(None, false, None);
+        debug.debug = true;
+        let stored = daemon_config_json(&base);
+
+        assert!(daemon_config_compatible(&stored, &base));
+        assert!(!daemon_config_compatible(&stored, &debug));
+    }
+
+    #[test]
+    fn test_running_daemon_default_timeout_reads_stored_config() {
+        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "AGENT_BROWSER_NAMESPACE"]);
+        let dir = tempfile::tempdir().unwrap();
+        guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
+        guard.remove("AGENT_BROWSER_NAMESPACE");
+        fs::create_dir_all(get_socket_dir()).unwrap();
+
+        let mut started = test_daemon_options(None, false, None);
+        started.default_timeout = Some(90_000);
+        write_daemon_config("timeout-set", &started);
+        write_daemon_config("timeout-unset", &test_daemon_options(None, false, None));
+
+        assert_eq!(running_daemon_default_timeout("timeout-set"), Some(90_000));
+        assert_eq!(running_daemon_default_timeout("timeout-unset"), None);
+        assert_eq!(running_daemon_default_timeout("missing"), None);
+    }
+
+    #[test]
+    fn test_daemon_config_legacy_hash_compares_exactly() {
+        let opts = test_daemon_options(Some("1000"), false, None);
+        let stored = daemon_config_fingerprint(&opts);
+
+        assert!(daemon_config_compatible(&stored, &opts));
+        assert!(!daemon_config_compatible(
+            &stored,
+            &test_daemon_options(Some("2000"), false, None)
+        ));
     }
 
     // === Transient Error Detection Tests ===
@@ -2123,131 +2080,6 @@ mod tests {
         assert_ne!(namespaced_one, namespaced_two);
     }
 
-    /// A live process holds its session, and what it holds isn't anyone else's to remove: the files go only once it
-    /// has let go. Each claim here is a process's own, as a lock is on a file opened separately.
-    #[test]
-    fn a_held_session_keeps_its_files_until_its_holder_lets_go() {
-        let dir = tempfile::tempdir().unwrap();
-        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR", "AGENT_BROWSER_NAMESPACE"]);
-        guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        guard.remove("AGENT_BROWSER_NAMESPACE");
-        let session = "held";
-        let me = std::process::id();
-        fs::write(get_pid_path(session), me.to_string()).unwrap();
-        record_process(me, &get_started_path(session));
-
-        let daemon = claim_session(session).expect("nobody holds it yet");
-        assert!(claim_session(session).is_none(), "a held session has one holder");
-        assert!(session_held(session));
-        assert_eq!(owned_daemon_pid(session), Some(me));
-        cleanup_stale_files(session);
-        assert!(get_pid_path(session).exists(), "another process took the holder's file");
-
-        drop(daemon);
-        assert!(!session_held(session));
-        assert_eq!(owned_daemon_pid(session), None, "a pid file nobody holds proves nothing");
-        cleanup_stale_files(session);
-        assert!(!get_pid_path(session).exists());
-    }
-
-    /// A held session proves only that some process holds it (a daemon starting, a CLI cleaning up), not that its
-    /// `.pid` file is still the holder's: a file a dead daemon left names whatever has that number now. Such a process is
-    /// never signalled; the daemon whose number and start the session recorded is.
-    #[cfg(unix)]
-    #[test]
-    fn a_stale_pid_file_never_signals_the_process_that_now_has_its_number() {
-        let dir = tempfile::tempdir().unwrap();
-        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR", "AGENT_BROWSER_NAMESPACE"]);
-        guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        guard.remove("AGENT_BROWSER_NAMESPACE");
-        let session = "reused";
-        // A process that has nothing to do with the session, holding the number a dead daemon wrote.
-        let mut bystander = Command::new("sleep").arg("30").spawn().unwrap();
-        fs::write(get_pid_path(session), bystander.id().to_string()).unwrap();
-        // Another process holds the session meanwhile, as a daemon starting for it does before it writes its own pid.
-        let starting = claim_session(session).expect("the session is free");
-        for record in [None, Some(1u64)] {
-            if let Some(other) = record {
-                fs::write(get_started_path(session), other.to_string()).unwrap();
-            }
-            assert_eq!(owned_daemon_pid(session), None, "the file names a process the session never recorded");
-            kill_stale_daemon(session);
-            assert!(bystander.try_wait().unwrap().is_none(), "the process now holding the number was signalled");
-        }
-        // The session's own daemon, recorded as it starts, is the one stopped.
-        record_process(bystander.id(), &get_started_path(session));
-        assert_eq!(owned_daemon_pid(session), Some(bystander.id()));
-        kill_stale_daemon(session);
-        let stopped = (0..50).any(|_| {
-            thread::sleep(Duration::from_millis(20));
-            bystander.try_wait().unwrap().is_some()
-        });
-        assert!(stopped, "the recorded daemon is stopped");
-        drop(starting);
-    }
-
-    /// The dashboard's files sit beside the sessions', named for it, so no session may have that name.
-    #[test]
-    fn no_session_takes_the_dashboards_name() {
-        assert!(check_session_name(DASHBOARD_CLAIM).is_err());
-        assert!(check_session_name("dashboard-2").is_ok());
-    }
-
-    /// Every file a session's daemon leaves is on the one list both its exit and a stale cleanup go by.
-    #[test]
-    fn one_list_removes_every_file_a_session_leaves() {
-        let dir = tempfile::tempdir().unwrap();
-        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR", "AGENT_BROWSER_NAMESPACE"]);
-        guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        guard.remove("AGENT_BROWSER_NAMESPACE");
-        let session = "tidy";
-        for extension in ["pid", "version", "config", "stream", "stream-token", "engine", "provider", "extensions"] {
-            fs::write(dir.path().join(format!("{session}.{extension}")), "x").unwrap();
-        }
-        cleanup_stale_files(session);
-        let left: Vec<_> = fs::read_dir(dir.path()).unwrap().flatten().map(|e| e.file_name()).collect();
-        assert_eq!(left, vec![std::ffi::OsString::from("tidy.lock")]);
-    }
-
-    /// A daemon that has answered `close` but is still on its way out (its
-    /// socket taking connections, its `.pid` file there) isn't gone yet: a
-    /// command sent now would reach it. Gone is when the socket refuses and
-    /// the daemon's files are removed.
-    #[test]
-    #[cfg(unix)]
-    fn a_close_waits_until_the_daemon_is_gone() {
-        use std::os::unix::net::UnixListener;
-
-        let dir = std::env::temp_dir().join(format!("ab-close-wait-{}", std::process::id()));
-        let _ = fs::create_dir_all(&dir);
-        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
-        _guard.set("AGENT_BROWSER_SOCKET_DIR", dir.to_str().unwrap());
-
-        let session = "close-wait";
-        let (socket_path, pid_path) = (get_socket_path(session), get_pid_path(session));
-        let _ = fs::remove_file(&socket_path);
-        let listener = UnixListener::bind(&socket_path).unwrap();
-        fs::write(&pid_path, std::process::id().to_string()).unwrap();
-        assert_eq!(daemon_pid(session), Some(std::process::id()));
-
-        // Still listening, its pid file there: not gone.
-        assert!(!wait_for_daemon_exit(session, None, Duration::from_millis(100)));
-
-        // It exits a moment later, the way a daemon does after its last answer.
-        let exiting = thread::spawn(move || {
-            thread::sleep(Duration::from_millis(150));
-            drop(listener);
-            let _ = fs::remove_file(&socket_path);
-            let _ = fs::remove_file(&pid_path);
-        });
-        let started = Instant::now();
-        assert!(wait_for_daemon_exit(session, None, Duration::from_secs(5)));
-        assert!(started.elapsed() >= Duration::from_millis(100), "returned before the daemon left");
-        exiting.join().unwrap();
-        assert!(!daemon_ready(session));
-        let _ = fs::remove_dir_all(&dir);
-    }
-
     // === Daemon Version Mismatch Detection Tests ===
 
     #[test]
@@ -2311,5 +2143,33 @@ mod tests {
         assert!(!version_path.exists());
 
         let _ = fs::remove_dir(&dir);
+    }
+    #[test]
+    fn test_recorded_default_timeout_is_what_later_commands_inherit() {
+        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "AGENT_BROWSER_NAMESPACE"]);
+        let dir = tempfile::tempdir().unwrap();
+        guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
+        guard.remove("AGENT_BROWSER_NAMESPACE");
+        fs::create_dir_all(get_socket_dir()).unwrap();
+
+        let mut started = test_daemon_options(None, false, None);
+        started.default_timeout = Some(90_000);
+        started.action_policy = Some("/tmp/policy.json");
+        write_daemon_config("timeout-live", &started);
+
+        record_daemon_default_timeout("timeout-live", Some(5_000));
+        assert_eq!(running_daemon_default_timeout("timeout-live"), Some(5_000));
+        let stored = fs::read_to_string(get_config_path("timeout-live")).unwrap();
+        assert!(
+            stored.contains("policy.json"),
+            "other options are kept: {stored}"
+        );
+
+        record_daemon_default_timeout("timeout-live", None);
+        assert_eq!(running_daemon_default_timeout("timeout-live"), None);
+
+        // No config, no file created.
+        record_daemon_default_timeout("never-started", Some(1));
+        assert!(!get_config_path("never-started").exists());
     }
 }

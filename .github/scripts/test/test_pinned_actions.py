@@ -60,6 +60,16 @@ class PinnedActionsTest(unittest.TestCase):
         ]
         self.assertEqual(errors, [])
 
+    def test_nothing_of_ours_runs_upstreams_workflows(self):
+        # unbrowse-browser/.github is upstream agent-browser's own, kept as upstream wrote it (unbrowse-browser/FORK.md)
+        # with its mutable tags. GitHub runs a workflow only from the repository's .github/workflows, so those files
+        # run nowhere here unless one of ours calls into them: none may.
+        ours = [path for directory in module.WORKFLOW_DIRS for path in sorted(directory.glob("*.y*ml"))] + module.action_files()
+        self.assertGreater(len(ours), 10, "the repository's workflows were read")
+        calls = [str(path.relative_to(module.ROOT)) for path in ours if "unbrowse-browser/.github" in path.read_text()]
+        self.assertEqual(calls, [])
+        self.assertFalse((module.ROOT / "unbrowse-browser/.github/actions").exists(), "an action of upstream's that ours could call")
+
 
 if __name__ == "__main__":
     unittest.main()

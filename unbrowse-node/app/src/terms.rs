@@ -70,8 +70,13 @@ pub fn announce() {
     }
 }
 
+/// The terms and the privacy notice in full, as `unbrowse-node terms show` prints them.
+pub fn full() -> String {
+    format!("{TERMS}\n{PRIVACY}")
+}
+
 /// What `unbrowse-node terms` says of the network, for the node's owner.
-fn joining(s: &Settings) -> String {
+pub fn joining(s: &Settings) -> String {
     match standing(s) {
         Standing::Joins => "the node joins the peer network (`unbrowse-node network off` keeps it off)".into(),
         Standing::KeptOff => "the node stays off the peer network (`unbrowse-node network on` joins)".into(),
@@ -91,7 +96,7 @@ pub fn cli(args: &[String]) -> i32 {
             0
         }
         Some("show") => {
-            println!("{TERMS}\n{PRIVACY}");
+            println!("{}", full());
             0
         }
         Some("accept") => {

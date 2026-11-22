@@ -57,8 +57,19 @@ pub fn has_scratch_home() -> bool {
     TEST_HOME.with(|h| h.borrow().is_some())
 }
 
-/// The folder of session jars, one file per host the node holds a session for.
+/// The folder of session jars, one file per host the node holds a session for. A public peer's calls keep theirs apart
+/// (`public-jars`): what they run with is never a session the owner's home held, whatever is in `owner_jars_dir`
+/// (graph `gateway.no-credentials`).
 pub fn jars_dir() -> PathBuf {
+    if crate::remote::public_home() {
+        return home().join("public-jars");
+    }
+    owner_jars_dir()
+}
+
+/// The folder of the owner's session jars: their sign-ins, imported or walked. A public peer refuses a home with any
+/// (`remote::credentials_held`).
+pub fn owner_jars_dir() -> PathBuf {
     home().join("jars")
 }
 
@@ -290,6 +301,14 @@ pub struct RouteStats {
     /// again on the next call, once, unless an agent set them.
     #[serde(default)]
     pub fields_rule: u32,
+    /// What each step last did when the route was called (`unbrowse_learn::health`): the step a refusal landed on,
+    /// how and when, and when each step last answered.
+    #[serde(default, skip_serializing_if = "health_is_empty")]
+    pub health: unbrowse_learn::health::Health,
+}
+
+fn health_is_empty(h: &unbrowse_learn::health::Health) -> bool {
+    h.steps.is_empty()
 }
 
 impl RouteStats {
@@ -348,6 +367,13 @@ impl ReadBy {
     /// The rules this build judges by.
     pub fn current() -> Self {
         Self { addresses: unbrowse_learn::walk::ADDRESS_READER, page_made: crate::learn::PAGE_MADE_RULE }
+    }
+
+    /// Whether a verdict judged by these rules stands in this build: this build's rule of what explains a constant, and
+    /// an address reader no older than the oldest whose verdicts it trusts (`walk::OLDEST_TRUSTED_ADDRESS_READER`) and
+    /// no newer than its own.
+    pub fn trusted(by: Option<Self>) -> bool {
+        by.is_some_and(|b| b.page_made == crate::learn::PAGE_MADE_RULE && (unbrowse_learn::walk::OLDEST_TRUSTED_ADDRESS_READER..=unbrowse_learn::walk::ADDRESS_READER).contains(&b.addresses))
     }
 }
 
@@ -803,7 +829,7 @@ impl Route {
         if !r.session_gave {
             return r;
         }
-        let judged = r.read_by == Some(ReadBy::current());
+        let judged = ReadBy::trusted(r.read_by);
         let made = r.page_made.clone().unwrap_or_default();
         let origin_only = |u: &str| url::Url::parse(u).ok().map(|u| u.origin().ascii_serialization()).unwrap_or_default();
         for (n, step) in r.graph.steps.iter_mut().enumerate() {
@@ -943,23 +969,90 @@ pub fn routes_dir() -> PathBuf {
     home().join("routes")
 }
 
+/// Routes as last read from their files, each by its file's length and when it was last written: a route's file
+/// holds its graph and its page's code (megabytes for a busy page), every ask reads every route, and each call writes
+/// one. A file changed since, by this node or anything else, is read again. Holds no route that isn't on disk.
+static READ_ROUTES: std::sync::Mutex<Option<std::collections::HashMap<PathBuf, (std::time::SystemTime, u64, std::sync::Arc<Route>)>>> = std::sync::Mutex::new(None);
+
+fn stamp(path: &Path) -> Option<(std::time::SystemTime, u64)> {
+    let m = fs::metadata(path).ok()?;
+    Some((m.modified().ok()?, m.len()))
+}
+
+/// The route in the file at `path`, read once for each time the file is written.
+fn read_route(path: &Path) -> Option<Route> {
+    read_route_shared(path).map(|r| (*r).clone())
+}
+
+/// Set when a route was read from its file rather than the cache: reading one whole takes its page's code into memory
+/// for a moment, and `load_routes_shared` gives that back to the system after.
+static READ_FROM_FILES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The route in the file at `path`, as kept in the cache: shared, not copied.
+fn read_route_shared(path: &Path) -> Option<std::sync::Arc<Route>> {
+    rejoin_from_files();
+    let (at, len) = stamp(path)?;
+    if let Some(r) = READ_ROUTES.locked().as_ref().and_then(|m| m.get(path)).filter(|(t, l, _)| *t == at && *l == len).map(|(_, _, r)| r.clone()) {
+        return Some(r);
+    }
+    READ_FROM_FILES.store(true, std::sync::atomic::Ordering::Relaxed);
+    let mut route: Route = read_json_opt(path, &unbrowse_files::ROUTE)?;
+    // The page's code a route carries for its signing bridge is most of its bytes, and only running the route reads
+    // it: it stays in the file (`Graph::set_apart`), and the graph takes it back when it runs or is written.
+    route.graph.set_apart(path);
+    let route = std::sync::Arc::new(route);
+    // Kept as read only if the file wasn't written while it was being read.
+    if stamp(path) == Some((at, len)) {
+        READ_ROUTES.locked().get_or_insert_with(std::collections::HashMap::new).insert(path.to_path_buf(), (at, len, route.clone()));
+    }
+    Some(route)
+}
+
+/// Tells the learner where a graph read without its page's code takes it back from: the route file it was read from,
+/// read whole. Set once, before the first route is read.
+fn rejoin_from_files() {
+    fn whole(path: &Path) -> Option<unbrowse_learn::Graph> {
+        read_json_opt::<Route>(path, &unbrowse_files::ROUTE).map(|r| r.graph)
+    }
+    unbrowse_learn::graph::set_rejoin(whole);
+}
+
 pub fn load_routes() -> Vec<Route> {
+    load_routes_shared().iter().map(|r| relabeled(r)).collect()
+}
+
+/// Every route, newest first, as the cache holds them: shared, not copied, and not yet `relabeled`. For a pass that
+/// reads them all and keeps few (a search ranks every route and answers with the ones that match).
+pub fn load_routes_shared() -> Vec<std::sync::Arc<Route>> {
     let Ok(dir) = fs::read_dir(routes_dir()) else { return Vec::new() };
-    let mut out: Vec<Route> = dir
-        .flatten()
-        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
-        .filter_map(|e| read_json_opt(&e.path(), &unbrowse_files::ROUTE))
-        .map(relabel)
-        .collect();
-    out.sort_by_key(|r: &Route| std::cmp::Reverse(r.learned_at));
+    let mut out: Vec<std::sync::Arc<Route>> = dir.flatten().filter(|e| e.path().extension().is_some_and(|x| x == "json")).filter_map(|e| read_route_shared(&e.path())).collect();
+    out.sort_by_key(|r| std::cmp::Reverse(r.learned_at));
+    if READ_FROM_FILES.swap(false, std::sync::atomic::Ordering::Relaxed) {
+        give_back_memory();
+    }
     out
+}
+
+/// A route as the cache holds it, as callers are given it (`relabel`).
+pub fn relabeled(r: &Route) -> Route {
+    relabel(r.clone())
+}
+
+/// Gives the system back what the allocator holds free: reading routes whole from their files (at start, or after
+/// many were written) takes their page's code in for a moment, and the allocator otherwise keeps that peak.
+fn give_back_memory() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    // SAFETY: malloc_trim only returns free memory at the top of the allocator's heaps to the system.
+    unsafe {
+        libc::malloc_trim(0);
+    }
 }
 
 pub fn load_route(id: &str) -> Option<Route> {
     if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
         return None;
     }
-    read_json_opt(&routes_dir().join(format!("{id}.json")), &unbrowse_files::ROUTE).map(relabel)
+    read_route(&routes_dir().join(format!("{id}.json"))).map(relabel)
 }
 
 /// Whether a call of `r` changes state on the site: its target does. A route made from another contributor's body is
@@ -1001,7 +1094,34 @@ fn routes_held() -> std::sync::MutexGuard<'static, ()> {
 }
 
 fn write_route(route: &Route) -> Result<(), String> {
-    write_json(&routes_dir().join(format!("{}.json", route.id)), &unbrowse_files::ROUTE, route)
+    rejoin_from_files();
+    let path = routes_dir().join(format!("{}.json", route.id));
+    // A route read without its page's code is written with it: the file is the only place the code is kept.
+    let mut whole = None;
+    if route.graph.apart.is_some() {
+        let mut r = route.clone();
+        if !r.graph.rejoined() {
+            return Err(format!("route {}: its page's code could not be read back from its file, so it was not written", route.id));
+        }
+        whole = Some(r);
+    }
+    let written = write_json(&path, &unbrowse_files::ROUTE, whole.as_ref().unwrap_or(route));
+    let mut route = whole.unwrap_or_else(|| route.clone());
+    route.graph.set_apart(&path);
+    let route = &route;
+    // What was written is what the file now holds: the next read takes it as it is, unless something wrote the file
+    // since (its stamp then differs, and it is read again).
+    let mut kept = READ_ROUTES.locked();
+    let map = kept.get_or_insert_with(std::collections::HashMap::new);
+    match (&written, stamp(&path)) {
+        (Ok(()), Some((at, len))) => {
+            map.insert(path, (at, len, std::sync::Arc::new(route.clone())));
+        }
+        _ => {
+            map.remove(&path);
+        }
+    }
+    written
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
@@ -1835,6 +1955,43 @@ pub fn walked_hosts() -> Vec<String> {
     dir.flatten().filter_map(|e| e.file_name().into_string().ok()).filter(|h| h.contains('.')).collect()
 }
 
+/// The lock a node holds on its home for as long as it runs, from before it reads its key (`node.lock`). A second node
+/// started on the same home (the window starting one while the first is still coming up, waiting on the owner at the
+/// keystore's dialog) finds it held and stops at once: it would ask the owner the same questions again and fight the
+/// first for the port and the browsers. The file names the holder's pid, for what the second one says.
+pub struct NodeHeld(#[allow(dead_code)] fs::File);
+
+/// Whether this process takes the node's lock on its home: `Ok(None)` when a node holds it, with that node's pid when it
+/// named one. `wait` is how long to wait for it, for a node an update or a restart starts while the one it replaces is
+/// still stopping.
+pub fn hold_node(wait: std::time::Duration) -> Result<Result<NodeHeld, Option<u32>>, String> {
+    hold_node_in(&home(), wait)
+}
+
+fn hold_node_in(dir: &Path, wait: std::time::Duration) -> Result<Result<NodeHeld, Option<u32>>, String> {
+    use std::io::{Read, Seek, Write};
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let mut f = fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(dir.join("node.lock")).map_err(|e| e.to_string())?;
+    let until = std::time::Instant::now() + wait;
+    loop {
+        match f.try_lock() {
+            Ok(()) => break,
+            Err(fs::TryLockError::WouldBlock) if std::time::Instant::now() < until => std::thread::sleep(std::time::Duration::from_millis(200)),
+            Err(fs::TryLockError::WouldBlock) => {
+                let mut said = String::new();
+                let _ = f.read_to_string(&mut said);
+                return Ok(Err(said.trim().parse().ok()));
+            }
+            Err(fs::TryLockError::Error(e)) => return Err(e.to_string()),
+        }
+    }
+    let _ = f.set_len(0);
+    let _ = f.rewind();
+    let _ = write!(f, "{}", std::process::id());
+    let _ = f.flush();
+    Ok(Ok(NodeHeld(f)))
+}
+
 /// Held while a file more than one process writes is read and written back: the window's node and a command in a shell
 /// each keep the whole file, so without it the later write takes back what the earlier one added. As `agents::Held`.
 /// It is taken on a file of its own beside `path`, since writing `path` replaces it.
@@ -2510,6 +2667,27 @@ mod route_record_tests {
         r
     }
 
+    /// A route is read from its file once for each time the file is written: a read after the node's own write is
+    /// the route written, and a file another program changed is read again, never answered from what was read before.
+    #[test]
+    fn a_route_file_changed_since_it_was_read_is_read_again() {
+        scratch_home("read-routes");
+        let mut r = route("c1");
+        r.what = "list items".into();
+        save_route(&r).unwrap();
+        assert_eq!(load_route("c1").unwrap().what, "list items");
+        update_route("c1", |r| r.stats.calls = 3).unwrap();
+        assert_eq!(load_route("c1").unwrap().stats.calls, 3, "the node's own write");
+        let path = routes_dir().join("c1.json");
+        let text = std::fs::read_to_string(&path).unwrap().replace("list items", "list other things");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        std::fs::write(&path, text).unwrap();
+        assert_eq!(load_route("c1").unwrap().what, "list other things", "another program's write");
+        assert_eq!(load_routes().iter().find(|r| r.id == "c1").unwrap().what, "list other things");
+        std::fs::remove_file(&path).unwrap();
+        assert!(load_route("c1").is_none(), "a file gone is no route");
+    }
+
     #[test]
     fn a_route_learned_again_never_replaces_a_listed_or_the_owners_own_record() {
         scratch_home("keep-learned");
@@ -2633,6 +2811,41 @@ mod route_record_tests {
         assert!(load_route("t1").is_some());
     }
 
+    /// A route's page code (the scripts its signing bridge boots, the answers the page read, the page itself) is most
+    /// of its bytes: a listing leaves it in the file, so asking for every route holds none of it, while the route still
+    /// runs with it and a listed route written back keeps it (UNB-139: every search held a copy of every route's code).
+    #[test]
+    fn a_listing_holds_no_page_code_and_writing_a_listed_route_keeps_it() {
+        let _home = scratch_home("apart");
+        let script = unbrowse_learn::signing::Script { url: "https://shop.example/app.js".into(), body: "x".repeat(1 << 20) };
+        let mut signed = route("signed");
+        signed.graph.scripts = vec![script.clone()];
+        signed.graph.page_html = Some("<html>kept</html>".into());
+        save_route(&signed).unwrap();
+        save_route(&route("plain")).unwrap();
+
+        let listed = load_routes();
+        let bytes: usize = listed.iter().flat_map(|r| &r.graph.scripts).map(|s| s.body.len()).sum();
+        assert_eq!(bytes, 0, "a listing carries no page code");
+        let mut light = listed.into_iter().find(|r| r.id == "signed").unwrap();
+        assert!(light.graph.apart.is_some() && light.graph.page_html.is_none());
+        assert!(load_routes().iter().find(|r| r.id == "plain").unwrap().graph.apart.is_none(), "a route with no code is whole");
+
+        // Written back from the listing (a call's stats, say): the file still holds the code.
+        light.stats.last_error = Some("once".into());
+        save_route(&light).unwrap();
+        let on_disk: Route = read_json_opt(&routes_dir().join("signed.json"), &unbrowse_files::ROUTE).unwrap();
+        assert_eq!(on_disk.graph.scripts, vec![script.clone()], "the file keeps the page's code");
+        assert_eq!(on_disk.graph.page_html.as_deref(), Some("<html>kept</html>"));
+        assert_eq!(on_disk.stats.last_error.as_deref(), Some("once"));
+
+        // And the graph takes it back to run.
+        let mut graph = load_route("signed").unwrap().graph;
+        assert!(graph.rejoined());
+        assert_eq!(graph.scripts, vec![script]);
+        assert_eq!(graph.page_html.as_deref(), Some("<html>kept</html>"));
+    }
+
     #[test]
     fn a_file_that_doesnt_read_is_never_read_as_empty() {
         let home = scratch_home("strict");
@@ -2700,5 +2913,29 @@ mod home_tests {
     #[test]
     fn the_program_closes_an_idle_browser_no_sooner_than_its_tabs() {
         assert!(unbrowse_learn::mint::PROGRAM_IDLE >= crate::browse::TAB_IDLE);
+    }
+}
+
+#[cfg(test)]
+mod node_lock_tests {
+    use super::hold_node_in;
+    use std::time::Duration;
+
+    /// A second node on a home finds the first's lock and stops, told its pid; once the first lets go, the next one
+    /// takes it. Before this the window started a node every ten seconds while the first waited on the owner at the
+    /// keystore's dialog, and each one asked the owner again.
+    #[test]
+    fn a_second_node_on_a_home_finds_the_first_and_stops() {
+        let home = std::env::temp_dir().join(format!("unbrowse-node-lock-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        let first = hold_node_in(&home, Duration::ZERO).unwrap().expect("the first node takes the lock");
+        let second = hold_node_in(&home, Duration::ZERO).unwrap();
+        assert_eq!(second.err(), Some(Some(std::process::id())), "the second is told who holds it");
+        let waited = std::time::Instant::now();
+        assert!(hold_node_in(&home, Duration::from_millis(500)).unwrap().is_err(), "a wait that runs out still finds it held");
+        assert!(waited.elapsed() >= Duration::from_millis(400), "and it did wait");
+        drop(first);
+        assert!(hold_node_in(&home, Duration::ZERO).unwrap().is_ok(), "the first gone, the next one takes it");
+        let _ = std::fs::remove_dir_all(&home);
     }
 }

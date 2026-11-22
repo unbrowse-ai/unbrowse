@@ -1,9 +1,17 @@
-# Nightly regression on Lundy's bank, on a scratch node built from staging (the default branch). Live sites go down and change on their own, so it
-# never gates a pull request: it fails here, where someone reads why.
+# Staging's live-site check (UNB-249): the 30 hardest sites we know of (test-banks/popular-sites/staging-hard-sites.json,
+# each with why it is hard and its evidence), read on a scratch node built from staging every night, and by hand. Live
+# sites go down and change on their own, so it never gates a pull request: it reports here, where someone reads why.
 #
-# Reads: the sites in regression.json, through the agent API (run_bank.py), held to the checks each passed. A check that now
-# answers wrong has regressed; a wall or an outage says nothing either way. Writes: Claude works through
-# .github/qa/writes.md on sites built to be written to.
+# Not on a push to staging (UNB-166, Lewis, 21 Nov 2026; UNB-249 first asked for every push): 27 of the 40 push runs of
+# 17 to 21 Nov were cancelled by the next push after a median 17.5 minutes, 1,350 runner-minutes for 6 reads that
+# finished (the CI audit of 21 Nov 2026, U6). The nightly run reads the same 30 sites on staging's head.
+#
+# The node is built once (`build`: one archive the jobs below check by its SHA-256 and unpack).
+# Reads: ten jobs side by side, three sites each, through the agent API (run_bank.py, one site per call so each site's
+# time is measured); the report job sorts every site into right, wrong, needs a browser, walled or unknown
+# (hard_sites.py) and puts the table in the run's summary. A site that answers wrong is a finding, not a red run: the
+# run is red only when the check itself did not run. The 13 sites this read before stay in the task gate (lundy:*).
+# Writes, nightly and by hand on staging: Claude works through .github/qa/writes.md on sites built to be written to.
 #
 # The agent reads pages anyone can write, so its job holds what QA's does: a read-only token kept off the disk, no shell,
 # no web of its own, and a report scrubbed before it leaves.
@@ -14,44 +22,75 @@ on:
     - cron: '17 19 * * *'
   workflow_dispatch:
 
+# A run started by hand on a branch replaces the one before it there; the nightly run has its own group, so a run by
+# hand never cancels it.
 concurrency:
-  group: bank-${{ github.ref }}
+  group: bank-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions: {}
 
 jobs:
-  bank:
-    if: github.ref == 'refs/heads/staging'
-    name: Lundy bank
-    runs-on: blacksmith-6vcpu-macos-latest
-    timeout-minutes: 150
+  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
+  # machine that starts at once, so a Mac that is asleep or busy never holds a run up. The summary says why for each
+  # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
+  place:
+    name: Where the agent jobs run
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
     permissions:
+      actions: read
       contents: read
+    outputs:
+      hard_sites: ${{ steps.place.outputs.hard_sites }}
+      writes: ${{ steps.place.outputs.writes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The page sandbox and scratch-node.sh need Node 25 or later (26 is the LTS): older Nodes let a page's scripts reach the network
-      # under --permission.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+          sparse-checkout: .github/scripts/place_jobs.py
+          sparse-checkout-cone-mode: false
+      - id: place
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+          MAC_POOL: ${{ vars.MAC_RUNNER }}
+          LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
+        run: python3 -I .github/scripts/place_jobs.py hard_sites=mac writes=mac
+
+  # The node and its browser, built once with no secret and no write permission, and packed into one archive whose
+  # SHA-256 every job below checks before it unpacks it (as pr-agent-checks.yml's build job does). Before this each of
+  # the ten shards and the writes job built the same commit: a median 88 s a shard, 17 to 21 Nov 2026 (the CI audit of
+  # 21 Nov, U8).
+  build:
+    if: github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch'
+    name: Build the node once
+    # A plain build, no agent: on Blacksmith (#787), so the one Mac slot stays for an agent job. Lewis's Mac and
+    # Blacksmith's are both Apple-silicon macOS, so the archive runs on whichever the place job picks.
+    runs-on: blacksmith-6vcpu-macos-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.pack.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 26
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: 1.99.1
-      # Restored, never saved: the tree this job ends with has been in reach of the agent's Write.
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: vendor
         with:
           path: unbrowse-node/vendor
-          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch') }}
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-pss.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-grease-sigalg.patch') }}
       - if: steps.vendor.outputs.cache-hit != 'true'
         working-directory: unbrowse-node
         run: sh scripts/apply-tls-patch.sh
-      # The build's folders are restored here and saved straight after the build, before anything that reads the web
-      # or an agent with Write runs: a cache this job saves holds only what the build made. A key is saved once, for a
-      # lockfile, by the first run that misses it, and no other workflow restores it.
+      # The build's folders are restored here and saved straight after the build. This job starts no node and runs no
+      # agent, so a cache it saves holds only what the build made. A key is saved once, for a lockfile, by the first
+      # run that misses it, and no other workflow restores it.
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: build-cache
         with:
@@ -67,7 +106,6 @@ jobs:
         run: |
           cargo build --locked --manifest-path unbrowse-browser/cli/Cargo.toml
           cargo build --locked --manifest-path unbrowse-node/Cargo.toml --bin unbrowse-node --bin unb
-
       - name: Save the build's folders before anything else runs
         if: steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -79,6 +117,187 @@ jobs:
             unbrowse-node/target
             unbrowse-browser/cli/target
           key: bank-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}
+      # One archive, at the paths the build left them, which scratch-node.sh reads from the work folder. tar keeps the
+      # programs executable.
+      - name: Pack the build
+        id: pack
+        run: |
+          tar -cf "$RUNNER_TEMP/node-build.tar" \
+            unbrowse-node/target/debug/unbrowse-node unbrowse-node/target/debug/unb \
+            unbrowse-browser/cli/target/debug/agent-browser
+          digest=$(shasum -a 256 "$RUNNER_TEMP/node-build.tar" | cut -d' ' -f1)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          ls -l "$RUNNER_TEMP/node-build.tar"
+          echo "sha256 $digest"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bank-node-build
+          path: ${{ runner.temp }}/node-build.tar
+          retention-days: 3
+          if-no-files-found: error
+
+  hard-sites:
+    needs: [place, build]
+    # By hand on any branch too (gh workflow run bank.yml --ref <branch>), as QA is: these jobs hold no secret and
+    # write nothing. The writes job, which holds the model credential, stays on staging.
+    if: github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch'
+    name: Hard sites ${{ matrix.shard }}
+    runs-on: ${{ fromJSON(needs.place.outputs.hard_sites) }}
+    timeout-minutes: 100
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The page sandbox and scratch-node.sh need Node 25 or later (26 is the LTS): older Nodes let a page's scripts reach the network
+      # under --permission.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bank-node-build
+          path: ${{ runner.temp }}/node-build
+      - name: Unpack the build this run made
+        env:
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
+          tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
+          # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
+          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
+          # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
+          browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
+          test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
+          echo "UNBROWSE_BROWSER=$browser" >> "$GITHUB_ENV"
+      # A person's Mac keeps what an earlier job left running (a node on the port this job wants): stop it.
+      - name: Stop what an earlier job left running
+        run: sh .github/qa/stop-left-nodes.sh
+      - name: Start a scratch node
+        run: |
+          dir="$RUNNER_TEMP/b"
+          echo "SCRATCH=$dir" >> "$GITHUB_ENV"
+          sh test-banks/popular-sites/scratch-node.sh "$dir"
+          echo "::add-mask::$(cat "$dir/token")"
+
+      # One site a call, so each site's time is its own; a site whose call stops short is left out of the reads file,
+      # and the report counts it unknown. A site gets SITE_SECS at most (perl's alarm: macOS has no timeout), so one
+      # slow site cannot run its shard past the step's limit (carousell.sg alone ran 2206 s in run 44719860463).
+      - name: Reads
+        timeout-minutes: 85
+        env:
+          SHARD: ${{ matrix.shard }}
+          SITE_SECS: 1500
+        run: |
+          out="$RUNNER_TEMP/hard"
+          mkdir -p "$out"
+          cd test-banks/popular-sites
+          sites=$(python3 hard_sites.py shard --list staging-hard-sites.json --shard "$SHARD" --of 10)
+          echo "Shard $SHARD: $sites"
+          IFS=,
+          for site in $sites; do
+            start=$(date +%s)
+            perl -e 'alarm shift; exec @ARGV' "$SITE_SECS" python3 run_bank.py run --node http://127.0.0.1:17810 --token-file "$SCRATCH/token" --cases staging-hard-sites.json \
+              --sites "$site" --seed "$(date -u +%F)" --out "$out/reads-$SHARD.json" --node-home "$SCRATCH/home/node" \
+              --node-log "$SCRATCH/node.log" --guard-log "$SCRATCH/guard.log" || echo "::warning::$site stopped short"
+            jq -nc --arg site "$site" --argjson seconds "$(( $(date +%s) - start ))" --argjson cap "$SITE_SECS" \
+              '{site: $site, seconds: $seconds, capped: ($seconds >= $cap)}' >> "$out/times-$SHARD.jsonl"
+          done
+
+      # Coverage without a browser (docs/HARNESS.md): of the calls this shard made, how many answered with no browser
+      # process. A number to read, never a gate.
+      - name: Census
+        if: always()
+        continue-on-error: true
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python3 test-banks/popular-sites/run_bank.py census --node-home "$SCRATCH/home/node" --out "$RUNNER_TEMP/hard/reads-$SHARD.json" \
+            --commit "$GITHUB_SHA" --census "$RUNNER_TEMP/hard/census-$SHARD.json" | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hard-sites-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/hard/
+            ${{ runner.temp }}/b/guard.log
+          if-no-files-found: ignore
+
+  report:
+    if: always() && (github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch')
+    needs: hard-sites
+    name: Hard sites, report
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: test-banks/popular-sites
+      # Data only: the reads files are JSON this job parses, never runs.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: hard-sites-*
+          path: ${{ runner.temp }}/hard
+      - name: The report's own tests
+        run: python3 -m unittest discover -s test-banks/popular-sites -p test_hard_sites.py -v
+      - name: Report
+        run: |
+          python3 test-banks/popular-sites/hard_sites.py report --list test-banks/popular-sites/staging-hard-sites.json \
+            --reads "$RUNNER_TEMP/hard" --md "$RUNNER_TEMP/hard-sites.md" --json "$RUNNER_TEMP/hard-sites.json" > /dev/null
+          { echo "### Staging, the 30 hardest sites ($GITHUB_SHA)"; cat "$RUNNER_TEMP/hard-sites.md"; } >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: hard-sites-report
+          path: |
+            ${{ runner.temp }}/hard-sites.md
+            ${{ runner.temp }}/hard-sites.json
+          if-no-files-found: ignore
+
+  writes:
+    needs: [place, build]
+    if: github.ref == 'refs/heads/staging'
+    name: Writes
+    runs-on: ${{ fromJSON(needs.place.outputs.writes) }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The page sandbox and scratch-node.sh need Node 25 or later (26 is the LTS): older Nodes let a page's scripts reach the network
+      # under --permission.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bank-node-build
+          path: ${{ runner.temp }}/node-build
+      - name: Unpack the build this run made
+        env:
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
+          tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
+          # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
+          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
+          # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
+          browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
+          test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
+          echo "UNBROWSE_BROWSER=$browser" >> "$GITHUB_ENV"
+      # A person's Mac keeps what an earlier job left running (a node on the port this job wants): stop it.
+      - name: Stop what an earlier job left running
+        run: sh .github/qa/stop-left-nodes.sh
       - name: Start a scratch node
         run: |
           dir="$RUNNER_TEMP/b"
@@ -95,38 +314,14 @@ jobs:
             '{mcpServers: {unbrowse: {command: $unb, args: ["mcp"], env: {UNBROWSE_NODE: "http://127.0.0.1:17810", UNBROWSE_AGENT_TOKEN: $token}}}}' \
             > "$RUNNER_TEMP/mcp.json"
 
-      # Five sites a batch, as the bank's limits say. A batch that stops short leaves its sites untested, which the
-      # comparison says.
-      - name: Reads
-        run: |
-          cd test-banks/popular-sites
-          jq -r '.sites | keys[]' regression.json | paste -d, - - - - - | sed 's/,*$//' | while read -r batch; do
-            python3 run_bank.py run --node http://127.0.0.1:17810 --token-file "$SCRATCH/token" --cases search-cases.json \
-              --sites "$batch" --seed "$(date -u +%F)" --out "$RUNNER_TEMP/reads.json" --node-home "$SCRATCH/home/node" \
-              --node-log "$SCRATCH/node.log" --guard-log "$SCRATCH/guard.log" || echo "::warning::a batch stopped short: $batch"
-          done
-
-      - name: Compare with the sites that passed
-        id: reads
-        continue-on-error: true
-        run: |
-          status=0
-          python3 test-banks/popular-sites/run_bank.py compare --out "$RUNNER_TEMP/reads.json" --summary "$RUNNER_TEMP/reads.md" || status=$?
-          cat "$RUNNER_TEMP/reads.md" >> "$GITHUB_STEP_SUMMARY"
-          exit "$status"
-
-      # Coverage without a browser (docs/HARNESS.md): of the calls this run made, how many answered right with no
-      # browser process, by the run's own verdict of each site. A number to read, never a gate.
-      - name: Census
-        if: always()
-        continue-on-error: true
-        run: |
-          python3 test-banks/popular-sites/run_bank.py census --node-home "$SCRATCH/home/node" --out "$RUNNER_TEMP/reads.json" \
-            --commit "$GITHUB_SHA" --census "$RUNNER_TEMP/census.json" | tee -a "$GITHUB_STEP_SUMMARY"
-
       # The Claude CLI the credential is asked with: the locked one, its lifecycle scripts off, in a step with no secret.
       - name: Install the pinned Claude CLI
-        run: npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
+        run: |
+          npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
+          # The CLI is a stub until its own install.cjs, from the same locked package, links in the native binary of
+          # the platform's locked optional package; skipped, every ask says "claude native binary not installed" (UNB-235).
+          node .github/tools/claude-cli/node_modules/@anthropic-ai/claude-code/install.cjs
+          .github/tools/claude-cli/node_modules/.bin/claude --version
       # A token that is set can still refuse (a weekly limit): the Writes use the first one that answers.
       - name: Pick the Claude credential that answers
         id: credential
@@ -169,19 +364,10 @@ jobs:
           name: bank
           path: |
             writes-report.md
-            ${{ runner.temp }}/reads.json
-            ${{ runner.temp }}/reads.md
             ${{ runner.temp }}/b/guard.log
           if-no-files-found: ignore
 
       - name: Verdict
         if: always()
-        env:
-          READS: ${{ steps.reads.outcome }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
-          [ "$READS" = success ] || { echo "::error::A check that passed now answers wrong: see the summary"; failed=1; }
-          if [ "$EVENT_NAME" != pull_request ]; then
-            jq -e '.pass == true' writes-verdict.json > /dev/null || { echo "::error::A write failed, or wrote no verdict: see the summary"; failed=1; }
-          fi
-          exit "${failed:-0}"
+          jq -e '.pass == true' writes-verdict.json > /dev/null || { echo "::error::A write failed, or wrote no verdict: see the summary"; exit 1; }

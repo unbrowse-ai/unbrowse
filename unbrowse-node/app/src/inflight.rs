@@ -159,7 +159,8 @@ pub fn done(key: &str) -> Result<(), String> {
 /// It lands, or is let go, only on what is proven (`proof::prove_on`, `verdict`): its own receipt, proven to have run
 /// or reverted, or the receipt of another transaction of the node's at its nonce, proven final. Nothing the RPC says
 /// alone, and no length of time, does either; the owner, who has looked at the chain, may let it go
-/// (`let_go_by_owner`). An RPC whose answers contradict a proof stops every write (`rpc::halt`).
+/// (`let_go_by_owner`). An RPC whose answers contradict a proof stops every write (`rpc::halt`); one that doesn't answer
+/// while a proof is read leaves the write waiting and stops nothing (UNB-171).
 pub async fn settle<P: Provider>(p: &P, key: &str) -> Result<Settled, String> {
     let Some(s) = of(key)? else { return Ok(Settled::Clear) };
     if let Some(r) = p.get_transaction_receipt(s.tx).await.map_err(|e| e.to_string())? {
@@ -171,10 +172,9 @@ pub async fn settle<P: Provider>(p: &P, key: &str) -> Result<Settled, String> {
             Ok(crate::proof::Inclusion::Proven(proven)) if proven.agreed => Some(proven.ran),
             Ok(crate::proof::Inclusion::Proven(_)) => None,
             Ok(crate::proof::Inclusion::Unprovable(_)) => None,
-            Err(e) => {
-                rpc::halt(&e);
-                return Ok(Settled::Waiting(s));
-            }
+            // An RPC that didn't answer leaves the write waiting; an answer that contradicts a proof has stopped every
+            // write where it was found (`proof::prove_on`).
+            Err(_) => return Ok(Settled::Waiting(s)),
         };
         match verdict(r.status(), proven) {
             Verdict::Landed => return Ok(Settled::Landed(s, r)),
@@ -209,10 +209,7 @@ pub async fn settle<P: Provider>(p: &P, key: &str) -> Result<Settled, String> {
                 return Ok(Settled::Clear);
             }
             Ok(crate::proof::Inclusion::Proven(_)) | Ok(crate::proof::Inclusion::Unprovable(_)) => {}
-            Err(e) => {
-                rpc::halt(&e);
-                return Ok(Settled::Waiting(s));
-            }
+            Err(_) => return Ok(Settled::Waiting(s)),
         }
     }
     let used = p.get_transaction_count(s.signer).block_id(rpc::SETTLED).await.map_err(|e| e.to_string())? > s.nonce;
@@ -454,5 +451,153 @@ mod tests {
         assert_eq!(all().unwrap().len(), 1);
         std::fs::write(path(), b"{ not json").unwrap();
         assert!(all().is_err() && keep(sending("deposit")).is_err());
+    }
+
+    /// A reply of an RPC on loopback: the JSON-RPC answer `result`.
+    fn ok(result: &str) -> (u16, String) {
+        (200, format!(r#"{{"jsonrpc":"2.0","id":0,"result":{result}}}"#))
+    }
+
+    /// A receipt as an RPC gives it, for the write `tx`, in block 5.
+    fn receipt(tx: B256) -> String {
+        format!(
+            r#"{{"transactionHash":"{tx:#x}","transactionIndex":"0x0","blockHash":"0x{}","blockNumber":"0x5","from":"0x{z40}","to":"0x{z40}","cumulativeGasUsed":"0x5208","gasUsed":"0x5208","contractAddress":null,"logs":[],"logsBloom":"0x{}","status":"0x1","effectiveGasPrice":"0x1","type":"0x2"}}"#,
+            "1".repeat(64),
+            "0".repeat(512),
+            z40 = "0".repeat(40)
+        )
+    }
+
+    /// A kept write nothing has taken: asked again, it stays waiting and its signed bytes go out once more, as the same
+    /// transaction. Nothing is let go, and nothing is signed afresh, on an RPC that shows nothing.
+    #[tokio::test]
+    async fn a_kept_write_the_chain_shows_nothing_of_is_sent_again_as_it_was_signed() {
+        let _home = store::scratch_home("sending-again");
+        keep(Sending { raw: Bytes::from(vec![1, 2, 3]), ..sending("deposit") }).unwrap();
+        let (url, taken) = rpc::tests::scripted_rpc(vec![ok("null"), ok("\"0x7\""), ok(&format!("\"{:#x}\"", B256::ZERO))]).await;
+        let p = rpc::ProviderBuilder::new().connect_http(url);
+        let Settled::Waiting(s) = settle(&p, "deposit").await.unwrap() else { panic!("a write nothing shows is still waiting") };
+        assert_eq!((s.key.as_str(), s.nonce), ("deposit", 7));
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 3, "its receipt, its nonce's use, and its bytes sent again");
+        assert_eq!(all().unwrap().len(), 1, "the record stays");
+        let (url, _) = rpc::tests::scripted_rpc(vec![]).await;
+        assert!(matches!(settle(&rpc::ProviderBuilder::new().connect_http(url), "identity").await, Ok(Settled::Clear)), "no write of another key is out: it may be sent, and nothing is asked of the chain");
+    }
+
+    /// A nonce the chain says is used, by a transaction nothing proves is the node's, doesn't free the write: it waits,
+    /// the owner is told once, and the record keeps saying so.
+    #[tokio::test]
+    async fn a_nonce_the_chain_says_is_used_does_not_free_the_write() {
+        let _home = store::scratch_home("sending-used");
+        keep(sending("deposit")).unwrap();
+        for round in 0..2 {
+            let (url, taken) = rpc::tests::scripted_rpc(vec![ok("null"), ok("\"0x8\"")]).await;
+            let p = rpc::ProviderBuilder::new().connect_http(url);
+            assert!(matches!(settle(&p, "deposit").await, Ok(Settled::Waiting(_))), "round {round}");
+            assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 2, "no bytes are sent for a nonce the chain has used");
+            assert!(of("deposit").unwrap().unwrap().told, "the owner was told, and the record says so");
+        }
+    }
+
+    /// A receipt that isn't in a final block, and a receipt the chain can't say is final, never land a write: it waits.
+    #[tokio::test]
+    async fn a_receipt_in_a_block_that_isnt_final_is_still_waiting() {
+        let _home = store::scratch_home("sending-not-final");
+        let other = B256::repeat_byte(9);
+        keep(Sending { others: vec![other], ..sending("deposit") }).unwrap();
+        // Its own receipt is there, the chain names no final block: waiting.
+        let (url, _) = rpc::tests::scripted_rpc(vec![ok(&receipt(B256::ZERO)), ok("null")]).await;
+        assert!(matches!(settle(&rpc::ProviderBuilder::new().connect_http(url), "deposit").await, Ok(Settled::Waiting(_))));
+        // Its own receipt isn't, but another of the node's at its nonce is, in a block not shown final: no release.
+        let (url, taken) = rpc::tests::scripted_rpc(vec![ok("null"), ok(&receipt(other)), ok("null"), ok("\"0x8\"")]).await;
+        assert!(matches!(settle(&rpc::ProviderBuilder::new().connect_http(url), "deposit").await, Ok(Settled::Waiting(_))));
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 4);
+        assert_eq!(all().unwrap().len(), 1, "the record stays");
+    }
+
+    /// UNB-171: an RPC that stops answering while a write's proof is read (here it goes away after the write's receipt
+    /// and final block) leaves the write waiting and stops nothing. Only an answer that contradicts a proof stops every
+    /// write; one RPC error used to stop them until the node was restarted.
+    #[tokio::test]
+    async fn an_rpc_outage_while_a_write_is_proven_does_not_stop_writes() {
+        let _one = crate::testchain::one_at_a_time().await;
+        let _home = store::scratch_home("sending-outage");
+        let other = B256::repeat_byte(9);
+        keep(Sending { others: vec![other], ..sending("deposit") }).unwrap();
+        // Block 5, final, at the hash `receipt` names.
+        let final_block = ok(&format!(
+            r#"{{"hash":"0x{h}","number":"0x5","parentHash":"0x{z}","sha3Uncles":"0x{z}","miner":"0x{z40}","stateRoot":"0x{z}","transactionsRoot":"0x{z}","receiptsRoot":"0x{z}","logsBloom":"0x{b}","difficulty":"0x0","gasLimit":"0x0","gasUsed":"0x0","timestamp":"0x0","extraData":"0x","mixHash":"0x{z}","nonce":"0x0000000000000000","uncles":[],"transactions":[]}}"#,
+            h = "1".repeat(64),
+            z = "0".repeat(64),
+            b = "0".repeat(512),
+            z40 = "0".repeat(40)
+        ));
+        // Its own receipt, then its block is final, then the RPC is gone (the scripted RPC stops listening).
+        let (url, _) = rpc::tests::scripted_rpc(vec![ok(&receipt(B256::ZERO)), final_block.clone(), ok(&receipt(B256::ZERO))]).await;
+        let settled = settle(&rpc::ProviderBuilder::new().connect_http(url), "deposit").await;
+        let halted = rpc::halted();
+        rpc::unhalt();
+        assert!(matches!(settled, Ok(Settled::Waiting(_))), "the write waits: {settled:?}");
+        assert_eq!(halted, None, "and writes go on");
+        // The same for another of the node's transactions at its nonce.
+        let (url, _) = rpc::tests::scripted_rpc(vec![ok("null"), ok(&receipt(other)), final_block, ok(&receipt(other))]).await;
+        let settled = settle(&rpc::ProviderBuilder::new().connect_http(url), "deposit").await;
+        let halted = rpc::halted();
+        rpc::unhalt();
+        assert!(matches!(settled, Ok(Settled::Waiting(_))), "the write waits: {settled:?}");
+        assert_eq!(halted, None, "and writes go on");
+        assert_eq!(all().unwrap().len(), 1, "the record stays");
+    }
+
+    /// The claim pass reads every kept write and lets none go on an RPC's word: with nothing shown, every record stays.
+    #[tokio::test]
+    async fn a_pass_lets_no_kept_write_go_on_an_rpcs_silence() {
+        let _home = store::scratch_home("sending-pass");
+        keep(sending("deposit")).unwrap();
+        keep(sending("identity")).unwrap();
+        let none = || vec![ok("null"), ok("\"0x7\""), ok(&format!("\"{:#x}\"", B256::ZERO))];
+        let (url, taken) = rpc::tests::scripted_rpc(none().into_iter().chain(none()).collect()).await;
+        pass(&rpc::ProviderBuilder::new().connect_http(url)).await;
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 6, "each write was looked at");
+        assert_eq!(all().unwrap().len(), 2, "and both stay");
+        std::fs::write(path(), b"{ not json").unwrap();
+        let (url, taken) = rpc::tests::scripted_rpc(vec![]).await;
+        pass(&rpc::ProviderBuilder::new().connect_http(url)).await;
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 0, "a file that doesn't read is asked nothing");
+    }
+
+    /// The owner who looked at the chain lets a write go: it is gone from the file, once, and a write nobody kept is
+    /// refused by name.
+    #[test]
+    fn the_owner_lets_a_kept_write_go_and_one_nobody_kept_is_refused() {
+        let _home = store::scratch_home("sending-owner");
+        keep(sending("deposit")).unwrap();
+        keep(sending("identity")).unwrap();
+        let gone = let_go_by_owner("deposit").unwrap();
+        assert_eq!((gone.key.as_str(), gone.amount), ("deposit", 5.0));
+        assert_eq!(all().unwrap().iter().map(|s| s.key.as_str()).collect::<Vec<_>>(), ["identity"]);
+        assert!(let_go_by_owner("deposit").unwrap_err().contains("no write of deposit is kept"));
+        assert!(done("deposit").is_ok(), "letting go of what isn't kept is no error");
+    }
+
+    /// What the owner is shown of a kept write says whether what it would change reads otherwise now: a hint that is
+    /// given only when the chain was read, and none for a write that names nothing to read.
+    #[tokio::test]
+    async fn a_kept_write_is_shown_with_whether_what_it_changes_reads_otherwise() {
+        let _home = store::scratch_home("sending-views");
+        let watch = |before: &'static [u8]| Some(Watch { to: Address::repeat_byte(3), data: Bytes::from(vec![0xaa]), before: Bytes::from(before) });
+        keep(Sending { watch: watch(&[1]), ..sending("a") }).unwrap();
+        keep(Sending { watch: watch(&[2]), ..sending("b") }).unwrap();
+        keep(Sending { watch: watch(&[1]), ..sending("c") }).unwrap();
+        keep(sending("d")).unwrap();
+        // `a` reads 0x01 as before, `b` reads it otherwise, `c`'s RPC gives no answer; `d` names nothing to read.
+        let (url, taken) = rpc::tests::scripted_rpc(vec![ok("\"0x01\""), ok("\"0x01\""), (500, "no".into())]).await;
+        let views = kept_views(&rpc::ProviderBuilder::new().connect_http(url)).await.unwrap();
+        assert_eq!(taken.load(std::sync::atomic::Ordering::SeqCst), 3, "d is read for nothing");
+        assert_eq!(views.iter().map(|v| (v.key.as_str(), v.changed)).collect::<Vec<_>>(), [("a", Some(false)), ("b", Some(true)), ("c", None), ("d", None)]);
+        assert_eq!((views[0].nonce, views[0].amount, views[0].signed_at, views[0].tx.as_str()), (7, 5.0, 1, format!("{:#x}", B256::ZERO).as_str()));
+        std::fs::write(path(), b"{ not json").unwrap();
+        let (url, _) = rpc::tests::scripted_rpc(vec![]).await;
+        assert!(kept_views(&rpc::ProviderBuilder::new().connect_http(url)).await.is_err(), "a file that doesn't read shows nothing");
     }
 }

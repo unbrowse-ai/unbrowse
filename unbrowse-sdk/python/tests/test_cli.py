@@ -27,6 +27,17 @@ def unbrowse(*args, bin_dir=None):
 
 
 class Cli(unittest.TestCase):
+    def test_every_command_the_node_runs_is_reached_through_unbrowse(self):
+        # The node's own source, read as the npm package's test reads it (unbrowse-sdk/typescript/test/cli.test.mjs): the
+        # first words `unbrowse-node` runs a command for. A node command this package sent to unb would fail there as a
+        # command unb doesn't have, so a command added to the node is added to NODE_COMMANDS in the same change.
+        main = (Path(__file__).resolve().parents[3] / "unbrowse-node" / "app" / "src" / "main.rs").read_text(encoding="utf-8")
+        start = main.index("\nfn main() {")
+        body = main[start:main.index("\n}\n", start)]
+        runs = sorted(set(re.findall(r'args\.get\(1\)\.map\(String::as_str\) == Some\("([a-z-]+)"\)', body)))
+        self.assertGreater(len(runs), 20, runs)
+        self.assertEqual([w for w in runs if route([w])[0] != "unbrowse-node"], [], "node commands `unbrowse` sends to unb")
+
     def test_start_and_the_nodes_commands_go_to_the_node_the_rest_to_unb(self):
         self.assertEqual(route(["start"]), ("unbrowse-node", []))
         self.assertEqual(route(["vault", "list"]), ("unbrowse-node", ["vault", "list"]))

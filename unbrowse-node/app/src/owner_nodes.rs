@@ -149,7 +149,7 @@ pub async fn sign_listing(node: St<'_>, id: &str, signature: &str) -> Result<ser
         ms: None,
         unb: None,
         tx: None,
-        note: Some(if spread { "It is listed under your wallet's identity now.".into() } else { "It is listed under your wallet's identity once its root is posted.".into() }),
+        note: Some(if spread { "It is listed under your account now.".into() } else { "It is listed under your account once its root is posted.".into() }),
     });
     node.events.emit("activity", ());
     Ok(serde_json::json!({ "id": id, "spread": spread }))
@@ -339,6 +339,7 @@ mod tests {
             auto: false,
             cap_set: false,
             payers: vec![(1, payer.map(|p| p.to_checksum(None)))],
+            gateway: None,
         };
         let all = [key(0, Some(w), false), key(1, None, false), key(2, Some(w), true), key(3, Some(other), false)];
         let named = |wallet| named_elsewhere(&all, wallet).iter().map(|a| a.index).collect::<Vec<_>>();
@@ -419,7 +420,7 @@ mod tests {
 
         let owner = attacker.address().to_string();
         let signature = format!("0x{}", hex::encode(attacker.sign_message_sync(link::message(&me, &owner, "ab12").as_bytes()).unwrap().as_bytes()));
-        let forged = link::Link { owner, nonce: "ab12".into(), signature, linked: 1, seal: None };
+        let forged = link::Link { owner, nonce: "ab12".into(), signature, linked: 1, seal: None, vid: None };
         store::write_json(&store::home().join("owner.json"), &unbrowse_files::LINK, &forged).unwrap();
         assert!(link::signed_in(&n).is_some(), "the file checks as a link");
         let (now, own) = (chain::current_epoch(&n.chain).await.unwrap(), chain::owner_address(n.keys.as_ref()).unwrap());

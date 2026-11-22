@@ -5,9 +5,10 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::RwLock;
 
-use crate::connection::get_socket_dir;
 #[cfg(windows)]
 use crate::connection::resolve_port;
+#[cfg(unix)]
+use crate::session_files::SessionFile;
 
 use super::chat::{chat_status_json, handle_chat_request, handle_models_request};
 use super::dashboard::spawn_session;
@@ -16,6 +17,8 @@ use super::discovery::discover_sessions;
 #[derive(Embed)]
 #[folder = "../packages/dashboard/out/"]
 struct DashboardAssets;
+
+pub(super) const CORS_HEADERS: &str = "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type\r\n";
 
 /// Build CORS headers that reflect the request origin only when it passes
 /// `is_allowed_origin`. Used for sensitive endpoints (chat, models) so the
@@ -142,43 +145,10 @@ fn is_same_origin_command_request(request: &str) -> bool {
     }
 }
 
-/// An `/api/*` request is the owner's only when it carries this daemon's stream
-/// secret (see `stream_token`). Headers a client writes itself cannot prove
-/// that, so they only narrow it further: Host must be loopback, and when a
-/// browser names its page in Origin or Referer, that page must be this
-/// server's own loopback origin.
-fn is_authorized_api_request(request: &str) -> bool {
-    let host_is_loopback = request_header_value(request, "host")
-        .map(normalize_host_authority)
-        .is_some_and(|host| is_loopback_authority(&host));
-    let page_is_own = if request_header_value(request, "origin").is_some()
-        || request_header_value(request, "referer").is_some()
-    {
-        is_same_origin_command_request(request)
-    } else {
-        true
-    };
-    let query = request
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .and_then(|target| target.split_once('?'))
-        .map(|(_, query)| query);
-    host_is_loopback
-        && page_is_own
-        && super::presents_token(
-            request_header_value(request, "authorization"),
-            query,
-            super::stream_token(),
-        )
-}
-
-/// CORS for an `/api/*` reply: the request's own origin when it is this
-/// server's loopback origin, nothing otherwise. Never a wildcard.
 fn command_cors_headers(request: &str) -> String {
     match request_header_value(request, "origin") {
         Some(origin) if is_same_origin_command_request(request) => format!(
-            "Access-Control-Allow-Origin: {origin}\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: Authorization, Content-Type\r\nVary: Origin\r\n"
+            "Access-Control-Allow-Origin: {origin}\r\nAccess-Control-Allow-Methods: POST, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type\r\nVary: Origin\r\n"
         ),
         _ => String::new(),
     }
@@ -215,15 +185,38 @@ pub(super) async fn handle_http_request(
     let request = String::from_utf8_lossy(peeked);
     let first_line = request.lines().next().unwrap_or("");
     let method = first_line.split_whitespace().next().unwrap_or("GET");
-    let target = first_line.split_whitespace().nth(1).unwrap_or("/");
-    let path = target.split('?').next().unwrap_or("/");
+    let path = first_line.split_whitespace().nth(1).unwrap_or("/");
     let origin = parse_origin(peeked);
-    let is_api = path.starts_with("/api/");
 
     if method == "OPTIONS" {
-        // A preflight carries no credentials, so it is answered from Origin
-        // alone; the request it precedes still needs the stream secret.
-        if is_api && !is_same_origin_command_request(&request) {
+        if path == "/api/command" {
+            if !is_same_origin_command_request(&request) {
+                write_json_error_response_no_cors(
+                    &mut stream,
+                    "403 Forbidden",
+                    "Origin or Referer does not match Host header.",
+                )
+                .await;
+                return;
+            }
+
+            let cors_headers = command_cors_headers(&request);
+            let response = format!(
+                "HTTP/1.1 204 No Content\r\n{cors_headers}Access-Control-Max-Age: 86400\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            let _ = stream.write_all(response.as_bytes()).await;
+            return;
+        }
+
+        let response = format!(
+            "HTTP/1.1 204 No Content\r\n{CORS_HEADERS}Access-Control-Max-Age: 86400\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        );
+        let _ = stream.write_all(response.as_bytes()).await;
+        return;
+    }
+
+    if method == "POST" {
+        if path == "/api/command" && !is_same_origin_command_request(&request) {
             write_json_error_response_no_cors(
                 &mut stream,
                 "403 Forbidden",
@@ -233,42 +226,16 @@ pub(super) async fn handle_http_request(
             return;
         }
 
-        let cors_headers = if is_api {
-            command_cors_headers(&request)
-        } else {
-            String::new()
-        };
-        let response = format!(
-            "HTTP/1.1 204 No Content\r\n{cors_headers}Access-Control-Max-Age: 86400\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-        );
-        let _ = stream.write_all(response.as_bytes()).await;
-        return;
-    }
-
-    // Every API route reads session data or acts in the session (relays
-    // commands, starts processes, spends the gateway key), so none of them
-    // runs for a client that does not hold the stream secret.
-    if is_api && !is_authorized_api_request(&request) {
-        write_json_error_response_no_cors(
-            &mut stream,
-            "403 Forbidden",
-            "Missing or invalid stream token, or Origin does not match Host.",
-        )
-        .await;
-        return;
-    }
-    let cors_headers = if is_api {
-        command_cors_headers(&request)
-    } else {
-        String::new()
-    };
-
-    if method == "POST" {
         let full_body = read_full_body(&mut stream, peeked).await;
         if full_body.is_none()
             && (path == "/api/chat" || path == "/api/sessions" || path == "/api/command")
         {
             let body = r#"{"error":"Request body too large"}"#;
+            let cors_headers = if path == "/api/command" {
+                command_cors_headers(&request)
+            } else {
+                CORS_HEADERS.to_string()
+            };
             let response = format!(
                 "HTTP/1.1 413 Payload Too Large\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{cors_headers}\r\n",
                 body.len()
@@ -292,7 +259,7 @@ pub(super) async fn handle_http_request(
                 ),
             };
             let response = format!(
-                "HTTP/1.1 {status}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n{cors_headers}\r\n",
+                "HTTP/1.1 {status}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n{CORS_HEADERS}\r\n",
                 resp_body.len()
             );
             let _ = stream.write_all(response.as_bytes()).await;
@@ -312,6 +279,7 @@ pub(super) async fn handle_http_request(
                     ),
                 ),
             };
+            let cors_headers = command_cors_headers(&request);
             let response = format!(
                 "HTTP/1.1 {status}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n{cors_headers}\r\n",
                 resp_body.len()
@@ -365,7 +333,7 @@ pub(super) async fn handle_http_request(
     };
 
     let response = format!(
-        "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n{cors_headers}\r\n",
+        "HTTP/1.1 {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n{CORS_HEADERS}\r\n",
         status,
         content_type,
         body.len()
@@ -381,14 +349,14 @@ fn find_header_end(buf: &[u8]) -> Option<usize> {
         .or_else(|| buf.windows(2).position(|w| w == b"\n\n").map(|p| p + 2))
 }
 
+pub(super) fn parse_content_length(headers: &str) -> Option<usize> {
+    request_header_value(headers, "content-length")?
+        .parse()
+        .ok()
+}
+
 fn parse_content_length_bytes(headers: &[u8]) -> Option<usize> {
-    let header_str = std::str::from_utf8(headers).ok()?;
-    for line in header_str.lines() {
-        if line.len() > 16 && line[..16].eq_ignore_ascii_case("content-length: ") {
-            return line[16..].trim().parse().ok();
-        }
-    }
-    None
+    parse_content_length(std::str::from_utf8(headers).ok()?)
 }
 
 const MAX_BODY_SIZE: usize = 10 * 1024 * 1024;
@@ -438,12 +406,12 @@ pub(super) async fn relay_command_to_daemon(
         cmd["id"] = json!(id);
     }
 
-    let mut json_str = serde_json::to_string(&crate::connection::for_the_door(&cmd, session_name)).map_err(|e| e.to_string())?;
+    let mut json_str = serde_json::to_string(&cmd).map_err(|e| e.to_string())?;
     json_str.push('\n');
 
     #[cfg(unix)]
     let stream = {
-        let socket_path = get_socket_dir().join(format!("{}.sock", session_name));
+        let socket_path = SessionFile::Socket.path(session_name);
         tokio::net::UnixStream::connect(&socket_path)
             .await
             .map_err(|e| format!("Failed to connect to daemon: {}", e))?
@@ -451,7 +419,8 @@ pub(super) async fn relay_command_to_daemon(
 
     #[cfg(windows)]
     let stream = {
-        let port = resolve_port(session_name);
+        let port = resolve_port(session_name)
+            .ok_or_else(|| "Failed to connect to daemon: no port file".to_string())?;
         tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port))
             .await
             .map_err(|e| format!("Failed to connect to daemon: {}", e))?
@@ -474,17 +443,23 @@ pub(super) async fn relay_command_to_daemon(
 }
 
 pub(super) fn serve_embedded_file(url_path: &str) -> (&'static str, &'static str, Vec<u8>) {
-    let clean = url_path.trim_start_matches('/');
+    let clean = url_path
+        .split(['?', '#'])
+        .next()
+        .unwrap_or_default()
+        .trim_start_matches('/');
     let key = if clean.is_empty() {
         "index.html"
     } else {
         clean
     };
 
-    let file = DashboardAssets::get(key).or_else(|| DashboardAssets::get("index.html"));
+    let file = DashboardAssets::get(key)
+        .map(|file| (key, file))
+        .or_else(|| DashboardAssets::get("index.html").map(|file| ("index.html", file)));
 
     match file {
-        Some(content) => {
+        Some((key, content)) => {
             let ext = key.rsplit('.').next().unwrap_or("");
             let ct = match ext {
                 "html" => "text/html; charset=utf-8",
@@ -517,6 +492,35 @@ mod tests {
     use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
     use tokio::sync::oneshot;
+
+    #[test]
+    fn parse_content_length_handles_spacing_case_and_unicode_header_values() {
+        let headers = "POST / HTTP/1.1\r\nX-Label: 123456é\r\ncOnTeNt-LeNgTh:\t5 \r\n\r\n";
+
+        assert_eq!(parse_content_length(headers), Some(5));
+    }
+
+    #[test]
+    fn test_serve_embedded_file_query_string() {
+        let (_, expected_content_type, expected_body) = serve_embedded_file("/");
+        let (status, content_type, body) = serve_embedded_file("/?port=35511");
+
+        assert_eq!(status, "200 OK");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert_eq!(content_type, expected_content_type);
+        assert_eq!(body, expected_body);
+    }
+
+    #[test]
+    fn test_serve_embedded_file_missing_route_falls_back_to_index() {
+        let (_, expected_content_type, expected_body) = serve_embedded_file("/");
+        let (status, content_type, body) = serve_embedded_file("/missing-route.js");
+
+        assert_eq!(status, "200 OK");
+        assert_eq!(content_type, "text/html; charset=utf-8");
+        assert_eq!(content_type, expected_content_type);
+        assert_eq!(body, expected_body);
+    }
 
     async fn send_request_to_handler(request: &str, session_name: &str) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -591,10 +595,8 @@ mod tests {
         let session_name = "x";
         let daemon_command = spawn_fake_daemon(socket_dir.path(), session_name).await;
         let body = r#"{"action":"tabs"}"#;
-        // Even holding the stream token, a page on another origin is refused.
         let request = format!(
-            "POST /api/command HTTP/1.1\r\nHost: localhost:7777\r\nOrigin: https://evil.example\r\nAuthorization: Bearer {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-            super::super::stream_token(),
+            "POST /api/command HTTP/1.1\r\nHost: localhost:7777\r\nOrigin: https://evil.example\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
             body.len(),
             body
         );
@@ -605,32 +607,11 @@ mod tests {
             response.starts_with("HTTP/1.1 403 Forbidden"),
             "unexpected response: {response}"
         );
-
-        // A forged same-origin request: Host and Origin agree and are
-        // loopback, exactly what a raw local client can write for itself.
-        // Only the stream token is missing or wrong, and that alone refuses it.
-        let body = r#"{"action":"cookies_get"}"#;
-        for authorization in [
-            String::new(),
-            format!("Authorization: Bearer {}\r\n", "0".repeat(64)),
-        ] {
-            let request = format!(
-                "POST /api/command HTTP/1.1\r\nHost: 127.0.0.1:7777\r\nOrigin: http://127.0.0.1:7777\r\n{authorization}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-                body.len(),
-                body
-            );
-            let response = send_request_to_handler(&request, session_name).await;
-            assert!(
-                response.starts_with("HTTP/1.1 403 Forbidden"),
-                "a forged same-origin request without the token was answered: {response}"
-            );
-        }
-
         assert!(
             tokio::time::timeout(std::time::Duration::from_millis(50), daemon_command)
                 .await
                 .is_err(),
-            "a request without the stream token or from another origin reached the daemon relay"
+            "cross-origin request reached daemon command relay"
         );
     }
 
@@ -742,8 +723,7 @@ mod tests {
         let daemon_command = spawn_fake_daemon(socket_dir.path(), session_name).await;
         let body = r#"{"action":"tabs"}"#;
         let request = format!(
-            "POST /api/command HTTP/1.1\r\nHost: localhost:7777\r\nOrigin: http://localhost:7777\r\nAuthorization: Bearer {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
-            super::super::stream_token(),
+            "POST /api/command HTTP/1.1\r\nHost: localhost:7777\r\nOrigin: http://localhost:7777\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}",
             body.len(),
             body
         );
@@ -768,55 +748,5 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(relayed.contains(r#""action":"tabs""#), "{relayed}");
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn no_api_route_answers_without_the_stream_token() {
-        for (method, path, body) in [
-            ("GET", "/api/sessions", ""),
-            ("GET", "/api/tabs", ""),
-            ("GET", "/api/status", ""),
-            ("GET", "/api/chat/status", ""),
-            ("GET", "/api/models", ""),
-            ("POST", "/api/sessions", r#"{"session":"dummy1"}"#),
-            ("POST", "/api/chat", r#"{"session":"x","messages":[]}"#),
-        ] {
-            for origin in ["", "Origin: https://evil.example\r\n", "Origin: http://localhost:7777\r\n"] {
-                let request = format!(
-                    "{method} {path} HTTP/1.1\r\nHost: localhost:7777\r\n{origin}Content-Type: text/plain\r\nContent-Length: {}\r\n\r\n{body}",
-                    body.len()
-                );
-                let response = send_request_to_handler(&request, "x").await;
-                assert!(
-                    response.starts_with("HTTP/1.1 403 Forbidden"),
-                    "{method} {path} answered without the token: {response}"
-                );
-                assert!(
-                    !response.contains("Access-Control-Allow-Origin"),
-                    "{method} {path} exposed CORS: {response}"
-                );
-            }
-        }
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn session_data_is_never_served_with_wildcard_cors() {
-        let token = super::super::stream_token();
-        let tabs = format!(
-            "GET /api/tabs HTTP/1.1\r\nHost: localhost:7777\r\nAuthorization: Bearer {token}\r\n\r\n"
-        );
-        let response = send_request_to_handler(&tabs, "x").await;
-        assert!(response.starts_with("HTTP/1.1 200 OK"), "{response}");
-        assert!(!response.contains("Access-Control-Allow-Origin"), "{response}");
-
-        let rebinding = format!(
-            "GET /api/tabs HTTP/1.1\r\nHost: attacker.example:7777\r\nAuthorization: Bearer {token}\r\n\r\n"
-        );
-        let response = send_request_to_handler(&rebinding, "x").await;
-        assert!(response.starts_with("HTTP/1.1 403 Forbidden"), "{response}");
-
-        let page = "GET / HTTP/1.1\r\nHost: localhost:7777\r\nOrigin: https://evil.example\r\n\r\n";
-        let response = send_request_to_handler(page, "x").await;
-        assert!(!response.contains("Access-Control-Allow-Origin"), "{response}");
     }
 }

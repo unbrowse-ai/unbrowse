@@ -7,14 +7,20 @@
 //
 // A batch is kept whole or refused whole (400): every event must hold the allowed fields only, each value from its
 // list or of its shape (./schema.js). Nothing else about the request is kept: not the caller's IP address, its
-// headers, its country or the exact time. An event's row holds its own fields and the hour it arrived.
+// headers, its country or the exact time. An event's row holds its own fields and the hour it arrived, and is deleted
+// KEEP_DAYS after that hour: each batch that is kept deletes, in the same transaction, every row past that age.
 
 import { checkBatch, MAX_BODY_BYTES } from "./schema.js";
 import * as report from "./report.js";
-import { namedQueries } from "./sql.js";
+import { bindings, namedQueries } from "./sql.js";
 
-const COLUMNS = ["event", "version", "os", "install_id", "tool", "outcome", "duration_ms", "error_class"];
-const INSERT = `INSERT INTO events (received_hour, ${COLUMNS.join(", ")}) VALUES (?, ${COLUMNS.map(() => "?").join(", ")})`;
+// Each event field and the column it is kept in: `from` is a word SQL keeps for itself, so its column is from_tag.
+const COLUMNS = { event: "event", version: "version", os: "os", install_id: "install_id", tool: "tool", outcome: "outcome", duration_ms: "duration_ms", error_class: "error_class", from: "from_tag" };
+const FIELDS_KEPT = Object.keys(COLUMNS);
+/** How long an event's row is kept, in days from the hour it arrived. PRIVACY.md says the same. */
+export const KEEP_DAYS = 400;
+const EXPIRE = "DELETE FROM events WHERE received_hour < ?";
+const INSERT = `INSERT INTO events (received_hour, ${Object.values(COLUMNS).join(", ")}) VALUES (?, ${FIELDS_KEPT.map(() => "?").join(", ")})`;
 
 function answer(status, body) {
   return new Response(body === undefined ? null : JSON.stringify(body), {
@@ -64,7 +70,7 @@ export async function handle(request, env, now = Date.now(), fetcher = (url, ini
   const { pathname } = new URL(request.url);
   if (pathname === "/healthz") return answer(200, { status: "ok" });
   if (pathname === "/v1/reports") return relay(request, env, now, fetcher);
-  if (pathname.startsWith("/v1/stats/")) return stats(request, env, pathname.slice("/v1/stats/".length));
+  if (pathname.startsWith("/v1/stats/")) return stats(request, env, pathname.slice("/v1/stats/".length), new URL(request.url).searchParams);
   if (pathname !== "/v1/events") return answer(404, { error: "not found" });
   if (request.method !== "POST") return answer(405, { error: "POST a batch of events" });
   if (!isJson(request)) return answer(415, { error: "send JSON" });
@@ -81,7 +87,10 @@ export async function handle(request, env, now = Date.now(), fetcher = (url, ini
   const hour = hourOf(now);
   const insert = env.TELEMETRY_DB.prepare(INSERT);
   try {
-    await env.TELEMETRY_DB.batch(events.map((e) => insert.bind(hour, ...COLUMNS.map((c) => e[c] ?? null))));
+    await env.TELEMETRY_DB.batch([
+      ...events.map((e) => insert.bind(hour, ...FIELDS_KEPT.map((f) => e[f] ?? null))),
+      env.TELEMETRY_DB.prepare(EXPIRE).bind(hour - KEEP_DAYS * 86400),
+    ]);
   } catch {
     return answer(503, { error: "not kept; the node drops it" });
   }
@@ -308,6 +317,7 @@ async function relay(request, env, now, fetcher) {
 // ---- reading the counts ----
 //
 //   GET /v1/stats/<name>   Authorization: Bearer <ADMIN_TOKEN>   → 200 {"name": …, "rows": [...]}
+//   GET /v1/stats/install?id=<install id>   the one question that takes a value: bound, after its shape is checked
 //
 // Only the named questions in queries.sql, never SQL from the caller. With no ADMIN_TOKEN secret the door doesn't
 // exist (404), and a wrong token gets the same 404, so the worker never says whether it has one.
@@ -321,7 +331,7 @@ function same(a, b) {
   return diff === 0;
 }
 
-async function stats(request, env, name) {
+async function stats(request, env, name, search = new URLSearchParams()) {
   const token = env.ADMIN_TOKEN || "";
   const given = (request.headers.get("authorization") || "").replace(/^Bearer /, "");
   if (token.length < 16 || !same(given, token)) return answer(404, { error: "not found" });
@@ -329,8 +339,10 @@ async function stats(request, env, name) {
   const queries = namedQueries(env.QUERIES || "");
   if (!name) return answer(200, { names: Object.keys(queries) });
   if (!Object.hasOwn(queries, name)) return answer(404, { error: `no question named ${name}`, names: Object.keys(queries) });
+  const bound = bindings(name, search);
+  if (bound.error) return answer(400, { error: bound.error });
   try {
-    const { results } = await env.TELEMETRY_DB.prepare(queries[name]).all();
+    const { results } = await env.TELEMETRY_DB.prepare(queries[name]).bind(...bound.values).all();
     return answer(200, { name, rows: results });
   } catch {
     return answer(503, { error: "the store didn't answer" });

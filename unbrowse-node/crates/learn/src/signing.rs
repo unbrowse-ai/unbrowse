@@ -253,6 +253,14 @@ pub fn discover(graph: &mut Graph, trace: &Trace, probes: &[Probe], env: &crate:
             if !matches!(field.class, Class::Computed | Class::Unconfirmed { .. }) {
                 continue;
             }
+            // A header that says what the body is or what answer is wanted, written as a plain media type, coding or
+            // language list, is the same on every call: the page's code writes it, but no code makes it up. It is no
+            // reason to run the page, whatever script names it.
+            if let (crate::slots::Loc::Header(name), Class::Unconfirmed { value }) = (&field.loc, &field.class) {
+                if says_what_the_body_is(name, value) {
+                    continue;
+                }
+            }
             // A value in the call's own address that reads as a hash: where the walks hold the call more than once,
             // its recipe is searched for among what the call itself carries, and kept when it rebuilds every sighting.
             if let crate::slots::Loc::Query(key) = &field.loc {
@@ -571,6 +579,9 @@ fn part_value(part: &Part, request: &crate::replay::Request, body: Option<&str>,
         },
         Part::Method => request.method.to_uppercase(),
         Part::Body => body.unwrap_or_default().to_string(),
+        // A cookie the session doesn't hold yet is signed over as nothing, as the page's own code signs before its
+        // gateway has handed it the token (`replay::resigned` sends the call again once it has). The expression a body
+        // carries reads it the same way (`Expr::Hash`).
         Part::Cookie { name } => cookies.iter().find(|(k, _)| k == name).or_else(|| cookies.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)))?.1.clone(),
         Part::Constant { value } => value.clone(),
         Part::Fresh { template } => render(template, now_ms, digits),
@@ -602,28 +613,107 @@ fn render(template: &str, now_ms: u64, digits: &mut impl FnMut(usize) -> String)
 
 /// The recipe's value for a call: the parts joined and hashed.
 /// The recipe for the value a step's call sends under `key` in its address, searched for over every sighting of
-/// that call in this walk and the page's earlier ones (`fit_by_search`). None when the call was seen once, its
-/// values under `key` never differ, or nothing the call carries makes them.
+/// that call (and of its siblings at the same gateway) in this walk and the page's earlier ones (`fit_by_search`),
+/// else beside its kin elsewhere on the site. None when nothing sighted a second value under `key`, or nothing the
+/// calls carry makes them.
 fn searched(method: &str, address: &str, key: &str, trace: &Trace, history: &[(Trace, Vec<Probe>)]) -> Option<Recipe> {
-    let path = url::Url::parse(address).map(|u| u.path().to_string()).unwrap_or_else(|_| address.split('?').next().unwrap_or_default().to_string());
+    type Seen = (String, crate::replay::Request, Option<String>, Vec<(String, String)>);
+    let parsed = url::Url::parse(address).ok();
+    let path = parsed.as_ref().map(|u| u.path().to_string()).unwrap_or_else(|| address.split('?').next().unwrap_or_default().to_string());
+    let host = parsed.as_ref().and_then(|u| u.host_str().map(str::to_ascii_lowercase));
+    let keys_of = |u: &url::Url| u.query_pairs().map(|(k, _)| k.into_owned()).collect::<std::collections::BTreeSet<String>>();
+    let keys = parsed.as_ref().map(keys_of).unwrap_or_default();
+    // The same call, or a sibling of it the same code signed: a gateway that serves many operations at addresses of
+    // their own (one path an operation) signs every one of them the same way, and its calls say so by their shape —
+    // the same host, the same names in their address, the signed one among them. Each is a sighting of the one
+    // producer; a recipe is kept only if it rebuilds every one of them, so a sibling that signs otherwise refutes it.
+    let on_host = |e: &Exchange| host.as_deref().is_some_and(|h| e.url.host_str().is_some_and(|x| x.eq_ignore_ascii_case(h)));
+    let sibling = |e: &Exchange| on_host(e) && keys.contains(key) && keys.len() >= 3 && keys_of(&e.url) == keys;
     // Each sighting: the value, the request as sent, its body and its cookies.
-    let seen: Vec<(String, crate::replay::Request, Option<String>, Vec<(String, String)>)> = std::iter::once(trace)
-        .chain(history.iter().map(|(t, _)| t))
-        .flat_map(|t| t.exchanges.iter())
-        .filter(|e| e.method == method && e.url.path() == path)
-        .filter_map(|e| {
-            let value = e.url.query_pairs().find(|(k, _)| k == key)?.1.into_owned();
-            let request = crate::replay::Request { method: e.method.clone(), url: e.url.clone(), exchange: 0, headers: Vec::new(), body: None };
-            Some((value, request, e.request_body.clone(), e.cookies()))
-        })
-        .collect();
-    let distinct: std::collections::BTreeSet<&str> = seen.iter().map(|(v, ..)| v.as_str()).collect();
-    if distinct.len() < 2 {
-        return None;
+    let sighting_of = |e: &Exchange| -> Option<Seen> {
+        let value = e.url.query_pairs().find(|(k, _)| k == key)?.1.into_owned();
+        let request = crate::replay::Request { method: e.method.clone(), url: e.url.clone(), exchange: 0, headers: Vec::new(), body: None };
+        Some((value, request, e.request_body.clone(), e.cookies()))
+    };
+    let calls: Vec<&Exchange> = std::iter::once(trace).chain(history.iter().map(|(t, _)| t)).flat_map(|t| t.exchanges.iter()).filter(|e| e.method == method).collect();
+    let alike = |e: &Exchange| e.url.path() == path || sibling(e);
+    let mut seen: Vec<Seen> = calls.iter().filter(|e| alike(e)).filter_map(|e| sighting_of(e)).collect();
+    fn as_sightings<'a>(seen: &[&'a Seen]) -> Vec<Sighting<'a>> {
+        seen.iter().map(|(value, request, body, cookies)| Sighting { value, request, body: body.as_deref(), cookies }).collect()
     }
-    let sightings: Vec<Sighting<'_>> = seen.iter().map(|(value, request, body, cookies)| Sighting { value, request, body: body.as_deref(), cookies }).collect();
-    fit_by_search(&sightings, key)
+    let distinct: std::collections::BTreeSet<&str> = seen.iter().map(|(v, ..)| v.as_str()).collect();
+    if distinct.len() >= 2 {
+        if let Some(recipe) = fit_by_search(&as_sightings(&seen.iter().collect::<Vec<_>>()), key) {
+            return Some(recipe);
+        }
+        // A gateway's first calls go out before the session holds its token, signed over whatever the page's code had
+        // in its place: they say nothing of a recipe over the token. The calls made once the session held every cookie
+        // the fullest of them carries are sightings again; one alone is tried beside its kin, below.
+        let names = |s: &Seen| s.3.iter().filter(|(_, v)| !v.is_empty()).map(|(k, _)| k.clone()).collect::<std::collections::BTreeSet<String>>();
+        let fullest = seen.iter().map(names).max_by_key(|n| n.len()).unwrap_or_default();
+        let lacking = |s: &Seen| !fullest.is_subset(&names(s));
+        if !seen.iter().any(lacking) {
+            return None;
+        }
+        seen.retain(|s| !lacking(s));
+        let distinct: std::collections::BTreeSet<&str> = seen.iter().map(|(v, ..)| v.as_str()).collect();
+        if distinct.len() >= 2 {
+            return fit_by_search(&as_sightings(&seen.iter().collect::<Vec<_>>()), key);
+        }
+    }
+    // The call alone, or always with the same value: its kin elsewhere on the site may be sightings of the same signer.
+    // A gateway's operations differ in a name or two of their address, or sit on another of the site's hosts; what
+    // they share is the signed value's place and shape. Each is tried beside the call, the likeliest first (the most
+    // names in common), and a recipe is kept only if it rebuilds the call and that one, and every other kin it can be
+    // computed for: kin that sign otherwise refute it, kin that carry none of its parts say nothing.
+    let (target, value) = seen.first().map(|s| (s, s.0.as_str()))?;
+    let shape = |v: &str| (v.len(), v.chars().all(|c| c.is_ascii_hexdigit()));
+    let site = host.as_deref().map(crate::identity::site_of).filter(|s| !s.is_empty())?;
+    let mut kin: Vec<(usize, Seen)> = calls
+        .iter()
+        .filter(|e| !alike(e) && e.url.host_str().is_some_and(|h| crate::identity::site_of(h) == site))
+        .filter_map(|e| sighting_of(e).map(|s| (keys_of(&e.url).intersection(&keys).count(), s)))
+        .filter(|(_, s)| s.0 != value && shape(&s.0) == shape(value))
+        .collect();
+    kin.sort_by_key(|k| std::cmp::Reverse(k.0));
+
+    let rebuilds = |recipe: &Recipe, s: &Seen| match compute_with(recipe, &s.1, s.2.as_deref(), &s.3, 0, |_| String::new()) {
+        Some(made) => made == s.0,
+        None => true,
+    };
+    for (_, one) in kin.iter().take(MOST_KIN) {
+        let Some(recipe) = fit_by_search(&as_sightings(&[target, one]), key) else { continue };
+        if kin.iter().all(|(_, s)| rebuilds(&recipe, s)) {
+            return Some(recipe);
+        }
+    }
+    None
 }
+
+/// Whether a header is one that describes the body or the answer wanted (`content-type`, `accept`, their encodings and
+/// languages) and its value reads as such a description: media types, codings or language tags, each with short
+/// parameters, and no run of letters or digits long enough to be a token.
+pub(crate) fn says_what_the_body_is(name: &str, value: &str) -> bool {
+    const DESCRIBES: [&str; 6] = ["content-type", "content-encoding", "content-language", "accept", "accept-encoding", "accept-language"];
+    if !DESCRIBES.iter().any(|h| name.eq_ignore_ascii_case(h)) || value.trim().is_empty() || value.len() > 256 {
+        return false;
+    }
+    let token = |t: &str| !t.is_empty() && t.len() <= 64 && t.chars().all(|c| c.is_ascii_alphanumeric() || "-+._*!#$&^`|~".contains(c));
+    let longest_run = value.split(|c: char| !c.is_ascii_alphanumeric()).map(str::len).max().unwrap_or(0);
+    longest_run <= 24
+        && value.split(',').all(|item| {
+            let mut pieces = item.split(';').map(str::trim);
+            let head = pieces.next().unwrap_or_default();
+            let described = match head.split_once('/') {
+                Some((kind, sub)) => token(kind) && token(sub),
+                None => token(head),
+            };
+            described && pieces.all(|p| p.split_once('=').is_some_and(|(k, v)| token(k.trim()) && token(v.trim().trim_matches('"'))))
+        })
+}
+
+/// The most of a call's kin elsewhere on its site a signature's search is tried beside, one at a time.
+const MOST_KIN: usize = 3;
 
 /// One sighting of a value the page's code made: the value, and the request that carried it.
 pub struct Sighting<'a> {
@@ -680,13 +770,19 @@ pub fn fit_by_search_by(sightings: &[Sighting<'_>], own: &str, constants: &[Stri
     if let Some(body) = first.body.filter(|b| !b.is_empty()) {
         held.push((Part::Body, body.to_string()));
     }
-    for (name, value) in first.cookies.iter().filter(|(_, v)| v.len() >= 8).take(24) {
-        held.push((Part::Cookie { name: name.clone() }, value.clone()));
+    // A session's token as a page signs with it is the head of a cookie that carries its expiry after a separator, more
+    // often than a whole cookie: the pieces go first, the whole cookies after, so a recipe over a few of the call's
+    // values and one piece is reached long before the search's bound.
+    let cookies: Vec<&(String, String)> = first.cookies.iter().filter(|(_, v)| v.len() >= 8).take(24).collect();
+    for (name, value) in &cookies {
         for separator in ["_", ".", "|"] {
             if value.contains(separator) {
                 held.push((Part::CookiePiece { name: name.clone(), separator: separator.into(), index: 0 }, value.split(separator).next().unwrap_or_default().to_string()));
             }
         }
+    }
+    for (name, value) in &cookies {
+        held.push((Part::Cookie { name: name.clone() }, value.clone()));
     }
     // A sibling header the same call carries: a page that signs over a clock reading (`x-ts`) sends that reading in a
     // header of its own and hashes it from there. Not a header the browser writes by itself (its shape is the
@@ -710,44 +806,48 @@ pub fn fit_by_search_by(sightings: &[Sighting<'_>], own: &str, constants: &[Stri
     held.retain(|(_, v)| !v.is_empty());
     let mut tried = 0usize;
     let holds = |recipe: &Recipe| rest.iter().all(|s| compute_with(recipe, s.request, s.body, s.cookies, 0, |_| String::new()).as_deref() == Some(s.value));
+    // Each count of parts, and within it every ordered choice by the furthest part it reaches: all the choices among
+    // the first parts before any that reaches further, so the search's bound is spent on the likeliest first.
     for count in 2..=4usize.min(held.len()) {
-        let mut at = vec![0usize; count];
-        loop {
-            // No part twice: a page hashes each thing it carries once.
-            if (0..count).all(|i| (0..i).all(|j| at[i] != at[j])) {
-                for separator in ["&", "", "|", ":"] {
-                    tried += 1;
-                    let text = at.iter().map(|&i| held[i].1.as_str()).collect::<Vec<_>>().join(separator);
-                    if algo.hash(&text) == first.value {
-                        let recipe = Recipe { algo, separator: separator.to_string(), parts: at.iter().map(|&i| held[i].0.clone()).collect() };
-                        if holds(&recipe) {
-                            return Some(recipe);
+        for top in count - 1..held.len() {
+            let mut at = vec![0usize; count];
+            loop {
+                // No part twice: a page hashes each thing it carries once. And this round's choices reach `top`, and no further.
+                if at.contains(&top) && (0..count).all(|i| (0..i).all(|j| at[i] != at[j])) {
+                    for separator in ["&", "", "|", ":"] {
+                        tried += 1;
+                        let text = at.iter().map(|&i| held[i].1.as_str()).collect::<Vec<_>>().join(separator);
+                        if algo.hash(&text) == first.value {
+                            let recipe = Recipe { algo, separator: separator.to_string(), parts: at.iter().map(|&i| held[i].0.clone()).collect() };
+                            if holds(&recipe) {
+                                return Some(recipe);
+                            }
                         }
                     }
+                    if tried > MOST_TRIED {
+                        return None;
+                    }
                 }
-                if tried > MOST_TRIED {
-                    return None;
+                // The next choice, as a number counted in base `top + 1`.
+                let mut place = count;
+                loop {
+                    if place == 0 {
+                        break;
+                    }
+                    place -= 1;
+                    at[place] += 1;
+                    if at[place] <= top {
+                        break;
+                    }
+                    at[place] = 0;
+                    if place == 0 {
+                        place = usize::MAX;
+                        break;
+                    }
                 }
-            }
-            // The next choice, as a number counted in base `held.len()`.
-            let mut place = count;
-            loop {
-                if place == 0 {
+                if place == usize::MAX {
                     break;
                 }
-                place -= 1;
-                at[place] += 1;
-                if at[place] < held.len() {
-                    break;
-                }
-                at[place] = 0;
-                if place == 0 {
-                    place = usize::MAX;
-                    break;
-                }
-            }
-            if place == usize::MAX {
-                break;
             }
         }
     }
@@ -757,6 +857,27 @@ pub fn fit_by_search_by(sightings: &[Sighting<'_>], own: &str, constants: &[Stri
 pub fn compute_with(recipe: &Recipe, request: &crate::replay::Request, body: Option<&str>, cookies: &[(String, String)], now_ms: u64, mut digits: impl FnMut(usize) -> String) -> Option<String> {
     let parts: Option<Vec<String>> = recipe.parts.iter().map(|p| part_value(p, request, body, cookies, now_ms, &mut digits)).collect();
     Some(recipe.algo.hash(&parts?.join(&recipe.separator)))
+}
+
+/// The value a gateway's first call carries before the session holds the token it signs over: `compute_with` with each
+/// cookie the recipe reads and the call lacks taken as nothing in its place, as a page's own code signs before it has
+/// one. Only for that first call: a gateway that issues its own token answers it with the token, and the call is made
+/// again over what it handed over (`replay::resigned`). Every other part the call lacks still makes no value.
+pub fn compute_before_token(recipe: &Recipe, request: &crate::replay::Request, body: Option<&str>, cookies: &[(String, String)], now_ms: u64, digits: impl FnMut(usize) -> String) -> Option<String> {
+    let mut held = cookies.to_vec();
+    for part in &recipe.parts {
+        // Found as `part_value` finds it: a whole cookie by name ignoring case as a second chance, a piece by name.
+        let lacked = match part {
+            Part::Cookie { name } => !held.iter().any(|(k, _)| k.eq_ignore_ascii_case(name)),
+            Part::CookiePiece { name, .. } => !held.iter().any(|(k, _)| k == name),
+            _ => continue,
+        };
+        let (Part::Cookie { name } | Part::CookiePiece { name, .. }) = part else { continue };
+        if lacked {
+            held.push((name.clone(), String::new()));
+        }
+    }
+    compute_with(recipe, request, body, &held, now_ms, digits)
 }
 
 /// The same, on the clock and a page's own random: what a call sends.
@@ -1036,6 +1157,114 @@ mod tests {
         assert!(fit_by_search(&plain, "sign").is_none());
     }
 
+    /// A call as busy as a real gateway's (fifteen values in its address, twenty cookies of a session) whose signature is
+    /// over a piece of a cookie late in its session and three of its values: the search reaches it within its bound,
+    /// because the few parts are tried together before any choice reaching further.
+    #[test]
+    fn a_signature_over_a_cookie_piece_is_found_on_a_busy_call() {
+        let made = |token: &str, t: &str, data: &str| Algo::Md5.hash(&format!("{token}&{t}&24677475&{data}"));
+        let call = |t: &str, data: &str, sign: &str| {
+            let mut pairs: Vec<(String, String)> = vec![("jsv".into(), "2.7.5".into()), ("appKey".into(), "24677475".into()), ("t".into(), t.into()), ("sign".into(), sign.into()), ("api".into(), "shop.recommend".into()), ("v".into(), "1.0".into())];
+            pairs.extend((0..9).map(|n| (format!("opt{n}"), format!("value-{n}"))));
+            pairs.push(("data".into(), data.into()));
+            crate::replay::Request { method: "GET".into(), url: url::Url::parse_with_params("https://api.shop.example/h5/recommend/1.0/", &pairs).unwrap(), exchange: 0, headers: Vec::new(), body: None }
+        };
+        let mut cookies: Vec<(String, String)> = (0..19).map(|n| (format!("c{n}"), format!("{n:02}a7f3e9b1c4d2e8f0_x"))).collect();
+        cookies.push(("_tk".to_string(), "5f3a9c21e4d7b8a6_1794402700000".to_string()));
+        let (one, two) = (made("5f3a9c21e4d7b8a6", "1794402610160", r#"{"q":"lamps"}"#), made("5f3a9c21e4d7b8a6", "1794402629232", r#"{"q":"kettles"}"#));
+        let (first, second) = (call("1794402610160", r#"{"q":"lamps"}"#, &one), call("1794402629232", r#"{"q":"kettles"}"#, &two));
+        let sightings = [Sighting { value: &one, request: &first, body: None, cookies: &cookies }, Sighting { value: &two, request: &second, body: None, cookies: &cookies }];
+        let recipe = fit_by_search(&sightings, "sign").expect("a recipe within the bound");
+        assert_eq!(recipe.parts, vec![Part::CookiePiece { name: "_tk".into(), separator: "_".into(), index: 0 }, Part::Query { key: "t".into() }, Part::Query { key: "appKey".into() }, Part::Query { key: "data".into() }]);
+    }
+
+    /// A gateway that serves each operation at an address of its own signs them all the same way: calls of one host
+    /// whose addresses carry the same names, each seen once, are sightings of one producer, and the recipe is fitted
+    /// over them and holds for every one. A sibling that signs another way refutes it, and calls of another shape are
+    /// no sightings at all.
+    /// A gateway's first calls go out before the session holds its token, signed over whatever the page's code had in
+    /// its place (here the word a script writes for a value it lacks); the calls after carry the token. The first say
+    /// nothing of the recipe: it is fitted from the calls that carry the token, the same operation's or, where that is
+    /// seen once, its sibling operations'. Calls that all lack the token still give nothing.
+    #[test]
+    fn a_call_made_before_its_token_says_nothing_of_the_recipe() {
+        let token = "5f3a9c21e4d7b8a6";
+        let made = |tk: &str, t: &str, data: &str| Algo::Md5.hash(&format!("{tk}&{t}&24677475&{data}"));
+        let call = |op: &str, t: &str, data: &str, tk: Option<&str>| Exchange {
+            method: "GET".into(),
+            url: url::Url::parse_with_params(
+                &format!("https://api.shop.example/h5/{op}/1.0/"),
+                &[("jsv", "2.7.5"), ("appKey", "24677475"), ("t", t), ("sign", &made(tk.unwrap_or("undefined"), t, data)), ("api", op), ("data", data)],
+            )
+            .unwrap(),
+            request_headers: vec![("cookie".into(), match tk {
+                Some(tk) => format!("_tk={tk}_1794402700000; _tk_enc=0123456789abcdef; lang=en-SG-long"),
+                None => "lang=en-SG-long".into(),
+            })],
+            status: 200,
+            response_mime: "application/json".into(),
+            resource_type: Some("XHR".into()),
+            ..script("")
+        };
+        let piece = vec![Part::CookiePiece { name: "_tk".into(), separator: "_".into(), index: 0 }, Part::Query { key: "t".into() }, Part::Query { key: "appKey".into() }, Part::Query { key: "data".into() }];
+        let before = call("shop.recommend", "1794402610160", r#"{"page":1}"#, None);
+        // The same operation again, with the token.
+        let trace = Trace { exchanges: vec![before.clone(), call("shop.recommend", "1794402629232", r#"{"page":1}"#, Some(token)), call("shop.recommend", "1794402631000", r#"{"page":2}"#, Some(token))], inputs: vec![] };
+        let address = trace.exchanges[1].url.to_string();
+        assert_eq!(searched("GET", &address, "sign", &trace, &[]).map(|r| r.parts), Some(piece.clone()), "from the calls that carry the token");
+        // Seen once with the token: its sibling operations, called with it, are the other sightings.
+        let trace = Trace { exchanges: vec![before.clone(), call("shop.recommend", "1794402629232", r#"{"page":1}"#, Some(token)), call("im.token", "1794402640000", r#"{"x":2}"#, Some(token))], inputs: vec![] };
+        let address = trace.exchanges[1].url.to_string();
+        assert_eq!(searched("GET", &address, "sign", &trace, &[]).map(|r| r.parts), Some(piece), "beside a sibling that carries it");
+        // Every call without the token: nothing to fit a recipe over the token from.
+        let none = Trace { exchanges: vec![before, call("shop.recommend", "1794402629232", r#"{"page":1}"#, None)], inputs: vec![] };
+        assert!(searched("GET", none.exchanges[1].url.as_ref(), "sign", &none, &[]).is_none());
+    }
+
+    #[test]
+    fn a_gateways_operations_are_sightings_of_one_signer() {
+        let token = "5f3a9c21e4d7b8a6";
+        let made = |t: &str, data: &str| Algo::Md5.hash(&format!("{token}&{t}&24677475&{data}"));
+        let call = |op: &str, t: &str, data: &str, sign: &str| Exchange {
+            method: "GET".into(),
+            url: url::Url::parse_with_params(&format!("https://api.shop.example/h5/{op}/1.0/"), &[("jsv", "2.7.5"), ("appKey", "24677475"), ("t", t), ("sign", sign), ("api", op), ("data", data)]).unwrap(),
+            request_headers: vec![("cookie".into(), format!("_tk={token}_1794402700000; lang=en-SG-long"))],
+            status: 200,
+            response_mime: "application/json".into(),
+            resource_type: Some("XHR".into()),
+            ..script("")
+        };
+        let calls = [("user.get", "1794402610160", r#"{}"#), ("shop.recommend", "1794402629232", r#"{"page":1}"#), ("im.token", "1794402631000", r#"{"x":2}"#)];
+        let trace = Trace { exchanges: calls.iter().map(|(op, t, d)| call(op, t, d, &made(t, d))).collect(), inputs: vec![] };
+        let address = trace.exchanges[1].url.to_string();
+        let recipe = searched("GET", &address, "sign", &trace, &[]).expect("the operations are sightings of one signer");
+        assert_eq!(recipe.parts, vec![Part::CookiePiece { name: "_tk".into(), separator: "_".into(), index: 0 }, Part::Query { key: "t".into() }, Part::Query { key: "appKey".into() }, Part::Query { key: "data".into() }]);
+        // One operation signed another way: no recipe holds for every sighting.
+        let mut odd = trace.clone();
+        odd.exchanges[2] = call("im.token", "1794402631000", r#"{"x":2}"#, &Algo::Md5.hash("something else"));
+        assert!(searched("GET", &address, "sign", &odd, &[]).is_none(), "a sibling that signs otherwise refutes it");
+        // Calls of another shape (other names in the address) are no sightings: the target alone proves nothing.
+        let mut apart = trace.clone();
+        for e in apart.exchanges.iter_mut().filter(|e| !e.url.path().contains("recommend")) {
+            e.url.query_pairs_mut().append_pair("extra", "1");
+        }
+        // Calls of another shape still sign as one: tried beside the call as its kin, the recipe that rebuilds the call
+        // and every kin is kept.
+        assert_eq!(searched("GET", &address, "sign", &apart, &[]).map(|r| r.parts.len()), Some(4), "kin of another shape, signed the same way");
+        // Kin that sign otherwise give no recipe, and kin on another site are no kin.
+        let mut stranger = apart.clone();
+        for e in stranger.exchanges.iter_mut().filter(|e| !e.url.path().contains("recommend")) {
+            let _ = e.url.set_host(Some("api.elsewhere.example"));
+        }
+        assert!(searched("GET", &address, "sign", &stranger, &[]).is_none(), "another site's calls");
+        let mut otherwise = apart.clone();
+        for e in otherwise.exchanges.iter_mut().filter(|e| !e.url.path().contains("recommend")) {
+            let pairs: Vec<(String, String)> = e.url.query_pairs().map(|(k, v)| if k == "sign" { (k.into_owned(), Algo::Md5.hash(&format!("{v}!"))) } else { (k.into_owned(), v.into_owned()) }).collect();
+            e.url.query_pairs_mut().clear().extend_pairs(pairs);
+        }
+        assert!(searched("GET", &address, "sign", &otherwise, &[]).is_none(), "kin that sign otherwise");
+    }
+
     /// A header the page hashes over a clock reading it sends in a sibling header and the query (the matrix's
     /// `signed-standard`): the signature is a value the call itself carries, one part in a header of its own, found
     /// from two sightings and rebuilt for a value never seen. The clock reading is a part like any the request
@@ -1169,6 +1398,7 @@ mod tests {
             reads_page: false,
             fields: vec![Field { loc: Loc::Header(name.into()), class }],
             body: None,
+            fallbacks: Vec::new(),
         }
     }
 
@@ -1257,6 +1487,29 @@ mod tests {
         assert_eq!(graph.scripts.len(), 1);
         assert_eq!(graph.scripts[0].url, "https://cdn.example/app.js");
         assert!(graph.scripts[0].body.contains("x-sig"));
+    }
+
+    /// A header that only says what the body is (`content-type: application/x-www-form-urlencoded`), seen once, is no
+    /// value the page makes up, whatever script names it: the step stays a plain call. A value in such a header that
+    /// reads as a token, and a value the graph knows is computed, still go to the page.
+    #[test]
+    fn a_header_describing_the_body_never_needs_the_page() {
+        let body = r#"function send(t){t.headers["content-type"]="application/x-www-form-urlencoded";t.headers["x-sig"]=window.sign(t)}"#;
+        let trace = Trace { exchanges: vec![script(body)], inputs: vec![] };
+        // As the graph builds it: a value seen once is no computed one, so the step doesn't need a browser yet.
+        let plain_step = Step { needs_browser: false, ..step_with(Class::Unconfirmed { value: "application/x-www-form-urlencoded".into() }, "content-type") };
+        let mut graph = Graph { steps: vec![plain_step], provisional: false, page_origin: None, ..Graph::default() };
+        discover(&mut graph, &trace, &[], &crate::generated::Environment::default(), &[]);
+        assert!(!graph.steps[0].is_page_signed(), "{:?}", graph.steps[0].page_producers);
+        assert!(matches!(graph.steps[0].fields[0].class, Class::Unconfirmed { .. }), "left as it was");
+        for plain in ["application/json; charset=utf-8", "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8", "en-SG,en;q=0.9", "gzip, deflate, br"] {
+            assert!(says_what_the_body_is(if plain.starts_with("en") { "accept-language" } else if plain.starts_with("gzip") { "accept-encoding" } else { "accept" }, plain), "{plain}");
+        }
+        assert!(!says_what_the_body_is("content-type", "application/json; sig=9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"), "a token in a parameter");
+        assert!(!says_what_the_body_is("x-sig", "application/json"), "not a header that describes the body");
+        let mut computed = Graph { steps: vec![step_with(Class::Computed, "content-type")], provisional: false, page_origin: None, ..Graph::default() };
+        discover(&mut computed, &trace, &[], &crate::generated::Environment::default(), &[]);
+        assert!(computed.steps[0].is_page_signed(), "a value the graph knows is computed still needs the page");
     }
 
     /// A probe's value names the exchange that carried it, so each sighting is read with its own cookies and body —
@@ -1595,5 +1848,368 @@ mod tests {
             let got = crate::sandbox::read_global(&name, &bundle, &page, "", &crate::sandbox::Storage::default(), &html, &serde_json::Value::Null, &answers, None);
             println!("{what}: {} scripts -> {:?}", bundle.len(), got.as_deref().map(|v| &v[..v.len().min(40)]));
         }
+    }
+
+    // ---- tests added for coverage of discovery, search, compute, fresh templates and compaction ----
+
+    fn api_call(method: &str, url: &str, sig: Option<&str>, body: Option<&str>) -> Exchange {
+        Exchange {
+            method: method.into(),
+            url: url.parse().unwrap(),
+            request_headers: sig.map(|s| vec![("x-sig".to_string(), s.to_string())]).unwrap_or_default(),
+            request_body: body.map(String::from),
+            status: 200,
+            response_headers: vec![],
+            response_body: Some("{}".into()),
+            response_mime: "application/json".into(),
+            resource_type: Some("XHR".into()),
+            main_frame: Some(true),
+        }
+    }
+
+    fn sig_probe(value: &str, input: &str) -> Probe {
+        Probe { header: "x-sig".into(), value: value.into(), url: "/api/search".into(), input: input.into(), pre: String::new(), stack: Vec::new() }
+    }
+
+    fn plain_graph(step: Step) -> Graph {
+        Graph { steps: vec![step], provisional: false, page_origin: None, ..Graph::default() }
+    }
+
+    /// The walk's own probe shows the string the page hashed: the field becomes a recipe (no page code, no browser),
+    /// and the recipe makes the same value again for the same call.
+    #[test]
+    fn a_value_the_walk_saw_hashed_becomes_a_recipe_and_not_a_page_producer() {
+        let input = "/api/search;POST";
+        let value = Algo::Md5.hash(input);
+        let trace = Trace { exchanges: vec![script(r#"headers["x-sig"]=1"#), api_call("POST", "https://shop.example/api/search", Some(&value), Some("{}"))], inputs: vec![] };
+        let mut step = step_with(Class::Computed, "x-sig");
+        step.needs_browser = false;
+        let mut graph = plain_graph(step);
+        assert_eq!(discover(&mut graph, &trace, &[sig_probe(&value, input)], &crate::generated::Environment::default(), &[]), 1);
+        let step = &graph.steps[0];
+        let Class::Recipe { recipe } = &step.fields[0].class else { panic!("a recipe, got {:?}", step.fields[0].class) };
+        assert_eq!((recipe.algo, recipe.separator.as_str()), (Algo::Md5, ";"));
+        assert_eq!(recipe.parts, vec![Part::Path, Part::Method]);
+        assert!(step.page_producers.is_empty() && !step.is_page_signed(), "a recipe needs no page");
+        assert!(graph.scripts.is_empty(), "a recipe carries no script");
+        let again = crate::replay::Request { method: "POST".into(), url: "https://shop.example/api/search".parse().unwrap(), exchange: 0, headers: vec![], body: None };
+        assert_eq!(compute(recipe, &again, None, &[]), Some(value));
+    }
+
+    /// A probe that shows a string no known hash makes is no recipe, and the page's own code is still looked for:
+    /// when the lifted code never answers, the step keeps the page as its producer, and the script rides on the route.
+    #[test]
+    fn a_probe_no_recipe_fits_and_code_that_never_answers_leave_the_page_as_the_producer() {
+        let site = r#"var send=function(t,e){if(t.body==="never"){t.headers["x-sig"]="a"}}"#;
+        let trace = Trace {
+            exchanges: vec![script(site), api_call("POST", "https://shop.example/api/search", Some("v-one-1"), Some("{\"d\":1}")), api_call("POST", "https://shop.example/api/search", Some("v-two-2"), Some("{\"d\":2}"))],
+            inputs: vec![],
+        };
+        let probes = [sig_probe("v-one-1", "not what was hashed"), sig_probe("v-two-2", "nor this")];
+        let mut graph = plain_graph(step_with(Class::Computed, "x-sig"));
+        assert_eq!(discover(&mut graph, &trace, &probes, &crate::generated::Environment::default(), &[]), 1);
+        let step = &graph.steps[0];
+        assert!(step.is_page_signed() && step.needs_browser);
+        assert_eq!(step.page_producers.len(), 1);
+        assert_eq!(step.page_producers[0].producer.script, "https://cdn.example/app.js");
+        assert_eq!(step.page_producers[0].producer.at, site.find("x-sig").unwrap());
+        assert!(step.fields.is_empty());
+        assert_eq!(graph.scripts.len(), 1);
+    }
+
+    /// A route learned before the step-level marker carries a `Script` field: it is the same evidence, and is folded
+    /// into the step's page producers and taken out of the fields the route sends.
+    #[test]
+    fn a_script_field_from_an_older_route_is_folded_into_the_steps_page_producers() {
+        let old = Producer { script: "https://cdn.example/app.js".into(), at: 3, frame: false };
+        let trace = Trace { exchanges: vec![script("var a=1")], inputs: vec![] };
+        let mut graph = plain_graph(step_with(Class::Script { producer: old.clone() }, "x-old"));
+        assert_eq!(discover(&mut graph, &trace, &[], &crate::generated::Environment::default(), &[]), 0, "nothing new is found");
+        let step = &graph.steps[0];
+        assert!(step.is_page_signed() && step.needs_browser);
+        assert_eq!(step.page_producers.len(), 1);
+        assert!(step.page_producers[0].loc == Loc::Header("x-old".into()));
+        assert_eq!(step.page_producers[0].producer, old);
+        assert!(step.fields.is_empty(), "the page makes it, the route does not send it");
+    }
+
+    /// The page's lifted code makes a value the walk saw twice: the program is shipped as reproducing it, carries its
+    /// own code (no script rides on the route), names what made it, and answers a call it never saw.
+    #[test]
+    fn a_value_the_pages_lifted_code_reproduces_ships_as_a_program() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the lifted program is skipped");
+            return;
+        }
+        let site = r#"var send=function(t,e){t.headers["x-sig"]="sig-"+t.body.length+":"+t.body}"#;
+        let (b1, b2) = ("{\"q\":\"kettle\"}", "{\"q\":\"teapot-large\"}");
+        let (v1, v2) = (format!("sig-{}:{b1}", b1.len()), format!("sig-{}:{b2}", b2.len()));
+        let trace = Trace {
+            exchanges: vec![script(site), api_call("POST", "https://shop.example/api/search", Some(&v1), Some(b1)), api_call("POST", "https://shop.example/api/search", Some(&v2), Some(b2))],
+            inputs: vec![],
+        };
+        let probes = [sig_probe(&v1, "n/a"), sig_probe(&v2, "n/a")];
+        let mut graph = plain_graph(step_with(Class::Computed, "x-sig"));
+        graph.steps[0].needs_browser = false;
+        assert_eq!(discover(&mut graph, &trace, &probes, &crate::generated::Environment::default(), &[]), 1);
+        let step = &graph.steps[0];
+        let Class::Generated { program, evidence } = &step.fields[0].class else { panic!("a program, got {:?}", step.fields[0].class) };
+        assert!(evidence.exact, "both sightings were reproduced");
+        assert_eq!((evidence.header.as_str(), evidence.sightings), ("x-sig", 2));
+        assert_eq!(evidence.proposed_by, "the page's own code (slice)");
+        assert_eq!(evidence.producer.as_ref().map(|p| p.script.as_str()), Some("https://cdn.example/app.js"));
+        assert!(evidence.scripts.is_empty(), "a program that answers alone needs no script: {:?}", evidence.scripts);
+        assert!(graph.scripts.is_empty());
+        assert!(!step.is_page_signed());
+        let ctx = serde_json::json!({ "body": "{\"q\":\"ladle\"}", "url": "https://shop.example/api/search" });
+        assert_eq!(crate::sandbox::run_program(program, &ctx, &serde_json::Value::Null, &Default::default()).unwrap(), "sig-13:{\"q\":\"ladle\"}");
+    }
+
+    /// Lifted code that runs but makes other values than the walk saw is still kept, marked as not reproducing: a
+    /// call decides, not the walk.
+    #[test]
+    fn lifted_code_that_runs_but_differs_from_the_walk_is_kept_as_not_exact() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the lifted program is skipped");
+            return;
+        }
+        let site = r#"var send=function(t,e){t.headers["x-sig"]="sig-"+t.body.length}"#;
+        let trace = Trace {
+            exchanges: vec![script(site), api_call("POST", "https://shop.example/api/search", Some("other-first-1"), Some("{\"d\":1}")), api_call("POST", "https://shop.example/api/search", Some("other-second-2"), Some("{\"d\":22}"))],
+            inputs: vec![],
+        };
+        let probes = [sig_probe("other-first-1", "n/a"), sig_probe("other-second-2", "n/a")];
+        let mut graph = plain_graph(step_with(Class::Computed, "x-sig"));
+        assert_eq!(discover(&mut graph, &trace, &probes, &crate::generated::Environment::default(), &[]), 1);
+        let Class::Generated { evidence, .. } = &graph.steps[0].fields[0].class else { panic!("a program, got {:?}", graph.steps[0].fields[0].class) };
+        assert!(!evidence.exact, "the walk's values were not reproduced");
+        assert_eq!(evidence.sightings, 2);
+    }
+
+    /// A lifted program that calls a global the page's other script defines under a name built at run time is not
+    /// self-contained: the route keeps the producer's script so the bridge runs it before the program.
+    #[test]
+    fn a_program_that_needs_a_global_the_page_defines_keeps_its_producers_script() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the lifted program is skipped");
+            return;
+        }
+        let site = r#"var send=function(t,e){t.headers["x-sig"]="g-"+window.__mk(t.body)}"#;
+        let maker = r#"window["__"+"mk"]=function(s){return "E"+s.length+s}"#;
+        let (b1, b2) = ("{\"q\":\"kettle\"}", "{\"q\":\"teapot-large\"}");
+        let (v1, v2) = (format!("g-E{}{b1}", b1.len()), format!("g-E{}{b2}", b2.len()));
+        let trace = Trace {
+            exchanges: vec![script(site), served("https://cdn.example/maker.js", maker), api_call("POST", "https://shop.example/api/search", Some(&v1), Some(b1)), api_call("POST", "https://shop.example/api/search", Some(&v2), Some(b2))],
+            inputs: vec![],
+        };
+        let env = crate::generated::Environment {
+            page_url: Some("https://shop.example/search".into()),
+            html: Some("<html><head></head><body></body></html>".into()),
+            scripts: vec![("https://cdn.example/app.js".into(), site.into()), ("https://cdn.example/maker.js".into(), maker.into())],
+            ..Default::default()
+        };
+        let probes = [sig_probe(&v1, "n/a"), sig_probe(&v2, "n/a")];
+        let mut graph = plain_graph(step_with(Class::Computed, "x-sig"));
+        assert_eq!(discover(&mut graph, &trace, &probes, &env, &[]), 1);
+        let Class::Generated { evidence, .. } = &graph.steps[0].fields[0].class else { panic!("a program, got {:?}", graph.steps[0].fields[0].class) };
+        assert_eq!(evidence.scripts, vec!["https://cdn.example/app.js".to_string()], "the producer's script is what the program leans on");
+        assert!(graph.scripts.iter().any(|s| s.url == "https://cdn.example/app.js"), "and it rides on the route");
+        assert!(graph.steps[0].is_page_signed(), "a route that runs a page script is page-signed");
+    }
+
+    /// A value in the call's own address that the page hashed from what the call carries is found by search when the
+    /// walks hold the call more than once, and the recipe makes the value for a call never seen.
+    #[test]
+    fn a_query_signature_is_searched_for_over_every_sighting_of_the_call() {
+        let made = |t: &str, q: &str| Algo::Md5.hash(&format!("{t}&{q}"));
+        let url = |t: &str, q: &str| format!("https://api.shop.example/h5/find?t={t}&q={q}&sign={}", made(t, q));
+        let seen = [("1794402610160", "lamps"), ("1794402629232", "kettles"), ("1794402655001", "sofas")];
+        let trace = Trace { exchanges: std::iter::once(script("var a=1")).chain(seen.iter().map(|(t, q)| served(&url(t, q), "{}"))).collect(), inputs: vec![] };
+        let address = "https://api.shop.example/h5/find?t={t}&q={q}&sign={sign}";
+        let recipe = searched("GET", address, "sign", &trace, &[]).expect("a recipe for the signature");
+        let new = crate::replay::Request { method: "GET".into(), url: url("1794402699999", "ladles").parse().unwrap(), exchange: 0, headers: vec![], body: None };
+        assert_eq!(compute_with(&recipe, &new, None, &[], 0, |_| String::new()), Some(made("1794402699999", "ladles")));
+
+        // The same through discover: the query field becomes the recipe, found counts it, no page is needed.
+        let mut step = step_with(Class::Computed, "unused");
+        step.method = "GET".into();
+        step.url = address.into();
+        step.needs_browser = false;
+        step.fields = vec![Field { loc: Loc::Query("sign".into()), class: Class::Computed }];
+        let mut graph = plain_graph(step);
+        assert_eq!(discover(&mut graph, &trace, &[], &crate::generated::Environment::default(), &[]), 1);
+        assert!(matches!(&graph.steps[0].fields[0].class, Class::Recipe { recipe: r } if r.algo == Algo::Md5), "{:?}", graph.steps[0].fields[0].class);
+        assert!(!graph.steps[0].is_page_signed());
+    }
+
+    /// A call seen once, or whose value never changes, gives a search nothing to prove a recipe by; and a value no
+    /// hash of the call's parts makes is not made up. An earlier walk's sighting counts as another.
+    #[test]
+    fn a_query_value_seen_once_or_made_by_nothing_the_call_carries_has_no_recipe() {
+        let made = |t: &str| Algo::Md5.hash(&format!("{t}&k"));
+        let url = |t: &str, sign: &str| format!("https://api.shop.example/h5/find?t={t}&sign={sign}");
+        let address = "https://api.shop.example/h5/find";
+        let one = Trace { exchanges: vec![served(&url("111", &made("111")), "{}")], inputs: vec![] };
+        assert!(searched("GET", address, "sign", &one, &[]).is_none(), "one sighting proves nothing");
+        let same = Trace { exchanges: vec![served(&url("111", "abc"), "{}"), served(&url("222", "abc"), "{}")], inputs: vec![] };
+        assert!(searched("GET", address, "sign", &same, &[]).is_none(), "a value that never changes is no signature");
+        let random = Trace { exchanges: vec![served(&url("111", "0123456789abcdef0123456789abcdef"), "{}"), served(&url("222", "fedcba9876543210fedcba9876543210"), "{}")], inputs: vec![] };
+        assert!(searched("GET", address, "sign", &random, &[]).is_none(), "nothing the call carries makes it");
+        // A POST of the same path is another call.
+        let both = |t: &str, q: &str| format!("https://api.shop.example/h5/find?t={t}&q={q}&sign={}", Algo::Md5.hash(&format!("{t}&{q}")));
+        let mut other = served(&both("222", "teapots"), "{}");
+        other.method = "POST".into();
+        let held = Trace { exchanges: vec![served(&both("111", "lamps"), "{}"), other], inputs: vec![] };
+        assert!(searched("GET", address, "sign", &held, &[]).is_none());
+        // The earlier walk's call is read as a second sighting, and nothing made the values.
+        let a = Trace { exchanges: vec![served(&url("111", "0123456789abcdef0123456789abcdef"), "{}")], inputs: vec![] };
+        let b = Trace { exchanges: vec![served(&url("222", "fedcba9876543210fedcba9876543210"), "{}")], inputs: vec![] };
+        assert!(searched("GET", address, "sign", &a, &[(b, vec![])]).is_none(), "two sightings were looked at, and nothing made them");
+    }
+
+    /// The stack that sent a call is read from this walk's probes first, then an earlier walk's; a probe of another
+    /// call, or one that kept no stack, says nothing. A call nobody saw sent has an empty stack.
+    #[test]
+    fn the_stack_that_sent_a_call_is_read_from_the_walk_then_from_an_earlier_one() {
+        let frame = |f: &str| crate::trace::Frame { script: "https://cdn.example/app.js".into(), line: 0, column: 1, function: f.into() };
+        let call = api_call("POST", "https://shop.example/api/search", None, None);
+        let on = |url: &str, stack: Vec<crate::trace::Frame>| Probe { header: String::new(), value: String::new(), url: url.into(), input: String::new(), pre: String::new(), stack };
+        let now = [on("/api/search", vec![]), on("/api/other", vec![frame("other")]), on("/api/search", vec![frame("send")])];
+        assert_eq!(sent_from(&call, &now, &[]), vec![frame("send")], "the probe of this call that kept a stack");
+        let past = (Trace { exchanges: vec![], inputs: vec![] }, vec![on("https://shop.example/api/search?x=1", vec![frame("earlier")])]);
+        assert_eq!(sent_from(&call, &now[..1], std::slice::from_ref(&past)), vec![frame("earlier")], "an earlier walk's stack stands when this one's has none");
+        assert_eq!(sent_from(&call, &now, std::slice::from_ref(&past)), vec![frame("send")], "this walk first");
+        assert!(sent_from(&call, &now[..2], &[]).is_empty(), "no stack for this call anywhere");
+    }
+
+    /// A clock reading a page hashed is a template, not a frozen value: thirteen digits near the clock are
+    /// milliseconds, ten near it are seconds, and a long other run is random digits. Short numbers stay as written,
+    /// and a value with no such run has no template.
+    #[test]
+    fn a_value_read_off_the_clock_is_made_a_template_and_a_plain_one_is_not() {
+        let now = 1_794_198_119_000u64;
+        assert_eq!(fresh_template("t-1794198118858-x", now).as_deref(), Some("t-{ms}-x"));
+        assert_eq!(fresh_template("1794198118", now).as_deref(), Some("{s}"), "ten digits near the seconds");
+        assert_eq!(fresh_template("v12-123456", now).as_deref(), Some("v12-{d6}"), "a short number stays, a long run is random");
+        assert_eq!(fresh_template("1700000000000", now).as_deref(), Some("{d13}"), "thirteen digits far from the clock are only random");
+        assert_eq!(fresh_template("a1b22c333", now), None, "short numbers are nothing to template");
+        assert_eq!(fresh_template("plain", now), None);
+    }
+
+    /// A template is rendered for a call: `{ms}` and `{s}` are the clock, `{dN}` is N of the page's own random digits,
+    /// and a brace that is no token is left as written.
+    #[test]
+    fn a_fresh_template_is_rendered_from_the_clock_and_random_digits() {
+        let req = crate::replay::Request { method: "get".into(), url: "https://shop.example/api/search?q=a%20b".parse().unwrap(), exchange: 0, headers: vec![], body: None };
+        let recipe = Recipe { algo: Algo::Sha1, separator: "|".into(), parts: vec![Part::Fresh { template: "{s}/{ms}/{d3}/{zz}/{d}".into() }, Part::Method, Part::Path, Part::Body] };
+        let got = compute_with(&recipe, &req, Some("body"), &[], 1_794_198_119_876, |n| "7".repeat(n));
+        assert_eq!(got, Some(Algo::Sha1.hash("1794198119/1794198119876/777/{zz}/{d}|GET|/api/search?q=a%20b|body")));
+    }
+
+    /// A part the call lacks (a cookie it did not send, a query key it has no value for) makes no value at all: a
+    /// call's value is never made from a gap. A cookie is found by name ignoring case as a second chance.
+    #[test]
+    fn a_recipe_with_a_part_the_call_lacks_makes_no_value() {
+        let req = crate::replay::Request { method: "GET".into(), url: "https://shop.example/api/search?q=kettle".parse().unwrap(), exchange: 0, headers: vec![], body: None };
+        let jar = vec![("SID".to_string(), "abc".to_string())];
+        let with = |part: Part| Recipe { algo: Algo::Md5, separator: "&".into(), parts: vec![part, Part::Query { key: "q".into() }] };
+        assert_eq!(compute_with(&with(Part::Cookie { name: "sid".into() }), &req, None, &jar, 0, |_| String::new()), Some(Algo::Md5.hash("abc&kettle")), "the cookie by another case");
+        assert_eq!(compute_with(&with(Part::Cookie { name: "sid".into() }), &req, None, &[], 0, |_| String::new()), None);
+        assert_eq!(compute_with(&with(Part::Query { key: "nope".into() }), &req, None, &jar, 0, |_| String::new()), None);
+        assert_eq!(compute_with(&with(Part::Header { name: "x-ts".into() }), &req, None, &jar, 0, |_| String::new()), None);
+    }
+
+    /// A gateway's first call, before the session holds the token its signature is over, is signed over nothing in the
+    /// token's place, whole or as a piece, as the page's own code does; a token it holds is used as it is; and any
+    /// other part the call lacks still makes no value.
+    #[test]
+    fn a_first_call_before_its_token_is_signed_over_nothing_in_its_place() {
+        let req = crate::replay::Request { method: "GET".into(), url: "https://api.shop.example/h5/list?t=17&data=%7B%7D".parse().unwrap(), exchange: 0, headers: vec![], body: None };
+        let piece = Part::CookiePiece { name: "_tk".into(), separator: "_".into(), index: 0 };
+        let with = |part: Part| Recipe { algo: Algo::Md5, separator: "&".into(), parts: vec![part, Part::Query { key: "t".into() }, Part::Query { key: "data".into() }] };
+        let none = |_: usize| String::new();
+        assert_eq!(compute_with(&with(piece.clone()), &req, None, &[], 0, none), None, "the general rule holds: no value from a gap");
+        assert_eq!(compute_before_token(&with(piece.clone()), &req, None, &[], 0, none), Some(Algo::Md5.hash("&17&{}")));
+        assert_eq!(compute_before_token(&with(Part::Cookie { name: "_tk".into() }), &req, None, &[], 0, none), Some(Algo::Md5.hash("&17&{}")));
+        let held = vec![("_tk".to_string(), "abc_999".to_string())];
+        assert_eq!(compute_before_token(&with(piece.clone()), &req, None, &held, 0, none), Some(Algo::Md5.hash("abc&17&{}")), "a held token is used");
+        assert_eq!(compute_before_token(&with(Part::Cookie { name: "_TK".into() }), &req, None, &held, 0, none), Some(Algo::Md5.hash("abc_999&17&{}")), "found ignoring case, not blanked");
+        assert_eq!(compute_before_token(&with(Part::Query { key: "nope".into() }), &req, None, &[], 0, none), None, "only a cookie is taken as nothing");
+    }
+
+    /// What a call sends is made on the real clock and fresh random digits: a recipe of constants is the same value
+    /// every time, one over `{ms}` is the hash of a reading taken during the call, and one over random digits differs
+    /// from one call to the next. A recipe with a part the call lacks gives nothing.
+    #[test]
+    fn a_call_computes_its_value_on_the_clock_and_with_fresh_random_digits() {
+        let req = crate::replay::Request { method: "POST".into(), url: "https://shop.example/api/search".parse().unwrap(), exchange: 0, headers: vec![], body: None };
+        let fixed = Recipe { algo: Algo::Sha256, separator: ";".into(), parts: vec![Part::Method, Part::Constant { value: "salt".into() }] };
+        assert_eq!(compute(&fixed, &req, None, &[]), Some(Algo::Sha256.hash("POST;salt")));
+
+        let clock = Recipe { algo: Algo::Md5, separator: ";".into(), parts: vec![Part::Fresh { template: "{ms}".into() }] };
+        let before = crate::fresh::now_millis();
+        let got = compute(&clock, &req, None, &[]).expect("a value");
+        let after = crate::fresh::now_millis();
+        assert!((before..=after).any(|ms| Algo::Md5.hash(&ms.to_string()) == got), "the hash of a reading taken between {before} and {after}");
+
+        let random = Recipe { algo: Algo::Md5, separator: ";".into(), parts: vec![Part::Fresh { template: "{d12}".into() }] };
+        let (one, two) = (compute(&random, &req, None, &[]).unwrap(), compute(&random, &req, None, &[]).unwrap());
+        assert_eq!(one.len(), 32);
+        assert_ne!(one, two, "random digits are new every call");
+
+        let lacking = Recipe { algo: Algo::Md5, separator: ";".into(), parts: vec![Part::Cookie { name: "sid".into() }] };
+        assert_eq!(compute(&lacking, &req, None, &[]), None);
+    }
+
+    /// A page's scripts reduced with the sandbox as the judge: scripts the page's call does not need are dropped, the
+    /// one that makes the call stays, and the route's script set is replaced by the reduced one.
+    #[test]
+    fn compaction_drops_the_scripts_the_page_does_not_need_to_make_its_call() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: compaction is skipped");
+            return;
+        }
+        let s = |n: &str, body: &str| Script { url: format!("https://cdn.example/{n}.js"), body: body.into() };
+        let boot = s("boot", "fetch('/api/search', { method: 'POST', headers: { 'x-sig': 's-1' }, body: '{}' });");
+        let all = vec![s("locale", "var locale = { en: 1 };"), boot.clone(), s("tracker", "var tracker = function () { return 1; };")];
+        let total: usize = all.iter().map(|x| x.body.len()).sum();
+        let mut graph = Graph { steps: vec![step_with(Class::Computed, "x-sig")], scripts: all, page_html: Some("<html></html>".into()), ..Graph::default() };
+        let target = graph.steps[0].clone();
+        let c = compact(&mut graph, &target).expect("the page makes the call");
+        assert_eq!((c.before, c.after), (3, 1));
+        assert_eq!(c.before_bytes, total);
+        assert_eq!(c.after_bytes, boot.body.len());
+        assert_eq!(graph.scripts, vec![boot]);
+    }
+
+    /// A target address with a hole in it (`:{port}` is no port) is asked for as the walk saw it, hole removed; an
+    /// address that is no address even then, and a page that makes no such call, leave the route's scripts alone.
+    #[test]
+    fn compaction_asks_for_a_templated_address_without_its_hole_and_keeps_all_when_nothing_is_proved() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: compaction is skipped");
+            return;
+        }
+        let s = |n: &str, body: &str| Script { url: format!("https://cdn.example/{n}.js"), body: body.into() };
+        let scripts = vec![s("boot", "fetch('/api/search', { method: 'POST', body: '{}' });"), s("locale", "var locale = 1;")];
+        let mut graph = Graph { steps: vec![step_with(Class::Computed, "x-sig")], scripts: scripts.clone(), ..Graph::default() };
+        let mut target = graph.steps[0].clone();
+        target.url = "https://shop.example:{port}/api/search".into();
+        let c = compact(&mut graph, &target).expect("the hole is dropped and the call found");
+        assert_eq!((c.before, c.after), (2, 1));
+        assert_eq!(graph.scripts, vec![scripts[0].clone()]);
+
+        let mut graph = Graph { steps: vec![step_with(Class::Computed, "x-sig")], scripts: scripts.clone(), ..Graph::default() };
+        target.url = "/api/{q}".into();
+        assert!(compact(&mut graph, &target).is_none(), "not an address even without its hole");
+        assert_eq!(graph.scripts, scripts);
+
+        target.url = "https://shop.example/api/other".into();
+        assert!(compact(&mut graph, &target).is_none(), "the page makes no such call: nothing proved, nothing dropped");
+        assert_eq!(graph.scripts, scripts);
+
+        graph.scripts.truncate(1);
+        target.url = "https://shop.example/api/search".into();
+        assert!(compact(&mut graph, &target).is_none(), "one script is already the whole set");
     }
 }

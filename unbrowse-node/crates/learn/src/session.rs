@@ -112,11 +112,21 @@ impl Action {
 
 impl Session {
     pub fn from_log(log: &str) -> Result<Self, TraceError> {
+        Self::from_lines(log.lines())
+    }
+
+    /// [`Self::from_log`] over the log's lines one at a time: a caller reading a long log holds the session it makes,
+    /// never the whole text as well.
+    pub fn from_lines<S: AsRef<str>>(lines: impl IntoIterator<Item = S>) -> Result<Self, TraceError> {
         let mut actions = Vec::new();
         let mut sockets = Vec::new();
         let mut exchanges: Vec<(f64, String, Exchange)> = Vec::new();
         let mut probes: Vec<crate::trace::Probe> = Vec::new();
-        for line in log.lines().filter(|l| !l.trim().is_empty()) {
+        for line in lines {
+            let line = line.as_ref();
+            if line.trim().is_empty() {
+                continue;
+            }
             match serde_json::from_str::<Line>(line)? {
                 Line::Action { t, action, selector, field, locator, value, secret } => {
                     let value = value.and_then(|v| match v {
@@ -221,6 +231,23 @@ impl Session {
         }
     }
 
+    /// [`Self::only`], taking this session: what is dropped is freed, and what is kept is moved, not copied. A learn
+    /// reads a page's whole flow; a copy of it would be held beside the original until both went.
+    pub fn into_only(self, keep: impl Fn(f64) -> bool) -> Session {
+        let Session { actions, sockets, trace, probes, times, resource_types } = self;
+        let kept: Vec<bool> = (0..trace.exchanges.len()).map(|i| keep(times.get(i).copied().unwrap_or(0.0))).collect();
+        let mut at = kept.iter();
+        let exchanges = trace.exchanges.into_iter().filter(|_| at.next().copied().unwrap_or(false)).collect();
+        Session {
+            actions: actions.into_iter().filter(|a| keep(a.t)).collect(),
+            sockets: sockets.into_iter().filter(|e| keep(e.t)).collect(),
+            trace: Trace { exchanges, inputs: trace.inputs },
+            probes,
+            times: times.iter().zip(&kept).filter(|(_, k)| **k).map(|(t, _)| *t).collect(),
+            resource_types: resource_types.into_iter().zip(&kept).filter(|(_, k)| **k).map(|(r, _)| r).collect(),
+        }
+    }
+
     /// Each action with the requests that started after it and before the next action.
     pub fn segments(&self) -> Vec<Segment> {
         let mut segments: Vec<Segment> =
@@ -283,5 +310,112 @@ mod choice_tests {
         let session = Session::from_log(&log).unwrap();
         let said: Vec<(&str, &str)> = session.trace.inputs.iter().map(|i| (i.name.as_str(), i.value.as_str())).collect();
         assert_eq!(said, [("custname", "Ada"), ("size", "medium"), ("topping", "bacon")]);
+    }
+}
+
+#[cfg(test)]
+mod into_only_tests {
+    use super::Session;
+
+    fn log() -> String {
+        let call = |t: f64, path: &str| serde_json::json!({ "type": "exchange", "t": t, "resourceType": if t < 3.0 { "Document" } else { "XHR" }, "entry": { "request": { "method": "GET", "url": format!("https://s.example{path}"), "headers": [] }, "response": { "status": 200, "headers": [], "content": { "mimeType": "application/json", "text": path } } } });
+        [
+            serde_json::json!({ "type": "action", "t": 1.0, "action": "navigate", "value": "https://s.example/a?q=one" }),
+            call(1.5, "/a"),
+            serde_json::json!({ "type": "socket", "t": 1.6, "id": "s1", "event": "open", "url": "wss://s.example/ws" }),
+            serde_json::json!({ "type": "action", "t": 2.0, "action": "fill", "selector": "#q", "value": "two" }),
+            call(2.5, "/api/two"),
+            call(3.5, "/api/three"),
+            serde_json::json!({ "type": "socket", "t": 3.6, "id": "s1", "event": "sent", "data": "x" }),
+        ]
+        .iter()
+        .map(|l| l.to_string())
+        .collect::<Vec<_>>()
+        .join("\n")
+    }
+
+    /// A session taken whole keeps what a copy of it would: the same steps, requests, frames, inputs and times, so a
+    /// learn that moves its own steps out of what it read learns what it learned from the copy.
+    #[test]
+    fn a_session_taken_whole_keeps_what_its_copy_keeps() {
+        let session = Session::from_log(&log()).unwrap();
+        let keeps: [fn(f64) -> bool; 5] = [|t| t < 2.2, |t| t > 2.2, |_| true, |_| false, |t| (1.55..3.0).contains(&t)];
+        for keep in keeps {
+            let copied = session.only(keep);
+            let taken = session.clone().into_only(keep);
+            assert_eq!(format!("{:?}", taken.actions), format!("{:?}", copied.actions));
+            assert_eq!(format!("{:?}", taken.sockets), format!("{:?}", copied.sockets));
+            assert_eq!(taken.trace.exchanges.iter().map(|e| e.url.to_string()).collect::<Vec<_>>(), copied.trace.exchanges.iter().map(|e| e.url.to_string()).collect::<Vec<_>>());
+            assert_eq!(format!("{:?}", taken.trace.inputs), format!("{:?}", copied.trace.inputs));
+            assert_eq!((0..copied.trace.exchanges.len()).map(|i| (taken.time_of(i), taken.resource_types[i].clone())).collect::<Vec<_>>(), (0..copied.trace.exchanges.len()).map(|i| (copied.time_of(i), copied.resource_types[i].clone())).collect::<Vec<_>>());
+            assert_eq!(taken.probes.len(), copied.probes.len());
+        }
+    }
+
+    /// A log read a line at a time is the session the whole text makes.
+    #[test]
+    fn a_log_read_line_by_line_is_the_log_read_whole() {
+        let text = log();
+        let whole = Session::from_log(&text).unwrap();
+        let lines = Session::from_lines(text.lines().map(String::from).chain(["".to_string(), "   ".to_string()])).unwrap();
+        assert_eq!(format!("{:?}", lines.actions), format!("{:?}", whole.actions));
+        assert_eq!(lines.trace.exchanges.len(), whole.trace.exchanges.len());
+        assert_eq!(format!("{:?}", lines.trace.inputs), format!("{:?}", whole.trace.inputs));
+    }
+}
+
+#[cfg(test)]
+mod segment_tests {
+    use super::Session;
+    use serde_json::json;
+
+    fn exchange(t: f64, kind: &str, url: &str) -> String {
+        json!({"type": "exchange", "t": t, "resourceType": kind, "entry": {
+            "request": {"method": "GET", "url": url, "headers": []},
+            "response": {"status": 200, "headers": [], "content": {"mimeType": "application/json", "text": "{}"}}}})
+        .to_string()
+    }
+
+    /// Each request belongs to the last action before it, and the calls an action set off are its fetches and XHRs
+    /// alone: the page's own load before any action belongs to none, and an image is no call.
+    #[test]
+    fn the_calls_an_action_set_off_are_its_own_fetches_after_it() {
+        let lines = [
+            exchange(0.5, "Document", "https://shop.example/"),
+            json!({"type": "action", "t": 1.0, "action": "click", "selector": "#add"}).to_string(),
+            exchange(1.5, "XHR", "https://shop.example/api/cart"),
+            exchange(1.6, "Image", "https://shop.example/pixel.gif"),
+            json!({"type": "action", "t": 3.0, "action": "click", "selector": "#checkout"}).to_string(),
+            exchange(3.5, "Fetch", "https://shop.example/api/order"),
+        ];
+        let s = Session::from_lines(lines.iter()).unwrap();
+        let path = |i: usize| s.trace.exchanges[i].url.path().to_string();
+        let segments = s.segments();
+        assert_eq!(segments.len(), 2);
+        assert_eq!(segments[0].exchanges.iter().map(|&i| path(i)).collect::<Vec<_>>(), ["/api/cart", "/pixel.gif"]);
+        assert_eq!(segments[1].exchanges.iter().map(|&i| path(i)).collect::<Vec<_>>(), ["/api/order"]);
+        assert_eq!(s.candidates().into_iter().map(path).collect::<Vec<_>>(), ["/api/cart", "/api/order"], "the page and the image are no calls");
+        assert_eq!(s.triggered_by("click", "#checkout").into_iter().map(path).collect::<Vec<_>>(), ["/api/order"]);
+        assert_eq!(s.triggered_by("click", "#add").into_iter().map(path).collect::<Vec<_>>(), ["/api/cart"]);
+        assert!(s.triggered_by("fill", "#checkout").is_empty(), "another kind of step on the same element set off nothing");
+    }
+
+    /// A step's value is read as the page took it: a list chosen (a multi-select) as its items joined, nothing as no
+    /// value, a number as written. A sign probe is kept only when it names the header, its value and the input.
+    #[test]
+    fn a_steps_value_and_a_sign_probe_read_as_the_page_gave_them() {
+        let lines = [
+            json!({"type": "action", "t": 1.0, "action": "select", "selector": "#sizes", "value": ["S", "M"]}).to_string(),
+            json!({"type": "action", "t": 2.0, "action": "click", "selector": "#go", "value": null}).to_string(),
+            json!({"type": "action", "t": 3.0, "action": "fill", "selector": "#qty", "value": 3}).to_string(),
+            json!({"type": "sign_probe", "probes": [["x-sig", "abc123", "https://shop.example/api", "q", "pre"], ["x-sig", "", "https://shop.example/api", "q"]]}).to_string(),
+            json!({"type": "script", "scriptId": "1"}).to_string(),
+            String::new(),
+        ];
+        let s = Session::from_lines(lines.iter()).unwrap();
+        let values: Vec<Option<&str>> = s.actions.iter().map(|a| a.value.as_deref()).collect();
+        assert_eq!(values, [Some("S,M"), None, Some("3")]);
+        assert_eq!(s.probes.len(), 1, "a probe with no value is no probe");
+        assert_eq!((s.probes[0].header.as_str(), s.probes[0].value.as_str(), s.probes[0].input.as_str(), s.probes[0].pre.as_str()), ("x-sig", "abc123", "q", "pre"));
     }
 }

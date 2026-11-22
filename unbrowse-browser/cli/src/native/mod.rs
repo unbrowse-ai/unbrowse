@@ -2,16 +2,12 @@
 pub mod a11y;
 #[allow(dead_code)]
 pub mod actions;
-pub mod agent_world;
 #[allow(dead_code)]
 pub mod auth;
 #[allow(dead_code)]
 pub mod browser;
 #[allow(dead_code)]
-pub mod capture;
-#[allow(dead_code)]
-// The CDP engine lives in agent-browser-core: one implementation, two consumers.
-pub use agent_browser_core::cdp;
+pub mod cdp;
 #[allow(dead_code)]
 pub mod cookies;
 #[allow(dead_code)]
@@ -19,9 +15,11 @@ pub mod daemon;
 #[allow(dead_code)]
 pub mod diff;
 #[allow(dead_code)]
+pub mod downloads;
+#[allow(dead_code)]
 pub mod element;
 #[allow(dead_code)]
-pub mod file_root;
+pub mod flow;
 #[allow(dead_code)]
 pub mod inspect_server;
 #[allow(dead_code)]
@@ -50,6 +48,8 @@ pub mod stream;
 pub mod tab_binding;
 #[allow(dead_code)]
 pub mod tracing;
+/// Unbrowse fork: what the Unbrowse node needs that upstream lacks (see FORK.md).
+pub mod unbrowse;
 #[allow(dead_code)]
 pub mod webdriver;
 #[allow(dead_code)]

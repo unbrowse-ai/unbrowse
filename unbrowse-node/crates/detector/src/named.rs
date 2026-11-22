@@ -58,7 +58,9 @@ pub fn random_value(v: &[u8], min: usize) -> bool {
         && !exclude::excluded(v)
 }
 
-fn secret_name(name: &str) -> bool {
+/// Whether a field's name says its value is a secret: a secret word in it ([`SECRET_WORDS`]) and no public one
+/// ([`PUBLIC_WORDS`]), read lower-cased with `-` as `_`.
+pub fn secret_name(name: &str) -> bool {
     let n = name.to_ascii_lowercase().replace('-', "_");
     SECRET_WORDS.iter().any(|w| n.contains(w)) && !PUBLIC_WORDS.iter().any(|w| n.contains(w))
 }

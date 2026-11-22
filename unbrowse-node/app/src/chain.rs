@@ -219,7 +219,7 @@ pub(crate) fn dir() -> PathBuf {
 fn outlasts_a_deployment(name: &str) -> bool {
     // The locks too: a lock moved aside while held is no lock, since the next process to ask makes a new file in its
     // place and takes that.
-    matches!(name, "deployer.key" | "mark.key" | "deployment.json" | "network.json" | "state.json" | "sending.json") || name.starts_with("before-") || name.ends_with(".lock")
+    matches!(name, "root.key" | "deployer.key" | "mark.key" | "deployment.json" | "network.json" | "state.json" | "sending.json") || name.starts_with("before-") || name.ends_with(".lock")
 }
 
 /// Makes `d` the deployment `dir()` holds the state of, recording it in `deployment.json`, on the devnet and on a live
@@ -294,14 +294,15 @@ pub fn names() -> Vec<&'static str> {
     std::iter::once(DEVNET).chain(arc::NETWORKS.iter().map(|n| n.name)).collect()
 }
 
-/// The chain this node runs on: `UNBROWSE_CHAIN` when set, else the `chain` setting; on a live network, its RPC from
-/// the table unless `UNBROWSE_RPC` names another. Read once, when the chain starts.
+/// The chain this node runs on: `UNBROWSE_CHAIN` when set, else the `chain` setting; on a live network, the RPC
+/// `UNBROWSE_RPC` names, else Unbrowse's gateway while the node holds a pass it hasn't refused (`gateway::url_for`),
+/// else the network's public RPC from the table. Read once, when the chain starts.
 pub fn chosen() -> Result<Mode, String> {
     let env = |k: &str| std::env::var(k).ok();
-    choose(env("UNBROWSE_CHAIN").as_deref(), &store::load_settings().chain, env("UNBROWSE_RPC").as_deref())
+    choose(env("UNBROWSE_CHAIN").as_deref(), &store::load_settings().chain, env("UNBROWSE_RPC").as_deref(), crate::gateway::url_for)
 }
 
-fn choose(env: Option<&str>, setting: &str, rpc: Option<&str>) -> Result<Mode, String> {
+fn choose(env: Option<&str>, setting: &str, rpc: Option<&str>, gateway: impl Fn(&str) -> Option<String>) -> Result<Mode, String> {
     fn given(v: Option<&str>) -> Option<&str> {
         v.map(str::trim).filter(|v| !v.is_empty())
     }
@@ -310,7 +311,8 @@ fn choose(env: Option<&str>, setting: &str, rpc: Option<&str>) -> Result<Mode, S
         return Ok(Mode::Devnet);
     }
     let net = arc::by_name(name).ok_or_else(|| format!("there's no chain named {name}: it is one of {}", names().join(", ")))?;
-    let rpc = given(rpc).unwrap_or(net.rpc);
+    let through = gateway(net.name);
+    let rpc = given(rpc).or(through.as_deref()).unwrap_or(net.rpc);
     let rpc = rpc.parse().map_err(|e| format!("the RPC {rpc} isn't a URL: {e}"))?;
     Ok(Mode::Live(Live { net, rpc }))
 }
@@ -349,11 +351,46 @@ pub fn forget_live() {
 /// signed on the wrong chain would pay there.
 async fn check_rpc(l: &Live) -> Result<(), String> {
     let p = ProviderBuilder::new().connect_http(l.rpc.clone());
+    let at = crate::gateway::shown(l.rpc.as_str());
     match tokio::time::timeout(Duration::from_secs(10), p.get_chain_id()).await {
         Ok(Ok(id)) if id == l.net.chain_id => Ok(()),
-        Ok(Ok(id)) => Err(format!("the RPC at {} is chain {id}, not {} ({})", l.rpc, l.net.name, l.net.chain_id)),
-        Ok(Err(e)) => Err(format!("{} doesn't answer at {}: {e}", l.net.name, l.rpc)),
-        Err(_) => Err(format!("{} didn't answer at {} within 10 seconds", l.net.name, l.rpc)),
+        Ok(Ok(id)) => Err(format!("the RPC at {at} is chain {id}, not {} ({})", l.net.name, l.net.chain_id)),
+        Ok(Err(e)) => Err(format!("{} doesn't answer at {at}: {}", l.net.name, crate::gateway::scrub(&e.to_string()))),
+        Err(_) => Err(format!("{} didn't answer at {at} within 10 seconds", l.net.name)),
+    }
+}
+
+/// `check_rpc` for the RPC the node chose. When that is Unbrowse's gateway and it fails, the node goes on with the
+/// network's public RPC: for good when the gateway refused this node (not a member; the owner is told once), for this
+/// start when it didn't answer (down, or its name doesn't resolve), so a renewed pass can take the gateway again. The
+/// live network it ends on.
+async fn check_or_public(l: Live) -> Result<Live, String> {
+    let through = crate::gateway::is_gateway(l.rpc.as_str());
+    check_or_public_from(l, through).await
+}
+
+async fn check_or_public_from(l: Live, through_gateway: bool) -> Result<Live, String> {
+    let e = match check_rpc(&l).await {
+        Ok(()) => return Ok(l),
+        Err(e) if through_gateway => e,
+        Err(e) => return Err(e),
+    };
+    let refused = crate::gateway::refusal(&e);
+    if refused {
+        crate::gateway::refuse(&e);
+        store::tell_once(&dir().join("gateway-refused"), &crate::gateway::refused_note(&e));
+    }
+    let public = Live { net: l.net, rpc: l.net.rpc.parse().map_err(|e| format!("the RPC {} isn't a URL: {e}", l.net.rpc))? };
+    set_live(Some(public.clone()));
+    match check_rpc(&public).await {
+        Ok(()) => {
+            if !refused {
+                eprintln!("chain: Unbrowse's RPC didn't answer ({e}): the node reads {}'s public RPC until its pass is renewed", l.net.name);
+            }
+            Ok(public)
+        }
+        Err(p) if refused => Err(p),
+        Err(p) => Err(format!("{e}; and the public RPC: {p}")),
     }
 }
 
@@ -661,6 +698,43 @@ pub fn not_deployed(network: &str) -> String {
     )
 }
 
+/// Back onto Unbrowse's gateway at `url`, for a node that fell to the public RPC because the gateway refused it or
+/// didn't answer: the live network to read from now on when the gateway answers there as that network (its owner
+/// signed in since), `None` when the node is on the gateway already or the gateway still doesn't take it.
+async fn retaken(l: &Live, url: &str) -> Option<Live> {
+    if crate::gateway::is_gateway(l.rpc.as_str()) {
+        return None;
+    }
+    let back = Live { net: l.net, rpc: url.parse().ok()? };
+    check_rpc(&back).await.ok().map(|()| back)
+}
+
+/// `retaken` for the live network: true when the node reads through the gateway again from now on.
+pub async fn retake(url: &str) -> bool {
+    let Some(l) = live() else { return false };
+    match retaken(&l, url).await {
+        Some(back) => {
+            set_live(Some(back));
+            true
+        }
+        None => false,
+    }
+}
+
+/// Whether the live network is read through Unbrowse's gateway.
+pub fn on_gateway() -> bool {
+    live().is_some_and(|l| crate::gateway::is_gateway(l.rpc.as_str()))
+}
+
+/// Points the live network's reads at `url` from now on (the gateway's, with a renewed pass): every provider made after
+/// this reads there.
+pub fn use_rpc(url: &str) {
+    if let (Some(mut l), Ok(rpc)) = (live(), url.parse()) {
+        l.rpc = rpc;
+        set_live(Some(l));
+    }
+}
+
 pub(crate) fn url() -> reqwest_url::Url {
     match live() {
         Some(l) => l.rpc,
@@ -692,7 +766,7 @@ impl Chain {
         // One process signs from a chain's folder: a second, reading the same nonces, kept writes and gas count, would
         // sign beside it.
         store::hold_for_process(&dir())?;
-        check_rpc(&l).await?;
+        let l = check_or_public(l).await?;
         let file = network_file(l.net)?;
         // Told once at the start, not only when a write is held back: what one RPC alone holds back.
         if let (state @ ("missing" | "misnamed"), Some(held)) = crate::rpc::second_rpc_state() {

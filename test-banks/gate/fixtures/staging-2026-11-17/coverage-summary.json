@@ -1,0 +1,90 @@
+{
+ "commit": "7071ae02",
+ "excluded": [],
+ "measured_at": "2026-11-17T14:00:00Z",
+ "note": "unbrowse-core staging 7071ae02 (= e1bb35c6 for product code), measured on the Deck 17 Nov 2026 (programme 887958 step 1, BASELINE.md)",
+ "parts": {
+  "rust:browser-cli": {
+   "covered": 47949,
+   "gated": true,
+   "pct": 67.85,
+   "total": 70666
+  },
+  "rust:browser-core": {
+   "covered": 7689,
+   "gated": true,
+   "pct": 75.73,
+   "total": 10153
+  },
+  "rust:unbrowse-node": {
+   "covered": 86370,
+   "gated": true,
+   "pct": 74.0,
+   "sub": {
+    "app": {
+     "covered": 49952,
+     "pct": 69.15,
+     "total": 72242
+    },
+    "core": {
+     "covered": 1344,
+     "pct": 89.72,
+     "total": 1498
+    },
+    "detector": {
+     "covered": 599,
+     "pct": 96.77,
+     "total": 619
+    },
+    "files": {
+     "covered": 408,
+     "pct": 94.23,
+     "total": 433
+    },
+    "learn": {
+     "covered": 29473,
+     "pct": 80.19,
+     "total": 36755
+    },
+    "net": {
+     "covered": 3194,
+     "pct": 90.84,
+     "total": 3516
+    },
+    "route": {
+     "covered": 1400,
+     "pct": 84.39,
+     "total": 1659
+    }
+   },
+   "total": 116722
+  },
+  "sdk:python": {
+   "covered": 2648,
+   "gated": true,
+   "pct": 90.62,
+   "total": 2922
+  },
+  "sdk:typescript": {
+   "covered": 4702,
+   "gated": true,
+   "pct": 84.54,
+   "total": 5562
+  },
+  "settlement": {
+   "covered": 1688,
+   "gated": false,
+   "pct": 85.08,
+   "total": 1984
+  }
+ },
+ "rust_all": {
+  "covered": 142008,
+  "pct": 71.89,
+  "total": 197541
+ },
+ "threshold": 98.0,
+ "unmeasured": [
+  "zig:window"
+ ]
+}

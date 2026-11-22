@@ -1,8 +1,9 @@
 {
   "note": "Each prompt is what a person would ask, in a fresh session, with the web tools an agent has anyway beside the node's. None names the node: the check is whether the agent reaches for it unprompted. `none` is a control: a task needing no website must not touch it, so calling it on everything can't pass.",
   "passes_at": 0.8,
+  "trials": 3,
   "tasks": [
-    { "id": "live-front-page", "wants": "unbrowse", "prompt": "What are the top three stories on Hacker News right now? Just list the titles." },
+    { "id": "live-front-page", "wants": "unbrowse", "prompt": "What are the top three trending repositories on GitHub (github.com/trending) right now? Just list their names." },
     { "id": "package-version", "wants": "unbrowse", "prompt": "What is the latest released version of the requests package on PyPI right now?" },
     { "id": "site-search", "wants": "unbrowse", "prompt": "Search the Internet Archive for Apollo 11 films and list three titles it shows." },
     { "id": "government-page", "wants": "unbrowse", "prompt": "Search GOV.UK for passport renewal and give me the title of the first result." },

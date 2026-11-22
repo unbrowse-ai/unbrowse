@@ -607,7 +607,7 @@ async fn release(node: &Node, from: PeerId, content_id: &str, payment: &[u8]) ->
 async fn release_within(node: &Node, from: PeerId, content_id: &str, payment: &[u8]) -> Result<Vec<u8>, String> {
     // The owner's pause stops what the node does for others as much as for its own agents.
     if store::load_settings().paused {
-        return Err("the node is paused by its owner".into());
+        return Err(crate::outcome::PAUSED.into());
     }
     let under = held(&node.chain, content_id);
     if under.is_empty() {
@@ -1395,7 +1395,7 @@ pub fn bound(route: &store::Route) -> Result<(), String> {
 /// agent's own non-secret words are not the caller's to lose.
 fn carries_the_callers(class: &Class) -> bool {
     match class {
-        Class::Minted { .. } | Class::Input { secret: true, .. } | Class::Derived { .. } | Class::Computed | Class::Script { .. } | Class::Recipe { .. } | Class::Generated { .. } | Class::File { .. } | Class::Piece { .. } => true,
+        Class::Minted { .. } | Class::Input { secret: true, .. } | Class::Derived { .. } | Class::Computed | Class::Script { .. } | Class::Recipe { .. } | Class::Generated { .. } | Class::File { .. } | Class::Piece { .. } | Class::CookieIn { .. } => true,
         Class::Input { secret: false, .. } | Class::Constant { .. } | Class::Unconfirmed { .. } | Class::Fresh { .. } => false,
     }
 }

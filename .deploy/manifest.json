@@ -21,6 +21,37 @@
         "minRequests": 50,
         "why": "No node sends to staging; its traffic is the gate's rounds (about 10 requests every 25 minutes, so ~140 in 6 hours)."
       }
+    },
+    {
+      "name": "unbrowse-rpc",
+      "envs": {
+        "staging": {
+          "config": "unbrowse-rpc/wrangler.staging.jsonc"
+        },
+        "production": {
+          "config": "unbrowse-rpc/wrangler.jsonc"
+        }
+      },
+      "soak": {
+        "minRequests": 50,
+        "why": "Nodes reach staging only once a node is pointed at it; its traffic is the gate's rounds."
+      }
+    },
+    {
+      "name": "unbrowse-dashboard",
+      "build": "cd unbrowse-dashboard && bun install --frozen-lockfile && npx vite build",
+      "envs": {
+        "staging": {
+          "config": "unbrowse-dashboard/wrangler.staging.jsonc"
+        },
+        "production": {
+          "config": "unbrowse-dashboard/wrangler.jsonc"
+        }
+      },
+      "soak": {
+        "minRequests": 50,
+        "why": "Its readers are the team, a few visits a day; its traffic is CI's posts (about 30 runs a day on staging) and the gate's rounds."
+      }
     }
   ],
   "checks": [
@@ -33,6 +64,26 @@
       "layer": "static",
       "name": "telemetry worker bundles for staging and production",
       "cmd": "cd unbrowse-telemetry && npx --yes wrangler deploy --dry-run -c wrangler.staging.jsonc --outdir .wrangler/dry && npx --yes wrangler deploy --dry-run -c wrangler.jsonc --outdir .wrangler/dry"
+    },
+    {
+      "layer": "unit",
+      "name": "rpc gateway tests: node passes, Privy tokens, the methods and log ranges it relays",
+      "cmd": "cd unbrowse-rpc && npm ci && npm test"
+    },
+    {
+      "layer": "static",
+      "name": "rpc gateway bundles for staging and production",
+      "cmd": "cd unbrowse-rpc && npm ci && npx --yes wrangler deploy --dry-run -c wrangler.staging.jsonc --outdir .wrangler/dry && npx --yes wrangler deploy --dry-run -c wrangler.jsonc --outdir .wrangler/dry"
+    },
+    {
+      "layer": "unit",
+      "name": "dashboard tests: artifact parsers, signing, the ingest and read doors on SQLite with the real migrations",
+      "cmd": "cd unbrowse-dashboard && bun install --frozen-lockfile && node --test test/*.test.mjs"
+    },
+    {
+      "layer": "static",
+      "name": "dashboard typechecks, builds and bundles for staging and production",
+      "cmd": "cd unbrowse-dashboard && bun install --frozen-lockfile && npx tsc --noEmit && npx vite build && npx wrangler deploy --dry-run -c wrangler.staging.jsonc --outdir .wrangler/dry && npx wrangler deploy --dry-run -c wrangler.jsonc --outdir .wrangler/dry"
     }
   ],
   "gates": {
@@ -42,6 +93,18 @@
         "cmd": "node unbrowse-telemetry/gate.mjs https://unbrowse-telemetry-staging.lewistham9x.workers.dev",
         "marker": "TELEMETRY_GATE_OK",
         "timeout_s": 180
+      },
+      {
+        "name": "deployed rpc gateway: answers, refuses a membership without a Privy token, a non-member's pass and a pass for another network",
+        "cmd": "cd unbrowse-rpc && npm ci && node gate.mjs https://rpc-staging.unbrowse.ai",
+        "marker": "RPC_GATE_OK",
+        "timeout_s": 180
+      },
+      {
+        "name": "deployed dashboard: refuses unsigned, wrongly signed, stale and malformed posts, keeps a signed run, and a browser reads it off the page at phone and desktop width",
+        "cmd": "node unbrowse-dashboard/gate.mjs https://unbrowse-dashboard-staging.lewistham9x.workers.dev",
+        "marker": "DASHBOARD_GATE_OK",
+        "timeout_s": 300
       }
     ],
     "production": [
@@ -49,6 +112,18 @@
         "name": "deployed telemetry worker at telemetry.unbrowse.ai: keeps a node's batch, refuses bad ones, stats door needs the token",
         "cmd": "node unbrowse-telemetry/gate.mjs https://telemetry.unbrowse.ai",
         "marker": "TELEMETRY_GATE_OK",
+        "timeout_s": 300
+      },
+      {
+        "name": "deployed rpc gateway at rpc.unbrowse.ai: answers, refuses a membership without a Privy token, a non-member's pass and a pass for another network",
+        "cmd": "cd unbrowse-rpc && npm ci && node gate.mjs https://rpc.unbrowse.ai",
+        "marker": "RPC_GATE_OK",
+        "timeout_s": 300
+      },
+      {
+        "name": "deployed dashboard: refuses unsigned, wrongly signed, stale and malformed posts, keeps a signed run, and a browser reads it off the page at phone and desktop width (production)",
+        "cmd": "DASHBOARD_KEY_FILE=$HOME/.config/unbrowse-dashboard/production-ingest.key node unbrowse-dashboard/gate.mjs https://unbrowse-dashboard.lewistham9x.workers.dev",
+        "marker": "DASHBOARD_GATE_OK",
         "timeout_s": 300
       }
     ]
@@ -81,6 +156,18 @@
           "cmd": "node unbrowse-telemetry/gate.mjs https://unbrowse-telemetry-staging.lewistham9x.workers.dev",
           "marker": "TELEMETRY_GATE_OK",
           "timeout_s": 180
+        },
+        {
+          "name": "the deployed staging rpc gateway's refusals",
+          "cmd": "cd unbrowse-rpc && npm ci && node gate.mjs https://rpc-staging.unbrowse.ai",
+          "marker": "RPC_GATE_OK",
+          "timeout_s": 180
+        },
+        {
+          "name": "the deployed staging dashboard: signed post, read back, phone and desktop",
+          "cmd": "node unbrowse-dashboard/gate.mjs https://unbrowse-dashboard-staging.lewistham9x.workers.dev",
+          "marker": "DASHBOARD_GATE_OK",
+          "timeout_s": 300
         }
       ]
     }
@@ -102,9 +189,59 @@
       "waive": {
         "user": "Its only users are nodes, and a node sends only once it is on the network, so a throwaway node can't be a reliable gate. The production watch an hour on stands in: it needs real release nodes' installs in the counts."
       }
+    },
+    {
+      "name": "rpc",
+      "kind": [
+        "http",
+        "durable-object"
+      ],
+      "what": "rpc.unbrowse.ai: POST /members from the link page (a Privy access token and a node), POST /<network>/<pass> JSON-RPC from member nodes relayed to Alchemy, and the Members Durable Object behind them",
+      "unit": [
+        "rpc gateway tests: node passes, Privy tokens, the methods and log ranges it relays"
+      ],
+      "e2e": [
+        "deployed rpc gateway: answers, refuses a membership without a Privy token, a non-member's pass and a pass for another network"
+      ],
+      "waive": {
+        "user": "A member's path needs a real Privy sign-in, which a gate can't make. It was run by hand against a deployed copy on 18 November 2026 (PR evidence); the node's own use, once it ships, is the standing check."
+      }
+    },
+    {
+      "name": "dashboard",
+      "kind": [
+        "http",
+        "pages"
+      ],
+      "what": "The test dashboard (UNB-250): the page at / with its charts and runs table, GET /api/runs and /api/sites, GET /healthz, and POST /api/ingest that CI signs with DASHBOARD_INGEST_KEY (dashboard-post.yml); D1 behind them",
+      "unit": [
+        "dashboard tests: artifact parsers, signing, the ingest and read doors on SQLite with the real migrations"
+      ],
+      "e2e": [
+        "deployed dashboard: refuses unsigned, wrongly signed, stale and malformed posts, keeps a signed run, and a browser reads it off the page at phone and desktop width"
+      ],
+      "waive": {
+        "user": "A read-only page: a simulated person reading it changes nothing a command could check, and the train's rules never take the agent's word as proof. Stand-in: the e2e gate drives the deployed page in a real browser at phone and desktop width and reads a made-up run's number off it; CI's own posts are its other user, measured by run id in the PR."
+      }
     }
   ],
   "doctor": {
     "secrets": []
+  },
+  "before": {
+    "staging": [
+      {
+        "name": "dashboard D1 migrations on staging",
+        "cmd": "cd unbrowse-dashboard && npx wrangler d1 migrations apply unbrowse-dashboard-staging -c wrangler.staging.jsonc --remote",
+        "timeout_s": 180
+      }
+    ],
+    "production": [
+      {
+        "name": "dashboard D1 migrations on production",
+        "cmd": "cd unbrowse-dashboard && npx wrangler d1 migrations apply unbrowse-dashboard -c wrangler.jsonc --remote",
+        "timeout_s": 180
+      }
+    ]
   }
 }

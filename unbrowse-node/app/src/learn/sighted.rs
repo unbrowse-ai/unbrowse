@@ -241,8 +241,16 @@ pub fn rows_of(data: &serde_json::Value) -> Option<Vec<String>> {
     let mut best = None;
     lists(&read, 0, &mut best);
     let records: Vec<&serde_json::Map<String, serde_json::Value>> = best?.iter().filter_map(serde_json::Value::as_object).collect();
+    let mut out = row_marks(&records);
+    out.sort();
+    Some(out)
+}
+
+/// Each of `records`' marks, in their order, as [`rows_of`] marks them: over its values, a field every record repeats
+/// and a reading of the clock left out.
+pub fn row_marks(records: &[&serde_json::Map<String, serde_json::Value>]) -> Vec<String> {
     let repeated = |k: &str, v: &serde_json::Value| records.iter().all(|r| r.get(k) == Some(v));
-    let mut out: Vec<String> = records
+    records
         .iter()
         .map(|r| {
             let mut values: Vec<String> = Vec::new();
@@ -254,9 +262,7 @@ pub fn rows_of(data: &serde_json::Value) -> Option<Vec<String>> {
             values.sort();
             mark(&values.join("\u{1f}"))
         })
-        .collect();
-    out.sort();
-    Some(out)
+        .collect()
 }
 
 /// The texts and numbers `v` holds, trimmed, a reading of the clock aside.
@@ -362,9 +368,29 @@ pub fn called(route: &crate::store::Route, given: &HashMap<String, String>, data
     let asked = asked(route, given);
     let since_load = since_load(&route.root, &asked);
     let values: Vec<String> = route.inputs.iter().filter(|i| !i.secret).filter_map(|i| given.get(&i.name).or(i.default.as_ref())).map(|v| v.trim().to_lowercase()).filter(|v| v.chars().count() >= 2).collect();
-    let answer = data.map(|d| Held { named: Some(super::confirm::lines_said(d).iter().any(|l| values.iter().any(|v| l.contains(v.as_str())))), ..held(route, d) });
+    let answer = data.map(|d| Held { named: Some(names_its_value(d, &values)), ..held(route, d) });
     let s = Sighting { at_ms: now_ms(), how: How::Call, asked, sent: Vec::new(), answer, walked: None, compared: None, ok, ms, rung, since_load };
     keep(&route.id, &s);
+}
+
+/// Whether an answer names one of the values it was asked (`values`, lowercased): a line of its text holds one, or one of
+/// its own values is one, whole, in any case: a thing named by a short id or a number (`"sku": "7731"`) is named, though
+/// no line of text holds it.
+fn names_its_value(data: &serde_json::Value, values: &[String]) -> bool {
+    if super::confirm::lines_said(data).iter().any(|l| values.iter().any(|v| l.contains(v.as_str()))) {
+        return true;
+    }
+    fn holds(v: &serde_json::Value, values: &[String], depth: usize) -> bool {
+        match v {
+            _ if depth > 32 => false,
+            serde_json::Value::String(s) => values.iter().any(|x| s.trim().to_lowercase() == *x),
+            serde_json::Value::Number(n) => values.iter().any(|x| n.to_string() == *x),
+            serde_json::Value::Array(items) => items.iter().any(|i| holds(i, values, depth + 1)),
+            serde_json::Value::Object(o) => o.values().any(|i| holds(i, values, depth + 1)),
+            _ => false,
+        }
+    }
+    holds(&super::confirm::as_records(data), values, 0)
 }
 
 /// The browser's walk `second` served the ask; `route` was called beside it and answered `answer`.
@@ -390,6 +416,19 @@ mod tests {
         assert_eq!(a.len(), 12);
         assert!(!a.contains("4f9c2b"));
         assert_ne!(a, mark_with(&[8u8; 32], "4f9c2b7d0e1a83f6c5d2"), "another node's key marks otherwise");
+    }
+
+    /// An answer that names its thing only by a short id or a number (no line of text holds it) still names it: a lookup
+    /// of item 7731 answered `{"item": {"sku": "7731", ...}}` said its value, and was read as saying none, so the next
+    /// item's own call could never stand.
+    #[test]
+    fn an_answer_that_names_its_thing_by_a_short_id_names_it() {
+        let item = serde_json::json!({ "item": { "sku": "7731", "name": "brass desk lamp", "price": 40 } });
+        assert!(names_its_value(&item, &["7731".to_string()]));
+        assert!(names_its_value(&serde_json::json!({ "count": 7731 }), &["7731".to_string()]), "a number");
+        assert!(!names_its_value(&item, &["8842".to_string()]));
+        assert!(names_its_value(&serde_json::json!({ "code": "Rt5Wn8Kd" }), &["rt5wn8kd".to_string()]), "in any case");
+        assert!(names_its_value(&serde_json::json!({ "title": "The brass desk lamp guide" }), &["brass desk lamp".to_string()]), "a line holding it, as before");
     }
 
     /// A request's parts are read as places, with the cookie header read as its cookies, by name.
@@ -438,5 +477,48 @@ mod tests {
         assert_eq!((kept[0].at_ms, kept[KEPT - 1].at_ms), (5, KEPT as u64 + 4));
         let _ = std::fs::remove_dir_all(&dir);
     }
-}
 
+    /// A confirming browse keeps what it saw: the browser's walk's request by its parts (never their values), whether
+    /// the route's call answered, and how each answer held its records; a call that failed is kept as failed.
+    #[test]
+    fn a_confirming_browse_is_kept_with_the_walks_request_and_the_verdict() {
+        crate::store::scratch_home("sighted-confirmed");
+        let graph: unbrowse_learn::Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "steps": [{ "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/api/search?q={q}", "needs_browser": false,
+                "fields": [{ "loc": { "in": "query", "key": "q" }, "class": "input", "name": "q", "secret": false, "default": "lamp", "optional": false }] }]
+        }))
+        .unwrap();
+        let route = crate::store::Route::from_graph("sighted-confirmed-route".into(), "search".into(), "https://shop.example/".into(), graph).unwrap();
+        let walk = Trace {
+            exchanges: vec![Exchange {
+                method: "GET".into(),
+                url: url::Url::parse("https://shop.example/api/search?q=kettle").unwrap(),
+                request_headers: vec![("x-app".into(), "web".into())],
+                request_body: None,
+                status: 200,
+                response_headers: Vec::new(),
+                response_body: Some("{}".into()),
+                response_mime: "application/json".into(),
+                resource_type: Some("XHR".into()),
+                main_frame: Some(true),
+            }],
+            inputs: Vec::new(),
+        };
+        let given = HashMap::from([("q".to_string(), "kettle".to_string())]);
+        let compared = Compared { call: Some(0), calls: 1, left_out: 0, ours: 3, theirs: 3, shared: 3, verdict: "agreed".into() };
+        let answer = serde_json::json!({ "results": [{ "title": "Brass kettle one" }, { "title": "Glass kettle two" }] });
+        confirmed(&route, &given, &walk, Some(0), Some(&answer), Some(&answer), compared.clone());
+        confirmed(&route, &given, &walk, None, None, None, Compared { call: None, verdict: "failed: 403".into(), ..compared.clone() });
+        let kept = of_route_in(&folder(), &route.id);
+        assert_eq!(kept.len(), 2);
+        let (agreed, failed) = (&kept[0], &kept[1]);
+        assert_eq!(agreed.how, How::Confirm);
+        assert!(agreed.ok && agreed.answer.is_some() && agreed.walked.is_some());
+        assert_eq!(agreed.sent.iter().map(|s| s.at.as_str()).collect::<Vec<_>>(), ["query:q", "header:x-app"], "the walk's request, by its parts");
+        assert_eq!(agreed.asked.iter().map(|s| s.at.as_str()).collect::<Vec<_>>(), ["input:q"]);
+        assert_eq!(agreed.compared.as_ref().map(|c| c.verdict.as_str()), Some("agreed"));
+        assert!(!serde_json::to_string(agreed).unwrap().contains("kettle"), "no value is kept");
+        assert!(!failed.ok && failed.answer.is_none() && failed.walked.is_none() && failed.sent.is_empty());
+    }
+}

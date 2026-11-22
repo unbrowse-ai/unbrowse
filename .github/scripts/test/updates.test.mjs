@@ -10,7 +10,7 @@ import { dirname, join, resolve } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { PROMOTE_AFTER, ROOT_WARN, builtinRoot, canonical, checkPublishedRoot2, main, newer, requireCoSignerOnMain, rootNotice, signWith, signedBy, testKey } from "../updates.mjs";
+import { PROMOTE_AFTER, ROOT_WARN, builtinRoot, canonical, changedTargets, checkPublishedRoot2, main, newer, requireCoSignerOnMain, rootNotice, signWith, signedBy, testKey } from "../updates.mjs";
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const fixture = join(repo, "unbrowse-node", "app", "tests", "fixtures", "updates");
@@ -608,7 +608,15 @@ test("a release candidate runs on canary, gives canary up to anything newer, and
   assert.deepEqual(t.channels, { stable: "13.19.0", canary: "13.19.1" });
 });
 
-test("stable's first release is never a candidate", async () => {
+test("stable's first release is never a candidate: a candidate before it publishes no metadata", async () => {
   const { dir, opts, empty } = await world();
-  await assert.rejects(main(["release", "13.19.0-rc.1", dist(dir, "13.19.0-rc.1"), "--from", empty, "--out", join(dir, "x"), ...opts]), /release candidate/);
+  const output = join(dir, "github-output");
+  await main(["release", "13.19.0-rc.1", dist(dir, "13.19.0-rc.1"), "--from", empty, "--out", join(dir, "x"), "--github-output", output, ...opts]);
+  assert.equal(existsSync(join(dir, "x")), false, "no package is written");
+  assert.match(readFileSync(output, "utf8"), /^published=false$/m);
+  await main(["release", "13.19.0", dist(dir, "13.19.0"), "--from", empty, "--out", join(dir, "y"), "--github-output", output, ...opts]);
+  const targets = JSON.parse(readFileSync(join(dir, "y", "targets.json"), "utf8")).signed;
+  assert.equal(targets.channels.stable, "13.19.0", "the first release still seeds stable");
+  assert.match(readFileSync(output, "utf8"), /^published=true$/m);
+  assert.throws(() => changedTargets("release", ["13.19.0-rc.1"], null, NOW, { version: "13.19.0-rc.1", platforms: {} }), /release candidate/);
 });

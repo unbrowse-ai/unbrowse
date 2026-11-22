@@ -4,18 +4,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAtomValue } from "jotai/react";
 import { activeSessionNameAtom } from "@/store/sessions";
 import { execCommand, sessionArgs } from "@/lib/exec";
-import {
-  type CookieEntry,
-  type StorageEntry,
-  latestOnly,
-  readCookies,
-  readStorage,
-} from "@/lib/cli-output";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, RefreshCw } from "lucide-react";
 
 type StorageTab = "cookies" | "localStorage" | "sessionStorage";
+
+interface CookieEntry {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+  expires?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: string;
+}
+
+interface StorageEntry {
+  key: string;
+  value: string;
+}
 
 const TABS: { key: StorageTab; label: string }[] = [
   { key: "cookies", label: "Cookies" },
@@ -45,39 +54,57 @@ export function StoragePanel() {
   const [local, setLocal] = useState<StorageEntry[]>([]);
   const [session, setSession] = useState<StorageEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const lastSessionRef = useRef(sessionName);
-
-  const ticket = useRef(latestOnly()).current;
 
   const fetchData = useCallback(
     async (which: StorageTab) => {
       if (!sessionName) return;
-      const isNewest = ticket();
       setLoading(true);
-      setError("");
       try {
         if (which === "cookies") {
-          const read = readCookies(await execCommand(sessionArgs(sessionName, "cookies")));
-          if (!isNewest()) return;
-          setError(read.ok ? "" : read.error);
-          setCookies(read.ok ? read.value : []);
+          const res = await execCommand(sessionArgs(sessionName, "cookies"));
+          if (res.success && res.stdout) {
+            try {
+              const parsed = JSON.parse(res.stdout);
+              setCookies(parsed.cookies ?? []);
+            } catch {
+              setCookies([]);
+            }
+          }
         } else {
           const storageType = which === "localStorage" ? "local" : "session";
-          const read = readStorage(
-            await execCommand(sessionArgs(sessionName, "storage", storageType)),
+          const res = await execCommand(
+            sessionArgs(sessionName, "storage", storageType),
           );
-          if (!isNewest()) return;
-          setError(read.ok ? "" : read.error);
-          if (which === "localStorage") setLocal(read.ok ? read.value : []);
-          else setSession(read.ok ? read.value : []);
+          if (res.success && res.stdout) {
+            try {
+              const parsed = JSON.parse(res.stdout);
+              const entries: StorageEntry[] = [];
+              if (parsed.entries && typeof parsed.entries === "object") {
+                for (const [k, v] of Object.entries(parsed.entries)) {
+                  entries.push({ key: k, value: String(v) });
+                }
+              } else if (typeof parsed === "object") {
+                for (const [k, v] of Object.entries(parsed)) {
+                  if (k !== "length") {
+                    entries.push({ key: k, value: String(v) });
+                  }
+                }
+              }
+              if (which === "localStorage") setLocal(entries);
+              else setSession(entries);
+            } catch {
+              if (which === "localStorage") setLocal([]);
+              else setSession([]);
+            }
+          }
         }
       } finally {
-        if (isNewest()) setLoading(false);
+        setLoading(false);
       }
     },
-    [sessionName, ticket],
+    [sessionName],
   );
 
   useEffect(() => {
@@ -134,8 +161,6 @@ export function StoragePanel() {
           <div className="py-8 text-center text-xs text-muted-foreground">
             No active session
           </div>
-        ) : error ? (
-          <div className="px-3 py-8 text-center text-xs text-destructive">{error}</div>
         ) : tab === "cookies" ? (
           <CookiesView
             cookies={cookies}

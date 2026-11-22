@@ -151,7 +151,7 @@ impl BrowsersOwn {
 /// Not carried, because they are not the client's shape: `cookie` (the session's, from the jar), the transport's own
 /// framing (`host`, `content-length`, `connection`, `accept-encoding`), and `user-agent` (the identity the transport
 /// presents, measured against the minting browser).
-pub(crate) fn is_carried_browser_header(name: &str) -> bool {
+pub fn is_carried_browser_header(name: &str) -> bool {
     matches!(
         name,
         "accept" | "accept-language" | "priority" | "dnt" | "upgrade-insecure-requests" | "cache-control" | "pragma" | "referer" | "origin"

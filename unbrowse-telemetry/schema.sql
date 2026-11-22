@@ -13,11 +13,13 @@ CREATE TABLE IF NOT EXISTS events (
   tool TEXT,
   outcome TEXT NOT NULL,
   duration_ms INTEGER,
-  error_class TEXT
+  error_class TEXT,
+  from_tag TEXT                    -- the event's `from`: the node's source tag, on node_start only
 );
 
 CREATE INDEX IF NOT EXISTS events_by_hour ON events (received_hour, event);
 CREATE INDEX IF NOT EXISTS events_by_install ON events (install_id, received_hour);
+-- A store made before from_tag gets it from src/sql.js's `migrate` (CREATE TABLE IF NOT EXISTS leaves a table as it is).
 
 -- Bug reports (POST /v1/reports). A report's text is never kept here: it goes into the public GitHub issue. What is
 -- kept is which issue each problem (fingerprint) has and how often it was reported, and today's count of reports per

@@ -36,6 +36,7 @@ sys.path.insert(0, HERE)
 import xray_log as G  # noqa: E402
 import xray_why as Y  # noqa: E402
 import xray_wire as XW  # noqa: E402
+import route_graph as RG  # noqa: E402
 
 
 def _load(name, file):
@@ -181,6 +182,8 @@ def hush(s):
 
 
 XW.hush = lambda s: hush(s)
+# The graph across routes shows a fixed path piece by the same rule as a fixed value here.
+RG.piece_words = lambda p, words: '‹word›' if p in words else (json.loads(fixed(p)) if fixed(p).startswith('"') else fixed(p))
 
 
 def fixed(s):
@@ -1111,6 +1114,7 @@ class Reader:
         self.rows = matrix_rows() if matrix else {}
         self.log_cache, self.cap_cache, self.made_cache = (None, None), {}, {}
         self.calls_cache, self.sent_cache, self.wire_engine = (None, ({}, [])), {}, None
+        self.graph_cache = {}
 
     def groups(self):
         gs = []
@@ -1312,6 +1316,38 @@ class Reader:
                 out += rs
             return out
 
+    def stored_gives(self):
+        """route id -> the storage keys (`area:key`) its walk's page held, from the walk's capture where one is in hand."""
+        out = {}
+        if not self.log: return out
+        for l in self.learns():
+            rid = (l.get('saved') or {}).get('route')
+            cap = self.capture(l['walk']) if rid else None
+            if cap: out[rid] = sorted({'%s:%s' % (a, k) for a, k, _, _ in cap.storage})
+        return out
+
+    def graph(self, group_key=None):
+        """The graph across the routes of each home of a group (route_graph.py), read again only when a route file of
+        the group moved. Each home is a node of its own: no edge crosses two homes."""
+        gs = self.groups()
+        g = next((x for x in gs if x['key'] == group_key), None) or (gs[0] if gs else None)
+        if not g: return None
+        st = sig([stamp_of(route_files(h['routes'])) for h in g['homes']] + [stamp_of([self.log]) if self.log else None])
+        hit = self.graph_cache.get(g['key'])
+        if hit and hit[0] == st: return hit[1]
+        stored = self.stored_gives()
+        parts = [RG.read_home(h['routes'], stored) for h in g['homes']]
+        out = RG.merge(parts)
+        self.graph_cache[g['key']] = (st, out)
+        return out
+
+    def graph_overview(self, group_key=None):
+        """What the overview carries of the graph: its counts and one line a site. A site's nodes and edges are
+        fetched from /graph only when it is opened."""
+        gr = self.graph(group_key)
+        if not gr: return None
+        return {'counts': gr['counts'], 'sites': RG.sites(gr), 'catalogue': {k: list(v) for k, v in RG.FINDINGS.items()}, 'site_rule': RG.site_rule()}
+
     def source(self, key, step, hole, way, n=0):
         """A program's source, for the live page only."""
         with self.lock:
@@ -1391,7 +1427,8 @@ class Reader:
         return {'now': time.time(), 'layers': LAYERS, 'rungs': RUNGS, 'flags': FLAGS, 'levels': list(X.LEVELS), 'rule': BROWSER_RULE, 'known_ops': sorted(known_ops()),
                 'wire_kinds': {k: v[0] for k, v in XW.KINDS.items()}, 'groups': [{k: v for k, v in x.items() if k != 'homes'} | {'homes': len(x['homes']), 'version': self.version(x)} for x in gs], 'group': g['key'] if g else None,
                 'summaries': {g['key']: sums} if g else {}, 'totals': {g['key']: totals} if g else {}, 'cost': {g['key']: self.cost(g)} if g else {}, 'pick': pick, 'with_source': False, 'log': self.log,
-                'captures': self.captures if self.captures and os.path.isdir(self.captures) else None, 'engine': eng, 'legend': legend_sources(rs)}
+                'captures': self.captures if self.captures and os.path.isdir(self.captures) else None, 'engine': eng, 'legend': legend_sources(rs),
+                'graph': self.graph_overview(g['key']) if g else None}
 
     def detail(self, key, with_source=False):
         """One route, every hole of it, and the engine's functions for its kinds and findings."""
@@ -1611,6 +1648,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if u.path == '/route':
                 d = self.reader.detail(q.get('key'))
                 return self.send(200 if d else 404, json.dumps(d or {'error': 'no such route (read its group first)'}, ensure_ascii=False))
+            if u.path == '/graph':
+                gr = self.reader.graph(q.get('group'))
+                return self.send(200 if gr else 404, json.dumps(RG.public(gr, q.get('site') or None) if gr else {'error': 'no such group'}, ensure_ascii=False))
             if u.path == '/version':
                 if self.reader.engine: self.reader.engine.running(at_most_every=1)  # a few stats when nothing moved
                 return self.send(200, json.dumps({g['key']: self.reader.version(g) for g in self.reader.groups()}))
@@ -1742,10 +1782,37 @@ def diff(home_a, home_b, log_a=None, log_b=None):
     return lines, breaks
 
 
+def graph_main(reader, a):
+    """`graph`: every group's graph as JSON (nodes, edges, kinds, groups, cycles, findings). `dependents` / `needs`:
+    one route's, transitively, in whichever group holds it."""
+    groups = reader.groups()
+    if a.what == 'graph':
+        out = {'site_rule': RG.site_rule(), 'groups': []}
+        for g in groups:
+            gr = reader.graph(g['key'])
+            out['groups'].append({'group': g['key'], 'title': g['title']} | RG.public(gr, a.site))
+        print(json.dumps(out, ensure_ascii=False, indent=1))
+        return 0
+    if len(a.homes) != 1:
+        print('wiring.py %s <route id or file> [--home DIR]' % a.what, file=sys.stderr)
+        return 2
+    for g in groups:
+        gr = reader.graph(g['key'])
+        key = RG.resolve(gr, a.homes[0])
+        if key:
+            ans = RG.dependents(gr, key) if a.what == 'dependents' else RG.needs(gr, key)
+            print(json.dumps({'group': g['key']} | ans, ensure_ascii=False, indent=1))
+            return 0
+    print('no route %s in %s' % (a.homes[0], ', '.join(g['title'] for g in groups) or 'no home'), file=sys.stderr)
+    return 1
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog='wiring.py', description=__doc__.split('\n\n')[0])
-    ap.add_argument('what', choices=('serve', 'render', 'state', 'diff'))
-    ap.add_argument('homes', nargs='*', help='diff: <home A> <home B>')
+    ap.add_argument('what', choices=('serve', 'render', 'state', 'diff', 'graph', 'dependents', 'needs'))
+    ap.add_argument('homes', nargs='*', help='diff: <home A> <home B>; dependents, needs: <route id or file>')
+    ap.add_argument('--site', default=None, help='graph: only this site (as the graph names it)')
+    ap.add_argument('--suffixes', default=None, help="graph: a public suffix list (public_suffix_list.dat), read as the engine's identity::site_of reads one")
     ap.add_argument('--home', action='append', default=[], help='a node home or its routes folder (repeat for more)')
     ap.add_argument('--ub-dir', default=None, help="a scratch node's folder: its home (home/node), its log (node.log) and its walks (tmp/unbrowse-node-walks). Default $UB_DIR when no home is named")
     ap.add_argument('--matrix', action='store_true', help="also every matrix scratch home under $TMPDIR, a group per run")
@@ -1780,6 +1847,10 @@ def main(argv=None):
         if not a.home:
             print('name a home (--home DIR), a scratch node (--ub-dir, or UB_DIR), or --matrix', file=sys.stderr)
             return 2
+    if a.suffixes: RG.load_suffixes(a.suffixes)
+    if a.what in ('graph', 'dependents', 'needs'):
+        reader = Reader(a.home, a.matrix, a.runs, a.log, captures=a.captures)
+        return graph_main(reader, a)
     runs = a.runs if a.runs is not None else (3 if a.what == 'render' else None)
     engine = None if a.no_engine else Engine(os.path.abspath(a.engine) if a.engine else TOP, a.map)
     reader = Reader(a.home, a.matrix, runs, a.log, engine=engine, captures=a.captures)

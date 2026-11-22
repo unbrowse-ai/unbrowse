@@ -537,4 +537,142 @@ mod tests {
             assert_eq!(called.answer.own_json().and_then(|v| v["results"][0]["title"].as_str().map(String::from)).as_deref(), Some("teapot one"), "the answer as the site's own code unpacks it");
         }
     }
+
+    /// A step asking `url` with the holes `holes`, the last of the body's steps being its answer.
+    fn step_of(id: &str, url: &str, holes: Vec<route::Hole>, script: Option<route::Caller>) -> route::Step {
+        route::Step { id: id.into(), method: "GET".into(), url: url.into(), holes, body: None, expect: 200, script, page: false, writes: false, on_load: false, sets_cookie: false, lifetime: None, shape: None }
+    }
+
+    fn hole(at: &str, expr: route::Expr) -> route::Hole {
+        route::Hole { at: route::Place::Query(at.into()), ways: vec![route::Way { rung: 0, expr }], over: false, open: false }
+    }
+
+    fn body_of(steps: Vec<route::Step>) -> route::Route {
+        let answer = steps.last().map(|s| s.id.clone()).unwrap_or_default();
+        let slots = vec![route::Slot { name: "q".into(), secret: false, example: None, choices: Vec::new() }];
+        route::Route { v: route::VERSION, tests: Vec::new(), plan: None, meaning: Default::default(), site: "shop.example".into(), slots, steps, answer: route::Answer { step: answer, page: false, decode: None } }
+    }
+
+    /// A site that answers each ask with the reply `by` makes of the built request, and keeps what it was asked.
+    struct Routed<F: FnMut(&route::Built) -> String> {
+        by: F,
+        asked: Vec<route::Built>,
+    }
+    impl<F: FnMut(&route::Built) -> String> Site for Routed<F> {
+        fn ask(&mut self, _step: &route::Step, built: &route::Built) -> Said {
+            self.asked.push(built.clone());
+            let mut reply = seen("GET", built.url.as_str(), &[], None, &(self.by)(built));
+            reply.url = built.url.clone();
+            Said::Reply { at: None, reply }
+        }
+    }
+
+    fn routed(by: impl FnMut(&route::Built) -> String) -> Routed<impl FnMut(&route::Built) -> String> {
+        Routed { by, asked: Vec::new() }
+    }
+
+    const FOUND: &str = r#"{"items":[{"name":"desk lamp"}]}"#;
+
+    fn query_of(built: &route::Built, key: &str) -> Option<String> {
+        built.url.query_pairs().find(|(k, _)| k == key).map(|(_, v)| v.into_owned())
+    }
+
+    /// An id the page made up from the clock is read anew from the caller's clock, in the form of its clock: milliseconds,
+    /// seconds, or (where it is drawn at random) a UUID of the learner's own shape; the same id in two places of a call
+    /// is one value. A stamp made of chance is checked by its shape: its random digits are noughts.
+    #[test]
+    fn an_id_made_from_the_clock_is_read_from_the_callers_clock_and_is_one_value_in_a_call() {
+        use route::{Clock, Expr};
+        let now = 1_700_000_123_456;
+        let sent = |holes: Vec<route::Hole>| {
+            let body = body_of(vec![step_of("x0", "https://shop.example/api/find", holes, None)]);
+            let mut site = routed(|_| FOUND.to_string());
+            call(&body, &asked("lamp"), &HashMap::new(), now, &mut site).expect("called");
+            site.asked.remove(0)
+        };
+        let built = sent(vec![hole("ms", Expr::Fresh { id: "req".into(), clock: Clock::Millis }), hole("again", Expr::Fresh { id: "req".into(), clock: Clock::Millis })]);
+        assert_eq!(query_of(&built, "ms").as_deref(), Some("1700000123456"));
+        assert_eq!(query_of(&built, "again"), query_of(&built, "ms"), "one id, one value in the call");
+        let built = sent(vec![hole("s", Expr::Fresh { id: "req".into(), clock: Clock::Seconds })]);
+        assert_eq!(query_of(&built, "s").as_deref(), Some("1700000123"));
+        let built = sent(vec![hole("r", Expr::Fresh { id: "req".into(), clock: Clock::Random })]);
+        assert_eq!(query_of(&built, "r").as_deref(), Some("00000000-0000-4000-a000-000000000000"));
+        let built = sent(vec![hole("stamp", Expr::Stamp { form: "{d4}-{ms}-{s}".into() })]);
+        assert_eq!(query_of(&built, "stamp").as_deref(), Some("0000-1700000123456-1700000123"));
+    }
+
+    /// The learner sends no file: a step that sends one the caller names is not built, and the call stops there, saying
+    /// which step and that no file is sent.
+    #[test]
+    fn a_step_that_sends_a_file_is_not_built_by_the_learners_caller() {
+        let step = step_of("x0", "https://shop.example/api/find", vec![hole("name", route::Expr::File { slot: "q".into(), fact: route::FileFact::Name })], None);
+        let mut site = routed(|_| FOUND.to_string());
+        match call(&body_of(vec![step]), &asked("lamp"), &HashMap::new(), 0, &mut site) {
+            Err(Stopped::Stuck { step, why }) => {
+                assert_eq!(step, "x0");
+                assert!(why.contains("the learner sends no file"), "{why}");
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(site.asked.is_empty(), "nothing is sent for a step that cannot be built");
+    }
+
+    /// A call a page's script made says where it comes from as a browser does: from the page's own origin it is
+    /// same-origin, from another host of the same site it is same-site, from another site it is cross-site.
+    #[test]
+    fn a_call_a_script_made_says_how_far_it_came_from_as_a_browser_does() {
+        let fetch_site = |origin: Option<&str>| {
+            let step = step_of("x0", "https://api.shop.example/find", Vec::new(), Some(route::Caller { origin: origin.map(String::from) }));
+            let mut site = routed(|_| FOUND.to_string());
+            call(&body_of(vec![step]), &asked("lamp"), &HashMap::new(), 0, &mut site).expect("called");
+            site.asked[0].headers.iter().find(|(k, _)| k == "sec-fetch-site").map(|(_, v)| v.clone())
+        };
+        assert_eq!(fetch_site(None).as_deref(), Some("same-origin"));
+        assert_eq!(fetch_site(Some("https://api.shop.example")).as_deref(), Some("same-origin"));
+        assert_eq!(fetch_site(Some("https://www.shop.example")).as_deref(), Some("same-site"));
+        assert_eq!(fetch_site(Some("https://other.example")).as_deref(), Some("cross-site"));
+    }
+
+    /// A value picked from a list an earlier reply gave is the first item that fits the caller's word, and a step that
+    /// waits for an earlier step's answer is left out once that step has answered.
+    #[test]
+    fn a_value_picked_from_an_earlier_replys_list_is_the_item_that_fits_the_callers_word() {
+        use route::{Expr, Fits};
+        let list = step_of("x0", "https://shop.example/api/cities", Vec::new(), None);
+        let pick = Expr::Pick { step: "x0".into(), list: "/items".into(), fits: Fits::Equals { at: "/name".into(), is: Box::new(Expr::Slot { name: "q".into(), or: None, optional: false }) }, take: "/id".into() };
+        let after = Expr::Nothing { after: Some("x0".into()) };
+        let city = step_of("x1", "https://shop.example/api/city", vec![hole("id", pick), hole("late", after)], None);
+        let body = body_of(vec![list, city]);
+        let mut site = routed(|built| if built.url.path().rsplit('/').next() == Some("cities") { r#"{"items":[{"name":"Oslo","id":"7"},{"name":"Lisbon","id":"9"}]}"#.to_string() } else { FOUND.to_string() });
+        let called = call(&body, &asked("Lisbon"), &HashMap::new(), 0, &mut site).expect("called");
+        assert_eq!(called.heard.len(), 2);
+        let sent = &site.asked[1];
+        assert_eq!(query_of(sent, "id").as_deref(), Some("9"), "the item that fits the word");
+        assert_eq!(query_of(sent, "late"), None, "nothing is sent once the step it waits for has answered");
+        let mut site = routed(|_| r#"{"items":[{"name":"Oslo","id":"7"}]}"#.to_string());
+        match call(&body, &asked("Atlantis"), &HashMap::new(), 0, &mut site) {
+            Err(Stopped::Stuck { step, .. }) => assert_eq!(step, "x1", "no item fits: the step cannot be built"),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    /// A program of the site's own sees what the page kept in each of its stores as the session holds it: the local and
+    /// the session storage, each under the store's own name, and nothing else of the jar.
+    #[test]
+    fn a_program_of_the_sites_own_sees_both_of_the_pages_stores() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the storage-program test is skipped");
+            return;
+        }
+        let program = route::Expr::Program { source: "function sign(ctx) { return 'l=' + localStorage.getItem('theme') + ';s=' + sessionStorage.getItem('tab') + ';c=' + localStorage.getItem('sid'); }".into(), evidence: None };
+        let step = step_of("x0", "https://shop.example/api/find", vec![hole("env", program)], None);
+        let jar = HashMap::from([
+            (route::expr::Area::Local.held_as("theme"), "dark".to_string()),
+            (route::expr::Area::Session.held_as("tab"), "t-9".to_string()),
+            ("sid".to_string(), "a-cookie".to_string()),
+        ]);
+        let mut site = routed(|_| FOUND.to_string());
+        call(&body_of(vec![step]), &asked("lamp"), &jar, 0, &mut site).expect("called");
+        assert_eq!(query_of(&site.asked[0], "env").as_deref(), Some("l=dark;s=t-9;c=null"), "a cookie is no storage");
+    }
 }

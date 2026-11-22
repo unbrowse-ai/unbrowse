@@ -93,14 +93,45 @@ pub enum Answer {
 }
 
 /// Sends `method` with `params` to `url` and reads its answer, at most `cap` bytes: a body said to be larger, or that
-/// grows past it as it streams in, is refused there, and nothing of it is decoded.
+/// grows past it as it streams in, is refused there, and nothing of it is decoded. A request the RPC turned away for
+/// its rate (`turned_away`) is sent again after a wait, as every provider's request is (`rpc::client`), and only the
+/// last refusal is answered: a public RPC limits each caller, and the reads here (the headers between finalized heads,
+/// a window of logs) come in bursts.
 pub async fn fetch(url: &reqwest_url::Url, method: &str, params: serde_json::Value, cap: usize) -> Result<Answer, String> {
+    let mut wait = std::time::Duration::from_millis(crate::rpc::RATE_LIMIT_BACKOFF_MS);
+    let mut tries = 0;
+    loop {
+        let (answer, turned) = fetch_once(url, method, &params, cap).await?;
+        if !turned || tries >= crate::rpc::RATE_LIMIT_RETRIES {
+            return Ok(answer);
+        }
+        tries += 1;
+        tokio::time::sleep(wait).await;
+        wait = (wait * 2).min(RATE_LIMIT_WAIT_MOST);
+    }
+}
+
+/// The longest wait between two sends of a request the RPC turned away for its rate.
+const RATE_LIMIT_WAIT_MOST: std::time::Duration = std::time::Duration::from_secs(16);
+
+/// Whether an RPC's refusal is for the caller's rate, read as the provider's retries read it (`ErrorPayload::is_retry_err`:
+/// JSON-RPC -32005, 429, a provider's credit or request limit, a message that says "rate limit").
+pub fn turned_away(error: &serde_json::Value) -> bool {
+    serde_json::from_value::<alloy::rpc::json_rpc::ErrorPayload>(error.clone()).is_ok_and(|e| e.is_retry_err())
+}
+
+/// One send of `fetch`: the answer, and whether the RPC turned it away for its rate (an HTTP 429, or a refusal that
+/// says so).
+async fn fetch_once(url: &reqwest_url::Url, method: &str, params: &serde_json::Value, cap: usize) -> Result<(Answer, bool), String> {
     use alloy::transports::http::reqwest;
     static CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
         reqwest::Client::builder().timeout(crate::rpc::REQUEST_TIMEOUT).build().unwrap_or_else(|_| reqwest::Client::new())
     });
     let body = serde_json::json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
     let mut resp = CLIENT.post(url.clone()).json(&body).send().await.map_err(|e| format!("{method}: {e}"))?;
+    if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        return Ok((Answer::Refused(format!("{method}: HTTP 429, too many requests")), true));
+    }
     if resp.content_length().is_some_and(|n| n > cap as u64) {
         return Err(format!("{method}: the RPC's answer is more than {cap} bytes, so it wasn't read"));
     }
@@ -113,12 +144,57 @@ pub async fn fetch(url: &reqwest_url::Url, method: &str, params: serde_json::Val
     }
     let reply: serde_json::Value = serde_json::from_slice(&got).map_err(|e| format!("{method}: {e}"))?;
     if let Some(e) = reply.get("error") {
-        return Ok(Answer::Refused(e.to_string()));
+        return Ok((Answer::Refused(e.to_string()), turned_away(e)));
     }
-    Ok(match reply.get("result") {
-        None | Some(serde_json::Value::Null) => Answer::Null,
-        Some(v) => Answer::Value(v.clone()),
-    })
+    Ok((
+        match reply.get("result") {
+            None | Some(serde_json::Value::Null) => Answer::Null,
+            Some(v) => Answer::Value(v.clone()),
+        },
+        false,
+    ))
+}
+
+/// `calls` (each a method and its params) sent as one JSON-RPC batch to `url`, read within `cap` bytes in all as `fetch`
+/// reads one: each call's answer, in the order asked, matched by id. A batch the RPC answers as one refusal (it takes no
+/// batches, or turned this one away for its rate) is an error, and nothing of it is used.
+pub async fn fetch_batch(url: &reqwest_url::Url, calls: &[(&str, serde_json::Value)], cap: usize) -> Result<Vec<Answer>, String> {
+    use alloy::transports::http::reqwest;
+    static CLIENT: std::sync::LazyLock<reqwest::Client> = std::sync::LazyLock::new(|| {
+        reqwest::Client::builder().timeout(crate::rpc::REQUEST_TIMEOUT).build().unwrap_or_else(|_| reqwest::Client::new())
+    });
+    if calls.is_empty() {
+        return Ok(Vec::new());
+    }
+    let body: Vec<serde_json::Value> =
+        calls.iter().enumerate().map(|(i, (method, params))| serde_json::json!({ "jsonrpc": "2.0", "id": i, "method": method, "params": params })).collect();
+    let what = format!("a batch of {} {}", calls.len(), calls[0].0);
+    let mut resp = CLIENT.post(url.clone()).json(&body).send().await.map_err(|e| format!("{what}: {e}"))?;
+    if resp.content_length().is_some_and(|n| n > cap as u64) {
+        return Err(format!("{what}: the RPC's answer is more than {cap} bytes, so it wasn't read"));
+    }
+    let mut got = Vec::new();
+    while let Some(chunk) = resp.chunk().await.map_err(|e| format!("{what}: {e}"))? {
+        if got.len() + chunk.len() > cap {
+            return Err(format!("{what}: the RPC's answer is more than {cap} bytes, so it wasn't read"));
+        }
+        got.extend_from_slice(&chunk);
+    }
+    let reply: serde_json::Value = serde_json::from_slice(&got).map_err(|e| format!("{what}: {e}"))?;
+    let Some(items) = reply.as_array() else {
+        let why = reply.get("error").map(|e| e.to_string()).unwrap_or_else(|| "not a batch answer".into());
+        return Err(format!("{what}: {why}"));
+    };
+    let mut out: Vec<Option<Answer>> = (0..calls.len()).map(|_| None).collect();
+    for item in items {
+        let Some(i) = item.get("id").and_then(|v| v.as_u64()).map(|i| i as usize).filter(|i| *i < calls.len()) else { continue };
+        out[i] = Some(match (item.get("error"), item.get("result")) {
+            (Some(e), _) => Answer::Refused(e.to_string()),
+            (None, None | Some(serde_json::Value::Null)) => Answer::Null,
+            (None, Some(v)) => Answer::Value(v.clone()),
+        });
+    }
+    out.into_iter().enumerate().map(|(i, a)| a.ok_or_else(|| format!("{what}: no answer for call {i}"))).collect()
 }
 
 mod reqwest_url {
@@ -149,8 +225,10 @@ async fn read_block(url: &Url, number: serde_json::Value, full: bool, cap: usize
 
 /// Proves the node's transaction `ours`, mined in block `number` per its receipt, against what the node's RPC
 /// (`chain::url`) serves of that block (and, when the owner names one, what a second RPC says its hash is), every answer
-/// read through `fetch`'s bound. An error is an answer that contradicts itself or the second RPC: the writes stop
-/// (`rpc::halt`).
+/// read through `fetch`'s bound. An error is either an RPC that didn't answer (a timeout, a refused connection, a rate
+/// limit past its retries), which stops nothing, or an answer that contradicts itself or the second RPC, which has
+/// stopped every write (`rpc::halt`) where it was found, here or in `rpc::second_agrees_on_block` and `anchor`. A
+/// caller never halts on the error itself (UNB-171).
 pub async fn prove_on<P: Provider>(p: &P, ours: B256, number: u64, signed: Option<(u128, u128)>) -> Result<Inclusion, String> {
     let url = crate::chain::url();
     let chain = p.get_chain_id().await.map_err(|e| e.to_string())?;
@@ -188,12 +266,25 @@ pub async fn prove_on<P: Provider>(p: &P, ours: B256, number: u64, signed: Optio
         return Ok(Inclusion::Unprovable(format!("block {number}: {e}")));
     }
     let receipts: Vec<_> = receipts.into_iter().map(|r| r.inner.into_primitives_receipt()).collect();
-    let proven = prove(&block.header.inner, block.header.hash, &txs, &receipts, ours, signed).map_err(|e| format!("block {number}: {e}"))?;
+    // Every error `prove` gives is an answer that contradicts itself: that, and not an answer withheld, stops writes.
+    let proven = prove(&block.header.inner, block.header.hash, &txs, &receipts, ours, signed).map_err(|e| {
+        let why = format!("block {number}: {e}");
+        crate::rpc::halt(&why);
+        why
+    })?;
     crate::rpc::second_agrees_on_block(number, proven.block_hash).await?;
     // A block that holds the write is not yet the chain's: it must be on the finalized chain the node has followed
     // itself, header by header (`anchor`).
     let followed = crate::anchor::advance(chain).await?;
-    let Some(agreed) = crate::anchor::anchored_at(&followed.anchored, number, proven.block_hash, &crate::anchor::FromRpc(url)).await? else {
+    let anchored = match crate::anchor::anchored_at(&followed.anchored, number, proven.block_hash, &crate::anchor::FromRpc(url)).await {
+        Ok(a) => a,
+        Err(crate::anchor::Broken::Contradicts(e)) => {
+            crate::rpc::halt(&e);
+            return Err(e);
+        }
+        Err(crate::anchor::Broken::Unanswered(e)) => return Err(e),
+    };
+    let Some(agreed) = anchored else {
         return Ok(Inclusion::Unprovable(format!("block {number} isn't on the finalized chain the node has followed (before it began, in a gap it couldn't link, or not final yet)")));
     };
     Ok(Inclusion::Proven(Proven { agreed, ..proven }))
