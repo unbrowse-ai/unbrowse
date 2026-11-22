@@ -354,6 +354,22 @@ pub fn route_writes(graph: &Graph) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    /// A call made twice (a heal's retry) may have committed in either attempt: the folded ledger keeps, for each
+    /// step, the furthest either attempt got, and a step only the retry reached.
+    #[test]
+    fn a_retrys_ledger_folds_in_what_either_attempt_may_have_done() {
+        let mark = |step: usize, state: super::MarkState| super::CommitMark { step, method: "POST".into(), url: format!("https://shop.example/api/{step}"), state };
+        use super::MarkState::{Confirmed, NotSent, Sent};
+        let first = super::Ledger { marks: vec![mark(1, Sent), mark(2, NotSent), mark(4, Confirmed)] };
+        let retry = super::Ledger { marks: vec![mark(3, Sent), mark(2, Confirmed), mark(1, NotSent), mark(4, Sent)] };
+        let folded = first.fold(retry);
+        let states: Vec<(usize, super::MarkState)> = folded.marks.iter().map(|m| (m.step, m.state)).collect();
+        assert_eq!(states, vec![(1, Sent), (2, Confirmed), (3, Sent), (4, Confirmed)]);
+        assert!(!folded.sent_nothing());
+        assert!(super::Ledger::default().fold(super::Ledger::default()).sent_nothing());
+    }
+
     use super::*;
     use crate::graph::{Body, Step};
 
@@ -374,6 +390,7 @@ mod tests {
             foreign: false,
             held: Vec::new(),
             reads_page: false,
+            fallbacks: Vec::new(),
         }
     }
 

@@ -64,5 +64,9 @@ fn main() {
         if let Some(j4r) = v.pointer("/tls/ja4_r").and_then(|x| x.as_str()) {
             println!("chrome ja4_r={j4r}");
         }
+        // peetprint reads more than JA4: the curves and point formats a post-quantum browser sends, which JA4 omits.
+        println!("chrome peetprint={:?}", v.pointer("/tls/peetprint"));
+        println!("chrome supported_groups={:?}", v.pointer("/tls/supported_groups"));
+        println!("chrome ec_point_formats={:?}", v.pointer("/tls/ec_point_formats"));
     }
 }

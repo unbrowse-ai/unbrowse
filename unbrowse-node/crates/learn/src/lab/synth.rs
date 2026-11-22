@@ -307,6 +307,11 @@ fn way(expr: Expr) -> Way {
     Way { rung: 0, expr }
 }
 
+/// Whether a value holds a word the page was asked, whole: a caller's word never rides another call as the walk's.
+fn holds_a_word(value: &str, words: &[&str]) -> bool {
+    words.iter().any(|w| !w.trim().is_empty() && crate::trace::carries_whole(value, w))
+}
+
 impl<'a> Lab<'a> {
     pub fn new(walks: &'a [Walk<'a>]) -> Self {
         Lab { walks, paired: RefCell::new(HashMap::new()), json: RefCell::new(HashMap::new()), literals: Vec::new(), sender_sha: None, target_at: None, sender: None, scripts: Vec::new(), tables: Vec::new(), proposer: None, storage: Vec::new(), refused: RefCell::new(Vec::new()), secrets: Vec::new() }
@@ -581,6 +586,12 @@ impl<'a> Lab<'a> {
             for hows in &forms {
                 let form = written(theirs[0], hows);
                 if form.chars().count() < 2 {
+                    continue;
+                }
+                // The caller's value goes where it stands as a word of its own, on every sighting: one that turns up
+                // only inside a longer word (a key name such as `search_params`) does not make the literal the
+                // caller's, however it was written.
+                if !values.iter().enumerate().all(|(k, v)| theirs.get(k).is_some_and(|t| route::expr::stands_as_a_word(v, &written(t, hows)))) {
                     continue;
                 }
                 // A writing is read from every sighting, not the first alone: two writings of the first value can be
@@ -1226,17 +1237,30 @@ impl<'a> Lab<'a> {
                 // What each walk's page kept in its storage, moved with it: the storage's.
                 out.push(hole(Kind::Session, vec![way(expr)], None));
             } else if let Some(expr) = kept(self.read(&seen, &values).into_iter().collect()) {
-                out.push(hole(Kind::Read, vec![way(expr)], None));
+                // The read, and what the walk read there where a later reply does not hold the place. A value of the
+                // page's own load (an experiment's code, a visitor's id, a piece of the state it renders) is a thing
+                // the page made for that load, not a thing the site is asked: a fresh load that omits it is no reason
+                // to stop the call, as a browser's page holds what its own load gave it. Nothing stands in for a
+                // value that holds the word the page was asked: that word never rides a call as the walk's.
+                let mut ways = vec![way(expr)];
+                if !holds_a_word(values[0], &self.walks[first.walk].words()) {
+                    ways.push(way(Expr::text(values[0])));
+                }
+                out.push(hole(Kind::Read, ways, None));
             } else if let Some(expr) = kept(self.clock(&seen, &values).into_iter().collect()) {
                 out.push(hole(Kind::Clock, vec![way(expr)], None));
             } else if seen.len() == 1 {
                 // One sighting, and nothing it shows makes the value: sent as walked, and open, since one walk cannot
                 // tell the site's own text from the session's or a value made anew for each call. A header the
                 // session keeps, as the classifier reads one from one walk, is the jar's.
-                // A piece of the path is the address's own: the call is known by it.
-                match self.a_session_header(&seen, &slot.loc, values[0]) {
+                // A piece of the path is the address's own: the call is known by it. So is the request's content type,
+                // as the classifier reads it: it says how the body is written, not a value the page makes (left open,
+                // every page whose scripts name the header, a jQuery or a fetch wrapper, read as making it, and the
+                // route went to the browser). A multipart boundary is made anew for each call, and stays open.
+                let content_type = matches!(&slot.loc, Loc::Header(h) if h.eq_ignore_ascii_case("content-type")) && !values[0].to_ascii_lowercase().contains("boundary=");
+                match self.a_session_header(&seen, &slot.loc, values[0]).filter(|_| !content_type) {
                     Some(name) => out.push(hole(Kind::Session, vec![way(Expr::Cookie { name, here: false })], None)),
-                    None if matches!(slot.loc, Loc::Path(_)) => out.push(hole(Kind::Fixed, vec![way(Expr::text(values[0]))], None)),
+                    None if matches!(slot.loc, Loc::Path(_)) || content_type => out.push(hole(Kind::Fixed, vec![way(Expr::text(values[0]))], None)),
                     None => out.push(hole(Kind::Open, vec![way(Expr::text(values[0]))], None)),
                 }
             } else if let Some(expr) = kept(self.digest(&seen, &slot.loc, &values).into_iter().collect()) {
@@ -1388,6 +1412,29 @@ pub(crate) mod tests {
         );
     }
 
+    /// A caller's value that turns up in a longer literal only inside a longer word (here the page's address word
+    /// `search`, inside the key `search_params` of a cursor the page carried) does not make that literal the caller's:
+    /// the literal is not split around it, and the place is not the caller's. Where the value stands as a word of its
+    /// own in the same literal, it is still written into its place.
+    #[test]
+    fn a_callers_value_inside_a_longer_word_does_not_make_the_literal_the_callers() {
+        let cursor = Wrap::Base64.close(r#"{"search_params":{"page":2},"offset":48,"session_id":"0f3c9a7e-11aa-4b2c-9d41-5e6f7a8b9c0d"}"#);
+        let first = trace(vec![call("POST", "https://shop.example/api/search", &[], Some(&format!(r#"{{"query":"desk lamp","session":"{cursor}"}}"#)), "{}")]);
+        let walks = [walk(&first, &[("part0", "search"), ("q", "desk lamp")])];
+        let holes = Lab::new(&walks).holes(0);
+        let session = at(&holes, &Loc::Json("/session".into()));
+        assert_ne!(session.kind, Kind::Callers, "a key name holding the word is not the caller's place: {:?}", session.ways);
+        let names_a_slot = |e: &Expr| serde_json::to_string(e).unwrap().contains("\"slot\"");
+        assert!(!session.ways.iter().any(|w| names_a_slot(&w.expr)), "{:?}", session.ways);
+        assert_eq!(the_way(at(&holes, &Loc::Json("/query".into()))), &Expr::Slot { name: "q".into(), or: Some("desk lamp".into()), optional: false });
+        // The same word standing as a word of its own in a literal is still the caller's, spliced into its place.
+        let named = Wrap::Base64.close(r#"{"mode":"search","offset":48}"#);
+        let second = trace(vec![call("POST", "https://shop.example/api/search", &[], Some(&format!(r#"{{"query":"desk lamp","session":"{named}"}}"#)), "{}")]);
+        let walks = [walk(&second, &[("part0", "search"), ("q", "desk lamp")])];
+        let holes = Lab::new(&walks).holes(0);
+        assert!(at(&holes, &Loc::Json("/session".into())).ways.iter().any(|w| names_a_slot(&w.expr)), "a word of its own is still spliced in");
+    }
+
     /// A tie is real when it holds on every walk: each walk's own reply, at the same place, holds what that walk
     /// sent. A value an earlier reply holds on one walk and not on the other is not read from it.
     #[test]
@@ -1438,6 +1485,22 @@ pub(crate) mod tests {
         assert_eq!((token.kind, the_way(token)), (Kind::Session, &Expr::Cookie { name: "authorization".into(), here: false }));
         assert_eq!(at(&holes, &Loc::Header("x-client".into())).kind, Kind::Fixed);
         assert_eq!(at(&holes, &Loc::Header("x-nonce".into())).kind, Kind::Fixed, "an earlier answer handed it over");
+    }
+
+    /// One walk cannot say where a header came from, so it is open; a request's content type is not, since it says how
+    /// the body is written (ieeexplore.ieee.org: open, jQuery's own `"Content-Type"` read as its producer, and every
+    /// call went to the browser). A multipart boundary is made for each call, and is not fixed.
+    #[test]
+    fn a_content_type_seen_once_is_fixed_and_a_multipart_boundary_is_not() {
+        let json = trace(vec![call("POST", "https://shop.example/rest/search", &[("content-type", "application/json"), ("x-app-width", "1280")], Some(r#"{"q":"lamp"}"#), "{}")]);
+        let walks = [walk(&json, &[("q", "lamp")])];
+        let holes = Lab::new(&walks).holes(0);
+        let kind = at(&holes, &Loc::Header("content-type".into()));
+        assert_eq!((kind.kind, the_way(kind)), (Kind::Fixed, &Expr::text("application/json")));
+        assert_ne!(at(&holes, &Loc::Header("x-app-width".into())).kind, Kind::Fixed, "no other header one walk shows is fixed by it");
+        let form = trace(vec![call("POST", "https://shop.example/rest/upload", &[("content-type", "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxk")], Some("------WebKitFormBoundary7MA4YWxk--"), "{}")]);
+        let walks = [walk(&form, &[])];
+        assert_ne!(at(&Lab::new(&walks).holes(0), &Loc::Header("content-type".into())).kind, Kind::Fixed, "a boundary is no fixed text");
     }
 
     #[test]
@@ -2153,5 +2216,54 @@ pub(crate) mod tests {
         assert_eq!(kind(Lab::new(&walks)), Some(route::meaning::Kind::Text));
         let place: crate::lab::propose::Proposer = std::rc::Rc::new(|_| Some(serde_json::json!({ "kind": "place" })));
         assert_eq!(kind(Lab::new(&walks).with_proposer(Some(place))), Some(route::meaning::Kind::Place));
+    }
+
+    /// A value the walk read from an earlier reply is sent as the walk read it where a later reply does not hold the
+    /// place: an experiment's code, a visitor's id, a piece of the state a page renders for its own load. A fresh load
+    /// that omits it is no reason to stop the call — the browser would have had the page's own load too — and the
+    /// value that stands in is a value the walk really sent, not a made-up one.
+    #[test]
+    fn a_value_a_fresh_reply_does_not_hold_is_sent_as_the_walk_read_it() {
+        let mut page = call("GET", "https://shop.example/flights?dcity=sha", &[], None, r#"<html><script>var abt="M:63,251031_IBU_lppg:A;M:62,4c7d21ab:"</script></html>"#);
+        page.response_mime = "text/html".into();
+        let walked = trace(vec![
+            page,
+            call("POST", "https://shop.example/api/search", &[], Some(r#"{"abt":"4c7d21ab"}"#), r#"{"flights":[{"from":"Shanghai"}]}"#),
+        ]);
+        let walks = [walk(&walked, &[("dcity", "sha")])];
+        let lab = Lab::new(&walks);
+        let holes = lab.holes(1);
+        let abt = at(&holes, &Loc::Json("/abt".into()));
+        assert_eq!(abt.kind, Kind::Read, "{:?}", abt.ways);
+        assert!(matches!(the_way(abt), Expr::Read { .. }), "{:?}", abt.ways);
+        assert_eq!(abt.ways.len(), 2, "the read, then what the walk read there: {:?}", abt.ways);
+        assert_eq!(&abt.ways[1].expr, &Expr::text("4c7d21ab"));
+        // Filled against a reply that no longer holds the place (the world reads no value there), the call is made
+        // with the walk's own reading rather than stopped.
+        let step = crate::lab::compile::step(&lab, 1).expect("a step");
+        struct Fresh;
+        impl route::World for Fresh {
+            fn slot(&self, n: &str) -> Option<String> { (n == "dcity").then(|| "sha".to_string()) }
+            fn cookie(&self, _: &str) -> Option<String> { None }
+            fn read(&self, _: &str, _: &route::At) -> Option<String> { None }
+            fn answered(&self, _: &str) -> bool { false }
+            fn fresh(&mut self, id: &str, _: route::Clock) -> String { id.into() }
+            fn now_ms(&self) -> u64 { 0 }
+            fn digits(&mut self, n: usize) -> String { "0".repeat(n) }
+            fn file(&self, _: &str, _: route::FileFact) -> Result<String, String> { Err(String::new()) }
+            fn same_site(&self, _: &str, _: &str) -> bool { true }
+        }
+        let built = route::fill::request(&step, &mut Fresh).expect("it builds without the place");
+        assert_eq!(built.body.as_deref(), Some(r#"{"abt":"4c7d21ab"}"#), "the walk's reading, not a stopped call");
+    }
+
+    /// A value that holds a word the page was asked is the caller's, and no value of the walk's stands in for it: a
+    /// call never asks the site for the word the walk asked.
+    #[test]
+    fn a_value_holding_the_word_the_page_was_asked_is_never_the_walks_to_send() {
+        assert!(holds_a_word("/search/pins/?q=garden&rs=typed", &["garden"]));
+        assert!(holds_a_word("sha-1234", &["sha"]), "a word inside a value's own words is the word");
+        assert!(!holds_a_word("4c7d21ab", &["sha"]));
+        assert!(!holds_a_word("gardenia", &["garden"]), "a longer word that merely starts alike is not the word");
     }
 }

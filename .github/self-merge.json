@@ -1,0 +1,89 @@
+{
+  "_what": "pr-gate's policy for this repo (~/.claude/skills/self-merge). Read from a PR's base branch, so a PR can't loosen its own gate. *_extra keys add to the defaults, never replace them.",
+  "countersign_paths_extra": [
+    "unbrowse-settlement/src/**",
+    "unbrowse-settlement/script/**",
+    "unbrowse-node/app/src/chain/**",
+    "unbrowse-node/app/contracts/**",
+    "unbrowse-node/app/src/vault.rs",
+    "unbrowse-node/crates/core/src/vault.rs",
+    "unbrowse-node/crates/core/src/keystore.rs",
+    "unbrowse-node/app/src/keychain_logins.rs",
+    "unbrowse-node/app/src/macos_keychain.rs",
+    "unbrowse-node/app/src/passkey.rs",
+    "unbrowse-node/app/src/payhold.rs",
+    "unbrowse-node/crates/detector/src/card.rs",
+    ".deploy/**",
+    "docs/COVERAGE-EXCLUSIONS.md",
+    "docs/REQUIREMENTS.md",
+    "scripts/goals/**"
+  ],
+  "required_sections": [
+    "Scorecard"
+  ],
+  "goals": [
+    {
+      "name": "first_reply_s",
+      "what": "median time to the first answer on a page never seen (still-working replies followed to the answer)",
+      "measure": "python3 scripts/goals/measure.py",
+      "target": 7.5,
+      "better": "lower",
+      "unit": "s",
+      "source": "PERFORMANCE.md: floor 4.1-4.5 s + 3 s"
+    },
+    {
+      "name": "warm_call_ms",
+      "what": "median time of the same goal with a new value, browser never",
+      "measure": "python3 scripts/goals/measure.py",
+      "target": 1000,
+      "better": "lower",
+      "unit": "ms",
+      "source": "PERFORMANCE.md: warm calls 0.3-1.7 s on ten live sites"
+    },
+    {
+      "name": "footprint_after_mb",
+      "what": "the node's physical footprint 20 s after the learns",
+      "measure": "python3 scripts/goals/measure.py",
+      "target": 256,
+      "better": "lower",
+      "unit": "MB",
+      "source": "proposed: no budget in PERFORMANCE.md, which reads resident size only"
+    },
+    {
+      "name": "resident_after_mb",
+      "what": "the node's resident size 20 s after the learns",
+      "measure": "python3 scripts/goals/measure.py",
+      "target": 52,
+      "better": "lower",
+      "unit": "MB",
+      "source": "PERFORMANCE.md: idle 32 MB + 20 MB"
+    },
+    {
+      "name": "browserless_share",
+      "what": "share of tasks whose new value is answered with browser never (sites that refuse set aside)",
+      "measure": "python3 scripts/goals/measure.py",
+      "target": 1.0,
+      "better": "higher",
+      "unit": "",
+      "source": "browserless coverage: every task"
+    },
+    {
+      "name": "reply_bytes",
+      "what": "median size of the answers an agent reads for a new value (answers only)",
+      "measure": "python3 scripts/goals/measure.py",
+      "target": 4000,
+      "better": "lower",
+      "unit": "B",
+      "source": "proposed: about 1,000 tokens an answer"
+    },
+    {
+      "name": "agent_steps",
+      "what": "tasks that needed the agent's hands or had no answer",
+      "measure": "python3 scripts/goals/measure.py",
+      "target": 0,
+      "better": "lower",
+      "unit": "",
+      "source": "agent experience"
+    }
+  ]
+}

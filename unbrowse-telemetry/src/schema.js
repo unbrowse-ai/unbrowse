@@ -1,7 +1,10 @@
 // What an event may hold: the same lists the node checks against (unbrowse-node/app/src/telemetry.rs), kept in
 // ../schema.json. Both sides' tests read that file, so neither list can drift from it.
 
-export const FIELDS = ["event", "version", "os", "install_id", "tool", "outcome", "duration_ms", "error_class"];
+export const FIELDS = ["event", "version", "os", "install_id", "tool", "outcome", "duration_ms", "error_class", "from"];
+/** `from`, the source tag a node was first started with (`unbrowse start --from <tag>`), rides on this event alone. */
+export const FROM_EVENT = "node_start";
+export const FROM_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/;
 export const REQUIRED = ["event", "version", "os", "install_id", "outcome"];
 export const EVENTS = ["node_start", "tool_call", "route_failed", "fetch_failed"];
 export const TOOLS = [
@@ -77,6 +80,7 @@ export function check(e) {
   for (const k of REQUIRED) {
     if (!(k in e)) return `missing field: ${k}`;
   }
+  if ("from" in e && e.event !== FROM_EVENT) return `from goes on ${FROM_EVENT} only`;
   for (const [k, v] of Object.entries(e)) {
     if (k === "duration_ms") {
       if (!Number.isSafeInteger(v) || v < 0 || v > MAX_DURATION_MS) {
@@ -87,7 +91,15 @@ export function check(e) {
     if (typeof v !== "string") return `${k} is a string`;
     if (urlLike(v)) return `${k} looks like an address`;
     const fits =
-      k in LISTS ? LISTS[k].includes(v) : k === "version" ? isVersion(v) : k === "install_id" ? /^[0-9a-f]{32}$/.test(v) : false;
+      k in LISTS
+        ? LISTS[k].includes(v)
+        : k === "version"
+          ? isVersion(v)
+          : k === "install_id"
+            ? /^[0-9a-f]{32}$/.test(v)
+            : k === "from"
+              ? FROM_PATTERN.test(v)
+              : false;
     if (!fits) return `${k} is not an allowed value`;
   }
   return null;

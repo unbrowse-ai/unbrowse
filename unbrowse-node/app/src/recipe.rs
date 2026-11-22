@@ -33,6 +33,10 @@ pub const FORMAT: &str = "unbrowse.recipe/1";
 /// byte, so its identifier doesn't change.
 pub const FORMAT_2: &str = "unbrowse.recipe/2";
 
+/// A body that also names how a value is computed on the caller's node from the call itself (a signature's recipe) or
+/// read fresh from its clock. A route with neither compiles to version 1 or 2 as before, byte for byte.
+pub const FORMAT_3: &str = "unbrowse.recipe/3";
+
 /// The prefix of a content identifier, naming its hash.
 pub const HASH_PREFIX: &str = "sha256:";
 
@@ -146,6 +150,15 @@ pub enum Source {
     Session { name: String },
     /// Made by the page's code, so the step runs in the caller's browser.
     Browser,
+    /// Computed on the caller's node from the request as it stands and the caller's own session: a hash over named
+    /// parts of the call, joined (version 3). No code: the parts, the join and the hash.
+    Recipe { recipe: unbrowse_learn::signing::Recipe },
+    /// A new reading of the caller's clock on every call, written where the walk's was: `template` is the walked value
+    /// with its reading as `{id}` (version 3).
+    Fresh { template: String, clock: unbrowse_learn::fresh::Clock },
+    /// The caller's own session cookie `name` written into fixed text where the walker's stood: `template` holds
+    /// `{cookie}` in its place, and a caller whose jar holds none writes nothing there (version 3).
+    CookieIn { template: String, name: String },
 }
 
 /// Why a route can't be shared as it is.
@@ -174,6 +187,8 @@ fn identity_param(loc: &Loc, value: &str, url_template: &str) -> Option<String> 
         return None;
     }
     match loc {
+        // A header the browser writes by itself (`sec-fetch-user: ?1`) says how it asked, never whose account.
+        Loc::Header(k) if unbrowse_learn::slots::is_carried_browser_header(&k.to_ascii_lowercase()) => None,
         Loc::Query(k) | Loc::Form(k) | Loc::Header(k) => names_a_person(k).then(|| k.clone()),
         Loc::Json(pointer) | Loc::Part(_, pointer) => {
             let key = pointer.rsplit('/').next()?;
@@ -251,6 +266,21 @@ pub(crate) fn promote(url: &mut String, body: &mut Option<Body>, loc: &Loc, valu
 /// HTTP's own credential fields (RFC 9110 §11.6.2, §11.7.2): whatever sits in them is a credential, whoever set it.
 pub(crate) fn credential_field(loc: &Loc) -> bool {
     matches!(loc, Loc::Header(h) if h.eq_ignore_ascii_case("authorization") || h.eq_ignore_ascii_case("proxy-authorization"))
+}
+
+/// A field whose value is a credential: one of HTTP's credential fields ([`credential_field`]), or one whose name says it
+/// holds a secret as the detector reads names (`x-api-key`, `?access_token`, a JSON `session_token`; not `x-csrf-token`,
+/// which the page hands every visitor). A cookie is the session's by its place, not its name, and is held apart.
+fn credential_named(loc: &Loc) -> bool {
+    credential_field(loc) || (!matches!(loc, Loc::Cookie(_)) && unbrowse_detector::secret_name(loc_name(loc)))
+}
+
+/// Whether a template's fixed text around its one `hole` is an authentication scheme at most (`Bearer {cookie}`).
+fn only_a_scheme_around(template: &str, hole: &str) -> bool {
+    match template.split_once(hole) {
+        Some((before, after)) => !after.contains(hole) && unbrowse_learn::provenance::only_a_scheme(before, after),
+        None => false,
+    }
 }
 
 /// A value shaped like a token: long, letters and digits together, no spaces. A header carrying one that the walk
@@ -379,6 +409,26 @@ pub fn leaks(bytes: &[u8]) -> Result<(), String> {
 /// and another user runs it under their own sign-in. Refused, with the reason, when it is a socket's, or its recording
 /// still carries a credential that removing would change the call around (R2.11). The detector isn't run on the whole
 /// body here: `of_route` runs it on the bytes this gives.
+/// A cookie value this node holds for `site` (any jar of a host on that site) that `text` or `decoded` carries, by
+/// the cookie's name. Only values long enough to be the owner's rather than a word anyone's page writes (`OWNED`).
+fn owners_cookie_in(text: &str, decoded: &str, site: &str) -> Option<String> {
+    const OWNED: usize = 12;
+    let site = unbrowse_learn::identity::site_of(site.split(':').next().unwrap_or(site));
+    let jars = std::fs::read_dir(store::jars_dir()).ok()?;
+    for entry in jars.flatten() {
+        let file = entry.file_name().to_string_lossy().into_owned();
+        let Some(host) = file.strip_suffix(".json") else { continue };
+        if site.is_empty() || unbrowse_learn::identity::site_of(host) != site {
+            continue;
+        }
+        let jar: std::collections::BTreeMap<String, String> = store::read_json(&entry.path(), &unbrowse_files::JAR);
+        if let Some((name, _)) = jar.iter().find(|(_, v)| v.len() >= OWNED && (text.contains(v.as_str()) || decoded.contains(v.as_str()))) {
+            return Some(name.clone());
+        }
+    }
+    None
+}
+
 pub fn compile(route: &store::Route) -> Result<Recipe, String> {
     compile_with(route, true)
 }
@@ -403,9 +453,10 @@ pub fn compile_with(route: &store::Route, detect: bool) -> Result<Recipe, String
     // One guard, two triggers: a walk that was at an address with a fragment (or can't say it wasn't), and a route an
     // input of which the owner's own browsing session gave. What the page made from either can't be found by its text.
     let fragment = url::Url::parse(&route.root).ok().and_then(|u| u.fragment().map(String::from)).filter(|f| !f.is_empty());
-    // Evidence is only as good as the reader that judged it: a route judged by another version of either rule, or by
-    // none, reads as one whose walk may have been at an address with a fragment, and its `page_made` as never read.
-    let judged_now = route.read_by == Some(store::ReadBy::current());
+    // Evidence is only as good as the reader that judged it: a route judged by a reader this build doesn't trust
+    // (`ReadBy::trusted`), or by none, reads as one whose walk may have been at an address with a fragment, and its
+    // `page_made` as never read.
+    let judged_now = store::ReadBy::trusted(route.read_by);
     if fragment.is_some() || !(route.walk_without_fragment && judged_now) || route.session_gave {
         match route.page_made.as_ref().filter(|_| judged_now) {
             None => return Err(refuse("the route's walk was not read by this node's current rules (or not at all): walk the page again")),
@@ -431,6 +482,8 @@ pub fn compile_with(route: &store::Route, detect: bool) -> Result<Recipe, String
     };
     let mut optional: BTreeMap<String, Option<String>> = BTreeMap::new();
     let mut steps = Vec::with_capacity(route.graph.steps.len());
+    // A route that sends a file of this machine's: its clock readings name the upload, and it stays here.
+    let uploads = route.graph.steps.iter().any(|s| matches!(s.body, Some(Body::Upload { .. })) || s.fields.iter().any(|f| matches!(f.class, Class::File { .. })));
     for (n, step) in route.graph.steps.iter().enumerate() {
         let mut fields = Vec::with_capacity(step.fields.len());
         // The step as the body says it: a value that becomes the caller's moves out of the address and the body too,
@@ -439,6 +492,14 @@ pub fn compile_with(route: &store::Route, detect: bool) -> Result<Recipe, String
         let mut body = step.body.clone();
         for f in &step.fields {
             let at = format!("step {} {}", n + 1, f.loc);
+            // Where the call says it comes from, when that is the route's own page: the caller's transport says so itself
+            // for every call a page's script makes (`replay::script_shape`), so the body leaves it out. Any other page
+            // stays, and a body that names one is refused (`says_where_it_comes_from`).
+            if let (Loc::Header(h), Class::Constant { value, .. } | Class::Unconfirmed { value }) = (&f.loc, &f.class) {
+                if says_where_it_comes_from(h) && the_routes_own_page(value, &route.root) {
+                    continue;
+                }
+            }
             let from = match &f.class {
                 // An optional input's default is the page's own value, held to what a constant is held to.
                 Class::Input { name, secret: false, default, optional: true } => {
@@ -474,13 +535,32 @@ pub fn compile_with(route: &store::Route, detect: bool) -> Result<Recipe, String
                 // node that receives it runs the step in its browser as it would for any computed value.
                 Class::Script { .. } => Source::Browser,
                 // A recipe is the page's computation written down (a hash over the call and the session), not this
-                // node's capture: a shared route carries it as the browser's until the shared format names it.
-                Class::Recipe { .. } => Source::Browser,
+                // node's capture: the caller's node computes it from its own request and session (version 3). A part
+                // the page's code holds as a fixed text is held to what any fixed value is held to.
+                Class::Recipe { recipe } => {
+                    for part in &recipe.parts {
+                        if let unbrowse_learn::signing::Part::Constant { value } = part {
+                            unsourced(&at, &f.loc, value, detect)?;
+                        }
+                    }
+                    Source::Recipe { recipe: recipe.clone() }
+                }
                 // A generated producer is this node's own artifact too: shared, it is the page's to make again.
                 Class::Generated { .. } => Source::Browser,
                 // An upload reads a file on this machine and makes a new id for every call: the owner's alone,
                 // so the route stays on this node (`run::call_with` refuses one this node didn't learn).
-                Class::File { .. } | Class::Fresh { .. } => return Err(refuse(format!("{at} belongs to an upload from this machine: a route that uploads isn't shared"))),
+                Class::File { .. } => return Err(refuse(format!("{at} belongs to an upload from this machine: a route that uploads isn't shared"))),
+                Class::Fresh { .. } if uploads => return Err(refuse(format!("{at} belongs to an upload from this machine: a route that uploads isn't shared"))),
+                // A reading of the clock the page took for the call: the caller's node takes its own (version 3).
+                // The caller's own cookie inside a longer value: the template goes, the walker's id never does.
+                Class::CookieIn { template, name } => {
+                    unsourced(&at, &f.loc, &template.replace(unbrowse_learn::graph::COOKIE_IN, ""), detect)?;
+                    Source::CookieIn { template: template.clone(), name: name.clone() }
+                }
+                Class::Fresh { value, id, clock } => match value.find(id.as_str()).filter(|_| !id.is_empty()) {
+                    Some(at_id) => Source::Fresh { template: format!("{}{{id}}{}", &value[..at_id], &value[at_id + id.len()..]), clock: *clock },
+                    None => return Err(refuse(format!("{at} is a clock reading that isn't in its own value"))),
+                },
                 Class::Constant { value, origin } => match &f.loc {
                     // A cookie is the session's whatever its value: the caller's own jar sends its own.
                     Loc::Cookie(name) => {
@@ -524,6 +604,22 @@ pub fn compile_with(route: &store::Route, detect: bool) -> Result<Recipe, String
             };
             fields.push(RecipeField { loc: f.loc.clone(), from });
         }
+        // A segment of the address no field names is written into the step as it was walked: one that names the
+        // contributor's account (`/accounts/48213977/orders`, the id read from their session where the walk shows no
+        // source) goes out as the caller's input too, as a field's would.
+        let walked_path: Vec<String> = step.url.split(['?', '#']).next().unwrap_or_default().split('/').skip(3).map(String::from).collect();
+        for (i, seg) in walked_path.iter().enumerate() {
+            let loc = Loc::Path(i);
+            if seg.starts_with('{') || step.fields.iter().any(|f| f.loc == loc) {
+                continue;
+            }
+            if let Some(name) = identity_param(&loc, seg, &step.url) {
+                removed.push((seg.clone(), format!("step {} {loc}", n + 1)));
+                add_param(&name, false, type_at(step, &loc));
+                promote(&mut url, &mut body, &loc, seg);
+                fields.push(RecipeField { loc, from: Source::Param { name } });
+            }
+        }
         steps.push(RecipeStep {
             exchange: step.exchange,
             method: step.method.clone(),
@@ -554,12 +650,15 @@ pub fn compile_with(route: &store::Route, detect: bool) -> Result<Recipe, String
         }
     }
     let extended = route.paging.is_some() || !optional.is_empty();
+    // The target's address as its step says it: an account id taken out of it is out of the endpoint too.
+    let endpoint = steps.last().map_or_else(|| target.url.clone(), |s: &RecipeStep| s.url.clone());
+    let computed = steps.iter().flat_map(|s| &s.fields).any(|f| matches!(f.from, Source::Recipe { .. } | Source::Fresh { .. } | Source::CookieIn { .. }));
     let recipe = Recipe {
-        format: if extended { FORMAT_2 } else { FORMAT }.into(),
+        format: if computed { FORMAT_3 } else if extended { FORMAT_2 } else { FORMAT }.into(),
         paging: route.paging.clone(),
         site: route.site.clone(),
         method: target.method.clone(),
-        endpoint: target.url.clone(),
+        endpoint,
         root: bare_root(&route.root),
         params,
         session,
@@ -583,6 +682,12 @@ pub fn compile_with(route: &store::Route, detect: bool) -> Result<Recipe, String
     let gone_whole = |v: &str| fragment.is_some() && !v.is_empty() && (unbrowse_learn::trace::carries_written(&text, v) || unbrowse_learn::trace::carries_written(&decoded, v));
     if let Some((_, at)) = removed.iter().find(|(v, _)| gone_whole(v) || (v.len() >= MIN_TRACEABLE && (text.contains(v.as_str()) || decoded.contains(v.as_str()) || unbrowse_learn::trace::carries_written(&text, v)))) {
         return Err(refuse(format!("the value at {at} is personal and still appears elsewhere in the route")));
+    }
+    // What the owner's own session holds for the site appears nowhere either: a value the site handed this browser (a
+    // visitor id in a cookie) that the page's code also wrote into a call is the owner's, however fixed it looked
+    // across the owner's own walks, which all carried the same one.
+    if let Some(name) = owners_cookie_in(&text, &decoded, &route.site) {
+        return Err(refuse(format!("the owner's cookie {name} for this site still appears in the route: what the site handed the owner's browser never leaves this node")));
     }
     // And a value the fragment carried appears nowhere at all, whatever its length: the body isn't listed rather than
     // trusting that a short one is a coincidence. Its format name is the only text not the route's own.
@@ -645,20 +750,48 @@ fn without_shapes(r: &Recipe) -> Value {
 /// runs: it is a recipe of this format; no cookie travels with a value; no credential field holds a value the site
 /// doesn't serve publicly; no header holds a token with no public source; and no string in it names a vault login.
 pub fn check(r: &Recipe) -> Result<(), String> {
-    if r.format != FORMAT && r.format != FORMAT_2 {
+    if r.format != FORMAT && r.format != FORMAT_2 && r.format != FORMAT_3 {
         return Err(format!("not a recipe this client reads ({})", r.format));
+    }
+    // A computed value is named only by the version that names it: an older reader would take the step for the page's.
+    if r.format != FORMAT_3 && r.steps.iter().flat_map(|s| &s.fields).any(|f| matches!(f.from, Source::Recipe { .. } | Source::Fresh { .. } | Source::CookieIn { .. })) {
+        return Err(refuse(format!("it computes a value its format ({}) doesn't name", r.format)));
     }
     for p in &r.params {
         if p.secret && (p.optional || p.default.is_some() || !p.options.is_empty()) {
             return Err(refuse(format!("{} is a secret with a value in the body", p.name)));
         }
-        if let Some(d) = &p.default {
-            unsourced(&format!("input {}", p.name), &Loc::Query(p.name.clone()), d, false)?;
-        }
     }
+    // A body reads on over a secret never: the next page is worked out from the value sent (`Paging::over_secret`), so
+    // a count over a card number or a code hands the secret back plus one.
+    if let Some(p) = r.paging.as_ref().filter(|p| r.params.iter().any(|q| q.secret && q.name == p.input())) {
+        return Err(refuse(format!("it reads on to its next page with {}, a secret", p.input())));
+    }
+    defaults_admitted(r, false)?;
     for (n, s) in r.steps.iter().enumerate() {
         for f in &s.fields {
             let at = format!("step {} {}", n + 1, f.loc);
+            if let Source::Recipe { recipe } = &f.from {
+                for part in &recipe.parts {
+                    if let unbrowse_learn::signing::Part::Constant { value } = part {
+                        unsourced(&at, &f.loc, value, false)?;
+                    }
+                }
+            }
+            // A clock reading's template holds the reading's place and nothing that reads as a token around it.
+            if let Source::Fresh { template, .. } = &f.from {
+                if template.matches("{id}").count() != 1 {
+                    return Err(refuse(format!("{at} is a clock reading with no single place for it")));
+                }
+                unsourced(&at, &f.loc, &template.replace("{id}", ""), false)?;
+            }
+            // A cookie written into a value holds one place for it, and fixed text around it held to what a constant is.
+            if let Source::CookieIn { template, .. } = &f.from {
+                if template.matches(unbrowse_learn::graph::COOKIE_IN).count() == 0 {
+                    return Err(refuse(format!("{at} is a cookie written into a value with no place for it")));
+                }
+                unsourced(&at, &f.loc, &template.replace(unbrowse_learn::graph::COOKIE_IN, ""), false)?;
+            }
             if let Source::Constant { value, seen_in } = &f.from {
                 if matches!(f.loc, Loc::Cookie(_)) {
                     return Err(refuse(format!("{at} is a cookie with a value")));
@@ -687,6 +820,39 @@ pub fn check(r: &Recipe) -> Result<(), String> {
     }
     if vault.is_some() {
         return Err(refuse("it names a login in a vault"));
+    }
+    Ok(())
+}
+
+/// An input's default is a value the body fixes, sent when the caller gives none: it is held, in every field the input
+/// fills, to what a constant with no public source there is held to. Not a cookie (the caller's own session fills the
+/// site's cookies), not one of HTTP's credential fields (`credential_field`), and nothing `unsourced` refuses under that
+/// field's own name: a token in a header, a credential the detector reads. Read as a query value alone, a default could
+/// be anything the query rule lets by and still be sent as `authorization`. An input no field fills is read as the
+/// query value it would be. `detect` reads each default with the detector under that name too, as a fixed value in a
+/// stranger's body is read (`check_foreign`, audit 1118 H3): `?access_token=<theirs>` as a default is their login.
+fn defaults_admitted(r: &Recipe, detect: bool) -> Result<(), String> {
+    for p in &r.params {
+        let Some(d) = &p.default else { continue };
+        let fills: Vec<(usize, &Loc)> = r
+            .steps
+            .iter()
+            .enumerate()
+            .flat_map(|(n, s)| s.fields.iter().filter(|f| matches!(&f.from, Source::Param { name } if name == &p.name)).map(move |f| (n, &f.loc)))
+            .collect();
+        if fills.is_empty() {
+            unsourced(&format!("input {}", p.name), &Loc::Query(p.name.clone()), d, detect)?;
+        }
+        for (n, loc) in fills {
+            let at = format!("input {}'s default, sent at step {} {loc}", p.name, n + 1);
+            if matches!(loc, Loc::Cookie(_)) {
+                return Err(refuse(format!("{at} is a cookie with a value")));
+            }
+            if credential_field(loc) {
+                return Err(refuse(format!("{at} carries a credential the site never served publicly")));
+            }
+            unsourced(&at, loc, d, detect)?;
+        }
     }
     Ok(())
 }
@@ -823,6 +989,14 @@ fn words_shown_plainly(r: &Recipe) -> Result<(), String> {
 /// The fields that say where a request comes from: `Origin` (RFC 6454 §7) and `Referer` (RFC 9110 §10.1.3). The
 /// transport says them, from the route's own start page (`replay::script_shape`), and a walk never records them as a
 /// route's fields: a body that fills one itself chooses which page the owner's request claims to come from.
+/// Whether `value`, sent as where a call comes from, is the route's own page as a script's call says it: the page's
+/// origin, alone or with `/`.
+fn the_routes_own_page(value: &str, root: &str) -> bool {
+    let Ok(root) = url::Url::parse(root) else { return false };
+    let origin = root.origin().ascii_serialization();
+    value == origin || value == format!("{origin}/")
+}
+
 fn says_where_it_comes_from(h: &str) -> bool {
     h.eq_ignore_ascii_case("origin") || h.eq_ignore_ascii_case("referer")
 }
@@ -845,23 +1019,44 @@ fn check_foreign_with(r: &Recipe, detect: bool) -> Result<(), String> {
     check(r)?;
     words_shown_plainly(r)?;
     fixed_values_admitted(r, detect)?;
+    defaults_admitted(r, detect)?;
+    // A later step names an earlier answer by its exchange number: two steps under one number let a check read one
+    // step while replay keeps the other's answer (audit 1118 review R2).
+    let mut numbers = std::collections::HashSet::new();
+    if let Some(s) = r.steps.iter().find(|s| !numbers.insert(s.exchange)) {
+        return Err(refuse(format!("two of its steps share exchange {}", s.exchange)));
+    }
     for (n, s) in r.steps.iter().enumerate() {
         for f in &s.fields {
             let at = format!("step {} {}", n + 1, f.loc);
             match (&f.loc, &f.from) {
                 (Loc::Header(h), _) if connection_field(h) => return Err(refuse(format!("{at} sets a connection or cookie header itself"))),
                 (Loc::Header(h), _) if says_where_it_comes_from(h) => return Err(refuse(format!("{at} says itself which page the request comes from"))),
-                (Loc::Cookie(_), Source::Constant { .. } | Source::Param { .. } | Source::Response { .. }) => return Err(refuse(format!("{at} is a cookie the body fills itself"))),
-                // A credential taken from an earlier step's answer is the site's only when nothing the body chose went
-                // into that step: an endpoint that echoes what it is sent would otherwise hand back the body's own token.
-                (loc, Source::Response { origin }) if credential_field(loc) => {
-                    let chosen = r.steps.iter().find(|o| o.exchange == origin.exchange).is_none_or(|o| {
-                        o.fields.iter().any(|g| matches!(g.from, Source::Param { .. } | Source::Constant { .. }) && !matches!(&g.loc, Loc::Header(h) if representation_field(h)))
-                            || o.body.is_some()
-                    });
-                    if chosen {
-                        return Err(refuse(format!("{at} is a credential from an answer to a request the body chose")));
-                    }
+                (Loc::Cookie(_), Source::Constant { .. } | Source::Param { .. } | Source::Response { .. } | Source::Recipe { .. } | Source::Fresh { .. } | Source::CookieIn { .. }) => return Err(refuse(format!("{at} is a cookie the body fills itself"))),
+                // The owner's session goes only where a browser sends it: a cookie in the cookie header, a token in a
+                // header. In a form, query, JSON or path field the site may write it down (a search, a comment, a log)
+                // and hand it back to whoever wrote the body (audit 1118 M7).
+                (loc, Source::Session { .. }) if !matches!(loc, Loc::Cookie(_) | Loc::Header(_)) => return Err(refuse(format!("{at} puts the caller's session in a field the site may write down; a body carries the session only in the cookie header or a header"))),
+                // A cookie the site sets during the call is session too: it goes on only in the cookie header. So does
+                // a `Set-Cookie` header read whole, which is the raw line with the cookie's value in it (`At::sets_a_cookie`).
+                (loc, Source::Response { origin }) if !matches!(loc, Loc::Cookie(_)) && origin.at.sets_a_cookie() => return Err(refuse(format!("{at} moves a cookie the site set out of the cookie header"))),
+                // A value an answer gave goes into a header as the site gave it, after an authentication scheme at most:
+                // other text the body puts around it (`Bearer <theirs> `) chooses the credential (`Origin::wraps_only_a_scheme`).
+                (Loc::Header(_), Source::Response { origin }) if !origin.wraps_only_a_scheme() => return Err(refuse(format!("{at} puts text of the body's own around a value the site gave"))),
+                // A credential a stranger's body reads from an answer is its author's word: the step's address is
+                // theirs, and a page of their own making on the site (their public profile) answers with any token they
+                // wrote there, with or without the caller's session on the request. Nothing in a body tells that page
+                // from the site's token endpoint, so in a body another node wrote a credential comes from the caller's
+                // own session alone (audit 1118 N1).
+                (loc, Source::Response { .. }) if credential_named(loc) => return Err(refuse(format!("{at} is a credential read from an answer; a body another node wrote takes a credential only from the caller's own session"))),
+                // A template's fixed text is the body's own, sent as written: in a credential field it is the body's
+                // credential whenever the caller has no such cookie and the hole comes back empty. There the template is
+                // the hole alone, after an authentication scheme at most (audit 1118 H2).
+                (loc, Source::CookieIn { template, .. }) if credential_named(loc) && !only_a_scheme_around(template, unbrowse_learn::graph::COOKIE_IN) => {
+                    return Err(refuse(format!("{at} writes text of the body's own around the caller's cookie in a credential field")))
+                }
+                (loc, Source::Fresh { template, .. }) if credential_named(loc) && !only_a_scheme_around(template, "{id}") => {
+                    return Err(refuse(format!("{at} writes text of the body's own around a clock reading in a credential field")))
                 }
                 (loc, Source::Constant { value, .. }) => {
                     if credential_field(loc) {
@@ -1004,7 +1199,10 @@ pub fn goes_where_it_may(r: &Recipe, egress: unbrowse_learn::egress::Egress) -> 
 /// (the caller's own session for the site fills every session value at call time, R2.13), and a record of the entry,
 /// the contributor and the body it came from. What it does is said from its own call; the contributor's description
 /// stays with the listing, as their words (R2.25).
-fn into_route(recipe: Recipe, listing: &crate::listing::SignedListing) -> Result<store::Route, String> {
+pub(crate) fn into_route(recipe: Recipe, listing: &crate::listing::SignedListing) -> Result<store::Route, String> {
+    // A default becomes the input's value in every field it fills: held there to the rules a constant is, here as well
+    // as in `check`, since this is where it is put in each.
+    defaults_admitted(&recipe, true)?;
     let bodies: Vec<Option<Body>> = recipe.steps.iter().map(|s| s.body.as_deref().and_then(|b| serde_json::from_str(b).ok())).collect();
     let secret: HashMap<&str, bool> = recipe.params.iter().map(|p| (p.name.as_str(), p.secret)).collect();
     let optional: HashMap<&str, Option<&String>> = recipe.params.iter().filter(|p| p.optional).map(|p| (p.name.as_str(), p.default.as_ref())).collect();
@@ -1030,6 +1228,13 @@ fn into_route(recipe: Recipe, listing: &crate::listing::SignedListing) -> Result
                         Source::Response { origin } => Class::Derived { origin: origin.clone() },
                         Source::Session { name } => Class::Minted { name: name.clone() },
                         Source::Browser => Class::Computed,
+                        Source::Recipe { recipe } => Class::Recipe { recipe: recipe.clone() },
+                        // A reading of this node's clock in the walk's place: every call replaces it with a new one.
+                        Source::CookieIn { template, name } => Class::CookieIn { template: template.clone(), name: name.clone() },
+                        Source::Fresh { template, clock } => {
+                            let id = unbrowse_learn::fresh::make(*clock, 0);
+                            Class::Fresh { value: template.replace("{id}", &id), id, clock: *clock }
+                        }
                     },
                 })
                 .collect(),
@@ -1043,6 +1248,8 @@ fn into_route(recipe: Recipe, listing: &crate::listing::SignedListing) -> Result
             held: Vec::new(),
             // A body says nothing of how its page reads, so a fetched route follows its shape, as it always has.
             reads_page: false,
+            // A route another node serves carries what its own walk read for a value, never a fallback of this one's.
+            fallbacks: Vec::new(),
         })
         .collect();
     let digest = listing.content_id.strip_prefix(HASH_PREFIX).unwrap_or(&listing.content_id);
@@ -1560,7 +1767,7 @@ mod tests {
                 field(serde_json::json!({ "in": "json", "key": "/q" }), serde_json::json!({ "class": "input", "name": "q", "secret": false, "default": "lamps" })),
                 field(serde_json::json!({ "in": "json", "key": "/page" }), serde_json::json!({ "class": "constant", "value": "1", "origin": null })),
                 field(serde_json::json!({ "in": "header", "key": "content-type" }), serde_json::json!({ "class": "constant", "value": "application/json", "origin": null })),
-                field(serde_json::json!({ "in": "header", "key": "x-token" }), serde_json::json!({ "class": "derived", "origin": { "exchange": 0, "url": "https://shop.example/api/token?u=8812345", "at": { "from": "json", "pointer": "/token" } } })),
+                field(serde_json::json!({ "in": "header", "key": "x-shop-ref" }), serde_json::json!({ "class": "derived", "origin": { "exchange": 0, "url": "https://shop.example/api/token?u=8812345", "at": { "from": "json", "pointer": "/token" } } })),
                 field(serde_json::json!({ "in": "cookie", "key": "sid" }), serde_json::json!({ "class": "minted", "name": "sid" })),
               ] }
         ]));
@@ -1685,14 +1892,17 @@ mod tests {
     }
 
     /// Evidence is only as good as the reader that judged it: a route whose walk was judged clean, or whose constants
-    /// were judged explained, by another version of either rule, or by none (kept before the version was recorded),
-    /// reads as unjudged and isn't listed until its page is walked again. Judged by this build's rules, it lists.
+    /// were judged explained, by an address reader older than the oldest this build trusts, a newer one, another rule
+    /// of what explains, or none (kept before the version was recorded), reads as unjudged and isn't listed until its
+    /// page is walked again. Judged by a reader this build trusts, it lists.
     #[test]
     fn evidence_judged_by_another_reader_reads_as_guarded() {
         let now = store::ReadBy::current();
         let r = route_of(serde_json::json!([step("https://shop.example/api/items", serde_json::json!([]))]));
         assert!(compile(&r).is_ok(), "a clean walk judged by this build's reader");
-        for stale in [None, Some(store::ReadBy { addresses: now.addresses - 1, ..now }), Some(store::ReadBy { addresses: now.addresses + 1, ..now })] {
+        let oldest = unbrowse_learn::walk::OLDEST_TRUSTED_ADDRESS_READER;
+        assert!(compile(&store::Route { read_by: Some(store::ReadBy { addresses: oldest, ..now }), ..r.clone() }).is_ok(), "the oldest reader whose verdict still stands");
+        for stale in [None, Some(store::ReadBy { addresses: oldest - 1, ..now }), Some(store::ReadBy { addresses: now.addresses + 1, ..now })] {
             let old = store::Route { read_by: stale, ..r.clone() };
             assert!(compile(&old).is_err_and(|why| why.contains("current rules")), "{stale:?}");
         }
@@ -1726,6 +1936,277 @@ mod tests {
         assert_eq!((param("choice").default, param("sort").default.as_deref()), (None, Some("price")));
         assert!(!serde_json::to_string(&recipe).unwrap().contains("a1b2c"));
         assert!(compile(&route(true)).is_err_and(|why| why.contains("owner's session gave")));
+    }
+
+    /// A signature the walk proved and a clock reading the page took travel as what they are (version 3): the recipe
+    /// (its parts, join and hash, no code) and the reading's place, so the caller's node computes both for its own call
+    /// instead of opening a browser. Where the call says it comes from is left to the caller's transport when it is the
+    /// route's own page, and refused when it is any other. A body of an older version that names either is refused.
+    #[test]
+    fn a_signature_and_a_clock_reading_travel_as_what_they_are() {
+        use unbrowse_learn::signing::{Algo, Part, Recipe as Signing};
+        let signing = Signing { algo: Algo::Md5, separator: "&".into(), parts: vec![Part::CookiePiece { name: "_tk".into(), separator: "_".into(), index: 0 }, Part::Query { key: "t".into() }, Part::Query { key: "q".into() }] };
+        let route = |says_from: &str| {
+            let mut r = route_of(serde_json::json!([step("https://shop.example/h5/find/1.0/?t={t}&sign={sign}&q={q}", serde_json::json!([
+                { "loc": { "in": "query", "key": "q" }, "class": "input", "name": "q", "secret": false, "default": "red shoes" },
+                { "loc": { "in": "header", "key": "referer" }, "class": "constant", "value": "https://shop.example/", "origin": null },
+                { "loc": { "in": "header", "key": "origin" }, "class": "constant", "value": says_from, "origin": null },
+                { "loc": { "in": "cookie", "key": "_tk" }, "class": "minted", "name": "_tk" },
+            ]))]));
+            let fields = &mut r.graph.steps[0].fields;
+            fields.push(Field { loc: Loc::Query("t".into()), class: Class::Fresh { value: "1794402610160".into(), id: "1794402610160".into(), clock: unbrowse_learn::fresh::Clock::Millis } });
+            fields.push(Field { loc: Loc::Query("sign".into()), class: Class::Recipe { recipe: signing.clone() } });
+            r
+        };
+        assert!(of_route(&route("https://elsewhere.example")).is_err_and(|why| why.contains("which page the request comes from")), "another page");
+        let recipe = of_route(&route("https://shop.example")).expect("shared");
+        assert_eq!(recipe.format, FORMAT_3);
+        let from = |key: &str| recipe.steps[0].fields.iter().find(|f| matches!(&f.loc, Loc::Query(k) | Loc::Header(k) if k == key)).map(|f| f.from.clone());
+        assert_eq!(from("sign"), Some(Source::Recipe { recipe: signing.clone() }));
+        assert_eq!(from("t"), Some(Source::Fresh { template: "{id}".into(), clock: unbrowse_learn::fresh::Clock::Millis }));
+        assert_eq!((from("referer"), from("origin")), (None, None), "the route's own page goes as the transport says it");
+        assert!(!text(&recipe).contains("1794402610160"), "no reading of the contributor's clock");
+        let bytes = canonical(&recipe);
+        let listing = crate::listing::SignedListing {
+            route_id: "r1".into(),
+            site: "shop.example".into(),
+            content_id: content_id(&bytes),
+            agent_id: "7".into(),
+            version: 1,
+            supersedes: None,
+            terms: crate::listing::Terms { description: "Find".into(), response: recipe.response.clone(), price: crate::listing::Price::default() },
+            sig: String::new(),
+        };
+        let back = into_route(recheck(&bytes, &listing.content_id, Egress::Own).unwrap(), &listing).unwrap();
+        let class = |key: &str| back.graph.steps[0].fields.iter().find(|f| f.loc == Loc::Query(key.into())).map(|f| f.class.clone());
+        assert_eq!(class("sign"), Some(Class::Recipe { recipe: signing }));
+        assert!(matches!(class("t"), Some(Class::Fresh { value, id, .. }) if value == id && id.len() == 13), "a reading of this node's clock in its place");
+        let mut older = recipe.clone();
+        older.format = FORMAT_2.into();
+        assert!(check(&older).is_err_and(|why| why.contains("doesn't name")), "an older version names no computed value");
+    }
+
+    /// A session cookie the page's code wrote into a value travels as the text around it and the cookie's name, never
+    /// the walker's id: the fetching node takes it back as the same class and writes its own cookie there. A body that
+    /// names such a value with no place for the cookie is refused, as a cookie the body fills itself is.
+    #[test]
+    fn a_cookie_written_into_a_value_travels_as_its_place() {
+        let template = format!(r#"{{"anonymous_id":"{}","scene":"home"}}"#, unbrowse_learn::graph::COOKIE_IN);
+        let mut route = route_of(serde_json::json!([step("https://shop.example/h5/recommend/1.0/?data={data}", serde_json::json!([
+            { "loc": { "in": "cookie", "key": "cna" }, "class": "minted", "name": "cna" },
+        ]))]));
+        route.graph.steps[0].fields.push(Field { loc: Loc::Query("data".into()), class: Class::CookieIn { template: template.clone(), name: "cna".into() } });
+        let recipe = of_route(&route).expect("shared");
+        assert_eq!(recipe.format, FORMAT_3, "a version that names it");
+        let from = recipe.steps[0].fields.iter().find(|f| f.loc == Loc::Query("data".into())).map(|f| f.from.clone());
+        assert_eq!(from, Some(Source::CookieIn { template: template.clone(), name: "cna".into() }));
+        let bytes = canonical(&recipe);
+        let listing = crate::listing::SignedListing {
+            route_id: "r1".into(),
+            site: "shop.example".into(),
+            content_id: content_id(&bytes),
+            agent_id: "7".into(),
+            version: 1,
+            supersedes: None,
+            terms: crate::listing::Terms { description: "Recommend".into(), response: recipe.response.clone(), price: crate::listing::Price::default() },
+            sig: String::new(),
+        };
+        let back = into_route(recheck(&bytes, &listing.content_id, Egress::Own).unwrap(), &listing).unwrap();
+        let class = back.graph.steps[0].fields.iter().find(|f| f.loc == Loc::Query("data".into())).map(|f| f.class.clone());
+        assert_eq!(class, Some(Class::CookieIn { template: template.clone(), name: "cna".into() }), "taken back as the caller's own cookie");
+        let mut placeless = recipe.clone();
+        for f in placeless.steps[0].fields.iter_mut().filter(|f| f.loc == Loc::Query("data".into())) {
+            f.from = Source::CookieIn { template: r#"{"anonymous_id":"","scene":"home"}"#.into(), name: "cna".into() };
+        }
+        assert!(check(&placeless).is_err_and(|why| why.contains("no place for it")));
+        let mut older = recipe;
+        older.format = FORMAT_2.into();
+        assert!(check(&older).is_err_and(|why| why.contains("doesn't name")), "an older version names no such value");
+    }
+
+    /// A fixed value that carries what the site handed the owner's browser in a cookie (a visitor id the page's code
+    /// writes into its calls) is the owner's, however fixed it looked across the owner's own walks: the body isn't
+    /// shared while the owner's jar for the site holds it. A short cookie value a page writes anyway (`en`) is no match,
+    /// and the same body shares once no jar of the site holds the value.
+    #[test]
+    fn a_fixed_value_carrying_the_owners_cookie_is_not_shared() {
+        store::scratch_home("owners-cookie");
+        let id = "qC6EI4RJtwUCAbT/dirWksqV";
+        let data = format!(r#"{{"params":"{{\"anonymous_id\":\"{id}\",\"language\":\"en\"}}"}}"#);
+        let url = format!("https://www.shop.example/h5/recommend/1.0/?data={}", url::form_urlencoded::byte_serialize(data.as_bytes()).collect::<String>());
+        let route = route_of(serde_json::json!([step(&url, serde_json::json!([
+            { "loc": { "in": "query", "key": "data" }, "class": "constant", "value": data, "origin": null },
+            { "loc": { "in": "cookie", "key": "cna" }, "class": "minted", "name": "cna" },
+        ]))]));
+        let jar = |cna: &str| store::write_json(&store::jar_path("www.shop.example"), &unbrowse_files::JAR, &std::collections::BTreeMap::from([("cna".to_string(), cna.to_string()), ("lang".to_string(), "en".to_string())])).unwrap();
+        jar(id);
+        assert!(compile(&route).is_err_and(|why| why.contains("owner's cookie cna")), "the owner's visitor id");
+        jar("someone-else-entirely-0001");
+        assert!(compile(&route).is_ok(), "no jar of the site holds it");
+    }
+
+    /// Audit 1118 N1 (new in the 18 Nov round). A credential read from an earlier answer counts as the site's when the
+    /// body put no value into that earlier request: but the request's address is the body's word too. A stranger's body
+    /// can read `authorization` from a page whose text the stranger wrote (their own public profile on the site), and
+    /// no token is in the body for the credential scanner to see. A credential field may take its value only from an
+    /// answer to a request that carried nothing of the body's choosing: its address included, which here is a page of
+    /// the stranger's making, with none of the caller's own session in it. Another header read from the same answer is
+    /// no credential and stays allowed.
+    #[test]
+    fn a_credential_read_from_a_page_the_body_chose_is_refused() {
+        let base = of_route(&route_of(serde_json::json!([
+            { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/u/stranger", "fields": [], "needs_browser": false },
+            { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/search", "fields": [], "needs_browser": false }
+        ])))
+        .unwrap();
+        let at: unbrowse_learn::provenance::At = serde_json::from_value(serde_json::json!({ "from": "json", "pointer": "/bio_token" })).unwrap();
+        let read_into = |header: &str| {
+            let mut r = base.clone();
+            r.steps[1].fields.push(RecipeField { loc: Loc::Header(header.into()), from: Source::Response { origin: Origin { exchange: 0, url: "https://shop.example/u/stranger".into(), at: at.clone(), wrap: None } } });
+            r
+        };
+        assert_eq!(check_foreign(&read_into("x-request-trace")), Ok(()), "control: a header that is no credential, read from the same answer");
+        let r = read_into("authorization");
+        assert!(check_foreign(&r).is_err(), "the login header read from a page the body's author wrote is accepted");
+        let b = canonical(&r);
+        assert!(recheck(&b, &content_id(&b), Egress::Own).is_err(), "a served body with it is refused");
+    }
+
+    /// Audit 1118 M7 (16 Nov H5): a body from another node carries the caller's session only where a browser sends it.
+    /// Its session value (`Source::Session`) in a form, query or JSON field, and a cookie the site set during the call
+    /// (one of a `Set-Cookie` line, or the line read whole) moved out of the cookie header, are refused when the body is
+    /// checked and when it is served; the same session in the cookie header or a header token still goes.
+    #[test]
+    fn a_strangers_body_carries_the_session_only_in_the_cookie_header() {
+        let base = of_route(&route_of(serde_json::json!([step("https://shop.example/api/a", serde_json::json!([]))]))).unwrap();
+        let with = |loc: Loc, from: Source| {
+            let mut r = base.clone();
+            r.steps[0].fields.push(RecipeField { loc, from });
+            r
+        };
+        let set_cookie = Origin { exchange: 0, url: "https://shop.example/api/a".into(), at: unbrowse_learn::provenance::At::SetCookie { name: "sid".into() }, wrap: None };
+        let line = |name: &str| Origin { at: unbrowse_learn::provenance::At::Header { name: name.into() }, ..set_cookie.clone() };
+        for (loc, from) in [
+            (Loc::Query("q".into()), Source::Session { name: "sid".into() }),
+            (Loc::Form("comment".into()), Source::Session { name: "sid".into() }),
+            (Loc::Json("/note".into()), Source::Session { name: "sid".into() }),
+            (Loc::Query("q".into()), Source::Response { origin: set_cookie.clone() }),
+            (Loc::Header("x-echo".into()), Source::Response { origin: set_cookie.clone() }),
+            (Loc::Query("q".into()), Source::Response { origin: line("set-cookie") }),
+            (Loc::Json("/note".into()), Source::Response { origin: line("Set-Cookie") }),
+        ] {
+            let r = with(loc.clone(), from);
+            let e = check_foreign(&r).expect_err(&format!("{loc}: a body that moves the session out of the cookie header is accepted"));
+            assert!(e.starts_with("this route can't be shared") && (e.contains("session in a field") || e.contains("out of the cookie header")), "{loc}: {e}");
+            let b = canonical(&r);
+            assert!(recheck(&b, &content_id(&b), Egress::Own).is_err(), "{loc}: a served body with it is refused");
+        }
+        for (loc, from) in [(Loc::Cookie("sid".into()), Source::Session { name: "sid".into() }), (Loc::Header("x-csrf-token".into()), Source::Session { name: "x-csrf-token".into() })] {
+            assert_eq!(check_foreign(&with(loc.clone(), from)), Ok(()), "{loc}");
+        }
+    }
+
+    /// Audit 1118 H2 (16 Nov H6). A stranger's body can't put text of its own around a value an earlier answer gave, in
+    /// a header: `Bearer <their token> ` before the site's value makes the whole `authorization` value theirs, and the
+    /// owner's calls run in their account. Refused when the body is checked and when it is served; an authentication
+    /// scheme alone before the value, or no text, still goes.
+    #[test]
+    fn a_strangers_body_wraps_no_credential_in_text_of_its_own() {
+        // The earlier step carries the caller's own session, so a credential read from its answer is the site's.
+        let base = of_route(&route_of(serde_json::json!([
+            { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/api/token", "needs_browser": false, "fields": [
+                field(serde_json::json!({ "in": "cookie", "key": "sid" }), serde_json::json!({ "class": "minted", "name": "sid" })),
+            ] },
+            { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/search", "fields": [], "needs_browser": false }
+        ])))
+        .unwrap();
+        let from = |wrap: Option<(&str, &str)>| Source::Response {
+            origin: Origin { exchange: 0, url: "https://shop.example/api/token".into(), at: unbrowse_learn::provenance::At::Json { pointer: "/token".into() }, wrap: wrap.map(|(a, b)| (a.into(), b.into())) },
+        };
+        let with = |loc: &str, wrap| {
+            let mut r = base.clone();
+            r.steps[1].fields.push(RecipeField { loc: Loc::Header(loc.into()), from: from(wrap) });
+            r
+        };
+        // A credential from an answer is refused outright in a stranger's body (audit 1118 N1); the wrap rule holds for
+        // every header, so the control is a header that is no credential.
+        for wrap in [None, Some(("Bearer ", ""))] {
+            assert_eq!(check_foreign(&with("x-request-trace", wrap)), Ok(()), "control {wrap:?}: the site's value, after a scheme at most");
+        }
+        for (loc, wrap) in [("authorization", ("Bearer attacker_tok_9911 ", "")), ("x-request-trace", ("Bearer attacker_tok_9911 ", "")), ("x-request-trace", ("Bearer ", " x")), ("x-api-key", ("ak_attacker_", ""))] {
+            let r = with(loc, Some(wrap));
+            let e = check_foreign(&r).expect_err(&format!("{loc} {wrap:?}: text of the body's own around the site's value is accepted"));
+            assert!(!e.contains("attacker"), "{loc}: the refusal repeats the body's text: {e}");
+            let b = canonical(&r);
+            assert!(recheck(&b, &content_id(&b), Egress::Own).is_err(), "{loc}: a served body with it is refused");
+        }
+    }
+
+    /// Audit 1118 H3 (16 Nov H7). An input's default is a value the body fixes, sent when the caller gives none, in
+    /// whatever field the input fills. It is checked only as a query value, so a stranger's body can default
+    /// `authorization` (or a token header, or a cookie). A default is held, in every field it fills, to the rules a
+    /// fixed value there is: refused when the body is checked, when it is served, and when it is made into a route. A
+    /// plain default in a plain field still goes.
+    #[test]
+    fn a_default_is_held_to_the_rules_of_every_field_it_fills() {
+        let base = of_route(&route_of(serde_json::json!([step("https://shop.example/api/a", serde_json::json!([]))]))).unwrap();
+        let with = |loc: Loc, default: &str| {
+            let mut r = base.clone();
+            r.format = FORMAT_2.into();
+            r.params.push(Param { name: "k".into(), secret: false, kind: "string".into(), optional: true, default: Some(default.into()), options: Vec::new() });
+            r.steps[0].fields.push(RecipeField { loc, from: Source::Param { name: "k".into() } });
+            r
+        };
+        let listing = |bytes: &[u8]| crate::listing::SignedListing {
+            route_id: "r1".into(),
+            site: "shop.example".into(),
+            content_id: content_id(bytes),
+            agent_id: "7".into(),
+            version: 1,
+            supersedes: None,
+            terms: crate::listing::Terms { description: "x".into(), response: None, price: crate::listing::Price::default() },
+            sig: String::new(),
+        };
+        for (loc, default) in [(Loc::Query("q".into()), "lamps"), (Loc::Header("x-client".into()), "web"), (Loc::Json("/page".into()), "1")] {
+            let r = with(loc.clone(), default);
+            check_foreign(&r).unwrap_or_else(|e| panic!("control {loc}: {e}"));
+            let b = canonical(&r);
+            assert!(into_route(r, &listing(&b)).is_ok(), "control {loc}");
+        }
+        for (loc, default) in [
+            (Loc::Header("authorization".into()), "Basic attacker"),
+            (Loc::Header("x-api-key".into()), "tok_a1b2c3d4e5f6g7h8"),
+            (Loc::Cookie("sid".into()), "attacker_session"),
+        ] {
+            let r = with(loc.clone(), default);
+            assert!(unsourced("q", &Loc::Query("k".into()), default, false).is_ok(), "{loc}: the query rule alone lets it by");
+            let e = check(&r).expect_err(&format!("{loc}: a default sent in this field is accepted"));
+            assert!(!e.contains(default), "{loc}: the refusal repeats the default: {e}");
+            let b = canonical(&r);
+            assert!(recheck(&b, &content_id(&b), Egress::Own).is_err(), "{loc}: a served body with it is refused");
+            assert!(into_route(r.clone(), &listing(&b)).is_err(), "{loc}: it is made into a route");
+        }
+    }
+
+    /// Audit 1118 H4 (16 Nov H8), the body's half. A route reads on to its next page from the value sent, so a count
+    /// over a secret input (a card number, a code the vault fills) hands the secret plus one back. A stranger's body
+    /// that pages over a secret input is refused; paging over a plain input still goes.
+    #[test]
+    fn a_body_that_reads_on_over_a_secret_input_is_refused() {
+        let base = of_route(&route_of(serde_json::json!([step("https://shop.example/api/a", serde_json::json!([]))]))).unwrap();
+        let paging_over = |secret: bool| {
+            let mut r = base.clone();
+            r.format = FORMAT_2.into();
+            r.params.push(Param { name: "pin".into(), secret, kind: "string".into(), optional: false, default: None, options: Vec::new() });
+            r.steps[0].fields.push(RecipeField { loc: Loc::Query("pin".into()), from: Source::Param { name: "pin".into() } });
+            r.paging = Some(unbrowse_learn::paging::Paging::Count { input: "pin".into(), step: 1 });
+            r
+        };
+        check_foreign(&paging_over(false)).unwrap_or_else(|e| panic!("control: a plain input read on over: {e}"));
+        let r = paging_over(true);
+        assert!(check_foreign(&r).is_err(), "a body that reads on over a secret input is accepted");
+        let b = canonical(&r);
+        assert!(recheck(&b, &content_id(&b), Egress::Own).is_err(), "a served body with it is refused");
     }
 
     /// A route that reads on keeps doing so on another node: the next page, the filter left unset, and the value the
@@ -1782,6 +2263,10 @@ mod tests {
         assert_eq!(at(Loc::Query("q".into()), "lamp", "https://x.example/a"), None);
         assert_eq!(at(Loc::Query("customer".into()), "premium", "https://x.example/a"), None, "a plan is not an account");
         assert_eq!(at(Loc::Header("x-user-id".into()), "42", "https://x.example/a"), Some("x-user-id".into()));
+        // A header the browser writes by itself says how it asked, never whose account (a page opened by a click sends
+        // `sec-fetch-user: ?1`): it stays the route's.
+        assert_eq!(at(Loc::Header("sec-fetch-user".into()), "?1", "https://x.example/a"), None);
+        assert_eq!(at(Loc::Header("Sec-Fetch-User".into()), "?1", "https://x.example/a"), None);
     }
 
     /// A compiled route carries the value as a parameter, not as a constant: another machine passes its own, and the
@@ -1806,6 +2291,7 @@ mod tests {
             on_load: false,
             foreign: false,
             held: Vec::new(),
+            fallbacks: Vec::new(),
             reads_page: false,
         };
         let graph = unbrowse_learn::Graph { steps: vec![step], ..Default::default() };
@@ -1825,6 +2311,7 @@ mod tests {
         // The address itself takes the caller's value: the id is not left in the template either.
         assert!(recipe.steps[0].url.contains("{path[1]}"), "{}", recipe.steps[0].url);
         assert!(!recipe.steps[0].url.contains("42"), "{}", recipe.steps[0].url);
+        assert_eq!(recipe.endpoint, recipe.steps[0].url, "nor in the endpoint the body names");
     }
 
     /// Someone else's body goes only to the site it was listed for: another site, or a host built at call time, is
@@ -1846,6 +2333,7 @@ mod tests {
             on_load: false,
             foreign: false,
             held: Vec::new(),
+            fallbacks: Vec::new(),
             reads_page: false,
         };
         assert!(only_its_site(&[step("https://www.shop.example/api")], "shop.example").is_ok());
@@ -1854,4 +2342,356 @@ mod tests {
         assert!(only_its_site(&[step("https://{host}/api")], "shop.example").is_err(), "a host built at call time goes nowhere");
     }
 
+
+    /// A route whose request carries a value made by code: a script's producer, a program written for the value, a hash
+    /// the page computes, and the page's own computed value. Every program text here says `SECRETPROGRAM`.
+    fn route_with_code() -> store::Route {
+        let loc = |h: &str| serde_json::json!({ "in": "header", "key": h });
+        let evidence = serde_json::json!({ "header": "x-gen", "sightings": 3, "proposed_by": "agent", "evidence_hash": "e1" });
+        route_of(serde_json::json!([step("https://shop.example/api/search", serde_json::json!([
+            field(loc("x-script"), serde_json::json!({ "class": "script", "producer": { "script": "function SECRETPROGRAM_script() {}", "at": 3 } })),
+            field(loc("x-gen"), serde_json::json!({ "class": "generated", "program": "function SECRETPROGRAM_gen(ctx) { return 1; }", "evidence": evidence })),
+            field(loc("x-computed"), serde_json::json!({ "class": "computed" })),
+            field(loc("x-recipe"), serde_json::json!({ "class": "recipe", "recipe": { "algo": "md5", "separator": "|", "parts": [{ "part": "path" }] } })),
+        ]))]))
+    }
+
+    /// A listing of `recipe`'s body, as its contributor would sign it, so far as admitting it needs.
+    fn listing_of(recipe: &Recipe, bytes: &[u8]) -> crate::listing::SignedListing {
+        crate::listing::SignedListing {
+            route_id: "r1".into(),
+            site: recipe.site.clone(),
+            content_id: content_id(bytes),
+            agent_id: "7".into(),
+            version: 1,
+            supersedes: None,
+            terms: crate::listing::Terms { description: "Search the shop".into(), response: recipe.response.clone(), price: crate::listing::Price::default() },
+            sig: String::new(),
+        }
+    }
+
+    /// A route never runs code carried by a route someone else shared (R2.7): a route this node learned with a script's
+    /// producer, a program written for a value and a computed value is shared as a body that says only that the page
+    /// makes each, and none of its program text or script goes into the bytes a listing names. A hash over named parts
+    /// of the call is data, and travels as its parts (version 3).
+    #[test]
+    fn a_route_that_holds_code_is_shared_as_a_body_with_none_of_it() {
+        let recipe = of_route(&route_with_code()).expect("a route with producers is shared as the page's to make");
+        let sources: Vec<(String, Source)> = recipe.steps[0].fields.iter().map(|f| (f.loc.to_string(), f.from.clone())).collect();
+        assert_eq!(sources.len(), 4);
+        // A hash over named parts of the call is data, not code (version 3): the hash, the join and the parts, nothing
+        // to run. Everything else the page's code makes is the browser's to make.
+        let (hashes, made): (Vec<_>, Vec<_>) = sources.iter().partition(|(_, from)| matches!(from, Source::Recipe { .. }));
+        assert_eq!(hashes.len(), 1, "the hash travels as its parts: {sources:?}");
+        assert!(made.iter().all(|(_, from)| *from == Source::Browser), "the rest is the browser's to make: {sources:?}");
+        let body = text(&recipe);
+        for code in ["SECRETPROGRAM", "function", "evidence_hash", "\"program\"", "\"script\"", "producer"] {
+            assert!(!body.contains(code), "{code} went into the shared body: {body}");
+        }
+        assert_eq!(body.matches("\"source\":\"browser\"").count(), 3);
+    }
+
+    /// A body that carries anything but data is no recipe: an unknown key on the recipe, a step, a field or a source (a
+    /// `program`, a `script`, a `run`), or a source that names code, is refused by the strict reading before its other
+    /// checks, so it never becomes a route. The same body without the code is admitted.
+    #[test]
+    fn a_shared_body_that_carries_code_is_refused_as_no_recipe() {
+        let recipe = of_route(&route_of(serde_json::json!([step("https://shop.example/api/search?q={q}", serde_json::json!([
+            field(serde_json::json!({ "in": "query", "key": "q" }), serde_json::json!({ "class": "input", "name": "q", "secret": false, "default": "lamp" })),
+            field(serde_json::json!({ "in": "header", "key": "x-sig" }), serde_json::json!({ "class": "computed" })),
+        ]))])))
+        .unwrap();
+        let sound = canonical(&recipe);
+        assert!(recheck(&sound, &content_id(&sound), Egress::Own).is_ok(), "the body itself is admitted");
+        let value: Value = serde_json::from_slice(&sound).unwrap();
+        let code = "function () { return fetch('https://evil.example') }";
+        let carrying: Vec<(&str, Value)> = vec![
+            ("a program on the recipe", { let mut v = value.clone(); v["program"] = code.into(); v }),
+            ("a script on a step", { let mut v = value.clone(); v["steps"][0]["script"] = code.into(); v }),
+            ("a program on a field", { let mut v = value.clone(); v["steps"][0]["fields"][1]["program"] = code.into(); v }),
+            ("a code source", { let mut v = value.clone(); v["steps"][0]["fields"][1]["from"] = serde_json::json!({ "source": "program", "code": code }); v }),
+            ("code in a param", { let mut v = value.clone(); v["params"][0]["init"] = code.into(); v }),
+        ];
+        for (what, body) in carrying {
+            let bytes = canonical_json(&body);
+            // Its identifier is its own hash and its text holds no credential: only the reading of it can refuse it.
+            let refused = recheck(&bytes, &content_id(&bytes), Egress::Own).unwrap_err();
+            assert!(matches!(&refused, Refusal::NotListed(why) if why.starts_with("the body isn't a recipe")), "{what}: {refused}");
+        }
+        // Code beside a source that holds nothing (`browser`) reads (serde drops it from a unit variant), and is refused
+        // by the next check: the body is not the canonical form of the recipe it reads as.
+        let mut beside = value.clone();
+        beside["steps"][0]["fields"][1]["from"]["run"] = code.into();
+        let bytes = canonical_json(&beside);
+        let refused = recheck(&bytes, &content_id(&bytes), Egress::Own).unwrap_err();
+        assert!(matches!(&refused, Refusal::NotListed(why) if why.contains("canonical form")), "{refused}");
+    }
+
+    /// The only way someone else's body becomes a route is [`admit`], and what it makes holds no code: no script's
+    /// producer, no program, whatever the body's contributor learned; a value the page makes is the caller's own
+    /// browser's to make, every step is marked someone else's, and none carries a page's code. A hash over named parts of
+    /// the call is data (version 3), and comes in as those parts, which the caller's node computes itself.
+    #[test]
+    fn a_route_admitted_from_a_strangers_body_holds_no_code() {
+        let recipe = of_route(&route_with_code()).unwrap();
+        let bytes = canonical(&recipe);
+        let admitted = admit(&bytes, &listing_of(&recipe, &bytes), Egress::Own).expect("admitted");
+        assert!(admitted.fetched.is_some() && !admitted.yours);
+        let classes: Vec<&Class> = admitted.graph.steps.iter().flat_map(|s| &s.fields).map(|f| &f.class).collect();
+        assert_eq!(classes.len(), 4);
+        let (hashes, made): (Vec<&&Class>, Vec<&&Class>) = classes.iter().partition(|c| matches!(c, Class::Recipe { .. }));
+        assert_eq!(hashes.len(), 1, "the hash comes in as its parts: {classes:?}");
+        assert!(made.iter().all(|c| matches!(c, Class::Computed)), "the rest is the browser's to make: {classes:?}");
+        assert!(admitted.graph.steps.iter().all(|s| s.foreign && s.page_producers.is_empty() && s.held.is_empty()));
+        let kept = serde_json::to_string(&admitted.graph).unwrap();
+        assert!(!kept.contains("SECRETPROGRAM") && !kept.contains("producer") && !kept.contains("\"program\""), "{kept}");
+    }
+
+    /// A value that becomes the caller's leaves the address and the body as a placeholder: a path piece, a query pair, a
+    /// JSON leaf (keeping the kind it was) and a form field; one that is not where the walk saw it, or is another
+    /// value there, is left as it is.
+    #[test]
+    fn a_value_that_becomes_the_callers_leaves_its_address_and_body_as_a_placeholder() {
+        let mut url = "https://shop.example/users/12345/orders?uid=12345&sort=new".to_string();
+        let mut body = None;
+        promote(&mut url, &mut body, &Loc::Path(1), "12345");
+        assert_eq!(url, "https://shop.example/users/{path[1]}/orders?uid=12345&sort=new");
+        promote(&mut url, &mut body, &Loc::Path(1), "99999");
+        assert_eq!(url, "https://shop.example/users/{path[1]}/orders?uid=12345&sort=new", "no longer the value walked");
+        promote(&mut url, &mut body, &Loc::Query("uid".into()), "12345");
+        assert_eq!(url, "https://shop.example/users/{path[1]}/orders?uid={uid}&sort=new");
+        promote(&mut url, &mut body, &Loc::Query("sort".into()), "old");
+        assert!(url.ends_with("sort=new"), "{url}");
+        let mut json = Some(Body::Json { template: serde_json::json!({ "n": "7", "flag": "x", "who": "u1" }), types: Default::default() });
+        for (pointer, value) in [("/n", "7"), ("/who", "u1"), ("/flag", "other")] {
+            promote(&mut url, &mut json, &Loc::Json(pointer.into()), value);
+        }
+        let Some(Body::Json { template, types }) = &json else { panic!("still a JSON body") };
+        assert_eq!(*template, serde_json::json!({ "n": null, "flag": "x", "who": null }));
+        assert_eq!(types.get("/who").map(String::as_str), Some("string"));
+        let mut counted = Some(Body::Json { template: serde_json::json!({ "n": 7, "b": true }), types: Default::default() });
+        promote(&mut url, &mut counted, &Loc::Json("/n".into()), "7");
+        let Some(Body::Json { template, .. }) = &counted else { panic!() };
+        assert_eq!(template["n"], serde_json::json!(7), "a number is not the text the walk named: left as it is");
+        let mut form = Some(Body::Form { fields: vec![("user".into(), Some("u1".into())), ("note".into(), Some("hi".into()))] });
+        promote(&mut url, &mut form, &Loc::Form("user".into()), "u1");
+        promote(&mut url, &mut form, &Loc::Form("note".into()), "different");
+        let Some(Body::Form { fields }) = &form else { panic!() };
+        assert_eq!(*fields, vec![("user".to_string(), None), ("note".to_string(), Some("hi".to_string()))]);
+        let before = url.clone();
+        promote(&mut url, &mut form, &Loc::Header("x".into()), "u1");
+        assert_eq!(url, before);
+    }
+
+    /// A credential a stranger's body takes from an earlier step's answer is refused, whatever that step carried: its
+    /// address is the body's word, so the session cookie that makes `/api/token` the caller's would make the author's
+    /// own profile page look the same (audit 1118 N1; `a_credential_read_from_a_page_the_body_addressed_is_refused_even_with_a_session_field_on_it`).
+    /// A value that is no credential still may come from an answer, and the caller's session still fills a credential.
+    #[test]
+    fn a_credential_in_a_strangers_body_never_comes_from_an_answer() {
+        let base = of_route(&route_of(serde_json::json!([
+            { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/api/token", "needs_browser": false, "fields": [
+                field(serde_json::json!({ "in": "cookie", "key": "sid" }), serde_json::json!({ "class": "minted", "name": "sid" })),
+            ] },
+            { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/search", "fields": [], "needs_browser": false }
+        ])))
+        .unwrap();
+        let at: unbrowse_learn::provenance::At = serde_json::from_value(serde_json::json!({ "from": "json", "pointer": "/token" })).unwrap();
+        let from = Source::Response { origin: Origin { exchange: 0, url: "https://shop.example/api/token".into(), at, wrap: None } };
+        let mut plain = base.clone();
+        plain.steps[1].fields.push(RecipeField { loc: Loc::Header("authorization".into()), from: from.clone() });
+        let e = check_foreign(&plain).unwrap_err();
+        assert!(e.contains("takes a credential only from the caller's own session"), "{e}");
+        assert_eq!(check(&plain), Ok(()), "the owner's own route may still read its token from an answer");
+        let mut id = base.clone();
+        id.steps[1].fields.push(RecipeField { loc: Loc::Query("cart".into()), from });
+        assert_eq!(check_foreign(&id), Ok(()), "a value that is no credential may come from an answer");
+    }
+
+    /// A piece of the caller's value is the caller's own input, cut the way the walk cut it: it needs no value of its own.
+    #[test]
+    fn a_piece_of_the_callers_value_is_the_callers_input() {
+        let r = route_of(serde_json::json!([step("https://shop.example/api/day?date={date}&year={year}", serde_json::json!([
+            field(serde_json::json!({ "in": "query", "key": "date" }), serde_json::json!({ "class": "input", "name": "date", "secret": false, "default": null })),
+            field(serde_json::json!({ "in": "query", "key": "year" }), serde_json::json!({ "class": "piece", "input": "date", "from": 0, "len": 4 })),
+        ]))]));
+        let recipe = of_route(&r).unwrap();
+        assert_eq!(recipe.params.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["date"], "one input, however many places read it");
+        assert!(recipe.steps[0].fields.iter().all(|f| f.from == Source::Param { name: "date".into() }));
+    }
+
+    /// A body that leaks a credential says so without repeating it, and one that is no recipe or no listed body says why.
+    #[test]
+    fn a_body_that_leaks_a_credential_is_refused_in_words_that_do_not_repeat_it() {
+        let recipe = of_route(&route_of(serde_json::json!([step("https://shop.example/api/a", serde_json::json!([]))]))).unwrap();
+        let mut leaking = serde_json::to_value(&recipe).unwrap();
+        leaking["endpoint"] = "https://shop.example/api/magic/ghp_0123456789abcdefghijABCDEFGHIJ012345".into();
+        let bytes = canonical_json(&leaking);
+        let refused = recheck(&bytes, &content_id(&bytes), Egress::Own).unwrap_err();
+        assert!(matches!(refused, Refusal::Leaks(_)), "{refused}");
+        let said = refused.to_string();
+        assert!(said.starts_with("the body leaks a credential (") && !said.contains("ghp_0123"), "{said}");
+        let sound = canonical(&recipe);
+        let other = recheck(&sound, "sha256:00", Egress::Own).unwrap_err();
+        assert_eq!(other.to_string(), "the body served isn't the one its listing names");
+    }
+    /// Every route in UNBROWSE_SWEEP_ROUTES through what sharing does (`of_route`), with the jars of
+    /// UNBROWSE_SWEEP_JARS as this node's: shared or refused and why, and for each shared body every cookie value (12+
+    /// characters) of those jars it still carries. A diagnostic, run by hand.
+    #[test]
+    #[ignore]
+    fn sweep_the_owners_routes_through_sharing() {
+        let (routes, jars) = (std::env::var("UNBROWSE_SWEEP_ROUTES").unwrap(), std::env::var("UNBROWSE_SWEEP_JARS").unwrap());
+        store::scratch_home("sweep");
+        std::fs::create_dir_all(store::jars_dir()).unwrap();
+        let mut owned: Vec<(String, String)> = Vec::new();
+        for e in std::fs::read_dir(&jars).unwrap().flatten() {
+            let file = e.file_name().to_string_lossy().into_owned();
+            if file.ends_with(".json") {
+                std::fs::copy(e.path(), store::jars_dir().join(&file)).unwrap();
+                let jar: std::collections::BTreeMap<String, String> = store::read_json(&e.path(), &unbrowse_files::JAR);
+                owned.extend(jar.into_iter().filter(|(_, v)| v.len() >= 12));
+            }
+        }
+        let mut files: Vec<_> = std::fs::read_dir(&routes).unwrap().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "json")).collect();
+        files.sort();
+        for path in files {
+            let Ok(route) = serde_json::from_str::<store::Route>(&std::fs::read_to_string(&path).unwrap()) else {
+                println!("SWEEP UNREADABLE {}", path.display());
+                continue;
+            };
+            match of_route(&route) {
+                Ok(recipe) => {
+                    let text = String::from_utf8(canonical(&recipe)).unwrap();
+                    let decoded = percent_encoding::percent_decode_str(&text.replace('+', " ")).decode_utf8_lossy().into_owned();
+                    let mut hits: Vec<&str> = owned.iter().filter(|(_, v)| text.contains(v.as_str()) || decoded.contains(v.as_str())).map(|(k, _)| k.as_str()).collect();
+                    hits.sort();
+                    hits.dedup();
+                    println!("SWEEP SHARED\t{}\t{}\t{}\towner-values:{:?}", route.id, route.site, recipe.format, hits);
+                    // As a fetching node takes it: checked again and made a route (`recheck`, `into_route`).
+                    if let Ok(out) = std::env::var("UNBROWSE_SWEEP_OUT") {
+                        let bytes = canonical(&recipe);
+                        let listing = crate::listing::SignedListing {
+                            route_id: route.id.clone(),
+                            site: route.site.clone(),
+                            content_id: content_id(&bytes),
+                            agent_id: "7".into(),
+                            version: 1,
+                            supersedes: None,
+                            terms: crate::listing::Terms { description: route.what.clone(), response: recipe.response.clone(), price: crate::listing::Price::default() },
+                            sig: String::new(),
+                        };
+                        match recheck(&bytes, &listing.content_id, Egress::Own).map_err(|e| format!("{e:?}")).and_then(|r| into_route(r, &listing)) {
+                            Ok(back) => std::fs::write(std::path::Path::new(&out).join(format!("{}.json", back.id)), serde_json::to_vec_pretty(&back).unwrap()).unwrap(),
+                            Err(why) => println!("SWEEP UNFETCHABLE\t{}\t{}", route.id, why),
+                        }
+                    }
+                }
+                Err(why) => println!("SWEEP REFUSED\t{}\t{}\t{}", route.id, route.site, why),
+            }
+        }
+    }
+
+    // ---- audit 1118 review (R1-R4, R6): bypasses the first fixes left open ----
+    /// N1 bypass: a throwaway session field on the page the body addressed must not make its answer "the caller's".
+    #[test]
+    fn a_credential_read_from_a_page_the_body_addressed_is_refused_even_with_a_session_field_on_it() {
+        let base = of_route(&route_of(serde_json::json!([
+            { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/u/stranger", "needs_browser": false, "fields": [
+                field(serde_json::json!({ "in": "cookie", "key": "sid" }), serde_json::json!({ "class": "minted", "name": "sid" })),
+            ] },
+            { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/search", "fields": [], "needs_browser": false }
+        ])))
+        .unwrap();
+        let at: unbrowse_learn::provenance::At = serde_json::from_value(serde_json::json!({ "from": "json", "pointer": "/bio_token" })).unwrap();
+        let mut r = base.clone();
+        r.steps[1].fields.push(RecipeField { loc: Loc::Header("authorization".into()), from: Source::Response { origin: Origin { exchange: 0, url: "https://shop.example/u/stranger".into(), at, wrap: None } } });
+        assert!(check_foreign(&r).is_err(), "the login header read from the stranger's page is accepted because that page carries a session cookie field");
+        let b = canonical(&r);
+        assert!(recheck(&b, &content_id(&b), Egress::Own).is_err(), "a served body with it is refused");
+    }
+
+    /// N1: any credential-named field read from a page the body addressed (no session on it) is refused, not only `authorization`.
+    #[test]
+    fn a_credential_named_field_read_from_a_page_the_body_chose_is_refused() {
+        let base = of_route(&route_of(serde_json::json!([
+            { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/u/stranger", "fields": [], "needs_browser": false },
+            { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/search", "fields": [], "needs_browser": false }
+        ])))
+        .unwrap();
+        let at: unbrowse_learn::provenance::At = serde_json::from_value(serde_json::json!({ "from": "json", "pointer": "/bio_token" })).unwrap();
+        for loc in [Loc::Header("x-api-key".into()), Loc::Header("x-auth-token".into()), Loc::Header("x-access-token".into()), Loc::Query("access_token".into())] {
+            let mut r = base.clone();
+            r.steps[1].fields.push(RecipeField { loc: loc.clone(), from: Source::Response { origin: Origin { exchange: 0, url: "https://shop.example/u/stranger".into(), at: at.clone(), wrap: None } } });
+            assert!(check_foreign(&r).is_err(), "{loc}: a credential read from the stranger's page is accepted");
+        }
+    }
+
+    /// N1: two steps sharing an exchange number let the check read one step and replay another.
+    #[test]
+    fn a_body_whose_steps_share_an_exchange_number_is_refused() {
+        let base = of_route(&route_of(serde_json::json!([
+            { "exchange": 0, "method": "GET", "status": 200, "url": "https://shop.example/api/token", "needs_browser": false, "fields": [
+                field(serde_json::json!({ "in": "cookie", "key": "sid" }), serde_json::json!({ "class": "minted", "name": "sid" })),
+            ] },
+            { "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/search", "fields": [], "needs_browser": false }
+        ])))
+        .unwrap();
+        let at: unbrowse_learn::provenance::At = serde_json::from_value(serde_json::json!({ "from": "json", "pointer": "/token" })).unwrap();
+        let mut r = base.clone();
+        let mut decoy = r.steps[0].clone();
+        decoy.url = "https://shop.example/u/stranger".into();
+        decoy.fields.clear();
+        r.steps.insert(1, decoy); // still exchange 0: replay keeps this answer, the check reads the token step
+        let last = r.steps.len() - 1;
+        r.steps[last].fields.push(RecipeField { loc: Loc::Header("authorization".into()), from: Source::Response { origin: Origin { exchange: 0, url: "https://shop.example/api/token".into(), at, wrap: None } } });
+        assert!(check_foreign(&r).is_err(), "steps that repeat an exchange number are accepted");
+        let b = canonical(&r);
+        assert!(recheck(&b, &content_id(&b), Egress::Own).is_err(), "a served body with it is refused");
+    }
+
+    /// H2: fixed text of a CookieIn template is the body's own text: no credential field takes it.
+    #[test]
+    fn a_strangers_cookie_template_writes_no_credential_of_its_own() {
+        let base = of_route(&route_of(serde_json::json!([step("https://shop.example/api/a", serde_json::json!([]))]))).unwrap();
+        let with = |loc: &str, template: &str| {
+            let mut r = base.clone();
+            r.format = FORMAT_3.into();
+            r.steps[0].fields.push(RecipeField { loc: Loc::Header(loc.into()), from: Source::CookieIn { template: template.into(), name: "nosuchcookie".into() } });
+            r
+        };
+        assert_eq!(check_foreign(&with("x-csrf-token", "{cookie}")), Ok(()), "control: the caller's cookie alone in a header");
+        for (loc, template) in [
+            ("authorization", "Bearer attackertok{cookie}Zq8x2LmPw4Rt7Vb9Nc"),
+            ("Authorization", "Bearer attacker_tok_9911 {cookie}"),
+            ("x-api-key", "ak_attacker_{cookie}"),
+        ] {
+            let r = with(loc, template);
+            assert!(check_foreign(&r).is_err(), "{loc} {template}: body text around the caller's cookie is accepted");
+            let b = canonical(&r);
+            assert!(recheck(&b, &content_id(&b), Egress::Own).is_err(), "{loc}: a served body with it is refused");
+        }
+    }
+
+    /// H3: a default sent in a field whose name says it is a credential gets the credential detector under that name.
+    #[test]
+    fn a_default_in_a_credential_named_field_is_read_by_the_detector() {
+        let base = of_route(&route_of(serde_json::json!([step("https://shop.example/api/a", serde_json::json!([]))]))).unwrap();
+        let with = |loc: Loc, default: &str| {
+            let mut r = base.clone();
+            r.format = FORMAT_2.into();
+            r.params.push(Param { name: "k".into(), secret: false, kind: "string".into(), optional: true, default: Some(default.into()), options: Vec::new() });
+            r.steps[0].fields.push(RecipeField { loc, from: Source::Param { name: "k".into() } });
+            r
+        };
+        let tok = "k3Jf9sLq2XvB7mTn4PzW8yRc1UdE6aHg";
+        // control: the same value in a plain field is fine.
+        check_foreign(&with(Loc::Query("sort".into()), "lamps")).unwrap();
+        for loc in [Loc::Query("access_token".into()), Loc::Json("/api_key".into()), Loc::Form("session_token".into())] {
+            let r = with(loc.clone(), tok);
+            assert!(check_foreign(&r).is_err(), "{loc}: a default credential is accepted");
+            let b = canonical(&r);
+            assert!(recheck(&b, &content_id(&b), Egress::Own).is_err(), "{loc}: a served body with it is refused");
+        }
+    }
 }

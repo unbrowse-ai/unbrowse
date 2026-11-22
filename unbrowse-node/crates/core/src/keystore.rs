@@ -280,21 +280,40 @@ fn write_file(path: &std::path::Path, secret: &[u8]) -> Result<(), KeystoreError
 /// and every later read is answered from there, so the system's keystore asks the owner at most once a run however
 /// often the node signs, seals or opens. A write goes to the store first and then replaces what is held, so the node
 /// never holds a key the store doesn't. A read that finds nothing or fails keeps nothing, and the next one asks the
-/// store again. The seed words are read from the store each time: only the owner reads them, and rarely.
+/// store again, except a read the owner refused (cancelled the system's prompt, `is_refusal`): that answer is kept for
+/// the run, so the owner is asked once and every later read is refused without asking (UNB-152). Restarting the node,
+/// or a key written here, asks again. The seed words are read from the store each time: only the owner reads them,
+/// and rarely.
 ///
 /// What is held is the key of this process. Another program that replaces the key in the store (a shell's `wallet
 /// restore`) does so only while no node runs here, so a running node never holds a key the store has replaced.
 pub struct Remembered<S> {
     store: S,
-    held: Mutex<Option<Zeroizing<Vec<u8>>>>,
+    held: Mutex<Held>,
+}
+
+/// What a `Remembered` store holds from its reads so far.
+enum Held {
+    Nothing,
+    Key(Zeroizing<Vec<u8>>),
+    /// The owner refused the read: what the store said, given again to every later read of the run.
+    Refused(String),
+}
+
+/// Whether `e` is the owner saying no to the system's prompt for the key (the macOS Keychain's "User canceled the
+/// operation."), as against a store that failed on its own, which the next read may get past.
+pub fn is_refusal(e: &KeystoreError) -> bool {
+    let KeystoreError::Unavailable(said) = e;
+    let said = said.to_ascii_lowercase();
+    said.contains("canceled") || said.contains("cancelled")
 }
 
 impl<S: KeyStore> Remembered<S> {
     pub fn new(store: S) -> Self {
-        Self { store, held: Mutex::new(None) }
+        Self { store, held: Mutex::new(Held::Nothing) }
     }
 
-    fn held(&self) -> std::sync::MutexGuard<'_, Option<Zeroizing<Vec<u8>>>> {
+    fn held(&self) -> std::sync::MutexGuard<'_, Held> {
         self.held.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
@@ -303,12 +322,23 @@ impl<S: KeyStore> KeyStore for Remembered<S> {
     fn get(&self) -> Result<Option<Zeroizing<Vec<u8>>>, KeystoreError> {
         // Held while the store is read: two reads at once ask the store once, not twice.
         let mut held = self.held();
-        if let Some(key) = held.as_ref() {
-            return Ok(Some(key.clone()));
+        match &*held {
+            Held::Key(key) => return Ok(Some(key.clone())),
+            Held::Refused(said) => return Err(KeystoreError::Unavailable(said.clone())),
+            Held::Nothing => {}
         }
-        let read = self.store.get()?;
+        let read = match self.store.get() {
+            Ok(read) => read,
+            Err(e) => {
+                if is_refusal(&e) {
+                    let KeystoreError::Unavailable(said) = &e;
+                    *held = Held::Refused(format!("{said} (the owner was asked once this run and said no; restart the node to be asked again)"));
+                }
+                return Err(e);
+            }
+        };
         if let Some(key) = &read {
-            *held = Some(key.clone());
+            *held = Held::Key(key.clone());
         }
         Ok(read)
     }
@@ -316,7 +346,7 @@ impl<S: KeyStore> KeyStore for Remembered<S> {
     fn set(&self, secret: &[u8]) -> Result<(), KeystoreError> {
         let mut held = self.held();
         self.store.set(secret)?;
-        *held = Some(Zeroizing::new(secret.to_vec()));
+        *held = Held::Key(Zeroizing::new(secret.to_vec()));
         Ok(())
     }
 
@@ -386,6 +416,8 @@ mod tests {
         inner: MemoryStore,
         reads: std::sync::atomic::AtomicUsize,
         refuse: std::sync::atomic::AtomicBool,
+        /// A failure of the store's own, not the owner's: what it says.
+        fail: Mutex<Option<String>>,
     }
 
     impl KeyStore for Counting {
@@ -393,6 +425,9 @@ mod tests {
             self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             if self.refuse.load(std::sync::atomic::Ordering::SeqCst) {
                 return Err(KeystoreError::Unavailable("User canceled the operation.".into()));
+            }
+            if let Some(said) = self.fail.lock().unwrap().clone() {
+                return Err(KeystoreError::Unavailable(said));
             }
             self.inner.get()
         }
@@ -439,13 +474,31 @@ mod tests {
     }
 
     #[test]
-    fn a_refused_read_holds_nothing_and_the_next_asks_again() {
+    fn a_refused_read_is_kept_for_the_run_and_the_owner_is_not_asked_again() {
+        // UNB-152: the owner who cancels the Keychain's prompt is asked once a run, not at every request.
         use std::sync::atomic::Ordering::SeqCst;
         let store = Remembered::new(Counting::default());
         store.store.inner.set(&[1; 32]).unwrap();
         store.store.refuse.store(true, SeqCst);
         assert!(store.get().is_err());
         store.store.refuse.store(false, SeqCst);
+        let again = store.get().unwrap_err().to_string();
+        assert!(again.contains("User canceled") && again.contains("restart the node"), "{again}");
+        assert_eq!(store.store.reads.load(SeqCst), 1, "the store was asked once");
+        // A key written here is held, and read from memory, refusal or not.
+        store.set(&[2; 32]).unwrap();
+        assert_eq!(store.get().unwrap().unwrap().as_slice(), &[2; 32]);
+        assert_eq!(store.store.reads.load(SeqCst), 1);
+    }
+
+    #[test]
+    fn a_read_the_store_failed_on_its_own_holds_nothing_and_the_next_asks_again() {
+        use std::sync::atomic::Ordering::SeqCst;
+        let store = Remembered::new(Counting::default());
+        store.store.inner.set(&[1; 32]).unwrap();
+        *store.store.fail.lock().unwrap() = Some("Platform secure storage failure: Client public key size is invalid".into());
+        assert!(store.get().is_err());
+        *store.store.fail.lock().unwrap() = None;
         assert_eq!(store.get().unwrap().unwrap().as_slice(), &[1; 32]);
         assert_eq!(store.store.reads.load(SeqCst), 2);
     }

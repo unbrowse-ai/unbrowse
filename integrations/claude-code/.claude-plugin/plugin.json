@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "unbrowse",
   "displayName": "Unbrowse",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Use websites through the Unbrowse node on this machine: the site's own JSON, with no browser once a route is learned. WebFetch is answered from the node's routes, each node answer shows what it cost and the tokens it saved, and learned routes become tools.",
   "author": {
     "name": "Unbrowse",

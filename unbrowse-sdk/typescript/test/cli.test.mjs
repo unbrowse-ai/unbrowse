@@ -14,6 +14,9 @@ const cli = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
 test("start and the node's own commands go to the node; the rest to unb", () => {
   assert.deepEqual(route(["start"]), { program: "unbrowse-node", args: [] });
+  // The install line's source tag reaches the node as it was typed: `unbrowse-node --from <tag>` starts it with the tag.
+  assert.deepEqual(route(["start", "--from", "hn-e"]), { program: "unbrowse-node", args: ["--from", "hn-e"] });
+  assert.deepEqual(route(["start", "--from=hn-e"]), { program: "unbrowse-node", args: ["--from=hn-e"] });
   assert.deepEqual(route(["wallet", "show"]), { program: "unbrowse-node", args: ["wallet", "show"] });
   // Bounties and route coins are the owner's, signed by the node's key: `unbrowse bounty post shop.example 2000`.
   assert.deepEqual(route(["bounty", "post", "shop.example", "2000"]), { program: "unbrowse-node", args: ["bounty", "post", "shop.example", "2000"] });
@@ -65,6 +68,67 @@ test("runs the program it finds, with the caller's arguments and exit code", () 
   assert.equal(readFileSync(said, "utf8").trim(), "unb do search hn");
   spawnSync(process.execPath, [cli, "start"], { env: { ...process.env, UNBROWSE_BIN: bin } });
   assert.equal(readFileSync(said, "utf8").trim(), "unbrowse-node");
+});
+
+// The install line `npx unbrowse start --from hn-e` reaches the node as it was typed: the program run is unbrowse-node and
+// it is given every word after `start`, the source tag in either spelling included, and nothing else.
+test("start passes every word after it to the node, the source tag included", () => {
+  const bin = mkdtempSync(join(tmpdir(), "unbrowse-bin-"));
+  const said = join(bin, "said");
+  for (const p of ["unbrowse-node", "unb"]) {
+    writeFileSync(join(bin, p), `#!/bin/sh\nprintf '%s|' "${p}" "$@" > "${said}"\n`, { mode: 0o755 });
+  }
+  const env = { ...process.env, UNBROWSE_BIN: bin };
+  for (const [words, got] of [
+    [["start", "--from", "hn-e"], "unbrowse-node|--from|hn-e|"],
+    [["start", "--from=hn-e"], "unbrowse-node|--from=hn-e|"],
+    [["start", "--from", "Not A Tag"], "unbrowse-node|--from|Not A Tag|"],
+  ]) {
+    const r = spawnSync(process.execPath, [cli, ...words], { env });
+    assert.equal(r.status, 0, r.stderr.toString());
+    assert.equal(readFileSync(said, "utf8"), got, words.join(" "));
+  }
+});
+
+// The node's own source, read as the shipped programs are built from it: the first words `unbrowse-node` runs a command
+// for (its `main`), the words its usage line names, and the commands `unb` knows.
+const repo = fileURLToPath(new URL("../../../", import.meta.url));
+const nodeMain = readFileSync(join(repo, "unbrowse-node/app/src/main.rs"), "utf8");
+const mainBody = nodeMain.slice(nodeMain.indexOf("\nfn main() {"), nodeMain.indexOf("\n}\n", nodeMain.indexOf("\nfn main() {")));
+const nodeRuns = [...new Set([...mainBody.matchAll(/args\.get\(1\)\.map\(String::as_str\) == Some\("([a-z-]+)"\)/g)].map((m) => m[1]))];
+const usageNames = new Set(
+  [...nodeMain.match(/const NODE_COMMAND_WORDS: \[&str; \d+\] = \[([\s\S]*?)\];/)[1].matchAll(/"([^"]+)"/g)].map((m) => m[1].split(" ")[0]),
+);
+const unbKnows = new Set([...readFileSync(join(repo, "unbrowse-node/app/src/bin/unb.rs"), "utf8").matchAll(/Some\("([a-z]+)"\)/g)].map((m) => m[1]));
+
+// `unbrowse` is the one command an owner has: every command the node runs is reached through it, and its usage line
+// names each one. A node command sent to unb instead fails there as a command unb doesn't have.
+test("every command the node runs is reached through unbrowse and named in its usage", () => {
+  assert.ok(nodeRuns.length > 20, `read the node's commands: ${nodeRuns}`);
+  assert.deepEqual(nodeRuns.filter((w) => route([w]).program !== "unbrowse-node"), [], "node commands `unbrowse` sends to unb");
+  assert.deepEqual(nodeRuns.filter((w) => !usageNames.has(w)), [], "node commands its usage line leaves out");
+});
+
+// The docs name the programs that are built (`unbrowse`, `unbrowse-node`, `unb`) and only commands those programs have:
+// `unbrowse <word>` reaches a program that runs <word>, as `unbrowse-node <word>` and `unb <word>` do. Old skills kept as
+// test fixtures are left out: they are kept to test that an install replaces them.
+test("the docs name only commands the built programs have", () => {
+  const own = new Set(["app", "start", "where", "skill", "help", "mcp", "postinstall"]);
+  const has = { "unbrowse-node": (w) => nodeRuns.includes(w), unb: (w) => unbKnows.has(w) };
+  has.unbrowse = (w) => own.has(w) || has[route([w]).program](w);
+  const docs = spawnSync("git", ["ls-files", "*.md"], { cwd: repo, encoding: "utf8" })
+    .stdout.split("\n")
+    .filter((f) => f && !/^unbrowse-browser\/|\/test\/fixtures\/|CHANGELOG/.test(f));
+  assert.ok(docs.length > 20, `found the docs: ${docs.length}`);
+  const wrong = [];
+  for (const f of docs) {
+    readFileSync(join(repo, f), "utf8").split("\n").forEach((line, i) => {
+      for (const [, program, word] of line.matchAll(/`(unbrowse-node|unbrowse|unb) ([a-z][a-z-]*)/g)) {
+        if (!has[program](word)) wrong.push(`${f}:${i + 1} ${program} ${word}`);
+      }
+    });
+  }
+  assert.deepEqual(wrong, []);
 });
 
 test("puts the skill where it's asked", () => {

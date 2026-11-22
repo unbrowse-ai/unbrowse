@@ -1,7 +1,10 @@
-# AGENTS.md — the strategy and the pattern
+# unbrowse-core — the strategy and the pattern
 
 How this project turns a site someone browses into calls an agent can make
 without a browser. Written for agents working in this repository.
+
+Root `CLAUDE.md` and `AGENTS.md` are one file, byte for byte, so every agent reads the same rules: edit `CLAUDE.md`,
+copy it over `AGENTS.md`, and `cmp CLAUDE.md AGENTS.md` (CI runs it, and `.github/scripts/test/test_agent_guide.py`).
 
 **Design source of truth: `unbrowse-ai/unbrowse-graph`** (private, `~/work/unbrowse-graph`). Read its `INDEX.md`
 before changing the contracts, the node or the money docs. Code comments, PRs and docs cite node ids
@@ -51,14 +54,63 @@ mint   -> walk   -> trace   -> route        -> call
 5. **call** — `RouteClient` replays the route over a Chrome-shaped transport,
    drawing session values from the jar.
 
-## The meta pattern
+## Fixes are general, never hard-coded
 
-A route the learner cannot work out generically is still a general problem
-before it is a site's: generation may **propose** a shape from the walk (which
-step, which value is the caller's, which page to carry, which producer), the
-engine **applies** it to the same generic graph, and the **site verifies** it by
-replay. Generation at learn time only, never in the call path and never as
-per-site code; a wall is a problem to solve, not a boundary. The full rule is in `CLAUDE.md`.
+The one rule every change follows. A site that breaks is a case of a class. Fix the class.
+
+- **No site, vendor or host names in the engine, the learner or the transport.**
+  No `if host == "sistic.com.sg"`, no list of ad or analytics hosts to skip,
+  no path that only one site uses.
+- **State the rule as a property of the walk.** Say what the call does, read
+  from its own traffic: "a call that sends the walked page's own address is
+  reporting the page, not answering it". Not "googleadservices is noise".
+- **Site names belong in tests, as fixtures.** A regression test may be built
+  from the walk that exposed the bug, named for the property it checks
+  (`a_call_reporting_the_page_never_wins`), not for the site.
+- **No lists of names to grow.** The old `NOISE` and `GATEKEEPER_HOSTS` lists
+  were replaced by properties of the walk (`Trace::door`, a call reporting the
+  page, a cookie only a browser can earn). When something new slips through,
+  find the property it stands for and test that, never add its name.
+- **Before finishing, check the fix against a site that isn't the one in
+  front of you.** If it only works because of that site's names, it isn't the
+  fix yet.
+
+## The meta pattern: propose from the walk, let the site verify
+
+The rule above is how a *fix* stays general. The same shape covers a route the
+learner cannot work out generically, and it is the pattern to reach for before
+writing any special case:
+
+- **The walk is the asset.** A route is data read from it: the call, the
+  caller's values, the page it carries, the producer it needs. The engine learns
+  by reading the capture, not by reconstructing a site.
+- **Generation proposes; the engine applies; the site verifies.** A model or a
+  search may propose a *shape* from the walk — which step is the answer, which
+  value is the caller's, which page to carry, which producer to run. It never
+  ships as per-site code. The proposal is applied to the same generic graph and
+  is kept only if replay passes: a second value changes the answer, a nonsense
+  value finds nothing, a recheck matches, no write is sent twice.
+- **Generative at learn/repair time only.** The call path is deterministic,
+  warm HTTP. A model in the call path loses the route.
+- **Generated code stays in the sandbox.** A program that reproduces a
+  page-computed value runs only in the restricted sandbox, is the route's
+  private data, and is never shared as code (shared routes carry no code).
+- **A wall is a problem, not a boundary.** A captcha, Turnstile or DataDome is a
+  step to satisfy like any other: meet it with the browser, the transport or a
+  solver, keep the fix general, and say so plainly. Unbrowse is open about
+  bypassing anti-bot; what it never ships is a fake success. A wall that still
+  holds is an honest failure, and the site's answer remains the judge.
+- **A property, not a vendor.** When a new site exposes a gap, name the property
+  of the walk it stands for and fix that: “a value the page's address carries
+  into its call is an input”, “a module script runs as a module”, “a page the
+  route carries is not a live door”. The site that exposed it stays in a test
+  fixture.
+
+Worked examples: Substack's `/search/<term>` became an input because the
+address handed the value to the call, not because Substack is special; Etsy's
+vendor chunk ran as a module because the document said `type="module"`, not
+because Etsy is special. The browser remains the fallback for a page that will
+not boot, and the site's answer remains the judge.
 
 ## The pattern, learned the hard way
 
@@ -224,6 +276,10 @@ weird deterministic code".
   the finding. Its pages and snapshots name sites and stay outside the repository.
 - **A helper sends one call.** A small script that sends one tool call, or prints one route or one stretch of the
   node's log, is fine. One that decides what to ask next, or whether an answer is right, is not.
+- **The release task gate is the one exception, and only for the release.** It is not a way to investigate a site; see
+  "Tests, requirements and the merge scorecard" below for how it keeps this section's rules (the agent calls and
+  judges; a changed verdict is re-read by hand, one site at a time). Amended 17 November 2026 (UNB-208), merged by
+  Lewis in PR #606.
 - **Comparing two builds** is the same thing twice: the same site, by hand, on each build, one after the other. A
   difference is checked again by hand before it is called a regression: a site's door moves between two asks.
 - **A wait is for one thing.** Waiting for one learn's background check is fine. Parking a turn on a run over many
@@ -236,6 +292,126 @@ weird deterministic code".
   that read the result, and then the same build on a site that did not expose the gap. Driving by hand finds a gap
   and judges a result; it never closes one.
 
+## Push, then watch the run
+
+Lewis, 19 November 2026 (UNB-235, "full"): CI runs the node end to end on every push, an agent and a model-free MCP
+check included, so push early and read what it found. This replaces the 18 November rules "No pull request before the
+change has run in the real application, on your machine" and "CI is a gate, never the first run". Lewis, 22 November
+2026 (hub programme 5c79a6, UNB-235): the pushing session watches the run, fixes failures in the same session, and
+testing moves off the host machine.
+
+- **Testing runs in CI, not on your machine.** Before a push, run only the fast unit check of the part you changed:
+  its own unit tests, with a name filter where one fits (`cargo test -p <crate> <filter>`, one script's
+  `python3 -I .github/scripts/test/test_<name>.py`, one SDK's `npm test`), in a few minutes. Never run the full
+  suites on the host: not `cargo test --workspace`, workspace clippy, the ignored end-to-end tests, a release build
+  to make sure, the QA run, the bank or the task gate, coverage. CI runs every one of them on the push; read them
+  there. Driving one site on a scratch node to find out why it fails ("Testing against sites") is an investigation,
+  not a suite, and stays on the machine.
+- **After every push, watch every run that push started, to its end, in the same session.** Not only the one you
+  expect: the push's own runs, its pull request's (`PR check (no credential)`, `PR agent checks`, CI, Coverage, the
+  promotion gate, Claude review) and any run another workflow starts from them. List them by the pushed commit and
+  `gh run watch` each; `.github/scripts/watch_runs.py` does exactly that, picks up runs that start later, and ends on
+  `RUNS_GREEN`, `RUNS_RED` (each red run's failed jobs and steps, the end of its failed log, its artifacts
+  downloaded) or `RUNS_NONE`.
+
+  ```sh
+  git push -u origin <branch>
+  python3 .github/scripts/watch_runs.py                 # every run on HEAD, to the end: RUNS_GREEN / RUNS_RED / RUNS_NONE
+  gh run list --commit "$(git rev-parse HEAD)"          # the same runs by hand, with their ids
+  gh run watch <run-id> --exit-status                   # wait on one; exits non-zero if it failed
+  gh run view <run-id> --log-failed                     # the failed steps' log, and only those
+  gh run view <run-id> --json jobs --jq '.jobs[] | select(.conclusion=="failure") | .name'
+  gh run download <run-id> -D /tmp/run-<run-id>         # artifacts: qa-mcp-check (step report and a picture per
+                                                        # step), qa-screenshots, qa-report, coverage files
+  gh run rerun <run-id> --failed                        # once, for a failure that is not this change's
+  gh workflow run qa.yml --ref <branch>                 # Agent QA on a branch, by hand (pushes to staging and
+                                                        # main run it on their own)
+  ```
+
+  A pull request into staging, once it is ready for review, also runs the agent QA and the gate bank's slice on its
+  merge commit (`PR agent checks`, pr-agent-checks.yml, UNB-248; Lewis, 20 November 2026): open it ready, or mark it
+  ready, and watch that run too. A draft or a fork's pull request turns that check red with the reason and never gets
+  the Claude credential. The full bank and the live-site check stay on staging and nightly. Every pull request into
+  staging or main, a draft too, also runs `PR check (no credential)` (pr-check.yml, UNB-235): the MCP check (no model)
+  and journey coverage, with no secret at all, so a draft shows most breakage in minutes; it prints `PR_CHECK_OK`.
+  Which checks run on a pull request and which only after a push is written out in qa.yml's header.
+- **A red run is fixed in the same session, from the runner's own logs.** Read its `--log-failed` and its artifacts
+  (the MCP check's step report and pictures, the QA screenshots and report), say what broke and why, fix it, push, and
+  watch the new runs. Repeat until every run on the last pushed commit is green. Diagnose from what the runner
+  recorded; do not re-run the suite on your machine to find out. A failure that is not this change's (red on staging
+  too, a runner that died) is rerun once; if it stays red, name the staging run that shows it.
+- **Stop only on a cause you cannot fix, and say exactly which.** A missing secret, a refused credential, a runner
+  that will not start, a failure staging has that this change does not own, a decision only Lewis can make. Name the
+  failing workflow, job and step, the run id and the reason, quote the log line, and mark the ticket Blocked with that
+  line in its one comment. The UNB board has no Blocked state: the ticket stays In Progress and the comment starts
+  `Blocked:`. Then stop.
+- **Never report done on a red or unwatched run.** Done names every run on the last pushed commit, with its id and
+  its conclusion, all green (`RUNS_GREEN`). "Pushed", "CI started", "green on my machine" and a run nobody watched to
+  its end are not done. A cancelled run is not green: when a newer push cancelled it, the newer commit's runs are the
+  ones to watch.
+- **Use it as a person would before you call it done.** The QA run drives the built node through its MCP tools and
+  window and pictures each step; read the pictures for the path your change touches. "It compiles", a clean clippy
+  and passing unit tests are necessary and say nothing about use.
+- **Baseline, then treatment.** State the claim so it can fail: what, measured how, by how much ("a `fill` replies in
+  under 500 ms; it took 3 s"). Take both sides from CI where a job measures it (staging's last run before, your run
+  after); on your machine only when no job does. Compare the raw output: timings, replies, the node's log.
+- **The pull request carries the evidence:** the commands run, the run ids, the before and after, and one verdict:
+  verified, not verified or inconclusive. A negative result is said plainly, not softened.
+- A docs-only change runs no suite of its own; its pull request says it is docs-only, and its runs are still watched
+  to the end.
+
+## Tests, requirements and the merge scorecard
+
+Lewis, 17 November 2026: "full test and task coverage on staging; don't cut to public without it hitting 98%" (UNB-208),
+and "prep our codebase agents md to encourage this sort of behaviour in the future". He named deconflicted merges as
+what broke staging that day.
+
+- **A behaviour Lewis asks for is a row and a test, in the same PR.** Add one row to the requirements ledger
+  (`docs/REQUIREMENTS.md`: his words, the date, the source, and the test that holds it) and the test that fails when
+  the behaviour is gone. A change with no row, or a row with no test, is not finished. A row Lewis later replaces is
+  marked SUPERSEDED, never deleted.
+- **Red first.** stif, 17 November 2026. A test for a known bug runs on staging and fails there before the fix goes in;
+  the red output is pasted in the PR. A coverage test for code that already works is shown failing once, by breaking
+  the code on purpose, and the PR says what was broken. A test that passes whatever the code does does not count, and
+  neither does one that asserts nothing or exists only to touch lines.
+- **Experiments are short and behind a flag.** Branch from staging, put the change behind a flag, and merge or delete
+  it within a week. No long-lived experiment branches: a branch that drifts for weeks is a deconflicted merge waiting
+  to happen.
+- **One area per PR, one agent per area.** Never several agents editing the same files at once. If two changes need
+  the same files, the second waits for the first to merge and then branches from staging.
+- **The merge scorecard.** No PR to staging merges if any of these is worse than staging: line coverage; the task
+  gate; node memory on a fixed learn; first-learn time. Paste the scorecard in the PR: each number on staging and on
+  the branch, with the commit and the date. A number that was not measured is written UNMEASURED and counts as worse.
+  Line coverage is checked for you: `Coverage, ratchet` (coverage.yml, `promotion_gate.py ratchet`) refuses a PR when
+  a gated part falls 0.05 points or more below the lowest of staging's last five runs, when the lines it adds or
+  changes in a gated part are under 90% covered, or when a part was not measured. It names the part, files and lines.
+- **A deconflicted merge re-runs the whole scorecard.** Lewis, 17 November 2026, named deconflicted merges as what
+  broke staging. After any conflict resolution (a merge or rebase that needed hands), run every item of the scorecard
+  again on the result before merging. The scorecard from before the conflict is void.
+- **Staging is promoted to public only at 90% line coverage and with no task lost.** UNB-208; Lewis, 17 November
+  2026 21:47 SGT: the task gate is no regression, not a percentage. Lewis, 19 November 2026: the code bar is 90%
+  ("change it to 90%"; it was 98%, which no part met, so nothing could ship). Line coverage is at or above 90% in each
+  of the Rust workspaces and both SDKs. The task gate refuses when a task right on the last promoted
+  build is wrong now, when any answer is confidently wrong (that number is 0), or when fewer tasks pass than at the
+  last promotion (the floor, which only rises). A task the site blocked is set aside and counted apart, never as a
+  pass. Every exclusion from the coverage count (generated code, code built only on another OS) is listed in one file,
+  `docs/COVERAGE-EXCLUSIONS.md`, with a reason, and Lewis approves that file. Never exclude silently to reach the
+  number. `.github/scripts/promotion_gate.py` is the check; release.yml runs it before a tag publishes.
+
+**The task gate and the 13 November rule.** The gate is a fixed bank of real tasks run through the MCP, scored against
+each task's own check. It runs before a promotion and on a PR's scorecard. It keeps "Testing against sites" intact:
+
+- **The agent is the caller and the judge.** A model is the client: it calls the node's tools as an agent would and
+  reads each answer against the task's check. No script counts words or scores an answer. A script may start the
+  agent on each task and write down its verdict; it never decides what is right.
+- **A site that blocks the task is set aside, never passed.** A wall or an outage is counted separately. A task that
+  needs clicks counts only if the agent finishes it. A confident wrong answer is its own number and is 0.
+- **A changed verdict is read by hand before it is a regression.** If a task's verdict differs between two builds,
+  take that site alone, on each build, one after the other, and read the data, as "Testing against sites" says. Until
+  then it is "changed", not "regressed" and not "fixed".
+- **The gate is not how a site is investigated.** To find out why a site fails, drive it one call at a time. A bank run
+  started to see what falls out is still not allowed.
+
 ## Branching rules (mandatory)
 
 - Never push directly to main, staging, or release/*. Always open a PR.
@@ -246,6 +422,41 @@ weird deterministic code".
 - Only a release/* branch may be PR'd into main. Do not open PRs into main unless explicitly asked to ship a release.
 
 CONTRIBUTING.md ("Branches and releases") says how each branch releases.
+
+## Self-merging PRs
+
+Lewis, 18 November 2026: port poteto's workflow (pstack's Autopilot-full) so agents merge their own PRs, with the rules
+held by `/contract`, not by prose. The gate is `~/.claude/skills/self-merge` (`pr-gate`, on PATH); setting it up on a
+repo is the `autopilot` skill. This repo's additions to the gate's policy are in `.github/self-merge.json`. It was
+proven first on `lekt9/hoysan-ops` (#22, #23, #24 merged through it).
+
+- **Agents never run a merge, approve a PR, or edit branch rules here.** Standing `/contract` guards in every
+  checkout's `.claude/contracts.jsonl` (worktrees inherit their main checkout's) refuse `gh pr merge`, the merge API,
+  `gh pr review --approve` and writes to branch protection or rulesets. `pr-gate merge` is the only way in. Lewis
+  can still merge by hand in his own terminal.
+- **A PR merges itself only when all eight cells hold at its head:** in scope (open, ready, into `staging` or a
+  `release/*` with a `fix:` title, not labelled `no-self-merge`); merge-ready (no conflicts, no unresolved review
+  threads, no review still requested); fresh (nothing landed on `staging` since it branched touches its files or which
+  checks run); CI green on the head; a PASS from a fresh agent that did not write it and ran the change, for this
+  exact patch (`git patch-id`; a swarm of three for new behaviour over 300 lines of code); the body's Verification
+  and Scorecard sections; no gate loosened without Lewis's countersign; and no new code comments where the policy
+  bans them.
+- **What needs Lewis's countersign:** workflows and anything under `.github/`, AGENTS.md and CLAUDE.md, lint and
+  coverage configs, settlement, chain and contract code, the vault, the root key's keystore, logins, the macOS
+  keychain, passkeys, cards and payment holds, `.deploy/`, the requirements ledger and the coverage exclusions, and any
+  added line that switches a check off (`#[ignore`, `.skip(`, `continue-on-error: true`, `#[allow(`, …). He runs the
+  countersign in his own shell (`!` prefix in Claude Code); an agent never does.
+- **The author runs:** `gh pr create` (ready, never draft), then `pr-gate contract`. The supervisor
+  (`pr-gate tick`, under `/loop 1h`) verifies it with a fresh agent, reruns a red check once, reports what waits on
+  Lewis, and names READY PRs; the agent judges each cell (`~/.claude/skills/contract/scripts/contract iterate`,
+  then `… _mark`) and runs `pr-gate merge`.
+- **Goals.** `.github/self-merge.json` names numbers this repo holds itself to (first reply, warm call, memory,
+  browserless share, reply size, agent steps), measured by `scripts/goals/measure.py` on a scratch node built from
+  the tree. `pr-gate goal measure` records them; each goal is a `/contract` loop that stays open until trunk meets
+  its target, and a regression reopens it. A change for a goal lands only if its own baseline and treatment show
+  the number moving the right way. Changing a target is a policy change, so Lewis countersigns it.
+- **A PR that asks for a person's decision waits for it.** Requesting steefpls' review (see below) holds the PR at
+  merge-ready until he answers.
 
 ## Review: when to ping steefpls
 
@@ -279,3 +490,6 @@ The papers repo's `AGENTS.md` says the same.
 - Trusting what a peer says about itself, or a listing because a peer sent it.
 - Testing sites in a batch, or with a script that scores answers, instead of driving one site at a time and
   reading what it answers.
+- A test written after the fix that never failed, or one that passes whatever the code does.
+- Merging a conflict resolution on the strength of a scorecard taken before it.
+- Excluding code from the coverage count to reach the bar, or calling a task the site blocked a pass.

@@ -21,8 +21,11 @@ use super::refuse;
 use super::window::Door;
 use crate::{agents, store, Node};
 
-/// The most of a request body read before its signature is checked: larger than any request an agent sends.
-const BODY_LIMIT: usize = 64 * 1024 * 1024;
+/// The most of a request body read before its signature is checked: axum's own limit on a body a handler reads
+/// (`DefaultBodyLimit`, 2 MiB), which every route behind this door reads its body under, so nothing larger was ever
+/// taken. Reading up to 64 MiB of each unchecked body let one key id hold the node's memory hostage (audit 1118 N6:
+/// 20 such bodies took the node to 2.6 GB).
+const BODY_LIMIT: usize = 2 * 1024 * 1024;
 
 /// How many nonces the node holds at once. Each goes after twice the window; a node asked faster than this refuses,
 /// rather than forgetting a nonce it could then take again.
@@ -241,9 +244,12 @@ fn token_for(node: &Node, owner: &str, key: &str) -> Result<Option<String>, (Sta
     let Ok(root) = unbrowse_core::RootKey::load(node.keys.as_ref()) else {
         return Err((StatusCode::SERVICE_UNAVAILABLE, crate::WAITING_FOR_KEY.into()));
     };
+    // A remote key opens the node only through its gateway (`gateway.remote-key`), never at this door; over the peer
+    // network (`api::Direct`) only a key made for it does, never an agent's key for this machine.
+    let via = crate::remote::arrived_via();
     Ok(agents::list()
         .into_iter()
-        .filter(|a| !a.revoked && a.expires > store::now())
+        .filter(|a| !a.revoked && a.expires > store::now() && a.gateway == via)
         .map(|a| agents::token_of(&root, &a))
         .find(|t| agents::constant_time_eq(&hex::encode(unbrowse_core::token_key(t)), &key)))
 }
@@ -291,6 +297,11 @@ pub(super) async fn signed_door(State(door): State<Door>, req: Request, next: Ne
     // authority (the address a redirect or a relay first took it to) doesn't verify here.
     let authority = header(&req, axum::http::header::HOST.as_str()).unwrap_or_default().to_ascii_lowercase();
     let target = req.uri().path_and_query().map(|p| p.as_str().to_string()).unwrap_or_else(|| req.uri().path().to_string());
+    // A body said to be larger than the limit is refused before any of it is read.
+    let said_len = header(&req, axum::http::header::CONTENT_LENGTH.as_str()).and_then(|n| n.parse::<u64>().ok());
+    if said_len.is_some_and(|n| n > BODY_LIMIT as u64) {
+        return refuse(StatusCode::PAYLOAD_TOO_LARGE, "the request's body is too large").into_response();
+    }
     let (mut parts, body) = req.into_parts();
     let Ok(body) = axum::body::to_bytes(body, BODY_LIMIT).await else {
         return refuse(StatusCode::PAYLOAD_TOO_LARGE, "the request's body is too large").into_response();
@@ -455,6 +466,51 @@ mod tests {
         assert_eq!(posted.status().as_u16() / 100, 4, "nor another method or body");
         let bearer = send(port, reqwest::Method::GET, "/v1/whoami", &[("authorization", format!("Bearer {key}"))], vec![]).await;
         assert_eq!(bearer.status(), 401);
+    }
+
+    /// Audit 1118 N6. The signed door reads no more of a body than a handler would take (`BODY_LIMIT`) before it checks
+    /// the signature: a body that runs on with no length said is cut off near the limit, and one said to be larger is
+    /// refused before any of it is read. Before, each such body was read to 64 MiB first.
+    #[tokio::test]
+    async fn the_signed_door_reads_no_large_body_before_the_signature() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let (_node, port, token, _) = a_node().await;
+        let head = |len: Option<usize>| {
+            let (headers, _) = signed_request(&token, "POST", "/v1/whoami", b"{}");
+            let mut h = format!("POST /v1/whoami HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n");
+            match len {
+                Some(n) => h.push_str(&format!("Content-Length: {n}\r\n")),
+                None => h.push_str("Transfer-Encoding: chunked\r\n"),
+            }
+            for (k, v) in headers {
+                h.push_str(&format!("{k}: {v}\r\n"));
+            }
+            h.push_str("\r\n");
+            h
+        };
+        // A body that runs on, with no length said: how much of it the node takes in before it stops reading.
+        let mut s = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        s.write_all(head(None).as_bytes()).await.unwrap();
+        let chunk = vec![b'a'; 64 << 10];
+        let framed = [format!("{:x}\r\n", chunk.len()).as_bytes(), &chunk, b"\r\n"].concat();
+        let mut sent = 0usize;
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while sent < 64 << 20 {
+                if s.write_all(&framed).await.is_err() {
+                    break;
+                }
+                sent += chunk.len();
+            }
+        })
+        .await;
+        // Said up front to be 64 MiB: refused before any of it is sent.
+        let mut said = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        said.write_all(head(Some(64 << 20)).as_bytes()).await.unwrap();
+        let mut answer = vec![0u8; 64];
+        let read = tokio::time::timeout(std::time::Duration::from_secs(5), said.read(&mut answer)).await;
+        let status = read.ok().and_then(|r| r.ok()).map(|n| String::from_utf8_lossy(&answer[..n]).to_string()).unwrap_or_default();
+        assert!(sent < 16 << 20, "the node took in {} MiB of a body before checking its signature", sent >> 20);
+        assert!(status.starts_with("HTTP/1.1 413"), "a body said to be 64 MiB is refused unread: {status:?}");
     }
 
     /// The owner's token and an agent's are taken the same way: signed, never sent. A bearer token is refused while the
@@ -737,5 +793,20 @@ mod tests {
             taken.held = (0..NONCES_HELD).map(|i| (format!("k/{i}"), now + 100)).collect();
         }
         assert_eq!(take_nonce("k", "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5", now, now, false), Err(NotTaken::CantRecord));
+    }
+
+    /// A nonce is taken only once it is on disk: where the journal can't be written the request is refused (a restart
+    /// would forget the nonce), and the nonce isn't held as taken, so the same request is still new when the journal can
+    /// be written again.
+    #[test]
+    fn a_nonce_that_cannot_be_written_down_is_refused_and_not_held() {
+        let _home = store::scratch_home("nonce-unwritable");
+        let now = 7_000;
+        std::fs::create_dir_all(journal()).unwrap();
+        assert_eq!(take_nonce("k", "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1", now, now, false), Err(NotTaken::CantRecord));
+        assert!(nonces().lock().unwrap()[&store::home()].held.is_empty(), "nothing is held that isn't on disk");
+        std::fs::remove_dir(journal()).unwrap();
+        assert_eq!(take_nonce("k", "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1", now, now, false), Ok(()));
+        assert_eq!(take_nonce("k", "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1", now, now, false), Err(NotTaken::Again));
     }
 }

@@ -10,7 +10,12 @@ const fmt = @import("../fmt.zig");
 const types = @import("../types.zig");
 const App = @import("../app.zig").App;
 
-const cols = [_]look.Col{
+/// The table's columns at three widths, so the route's own name always keeps room: all six when the window is wide;
+/// the last call folded under the calls and the buttons stacked when it is narrower; and sharing folded under the
+/// state too when it is narrow.
+const Fit = enum { wide, mid, narrow };
+
+const cols_wide = [_]look.Col{
     .{ .name = "Route" },
     .{ .name = "Calls", .w = 84, .end = true },
     .{ .name = "Last call", .w = 84, .end = true },
@@ -18,6 +23,33 @@ const cols = [_]look.Col{
     .{ .name = "Sharing", .w = 168 },
     .{ .name = "", .w = 152, .end = true },
 };
+const cols_mid = [_]look.Col{
+    .{ .name = "Route" },
+    .{ .name = "Calls", .w = 96, .end = true },
+    .{ .name = "State", .w = 144 },
+    .{ .name = "Sharing", .w = 150 },
+    .{ .name = "", .w = 76, .end = true },
+};
+const cols_narrow = [_]look.Col{
+    .{ .name = "Route" },
+    .{ .name = "Calls", .w = 84, .end = true },
+    .{ .name = "State", .w = 160 },
+    .{ .name = "", .w = 76, .end = true },
+};
+
+/// Which columns fit the table's width (look.tableWidth).
+fn fit(c: *ui.Context) Fit {
+    const w = look.tableWidth(c);
+    return if (w >= 952) .wide else if (w >= 722) .mid else .narrow;
+}
+
+fn colsOf(f: Fit) []const look.Col {
+    return switch (f) {
+        .wide => &cols_wide,
+        .mid => &cols_mid,
+        .narrow => &cols_narrow,
+    };
+}
 
 /// Whether the owner's search `query` finds `r`: every word of it, in any case, somewhere in what the route does, its
 /// site, its method and path, an input's name or its id. A search of no words finds every route.
@@ -59,7 +91,7 @@ pub fn view(a: *App, c: *ui.Context) void {
     const shown = found.items;
     const rows = look.pageRows(&a.routes_page, shown.len);
     {
-        const t = look.tableHead(c, "Routes", look.countOf(c, shown.len, list.len, query.len > 0), &cols);
+        const t = look.tableHead(c, "Routes", look.countOf(c, shown.len, list.len, query.len > 0), colsOf(fit(c)));
         defer t.end();
         if (a.store.err(.routes)) |e| if (!a.store.loaded(.routes)) {
             look.rule(c);
@@ -84,10 +116,19 @@ fn row(a: *App, c: *ui.Context, r: types.Route) void {
     const fa = c.alloc();
     const x = look.x(c);
     const ch = chainOf(a, r.id);
+    const f = fit(c);
+    const cols = colsOf(f);
+    var at: usize = 0;
+    const next = struct {
+        fn cell(cc: *ui.Context, cs: []const look.Col, i: *usize) ui.Div {
+            defer i.* += 1;
+            return look.cellBox(cc, cs[i.*]);
+        }
+    }.cell;
     const tr = look.tableRow(c, r.id, r.broken());
     defer tr.end();
     {
-        const cell = look.cellBox(c, cols[0]);
+        const cell = next(c, cols, &at);
         defer cell.end();
         ui.text(c, r.what, .{ .size = 13.5, .weight = .medium, .wrap = true });
         // Where it calls: the site, then the request, so a long site never pushes the name out of its column.
@@ -101,19 +142,20 @@ fn row(a: *App, c: *ui.Context, r: types.Route) void {
             if (r.inputs.len > 0) c.print("Inputs: {s}", .{ins.items}) else "No inputs",
             if (r.browser_assisted) ", one step in the browser" else "",
             if (r.provisional) ", one sighting so far" else "",
-        }), .{ .size = 11.5, .color = x.text3 });
+        }), .{ .size = 11.5, .color = x.text3, .wrap = true });
         // Why the last call failed, in a line: Try it calls it again with its inputs.
         if (r.broken()) ui.text(c, look.clipTo(c, r.stats.last_error orelse "", 160), .{ .size = 11.5, .color = x.fail_text, .wrap = true });
     }
     {
-        // How many calls, and what share passed: one figure and its rate under it.
-        const cell = look.cellBox(c, cols[1]);
+        // How many calls, and what share passed: one figure and its rate under it; narrower, the last call too.
+        const cell = next(c, cols, &at);
         defer cell.end();
         look.figure(c, fmt.count(fa, r.stats.calls), false);
         ui.text(c, if (r.stats.calls > 0) c.print("{s} passed", .{fmt.pct(fa, r.stats.passed / r.stats.calls, 0)}) else "None yet", .{ .size = 11.5, .color = x.text3 });
+        if (f != .wide) if (r.stats.last_ms) |ms| ui.text(c, c.print("{s} ms, {s}", .{ fmt.count(fa, ms), fmt.ago(fa, r.stats.last_at, a.now) }), .{ .size = 11.5, .color = x.text3, .wrap = true });
     }
-    {
-        const cell = look.cellBox(c, cols[2]);
+    if (f == .wide) {
+        const cell = next(c, cols, &at);
         defer cell.end();
         if (r.stats.last_ms) |ms| {
             look.figure(c, c.print("{s} ms", .{fmt.count(fa, ms)}), false);
@@ -121,8 +163,8 @@ fn row(a: *App, c: *ui.Context, r: types.Route) void {
         } else look.figure(c, "Never", true);
     }
     {
-        // Where it stands, and its fee once it is listed.
-        const cell = look.cellBox(c, cols[3]);
+        // Where it stands, and its fee once it is listed; narrow, whether it is shared under it.
+        const cell = next(c, cols, &at);
         defer cell.end();
         if (r.broken()) look.status(c, .fail, "Last call failed") //
         else if (ch != null and ch.?.live) look.status(c, .ok, if (ch.?.held) "Listed, held here" else "Listed") //
@@ -130,15 +172,21 @@ fn row(a: *App, c: *ui.Context, r: types.Route) void {
         else if (r.yours) look.status(c, .idle, "Acts as you") //
         else look.status(c, .idle, "Yours only");
         if (ch != null and ch.?.live) ui.text(c, c.print("${s} a fetch", .{fmt.usdcd(fa, ch.?.fee, 3)}), .{ .size = 11.5, .color = x.text3 });
+        if (f == .narrow) {
+            const gap = ui.div(c).h(6);
+            gap.end();
+            sharing(a, c, r.id);
+        }
     }
-    {
-        const cell = look.cellBox(c, cols[4]);
+    if (f != .narrow) {
+        const cell = next(c, cols, &at);
         defer cell.end();
         sharing(a, c, r.id);
     }
-    const cell = look.cellBox(c, cols[5]);
+    const cell = next(c, cols, &at);
     defer cell.end();
-    const btns = ui.div(c).row().gap(4);
+    // Side by side when there is room, else one above the other.
+    const btns = if (f == .wide) ui.div(c).row().gap(4) else ui.div(c).column().gap(4).itemsEnd();
     defer btns.end();
     if (look.secondary(c, "Try it", .{ .size = .xs })) openRun(a, r);
     // A route learned from the owner's own browsing acts as them: it isn't offered to list by hand. One the node listed
@@ -177,8 +225,9 @@ fn sharing(a: *App, c: *ui.Context, id: []const u8) void {
         else if (is(r.why, "preview")) .{ .status = .idle, .word = "Will be shared", .note = "Within a day, unless you keep it off" } //
         else if (is(r.why, "local")) .{ .status = .idle, .word = "On this computer", .note = "Learned before this node joined the network, so it stays here" } //
         else if (is(r.why, "queued")) .{ .status = .running, .word = "Listing next" } //
+        else if (is(r.why, "unsigned")) .{ .status = .warn, .word = "Waiting", .note = "Listed under your account, and waiting for you to approve it under Money before anyone can find it" } //
         else if (is(r.why, "unspread")) .{ .status = .warn, .word = "Waiting", .note = if (r.poster) "Listed, and waiting for the reserve's next root before anyone can find it" else "Listed, and needs a few cents for network fees to post its root before anyone can find it" } //
-        else if (is(r.why, "below_threshold")) .{ .status = .idle, .word = "Not yet", .note = c.print("Shared once used on {d} days or {d} times: {d} days, {d} runs so far", .{ @as(u64, @intFromFloat(r.days_needed)), @as(u64, @intFromFloat(r.runs_needed)), @as(u64, @intFromFloat(r.days)), @as(u64, @intFromFloat(r.runs)) }) } //
+        else if (is(r.why, "below_threshold")) .{ .status = .idle, .word = "Not yet", .note = c.print("Shared once used on {d} days or {d} times: {s}, {s} so far", .{ @as(u64, @intFromFloat(r.days_needed)), @as(u64, @intFromFloat(r.runs_needed)), fmt.plural(c.alloc(), @floor(r.days), "day"), fmt.plural(c.alloc(), @floor(r.runs), "run") }) } //
         else if (is(r.why, "not_run_yet")) .{ .status = .idle, .word = "Not yet", .note = "Shared once it has run successfully" } //
         else if (is(r.why, "cap_reached")) .{ .status = .warn, .word = "Waiting", .note = c.print("Today's {d} listings are made; it goes tomorrow", .{@as(u64, @intFromFloat(r.per_day))}) } //
         else if (is(r.why, "blocked")) .{ .status = .warn, .word = "Waiting", .note = "The node can't list now: it needs a few cents for network fees (add funds on Money), or payments aren't open on this network yet" } //

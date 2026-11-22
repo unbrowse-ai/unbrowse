@@ -15,7 +15,7 @@ unbrowse-core main e96f00c1 (#68). Not launched: there is no Antithesis account 
 |---|---|
 | `antithesis/config/docker-compose.yaml` | Six services: `unbrowse-chain`, `unbrowse-site`, `unbrowse-node-{1,2,3}`, `unbrowse-workload`. |
 | `antithesis/Dockerfile` | Stages `node-build` (instrumented release build), `harness-certs` (a test CA and a `shop.example.com` certificate), `node` (trusts the CA: OS store and `UNBROWSE_TEST_EXTRA_ROOTS`), `chain`, `site`, `workload`, from the repo root. |
-| `.dockerignore` (repo root) | The build context: `antithesis/`, `unbrowse-node` (no target, vendor, UI), `unbrowse-browser/core`, `unbrowse-sdk/python`. |
+| `.dockerignore` (repo root) | The build context: `antithesis/`, `unbrowse-node` (no target, vendor, UI), `unbrowse-node/crates/browser`, `unbrowse-sdk/python`. |
 | `antithesis/chain/entrypoint.sh` | Anvil as Arc testnet (chain id 5042002); the stand-in ERC-8004 registry; a 6-decimal USDC at `0x3600…`; Settlement, UNB and the pool deployed by `unbrowse-node chain deploy --pool 1000 1000`; owners get gas and test USDC, and no UNB (no faucet, spec §76). |
 | `antithesis/node/entrypoint.sh` | Seeds `/data` on first boot (root key, settings, network file, routes or jar), a TCP relay `:7700 → 127.0.0.1:7788`, then `unbrowse-node`. |
 | `antithesis/node/route-{items,cart,lookup}.json` | The shop's routes node-1 lists: a search; a POST that writes ("Add an item to the cart"); and the same POST listed in read words ("Look up items"), which a read goal must be refused (the #25 case). |

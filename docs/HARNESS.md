@@ -8,7 +8,7 @@ Decisions: `decide.site-harness`, `decide.coverage-kpi` (Lewis, 12 November 2026
 
 | Behaviour | Node | Built in | State on this branch |
 |---|---|---|---|
-| recording | `learn.record` | `unbrowse-browser/core/src/session.rs`, `unbrowse-node/crates/learn/src/recording.rs`, `blobs.rs` | Built: the stack behind each request, every script the page or a worker parsed by hash, each origin's storage at settle and at the end, the sockets. The walk's own probes go by the walk's name and are left out of the script list. |
+| recording | `learn.record` | `unbrowse-node/crates/browser/src/session.rs`, `unbrowse-node/crates/learn/src/recording.rs`, `blobs.rs` | Built: the stack behind each request, every script the page or a worker parsed by hash, each origin's storage at settle and at the end, the sockets. The walk's own probes go by the walk's name and are left out of the script list. |
 | lab | `learn.lab` | not built | |
 | derivation | `learn.derivation` | `unbrowse-node/crates/learn/src/signing.rs` (`Recipe`), `generated.rs`, `slice.rs` | A digest over parts of the request is fitted and proved on the walk; a program is proposed and proved against every sighting. |
 | rung | `learn.rung` | `unbrowse-node/crates/learn/src/rung.rs`, `replay.rs`, `client.rs`, `unbrowse-node/app/src/run.rs` (`made.jsonl`) | Built. |

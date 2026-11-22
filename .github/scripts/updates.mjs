@@ -633,6 +633,13 @@ export async function main(argv) {
       throw new Error(`${PACKAGE} now isn't signed by the keys root ${root.version} names: nodes would refuse what follows it`);
     }
   }
+  // Stable's first release is a release, so a candidate that comes before any (13.0.0-rc.N on `next` ahead of 13.0.0)
+  // changes no metadata: it ships to npm without @unbrowse/updates, and its nodes read no channel until the release.
+  if (command === "release" && candidate(rest[0]) && !was?.targets.signed.channels?.stable) {
+    if (githubOutput) writeFileSync(githubOutput, "targets_changed=false\ncosign_required=false\npublished=false\n", { flag: "a" });
+    console.log(`${PACKAGE}: ${rest[0]} is a release candidate and stable has no release yet, so no update metadata is published`);
+    return;
+  }
   const keys = { timestamp: [key("UNBROWSE_TIMESTAMP_KEY", root)] };
   const tsVersion = (was?.timestamp.signed.version ?? 0) + 1;
   const changeArgs = command === "release" ? rest.slice(0, 1) : rest;
@@ -641,7 +648,7 @@ export async function main(argv) {
   const targetFile = targetsChanged ? signWith(targets, roleKeys("UNBROWSE_TARGETS_KEY", root.roles.targets, root, { allowPartial: true })) : was.targets;
   const done = write(out, root, roots, targetFile, tsVersion, now, keys, { allowPartialTargets: targetsChanged });
   const cosignRequired = targetsChanged && !signedBy(targetFile, root.roles.targets);
-  if (githubOutput) writeFileSync(githubOutput, `targets_changed=${targetsChanged}\ncosign_required=${cosignRequired}\n`, { flag: "a" });
+  if (githubOutput) writeFileSync(githubOutput, `targets_changed=${targetsChanged}\ncosign_required=${cosignRequired}\npublished=true\n`, { flag: "a" });
   if (targetsChanged) appendTargetsSummary(githubSummary, command, was, targetFile);
   const c = done.targets.signed.channels;
   console.log(

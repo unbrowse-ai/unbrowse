@@ -10,7 +10,6 @@ import type {
   TabInfo,
 } from "@/types";
 import { getSessionStreamUrl } from "@/lib/dashboard-routes";
-import { startStreamLink } from "@/lib/stream-link";
 import { tabCacheAtom, engineCacheAtom } from "@/store/tabs";
 
 const MAX_EVENTS = 500;
@@ -90,6 +89,9 @@ export function useStreamSync(port: number) {
   const setTabCache = useSetAtom(tabCacheAtom);
   const setEngineCache = useSetAtom(engineCacheAtom);
 
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef(0);
   const eventsRef = useRef<ActivityEvent[]>([]);
   const consoleRef = useRef<ConsoleEntry[]>([]);
   const portRef = useRef(port);
@@ -115,12 +117,33 @@ export function useStreamSync(port: number) {
   }, [port, setConnected, setBrowserConnected, setScreencasting, setRecording, setVpWidth, setVpHeight, setFrame, setEvents, setConsoleLogs, setTabs, setEngine]);
 
   const connect = useCallback(() => {
-    if (port <= 0) return undefined;
+    if (port <= 0) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const onMessage = (data: string) => {
+    const ws = new WebSocket(getSessionStreamUrl(port));
+    wsRef.current = ws;
+    setWsRef(ws);
+
+    ws.onopen = () => {
+      retryCountRef.current = 0;
+      setConnected(true);
+    };
+
+    ws.onclose = () => {
+      setConnected(false);
+      const delay = Math.min(2000 * 2 ** retryCountRef.current, 30000);
+      retryCountRef.current++;
+      reconnectTimerRef.current = setTimeout(connect, delay);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+
+    ws.onmessage = (event) => {
       let msg: StreamMessage;
       try {
-        msg = JSON.parse(data);
+        msg = JSON.parse(event.data);
       } catch {
         return;
       }
@@ -195,24 +218,14 @@ export function useStreamSync(port: number) {
           break;
       }
     };
-
-    return startStreamLink<WebSocket>({
-      open: () => new WebSocket(getSessionStreamUrl(port)),
-      onSocket: setWsRef,
-      onUp: () => setConnected(true),
-      // What the last status said stops being known here, and a picture that
-      // no longer moves must not read as the live page.
-      onDown: () => {
-        setConnected(false);
-        setBrowserConnected(false);
-        setScreencasting(false);
-        setFrame(null);
-      },
-      onMessage,
-      setTimer: (run, ms) => setTimeout(run, ms),
-      clearTimer: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
-    });
   }, [port, setWsRef, setConnected, setBrowserConnected, setScreencasting, setRecording, setVpWidth, setVpHeight, setFrame, setEvents, setConsoleLogs, setTabs, setEngine, setTabCache, setEngineCache]);
 
-  useEffect(() => connect(), [connect]);
+  useEffect(() => {
+    connect();
+    return () => {
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      wsRef.current?.close();
+      setWsRef(null);
+    };
+  }, [connect, setWsRef]);
 }

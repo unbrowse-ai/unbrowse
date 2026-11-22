@@ -38,6 +38,7 @@ function answer(req, body) {
       return [200, { routes: [story, { id: "post-listing", site: "market.example", what: "post a listing", write: true, inputs: [{ name: "title" }] }] }];
     case "POST /v1/do": {
       const call = { ok: true, ms: 212, data: { hits: [{ title: body.inputs?.q ?? "rust" }] }, error: null, paid_unb: null, possible_commit: false, retry: "as_is" };
+      if (body.ask === "ask_0f9b3e4a5e46facc" && body.goal === undefined) return [200, { how: "called", route: story, result: call, outcome: "answered", ask: body.ask }];
       if (body.goal === "search stories") return [200, { how: "called", route: story, result: call }];
       if (body.goal === "search comments") return [200, { how: "learned", picked_by: "judge", route: { ...story, id: "comment-search", what: body.goal }, result: call }];
       if (body.goal === "buy a ticket") return [200, { how: "called", route: { ...story, id: "buy", write: true }, result: { ...call, data: { order: 1 } } }];
@@ -199,6 +200,16 @@ test("a goal with no value is asked for, and nothing is sent", async () => {
   assert.equal(result.success, false);
   assert.match(said[0].text, /UNBROWSE_DO needs goal/);
   assert.equal(seen.length, before);
+});
+
+test("an ask alone is sent to the node to collect its answer", async () => {
+  const rt = await runtime({ model: "<response><ask>ask_0f9b3e4a5e46facc</ask></response>" });
+  const { result } = await run(doAction, rt, message("collect ask_0f9b3e4a5e46facc"));
+  assert.equal(last().url, "/v1/do");
+  assert.equal(last().body.ask, "ask_0f9b3e4a5e46facc");
+  assert.equal(last().body.goal, undefined);
+  assert.equal(result.success, true);
+  assert.equal(result.data.reply.ask, "ask_0f9b3e4a5e46facc");
 });
 
 test("a node that refuses is answered as text, not thrown", async () => {

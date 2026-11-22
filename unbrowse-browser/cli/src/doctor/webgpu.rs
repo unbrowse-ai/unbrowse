@@ -142,10 +142,7 @@ pub(super) fn check(checks: &mut Vec<Check>, opts: &DoctorOptions) {
     // another local user pre-create them as symlinks and redirect the
     // writes; the page file additionally uses create_new so an existing
     // path is never followed.
-    // Inside the daemon's file root, where its screenshot may be written.
-    let file_root = crate::native::file_root::root();
-    let _ = std::fs::create_dir_all(&file_root);
-    let work_dir = file_root.join(format!(
+    let work_dir = env::temp_dir().join(format!(
         "agent-browser-doctor-webgpu-{}",
         uuid::Uuid::new_v4()
     ));
@@ -167,10 +164,11 @@ pub(super) fn check(checks: &mut Vec<Check>, opts: &DoctorOptions) {
     let page_path = work_dir.join("probe.html");
     let shot_path = work_dir.join("probe.png");
 
-    // Armed before `ensure_daemon`: one that times out can leave a daemon behind. Drop closes the scratch session,
-    // cleans sidecar files, and removes the probe directory on every path out of this function.
-    let _guard = ProbeGuard {
-        session: Some(session.clone()),
+    // Armed after `ensure_daemon` succeeds; Drop closes the scratch session,
+    // cleans sidecar files, and removes the probe directory on every path
+    // out of this function.
+    let mut guard = ProbeGuard {
+        session: None,
         work_dir: work_dir.clone(),
     };
 
@@ -231,8 +229,8 @@ pub(super) fn check(checks: &mut Vec<Check>, opts: &DoctorOptions) {
         idle_timeout: None,
         default_timeout: None,
         cdp: None,
+        cdp_headers: None,
         no_auto_dialog: false,
-            no_console: false,
         plugins: None,
     };
 
@@ -249,6 +247,7 @@ pub(super) fn check(checks: &mut Vec<Check>, opts: &DoctorOptions) {
         );
         return;
     }
+    guard.session = Some(session.clone());
     let launch_cmd = json!({
         "id": new_id(),
         "action": "launch",

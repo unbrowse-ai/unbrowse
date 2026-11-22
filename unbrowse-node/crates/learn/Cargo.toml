@@ -6,7 +6,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-agent-browser-core = { path = "../../../unbrowse-browser/core" }
+agent-browser-core = { path = "../browser" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "io-util", "time"] }
 futures-util = "0.3"
 base64 = "0.22"

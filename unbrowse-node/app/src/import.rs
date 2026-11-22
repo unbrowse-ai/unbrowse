@@ -102,6 +102,10 @@ pub struct Kept {
 /// decrypts them), from a throwaway copy of its cookie store; another site's cookies are dropped before anything is
 /// kept, as ever.
 pub fn session(host: &str) -> Result<Kept, String> {
+    // A public peer reads no one's browser for a session (`gateway.no-credentials`).
+    if crate::remote::public_home() {
+        return Err("a public peer reads no one's browser for a session".into());
+    }
     let host = host_arg(host)?;
     let sources = cookie_sources();
     if sources.is_empty() {
@@ -137,7 +141,19 @@ pub fn session(host: &str) -> Result<Kept, String> {
         let tried = sources.iter().map(|(n, _, _)| n.as_str()).collect::<Vec<_>>().join(", ");
         return Err(format!("no browser here has cookies yet (looked in {tried}): open {host} in your browser and sign in, then try again"));
     }
-    let mine = for_host(&host, held, store::now() as f64);
+    let mut mine = for_host(&host, held, store::now() as f64);
+    // The browser gave none, though its store holds the host's: on macOS a browser launched on a copy of the store may
+    // be refused its own key (Chrome 158 can no longer open a copied store, and drops every cookie in it). The node
+    // then opens the store itself, with the browser's key from the keychain (`direct`).
+    #[cfg(target_os = "macos")]
+    if mine.is_empty() {
+        for (name, exe, profile) in &sources {
+            match direct::read(exe, profile, &host) {
+                Ok(cookies) => mine.extend(for_host(&host, cookies, store::now() as f64)),
+                Err(e) => unread.push(format!("{name}, read directly: {e}")),
+            }
+        }
+    }
     if mine.is_empty() {
         let read = had_store.join(", ");
         let mut msg = format!(
@@ -155,7 +171,9 @@ pub fn session(host: &str) -> Result<Kept, String> {
 /// the Chrome for Testing it downloaded (which holds no one's session), one entry per cookie-store directory so a
 /// family that shows up under two names is read once. Each is (name, program, the directory it keeps its cookies in).
 fn cookie_sources() -> Vec<(String, String, PathBuf)> {
-    dedupe_sources(browsers::found(), browsers::profile_dir)
+    let mut all = browsers::found();
+    all.extend(browsers::flatpak_browsers());
+    dedupe_sources(all, browsers::profile_dir)
 }
 
 /// Drops the node's own downloaded browser and any second name for a cookie store already taken, keeping the browsers
@@ -180,14 +198,73 @@ fn dedupe_sources(found: Vec<browsers::Found>, profile_dir: impl Fn(&str) -> Opt
 /// headless on every page of it.
 const SIGNED_OUT_AGAIN: Duration = Duration::from_secs(10 * 60);
 
-/// The owner's browser session for `host`, imported by the node itself because a page of the site sent the node to its
-/// sign-in: the owner is signed in there in their own browser, so the node is too, with no window to click. At most
-/// once per site in [`SIGNED_OUT_AGAIN`] (`None` when it was reached for within that), whatever the import answered,
-/// so a site the owner isn't signed in to costs one headless open of their browser, not one per page.
-pub fn when_signed_out(host: &str) -> Option<Result<Kept, String>> {
+/// The owner's browser session for `host`, imported by the node itself because a page `who` (an agent, or the node's
+/// own work) opened on the site was sent to its sign-in or turned away by its check: the owner may be signed in there
+/// in their own browser. Only on the owner's yes, asked by `ask` in the node's own window ([`ask_in_the_nodes_window`]),
+/// never through the agent ([`owner_lets`]): the session is the owner's, and an agent signed in as them acts as them.
+/// At most once per site in [`SIGNED_OUT_AGAIN`] (`None` when it was reached for within that), whatever the owner or
+/// the import answered, so a site costs one question and one headless open of their browser, not one per page.
+pub fn when_signed_out(host: &str, who: &str, ask: impl FnOnce(String) -> Result<(), String>) -> Option<Result<Kept, String>> {
+    reach_for(host, who, ask, session)
+}
+
+/// [`when_signed_out`], reading the session with `read`.
+fn reach_for(host: &str, who: &str, ask: impl FnOnce(String) -> Result<(), String>, read: impl FnOnce(&str) -> Result<Kept, String>) -> Option<Result<Kept, String>> {
     static TRIED: std::sync::Mutex<BTreeMap<String, std::time::Instant>> = std::sync::Mutex::new(BTreeMap::new());
-    let mut tried = TRIED.lock().unwrap_or_else(|p| p.into_inner());
-    reach_again(&mut tried, &site_of(host), std::time::Instant::now()).then(|| session(host))
+    let site = site_of(host);
+    if !reach_again(&mut TRIED.lock().unwrap_or_else(|p| p.into_inner()), &site, std::time::Instant::now()) {
+        return None;
+    }
+    // A public peer reads no one's browser: its owner isn't asked for what it would refuse anyway.
+    if crate::remote::public_home() {
+        return Some(read(host));
+    }
+    Some(owner_lets(&site, who, ask).and_then(|()| read(host)))
+}
+
+/// The sites whose owner said yes, while this node runs, to the node taking their browser's session in for an agent.
+/// Held in memory only: a file any program of this user can write would be a yes nobody gave, and a restart asks again.
+static LET_IN: std::sync::Mutex<std::collections::BTreeSet<String>> = std::sync::Mutex::new(std::collections::BTreeSet::new());
+
+/// Whether the owner lets the node take their own browser's session for `site` in, for `who`: asked by `ask` in the
+/// node's own window, naming the site and who wants it, and logged under `who` (the agent, never the owner). A yes is
+/// remembered for the site while the node runs, so the owner isn't asked again on its next page; a no, or no answer,
+/// is a no, and nothing of their browser is read.
+pub fn owner_lets(site: &str, who: &str, ask: impl FnOnce(String) -> Result<(), String>) -> Result<(), String> {
+    if LET_IN.lock().unwrap_or_else(|p| p.into_inner()).contains(site) {
+        return Ok(());
+    }
+    let question = format!(
+        "{who} opened a page of {site} that asks to sign in.\n\nLet the node take in your own browser's session for {site}, so {who} is signed in there as you? What it does on {site} after that, it does as you.\n\nIf you allow it, the node won't ask again for {site} until it restarts."
+    );
+    let answer = ask(question);
+    store::log_activity(&Activity {
+        at: store::now(),
+        who: who.to_string(),
+        site: site.to_string(),
+        what: format!("Asked to use your browser's sign-in for {site}"),
+        kind: "vault".into(),
+        result: if answer.is_ok() { "done" } else { "declined" }.into(),
+        ms: None,
+        unb: None,
+        tx: None,
+        note: answer.as_ref().err().cloned(),
+    });
+    match answer {
+        Ok(()) => {
+            LET_IN.lock().unwrap_or_else(|p| p.into_inner()).insert(site.to_string());
+            Ok(())
+        }
+        Err(no) => Err(format!("the owner didn't let the node take their browser's session for {site} ({no})")),
+    }
+}
+
+/// Asks the owner `question` in the node's own window (`owner_dialog`), from one of the node's blocking threads: Err
+/// with no node, or off the node's runtime, where no one can be asked.
+pub fn ask_in_the_nodes_window(node: Option<&crate::Node>, question: String) -> Result<(), String> {
+    let node = node.ok_or("no one to ask")?;
+    let handle = tokio::runtime::Handle::try_current().map_err(|_| "no one to ask".to_string())?;
+    handle.block_on(crate::owner_dialog::ask(node.key().ok(), question))
 }
 
 /// Whether the node reaches for `site`'s session now, `tried` holding when it last did for each site: not within
@@ -198,6 +275,164 @@ fn reach_again(tried: &mut BTreeMap<String, std::time::Instant>, site: &str, now
     }
     tried.insert(site.to_string(), now);
     true
+}
+
+/// What follows a page sent to `host`'s sign-in (`sent` says how; None when it wasn't): the owner's browser session for
+/// the site is taken in by `take_in` ([`when_signed_out`] on a node, which asks the owner first), and once some was, the
+/// page is gone over again by `again`, whose answer is returned. None, and the page as it was, when it wasn't sent, the
+/// site was reached for within [`SIGNED_OUT_AGAIN`], the owner said no, or their browser holds no session for it. `who`
+/// names the caller in the log.
+pub fn again_signed_in<T>(who: &str, sent: Option<&str>, host: &str, take_in: impl FnOnce(&str) -> Option<Result<Kept, String>>, again: impl FnOnce() -> T) -> Option<T> {
+    let why = sent?;
+    match take_in(host)? {
+        Ok(kept) => {
+            eprintln!("   [{who}] {why}; took in the owner's browser session for {} ({} cookies) and went over the page again", kept.host, kept.cookies);
+            Some(again())
+        }
+        Err(none) => {
+            eprintln!("   [{who}] {why}; the owner's browser session wasn't taken in: {none}");
+            None
+        }
+    }
+}
+
+/// Reading a Chromium-family browser's cookie store on macOS without the browser: the store is SQLite (read with the
+/// system's `sqlite3`, read-only, as the file stands), and each value is sealed `v10`: AES-128-CBC under a key
+/// PBKDF2-derived from the browser's "Safe Storage" keychain password. A store at schema 24 and up puts the SHA-256 of
+/// the cookie's domain before each value. Only the host's rows (and its parents') are opened; no value is printed or
+/// logged. The keychain asks the owner once whether this program may use the browser's key.
+#[cfg(target_os = "macos")]
+mod direct {
+    use super::Cookie;
+    use std::path::Path;
+
+    /// Microseconds from 1601-01-01 (the browser's epoch) to 1970-01-01.
+    const WINDOWS_EPOCH_US: i64 = 11_644_473_600_000_000;
+
+    pub fn read(exe: &str, profile: &Path, host: &str) -> Result<Vec<Cookie>, String> {
+        let stores: Vec<_> = ["Default/Cookies", "Default/Network/Cookies"].iter().map(|rel| profile.join(rel)).filter(|p| p.is_file()).collect();
+        let mut out = Vec::new();
+        let mut key = None;
+        for store in stores {
+            let rows = rows_for(&store, host)?;
+            if rows.is_empty() {
+                continue;
+            }
+            if key.is_none() {
+                let (service, account) = crate::browsers::safe_storage(exe).ok_or("the node doesn't know where this browser keeps its key")?;
+                let secret = keyring::Entry::new(service, account).and_then(|e| e.get_password()).map_err(|e| format!("its key ({service}) didn't read: {e}"))?;
+                key = Some(derive(secret.as_bytes()));
+            }
+            let prefixed = schema(&store)? >= 24;
+            out.extend(rows.into_iter().filter_map(|r| r.cookie(key.as_ref().expect("read above"), prefixed)));
+        }
+        Ok(out)
+    }
+
+    /// The key a v10 value is sealed under: PBKDF2-HMAC-SHA1 of the keychain password, "saltysalt", 1003 rounds.
+    pub fn derive(secret: &[u8]) -> [u8; 16] {
+        let mut key = [0u8; 16];
+        pbkdf2::pbkdf2_hmac::<sha1::Sha1>(secret, b"saltysalt", 1003, &mut key);
+        key
+    }
+
+    /// A v10 value opened: the plaintext, less the domain's SHA-256 a schema-24 store puts first. None for another kind
+    /// of value or one that doesn't open.
+    pub fn open(key: &[u8; 16], sealed: &[u8], prefixed: bool) -> Option<Vec<u8>> {
+        use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+        let body = sealed.strip_prefix(b"v10")?;
+        let mut buf = body.to_vec();
+        let plain = cbc::Decryptor::<aes::Aes128>::new(key.into(), &[b' '; 16].into()).decrypt_padded_mut::<Pkcs7>(&mut buf).ok()?.to_vec();
+        Some(if prefixed && plain.len() >= 32 { plain[32..].to_vec() } else { plain })
+    }
+
+    pub struct Row {
+        pub host_key: String,
+        pub name: String,
+        pub path: String,
+        pub expires_utc: i64,
+        pub secure: bool,
+        pub http_only: bool,
+        pub same_site: i64,
+        pub sealed: Vec<u8>,
+        pub value: String,
+    }
+
+    impl Row {
+        pub fn cookie(self, key: &[u8; 16], prefixed: bool) -> Option<Cookie> {
+            let value = if self.sealed.is_empty() { self.value } else { String::from_utf8(open(key, &self.sealed, prefixed)?).ok()? };
+            Some(Cookie {
+                host_only: !self.host_key.starts_with('.'),
+                domain: self.host_key.trim_start_matches('.').to_string(),
+                name: self.name,
+                value,
+                path: self.path,
+                secure: self.secure,
+                http_only: self.http_only,
+                expires: (self.expires_utc > 0).then(|| (self.expires_utc - WINDOWS_EPOCH_US) as f64 / 1e6),
+                same_site: match self.same_site {
+                    0 => Some("None".into()),
+                    1 => Some("Lax".into()),
+                    2 => Some("Strict".into()),
+                    _ => None,
+                },
+            })
+        }
+    }
+
+    /// The store's rows a browser would send to `host`: set for it, or for a domain above it. `host` is a host name
+    /// (`import::host_arg`: letters, digits, dots and dashes), so it goes into the query as it is.
+    fn rows_for(store: &Path, host: &str) -> Result<Vec<Row>, String> {
+        let labels: Vec<&str> = host.split('.').collect();
+        let mut domains = Vec::new();
+        for i in 0..labels.len().saturating_sub(1) {
+            let d = labels[i..].join(".");
+            domains.push(format!("'{d}'"));
+            domains.push(format!("'.{d}'"));
+        }
+        let sql = format!(
+            "select host_key, name, path, expires_utc, is_secure, is_httponly, samesite, hex(encrypted_value), value from cookies where host_key in ({})",
+            domains.join(",")
+        );
+        let text = query(store, &sql)?;
+        Ok(text.split('\x1e').filter(|l| !l.is_empty()).filter_map(parse).collect())
+    }
+
+    pub fn parse(line: &str) -> Option<Row> {
+        let f: Vec<&str> = line.split('\x1f').collect();
+        if f.len() != 9 {
+            return None;
+        }
+        Some(Row {
+            host_key: f[0].into(),
+            name: f[1].into(),
+            path: f[2].into(),
+            expires_utc: f[3].parse().unwrap_or(0),
+            secure: f[4] == "1",
+            http_only: f[5] == "1",
+            same_site: f[6].parse().unwrap_or(-1),
+            sealed: hex::decode(f[7]).ok()?,
+            value: f[8].into(),
+        })
+    }
+
+    fn schema(store: &Path) -> Result<i64, String> {
+        Ok(query(store, "select value from meta where key = 'version'")?.trim_end_matches('\x1e').trim().parse().unwrap_or(0))
+    }
+
+    /// One read-only query of the store as it stands on disk (`immutable`: the running browser's lock isn't waited on),
+    /// fields split by 0x1f and rows by 0x1e.
+    fn query(store: &Path, sql: &str) -> Result<String, String> {
+        let uri = format!("file:{}?immutable=1", store.display());
+        let out = std::process::Command::new("/usr/bin/sqlite3")
+            .args(["-readonly", "-separator", "\x1f", "-newline", "\x1e", &uri, sql])
+            .output()
+            .map_err(|e| format!("sqlite3 didn't run: {e}"))?;
+        if !out.status.success() {
+            return Err(format!("the store didn't read: {}", String::from_utf8_lossy(&out.stderr).trim()));
+        }
+        String::from_utf8(out.stdout).map_err(|_| "the store's rows aren't text".to_string())
+    }
 }
 
 /// Takes away the copies of a cookie store an import that was killed left behind: each is named for the process that made
@@ -224,6 +459,10 @@ pub fn session_from(host: &str, text: &str) -> Result<Kept, String> {
 
 /// Keeps `host`'s cookies as its session for calls, and puts them in the node's browser profile for the site.
 fn keep(host: &str, mine: Vec<Cookie>, from: &str) -> Result<Kept, String> {
+    // A public peer keeps no one's session, from a browser or a file (`gateway.no-credentials`).
+    if crate::remote::public_home() {
+        return Err("a public peer keeps no one's session".into());
+    }
     let before: std::collections::HashMap<String, String> = store::read_json::<BTreeMap<String, String>>(&store::jar_path(host), &unbrowse_files::JAR).into_iter().collect();
     let lines = lines_of(&mine);
     let jar: BTreeMap<String, String> = lines.iter().map(|(k, l)| (k.clone(), l.value.clone())).collect();
@@ -645,6 +884,39 @@ mod tests {
         assert_eq!(options.profile.as_deref(), Some("/tmp/work/profile"));
     }
 
+    /// Chrome 158 launched on a copy of the owner's cookie store is refused its key and drops every cookie, so the node
+    /// opens the store itself: a v10 value, sealed as Chromium seals it, opens to the value, less the domain's SHA-256 a
+    /// schema-24 store puts first; a row reads as the cookie a browser would send; a value under another key opens to
+    /// nothing, never to a wrong value.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_browsers_sealed_cookie_opens_with_its_key() {
+        use aes::cipher::{block_padding::Pkcs7, BlockEncryptMut, KeyIvInit};
+        use sha2::Digest;
+        let key = direct::derive(b"the browser's safe storage password");
+        let seal = |key: &[u8; 16], plain: &[u8]| {
+            let mut out = b"v10".to_vec();
+            let mut buf = plain.to_vec();
+            buf.resize(plain.len() + 16, 0);
+            let sealed = cbc::Encryptor::<aes::Aes128>::new(key.into(), &[b' '; 16].into()).encrypt_padded_mut::<Pkcs7>(&mut buf, plain.len()).unwrap();
+            out.extend_from_slice(sealed);
+            out
+        };
+        let mut prefixed = sha2::Sha256::digest(b".www.loom.example").to_vec();
+        prefixed.extend(b"s%3Asession-value");
+        assert_eq!(direct::open(&key, &seal(&key, &prefixed), true).as_deref(), Some(&b"s%3Asession-value"[..]));
+        assert_eq!(direct::open(&key, &seal(&key, b"plain"), false).as_deref(), Some(&b"plain"[..]), "an older store has no prefix");
+        let other = direct::derive(b"another browser's password");
+        assert!(direct::open(&other, &seal(&key, b"plain"), false).is_none_or(|p| p != b"plain"), "another key never opens it to the value");
+        assert_eq!(direct::open(&key, b"v20abc", false), None, "another kind of seal isn't guessed at");
+        let line = format!(".www.loom.example\x1fconnect.sid\x1f/\x1f{}\x1f1\x1f1\x1f1\x1f{}\x1f", 13_441_000_000_000_000i64 + 11_644_473_600_000_000, hex::encode_upper(seal(&key, &prefixed)));
+        let c = direct::parse(&line).unwrap().cookie(&key, true).unwrap();
+        assert_eq!((c.name.as_str(), c.value.as_str(), c.domain.as_str(), c.host_only), ("connect.sid", "s%3Asession-value", "www.loom.example", false));
+        assert!(c.secure && c.http_only && c.same_site.as_deref() == Some("Lax"));
+        assert_eq!(c.expires, Some(13_441_000_000.0));
+        assert!(c.sent_to("www.loom.example"));
+    }
+
     /// A site the node found itself signed out of is reached for in the owner's browser once, not on every page of it:
     /// a browser holding no session for the site is opened headless once in ten minutes, and another site is its own.
     #[test]
@@ -654,6 +926,30 @@ mod tests {
         assert!(!reach_again(&mut tried, "x.com", at + Duration::from_secs(60)), "not again on the next page");
         assert!(reach_again(&mut tried, "github.com", at), "another site is its own");
         assert!(reach_again(&mut tried, "x.com", at + SIGNED_OUT_AGAIN), "and again once the wait is over");
+    }
+
+    /// A page sent to the site's sign-in takes in the owner's browser session and is gone over again, once: signed in
+    /// there, the owner isn't asked for what their browser holds. A browser holding no session, or a site reached for
+    /// a moment ago, leaves the page as it was, and a page that wasn't sent to a sign-in never opens the owner's browser.
+    #[test]
+    fn a_page_sent_to_a_sign_in_is_gone_over_again_with_the_owners_session() {
+        let kept = || Kept { host: "x.com".into(), cookies: 3, profiles: 1, profile_error: None };
+        let (mut asked, mut walked) = (Vec::new(), 0);
+        let again = again_signed_in("learn", Some("x.com sent the page to /login"), "x.com", |h| {
+            asked.push(h.to_string());
+            Some(Ok(kept()))
+        }, || {
+            walked += 1;
+            "signed in"
+        });
+        assert_eq!((again, walked), (Some("signed in"), 1), "walked again once, and that walk is the answer");
+        assert_eq!(asked, ["x.com"], "the session is reached for on the page's own host");
+        let none = again_signed_in("learn", Some("sent to /login"), "x.com", |_| Some(Err("no cookies for x.com".into())), || -> &str { unreachable!("no session, no second walk") });
+        assert_eq!(none, None);
+        let rested = again_signed_in("learn", Some("sent to /login"), "x.com", |_| None, || -> &str { unreachable!("reached for a moment ago") });
+        assert_eq!(rested, None);
+        let not_sent = again_signed_in("learn", None, "x.com", |_| -> Option<Result<Kept, String>> { unreachable!("a page not sent to a sign-in opens no browser of the owner's") }, || "x");
+        assert_eq!(not_sent, None);
     }
 
     /// A copy of the owner's whole cookie store left by a killed import goes at the next one.
@@ -777,6 +1073,27 @@ mod tests {
         assert_eq!(names, ["Chromium", "Brave"], "downloaded, unplaceable and same-store browsers are left out");
     }
 
+    /// A Flatpak Chromium keeps its cookies in its own sandbox folder, so a session is read from it beside an ordinary
+    /// Chromium of the same family, not left out as a second name for the ordinary one's store.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn import_reads_a_flatpak_chromium_beside_an_ordinary_one() {
+        let dir = std::env::temp_dir().join(format!("unbrowse-import-flatpak-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (home, config) = (dir.join("home"), dir.join("config"));
+        let sandbox = home.join(".var/app/org.chromium.Chromium/config/chromium");
+        std::fs::create_dir_all(&sandbox).unwrap();
+        std::fs::create_dir_all(config.join("chromium")).unwrap();
+        let found = vec![
+            browsers::Found { name: "Chromium".into(), path: "/usr/bin/chromium".into(), downloaded: false },
+            browsers::Found { name: "org.chromium.Chromium (Flatpak)".into(), path: "/var/lib/flatpak/exports/bin/org.chromium.Chromium".into(), downloaded: false },
+        ];
+        let got = dedupe_sources(found, |exe| browsers::profile_dir_in(exe, &home, config.clone()));
+        let read: Vec<(&str, &Path)> = got.iter().map(|(n, _, d)| (n.as_str(), d.as_path())).collect();
+        assert_eq!(read, [("Chromium", config.join("chromium").as_path()), ("org.chromium.Chromium (Flatpak)", sandbox.as_path())]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// An export holding two cookies of one name keeps one, the jar's way: the narrower, its value with its own line's
     /// reach, path, HttpOnly and life, never another cookie's.
     #[test]
@@ -864,5 +1181,234 @@ mod tests {
         assert!(into.join("Default/Cookies").is_file());
         assert!(!into.join("Default/History").exists(), "only the cookie files are copied, not history");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+    /// A browser that is a script, so the import's own browser steps run with no real browser: it answers on the
+    /// debugger's pipe (read on fd 3, answered on fd 4, each message ended by a NUL, as Chrome does), holds two cookies
+    /// for `Storage.getCookies`, refuses any `Storage.setCookies` that names a cookie "poison", closes on
+    /// `Browser.close`, and notes each message it was sent in `<script>.log`.
+    #[cfg(unix)]
+    fn a_browser_on_the_pipe(dir: &Path) -> String {
+        use std::os::unix::fs::PermissionsExt;
+        const SCRIPT: &str = r##"#!/bin/bash
+log="$0.log"
+while IFS= read -r -d '' msg <&3; do
+  printf '%s\n' "$msg" >> "$log"
+  id=$(printf '%s' "$msg" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+  method=$(printf '%s' "$msg" | grep -o '"method":"[^"]*"' | head -1 | cut -d'"' -f4)
+  session=$(printf '%s' "$msg" | grep -o '"sessionId":"[^"]*"' | head -1 | cut -d'"' -f4)
+  named=""
+  [ -n "$session" ] && named=",\"sessionId\":\"$session\""
+  case "$method" in
+    Target.attachToBrowserTarget) out="{\"id\":$id,\"result\":{\"sessionId\":\"browser-1\"}}" ;;
+    Storage.getCookies) out="{\"id\":$id$named,\"result\":{\"cookies\":[{\"name\":\"sid\",\"value\":\"abc\",\"domain\":\".shop.example\",\"path\":\"/\",\"secure\":true,\"httpOnly\":true,\"expires\":4102444800},{\"name\":\"tracker\",\"value\":\"t\",\"domain\":\"ads.example\",\"path\":\"/\"}]}}" ;;
+    Storage.setCookies)
+      if printf '%s' "$msg" | grep -q '"name":"poison"'; then
+        out="{\"id\":$id$named,\"error\":{\"code\":-32602,\"message\":\"Invalid cookie fields\"}}"
+      else
+        out="{\"id\":$id$named,\"result\":{}}"
+      fi ;;
+    Browser.close)
+      printf '%s\0' "{\"id\":$id$named,\"result\":{}}" >&4
+      exit 0 ;;
+    *) out="{\"id\":$id$named,\"result\":{}}" ;;
+  esac
+  printf '%s\0' "$out" >&4
+done
+"##;
+        let exe = dir.join("a-browser-on-the-pipe");
+        std::fs::write(&exe, SCRIPT).unwrap();
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+        exe.display().to_string()
+    }
+
+    /// What the script browser at `exe` was sent, one message to a line.
+    #[cfg(unix)]
+    fn sent_to_the_browser(exe: &str) -> Vec<String> {
+        std::fs::read_to_string(format!("{exe}.log")).unwrap_or_default().lines().map(String::from).collect()
+    }
+
+    /// A cookie as DevTools takes it, for the script browser.
+    fn kv(name: &str) -> Value {
+        json!({ "name": name, "value": "v", "domain": "shop.example", "path": "/" })
+    }
+
+    /// The browser is asked for the cookies it holds (not a page), whoever set them: they come back as cookies, the
+    /// other site's among them (`for_host` drops it, as ever), and a browser that won't open is said, not hung on.
+    #[cfg(unix)]
+    #[test]
+    fn a_browsers_cookies_are_read_through_its_debugger_and_a_browser_that_wont_open_is_said() {
+        let home = store::scratch_home("import-read");
+        let exe = a_browser_on_the_pipe(&home);
+        let read = read_cookies(&exe, &home.join("work")).unwrap();
+        let held: Vec<_> = read.iter().map(|c| (c.name.as_str(), c.value.as_str(), c.domain.as_str(), c.host_only)).collect();
+        assert_eq!(held, [("sid", "abc", "shop.example", false), ("tracker", "t", "ads.example", true)]);
+        assert!(read[0].secure && read[0].http_only && read[0].expires == Some(4_102_444_800.0));
+        let mine = for_host("www.shop.example", read, 1000.0);
+        assert_eq!(mine.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["sid"], "another site's cookie is left out");
+        let said = sent_to_the_browser(&exe).join("\n");
+        assert!(said.contains("Storage.getCookies") && said.contains("Browser.close"), "it asked the browser for its cookies, then closed it: {said}");
+        let err = read_cookies(&home.join("no-such-browser").display().to_string(), &home.join("work-2")).unwrap_err();
+        assert!(err.contains("the node's browser didn't open"), "{err}");
+    }
+
+    /// A cookie one browser won't take costs the batch, not the rest: refused whole, they go one by one, and the import
+    /// says so only when the browser took none; a browser that isn't listening is said.
+    #[cfg(unix)]
+    #[test]
+    fn a_cookie_the_browser_refuses_costs_the_batch_but_not_the_rest() {
+        let home = store::scratch_home("import-set");
+        let exe = a_browser_on_the_pipe(&home);
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let mut chrome = agent_browser_core::cdp::chrome::launch_chrome(&reading(&exe, &home.join("work"), Vec::new())).unwrap();
+        let sets = || sent_to_the_browser(&exe).iter().filter(|m| m.contains("Storage.setCookies")).count();
+        rt.block_on(set_cookies(&chrome.ws_url, &[kv("sid"), kv("cart")])).unwrap();
+        assert_eq!(sets(), 1, "a batch the browser takes is one ask");
+        rt.block_on(set_cookies(&chrome.ws_url, &[kv("sid"), kv("poison"), kv("cart")])).unwrap();
+        assert_eq!(sets(), 1 + 1 + 3, "a batch it refuses goes again one cookie at a time");
+        let none = rt.block_on(set_cookies(&chrome.ws_url, &[kv("poison")])).unwrap_err();
+        assert!(none.contains("took none of the cookies"), "{none}");
+        chrome.kill();
+        let gone = rt.block_on(set_cookies("ws://127.0.0.1:1/devtools/browser/none", &[kv("sid")])).unwrap_err();
+        assert!(gone.contains("couldn't reach the node's browser"), "{gone}");
+    }
+
+    /// A profile is opened headless, given the session, and its browser closed so it writes the cookies to disk, with
+    /// the profile's folder made if it was not there.
+    #[cfg(unix)]
+    #[test]
+    fn a_closed_profile_is_opened_given_the_session_and_its_browser_closed() {
+        let home = store::scratch_home("import-profile");
+        let exe = a_browser_on_the_pipe(&home);
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let profile = home.join("profiles").join("shop.example");
+        into_closed_profile(&rt, &exe, &profile, &[kv("sid"), kv("cart")]).unwrap();
+        assert!(profile.is_dir(), "the profile's folder is made");
+        let said = sent_to_the_browser(&exe);
+        let set: Vec<_> = said.iter().filter(|m| m.contains("Storage.setCookies")).collect();
+        assert!(set.len() == 1 && set[0].contains("\"sid\"") && set[0].contains("\"cart\""), "{said:?}");
+        assert!(said.iter().any(|m| m.contains("Browser.close")), "closed cleanly, so the browser writes them: {said:?}");
+        let blocked = home.join("a-file");
+        std::fs::write(&blocked, "x").unwrap();
+        let err = into_closed_profile(&rt, &exe, &blocked.join("profile"), &[kv("sid")]).unwrap_err();
+        assert!(err.starts_with(&blocked.join("profile").display().to_string()), "a profile that can't be made is said by its place: {err}");
+        let err = into_closed_profile(&rt, &home.join("no-such-browser").display().to_string(), &home.join("profiles").join("x.example"), &[kv("sid")]).unwrap_err();
+        assert!(err.contains("didn't open the site's profile"), "{err}");
+    }
+
+    /// A session goes into the node's profile for the host and the others it keeps for the same site, each opened in the
+    /// node's browser, and each cookie lives as long as the profile keeps a session cookie; with no browser the node
+    /// can drive, it says so.
+    #[cfg(unix)]
+    #[test]
+    fn a_session_is_put_into_every_profile_of_the_site_through_the_nodes_browser() {
+        let home = store::scratch_home("import-profiles");
+        let exe = a_browser_on_the_pipe(&home);
+        std::fs::create_dir_all(store::profiles_dir().join("www.shop.example")).unwrap();
+        let mine = [cookie("sid", "shop.example", false, "/")];
+        browsers::for_this_test(None);
+        assert_eq!(into_profiles("app.shop.example", &mine).unwrap_err(), browsers::missing());
+        browsers::for_this_test(Some(exe.clone()));
+        assert_eq!(into_profiles("app.shop.example", &mine), Ok(2));
+        let said = sent_to_the_browser(&exe);
+        let set: Vec<_> = said.iter().filter(|m| m.contains("Storage.setCookies")).collect();
+        assert_eq!(set.len(), 2, "the host's own profile and the sibling's: {said:?}");
+        assert!(set.iter().all(|m| m.contains("\"expires\"")), "a session cookie is given a life the profile keeps");
+        assert!(store::profiles_dir().join("app.shop.example").is_dir());
+    }
+
+    /// A cookie file imported in full: the host's cookies are the session for calls, the node's browser takes them (so
+    /// no cookie is held by the jar alone), another site's cookie in the file is never kept or sent to the browser, and a
+    /// file with none of the host's says so.
+    #[cfg(unix)]
+    #[test]
+    fn a_cookie_file_becomes_the_sites_session_in_the_jar_and_the_profile() {
+        let home = store::scratch_home("import-file");
+        let exe = a_browser_on_the_pipe(&home);
+        browsers::for_this_test(Some(exe.clone()));
+        let file = r#"[{"name":"sid","value":"s1","domain":".shop.example","path":"/","secure":true},
+            {"name":"cart","value":"c1","domain":"www.shop.example","path":"/"},
+            {"name":"tracker","value":"t1","domain":"ads.example","path":"/"}]"#;
+        let kept = session_from("https://www.shop.example/login", file).unwrap();
+        assert_eq!((kept.host.as_str(), kept.cookies, kept.profiles, kept.profile_error.as_deref()), ("www.shop.example", 2, 1, None));
+        let jar: BTreeMap<String, String> = store::read_json(&store::jar_path("www.shop.example"), &unbrowse_files::JAR);
+        assert_eq!(jar, BTreeMap::from([("cart".to_string(), "c1".to_string()), ("sid".to_string(), "s1".to_string())]));
+        let only: BTreeMap<String, store::JarOnly> = store::read_json(&store::jar_only_path("www.shop.example"), &unbrowse_files::JAR);
+        assert!(only.is_empty(), "a browser took them, so none is held by the jar alone");
+        assert!(!sent_to_the_browser(&exe).join("\n").contains("tracker"), "another site's cookie never reaches the browser");
+        let err = session_from("www.shop.example", r#"[{"name":"tracker","value":"t1","domain":"ads.example"}]"#).unwrap_err();
+        assert!(err.contains("holds no live cookie for www.shop.example"), "{err}");
+    }
+
+    /// A public peer reads no one's browser, and the node reaches for the owner's session once for a site, not on every
+    /// page of it.
+    #[test]
+    fn a_public_peer_signs_in_from_no_browser_and_a_site_is_reached_for_once() {
+        let home = store::scratch_home("import-public");
+        store::write_json(&home.join("remote.json"), &unbrowse_files::REMOTE, &json!({ "public": true })).unwrap();
+        let unasked = |_: String| -> Result<(), String> { unreachable!("a public peer asks its owner nothing for a browser it never reads") };
+        let first = when_signed_out("www.reached-once.example", "agent", unasked).expect("the first time a site is reached for");
+        assert!(first.unwrap_err().contains("public peer"), "it reads no one's browser");
+        assert!(when_signed_out("app.reached-once.example", "agent", unasked).is_none(), "another page of the same site, a moment later, is not reached for");
+    }
+
+    /// Audit 1118 H1. An agent's page that lands on a sign-in takes the owner's browser session into the node only on the
+    /// owner's yes, given in the node's window (naming the site and the agent): with no yes, no browser of theirs is
+    /// opened for cookies and the page is not gone over again signed in as them. The ask is logged under the agent, not
+    /// the owner. A yes reads the session once and is remembered for the site; the control, a page that wasn't sent to
+    /// a sign-in, reaches for nothing and asks nothing.
+    #[test]
+    fn a_sign_in_an_agents_page_landed_on_takes_the_owners_session_only_on_their_yes() {
+        store::scratch_home("import-owners-yes");
+        let reached = std::cell::Cell::new(0);
+        let asked = std::cell::RefCell::new(Vec::<String>::new());
+        let kept = |host: &str| Kept { host: host.into(), cookies: 2, profiles: 1, profile_error: None };
+        let reach = |host: &str, yes: bool| {
+            reach_for(
+                host,
+                "shopping-agent",
+                |q| {
+                    asked.borrow_mut().push(q);
+                    if yes { Ok(()) } else { Err("the owner said no".into()) }
+                },
+                |h| {
+                    reached.set(reached.get() + 1);
+                    Ok(kept(h))
+                },
+            )
+        };
+        let not_sent = again_signed_in("browse", None, "app.no-yes.example", |h| reach(h, true), || "again");
+        assert_eq!((not_sent, reached.get(), asked.borrow().len()), (None, 0, 0), "the control: a page that wasn't sent to a sign-in is left as it was");
+        let again = again_signed_in("browse", Some("https://app.no-yes.example/login asked the page to sign in"), "app.no-yes.example", |h| reach(h, false), || "opened again signed in as the owner");
+        assert_eq!(reached.get(), 0, "the owner's browser session was read with no yes from the owner");
+        assert_eq!(again, None, "the page was opened again signed in as the owner with no yes from the owner");
+        let q = asked.borrow().last().cloned().expect("the owner was asked");
+        assert!(q.contains("no-yes.example") && q.contains("shopping-agent"), "the question names the site and the agent: {q}");
+        let logged = store::read_activity(50);
+        assert!(logged.iter().any(|a| a.who == "shopping-agent" && a.site == "no-yes.example" && a.result == "declined"), "the ask is logged under the agent: {logged:?}");
+        // On their yes, the session is read once and the page gone over again; the yes holds for the site.
+        let again = again_signed_in("browse", Some("sent to /login"), "app.yes.example", |h| reach(h, true), || "signed in");
+        assert_eq!((again, reached.get()), (Some("signed in"), 1));
+        let before = asked.borrow().len();
+        assert_eq!(owner_lets("yes.example", "another-agent", |_| -> Result<(), String> { unreachable!("asked again for a site the owner let in") }), Ok(()));
+        assert_eq!(asked.borrow().len(), before);
+    }
+
+    /// A cookie with no name is no cookie, a cookies.txt line short of its fields is skipped, a work folder's name is made
+    /// of letters and digits, and a copy that can't be written says where.
+    #[test]
+    fn what_is_no_cookie_is_left_out_and_a_copy_that_cant_be_written_is_said() {
+        assert!(cookie_of(&json!({ "value": "x", "domain": "shop.example" }), "shop.example").is_none());
+        assert!(cookie_of(&json!({ "name": 7, "value": "x" }), "shop.example").is_none());
+        assert_eq!(netscape("# a comment\nshop.example\tFALSE\t/\n.shop.example\tTRUE\t/\tFALSE\t0\tsid\ts1\n").iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["sid"]);
+        assert_eq!(session_name("www.shop.example:8080/a b"), "www-shop-example-8080-a-b");
+        let dir = std::env::temp_dir().join(format!("unbrowse-import-unwritable-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("profile")).unwrap();
+        std::fs::write(dir.join("profile/Local State"), "{}").unwrap();
+        std::fs::write(dir.join("a-file"), "x").unwrap();
+        let under = dir.join("a-file").join("copy");
+        let err = copy_cookie_store(&dir.join("profile"), &under).unwrap_err();
+        assert!(err.starts_with(&under.display().to_string()), "{err}");
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

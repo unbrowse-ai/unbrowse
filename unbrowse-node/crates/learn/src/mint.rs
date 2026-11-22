@@ -192,7 +192,8 @@ pub fn downloaded_chromium() -> Option<std::path::PathBuf> {
 /// started with (its `AGENT_BROWSER_*` variables, a config file in the user's home or the folder it runs in) choose
 /// which browser a session attaches to, what it goes through or what it loads. The CLI reads a config file the node
 /// writes, holding nothing, runs in the node's own folder, and keeps any browser started without a profile in a
-/// folder of the node's. Its daemon, and the browser under it, close after [`PROGRAM_IDLE`] without a command.
+/// folder of the node's. Its daemon, and the browser under it, close after [`PROGRAM_IDLE`] without a command, or once
+/// this process has gone.
 pub fn on_its_own(cmd: &mut Command, home: &std::path::Path) -> Result<(), String> {
     for (key, _) in std::env::vars_os() {
         if key.to_string_lossy().starts_with("AGENT_BROWSER_") {
@@ -200,6 +201,9 @@ pub fn on_its_own(cmd: &mut Command, home: &std::path::Path) -> Result<(), Strin
         }
     }
     cmd.env("AGENT_BROWSER_IDLE_TIMEOUT_MS", PROGRAM_IDLE.as_millis().to_string());
+    // Its daemon works for this process, and goes when it does, however it ends (B10): a node killed outright left its
+    // daemons, each with a browser, until they had been idle for PROGRAM_IDLE.
+    cmd.env("AGENT_BROWSER_OWNER_PID", std::process::id().to_string());
     let _ = std::fs::create_dir_all(home);
     let config = home.join("browser-config.json");
     if std::fs::read_to_string(&config).ok().as_deref() != Some("{}") {
@@ -316,6 +320,12 @@ pub fn stops_with<T>(stop: std::sync::Arc<std::sync::atomic::AtomicBool>, work: 
     }
     let _restore = Restore(STOP.with(|s| s.borrow_mut().replace(stop)));
     work()
+}
+
+/// The stop flag of the ask this thread works for, if it works for one ([`stops_with`]): what a thread it hands work
+/// to runs under, and what names the ask to the node.
+pub fn stop_flag() -> Option<std::sync::Arc<std::sync::atomic::AtomicBool>> {
+    STOP.with(|s| s.borrow().clone())
 }
 
 /// Whether the ask this thread works for has given up.
@@ -1349,6 +1359,8 @@ impl BrowserMint {
             executable_path: chromium(),
             cookies: self.seed.clone(),
             stop: STOP.with(|s| s.borrow().clone()),
+            // The engine's own waits: what real sites were seen to need.
+            waits: Default::default(),
         };
         // A retry needs the settings once they have been handed to the engine.
         let retry = opts.clone();
@@ -1849,6 +1861,20 @@ mod tests {
         let idle = cmd.get_envs().find(|(k, _)| *k == "AGENT_BROWSER_IDLE_TIMEOUT_MS").and_then(|(_, v)| v).map(|v| v.to_string_lossy().into_owned());
         assert_eq!(idle.as_deref(), Some(PROGRAM_IDLE.as_millis().to_string().as_str()), "the program is told when to close an idle browser");
         assert!(PROGRAM_IDLE > std::time::Duration::ZERO, "0 would mean never");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// B10 (UNB-208): every command of the browser program names this process as the one its daemon works for, so the
+    /// daemon and its browser go when the node does, however the node ended, and a value this process was started
+    /// with names no other.
+    #[test]
+    fn a_browser_the_program_holds_goes_with_the_node() {
+        let home = std::env::temp_dir().join(format!("unbrowse-owner-{}", std::process::id()));
+        let mut cmd = Command::new("true");
+        cmd.env("AGENT_BROWSER_OWNER_PID", "1");
+        on_its_own(&mut cmd, &home).unwrap();
+        let owner = cmd.get_envs().find(|(k, _)| *k == "AGENT_BROWSER_OWNER_PID").and_then(|(_, v)| v).map(|v| v.to_string_lossy().into_owned());
+        assert_eq!(owner, Some(std::process::id().to_string()), "the program is told whom its daemon works for");
         let _ = std::fs::remove_dir_all(&home);
     }
 
@@ -2457,5 +2483,544 @@ mod tests {
         // its host is the whole of its reach.
         assert_eq!(session.domains.get("site_pass").map(String::as_str), Some(".x.example"));
         assert!(!session.domains.contains_key("door"));
+    }
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("mint-more-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// An address on this machine that nothing listens on: a browser endpoint that refuses.
+    fn nobody_listens() -> String {
+        let held = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = held.local_addr().unwrap().port();
+        drop(held);
+        format!("http://127.0.0.1:{port}")
+    }
+
+    /// A browser program that answers by what it is asked: its cookies, its page, its storage, and on `open` the capture
+    /// it records. Every command it is given is logged.
+    #[cfg(unix)]
+    fn a_walker(dir: &std::path::Path, page: &str, cookies: &str, storage: &str) -> (String, std::path::PathBuf) {
+        use std::os::unix::fs::PermissionsExt;
+        const CAPTURE: &str = concat!(
+            r#"{"type":"exchange","t":1.0,"resourceType":"Document","entry":{"request":{"method":"GET","url":"https://site.example/","headers":[]},"response":{"status":200,"headers":[{"name":"set-cookie","value":"sid=abc; Path=/; HttpOnly"},{"name":"set-cookie","value":"gone=1; Path=/"}],"content":{"mimeType":"text/html","text":"<html>hello</html>"}}}}"#, "\n",
+            r#"{"type":"exchange","t":2.0,"resourceType":"XHR","entry":{"request":{"method":"GET","url":"https://site.example/api/items?cf-turnstile-response=tok1","headers":[]},"response":{"status":200,"headers":[],"content":{"mimeType":"application/json","text":"{\"items\":[1]}"}}}}"#, "\n",
+        );
+        std::fs::create_dir_all(dir).unwrap();
+        for (name, text) in [("page.json", page), ("cookies.json", cookies), ("storage.json", storage), ("capture.jsonl", CAPTURE)] {
+            std::fs::write(dir.join(name), text).unwrap();
+        }
+        let (program, log) = (dir.join("walker"), dir.join("said.log"));
+        let (d, l) = (dir.display(), log.display());
+        std::fs::write(
+            &program,
+            format!(
+                "#!/bin/sh\necho \"$*\" >> '{l}'\ncase \"$*\" in\n  *\"cookies get\"*) cat '{d}/cookies.json' ;;\n  *outerHTML*) cat '{d}/page.json' ;;\n  *localStorage*) cat '{d}/storage.json' ;;\n  *\"get title\"*) echo 'A page of the site' ;;\n  *\"get url\"*) echo 'https://site.example/' ;;\n  *\" open \"*) mkdir -p \"$UNBROWSE_CAPTURE_DIR\"; cp '{d}/capture.jsonl' \"$UNBROWSE_CAPTURE_DIR/learn_test.jsonl\" ;;\nesac\n"
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        (program.to_string_lossy().into_owned(), log)
+    }
+
+    /// What the walker's browser holds: `sid` under another value than the capture saw, a domain cookie the capture
+    /// never saw set, and none of the capture's `gone`.
+    #[cfg(unix)]
+    const THE_JAR: &str = r#"{"success":true,"data":{"cookies":[{"name":"sid","value":"abc2","domain":"site.example","path":"/","httpOnly":true,"expires":-1},{"name":"clearance","value":"c1","domain":".site.example","path":"/","httpOnly":false,"expires":-1}]}}"#;
+    #[cfg(unix)]
+    const THE_PAGE: &str = r#""<html><body>results</body></html>""#;
+    #[cfg(unix)]
+    const THE_STORAGE: &str = "[agent-browser] evaluated\n{\"local\":{\"theme\":\"dark\",\"n\":3},\"session\":{\"tab\":\"3\"}}";
+
+    /// The walk's own mint, with an engine that can't reach a browser: the DevTools endpoint refuses.
+    #[cfg(unix)]
+    fn without_an_engine(browser: String, dir: &std::path::Path) -> BrowserMint {
+        BrowserMint { cdp_endpoint: Some(nobody_listens()), ..a_mint(browser, dir) }
+    }
+
+    /// What the page keeps for its own code comes from the program's one answer: the object is taken from the first
+    /// `{"local"` to the last brace, whatever the program says before it; a value that is not text is not kept, and an
+    /// answer with no object is no storage rather than an error.
+    #[test]
+    fn a_pages_storage_is_read_from_the_programs_answer() {
+        let said = "[agent-browser] evaluated\n{\"local\":{\"theme\":\"dark\",\"count\":3},\"session\":{\"tab\":\"3\"}}\n";
+        assert_eq!(storage_map(said, "local"), std::collections::HashMap::from([("theme".to_string(), "dark".to_string())]));
+        assert_eq!(storage_map(said, "session").get("tab").map(String::as_str), Some("3"));
+        assert!(storage_map(said, "other").is_empty(), "a storage the answer lacks is empty");
+        assert!(storage_map("no storage here", "local").is_empty());
+        assert!(storage_map("{\"local\": oops", "local").is_empty(), "an answer that is no JSON is no storage");
+        assert_eq!(storage_map("{\"session\":{\"a\":\"b\"}}", "session").len(), 1, "an object that starts otherwise is still read");
+    }
+
+    /// The cookies a jar is made from are the browser's, one per name, with the reach each was set for: a host-only
+    /// cookie is the host's, a domain cookie keeps its dot, and another site's cookie is not held for this host.
+    #[test]
+    fn the_cookies_held_for_a_host_keep_the_reach_each_was_set_for() {
+        let answer = r#"{"data":{"cookies":[
+            {"name":"sid","value":"abc","domain":"Site.Example"},
+            {"name":"pref","value":"dark","domain":".site.example"},
+            {"name":"ad","value":"x","domain":"other.example"}]}}"#;
+        let mut held = held_for(answer, "site.example");
+        held.sort();
+        assert_eq!(held, [("pref".to_string(), "dark".to_string(), ".site.example".to_string()), ("sid".to_string(), "abc".to_string(), "site.example".to_string())]);
+        assert!(held_for("not an answer", "site.example").is_empty());
+    }
+
+    /// The browser the walk showed the page is rebuilt from what it sent: its languages in order, its platform from its
+    /// agent, and the client hints it stated (brands, mobile, platform). A walk that stated none gets Chrome's default
+    /// language, a platform from its agent, and no hints.
+    #[test]
+    fn the_browser_a_door_saw_is_rebuilt_from_what_it_sent() {
+        let sent = |headers: &[(&str, &str)]| crate::trace::Exchange {
+            method: "GET".into(),
+            url: "https://shop.example/".parse().unwrap(),
+            request_headers: headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: None,
+            response_mime: "text/html".into(),
+            resource_type: Some("Document".into()),
+            main_frame: Some(true),
+        };
+        let fp = door_fingerprint(&sent(&[
+            ("User-Agent", "Mozilla/5.0 (Windows NT 10.0) Chrome/156.0.0.0"),
+            ("Accept-Language", "fr-CH, fr;q=0.9, en;q=0.8"),
+            ("sec-ch-ua", "\"Chromium\";v=\"156\", \"Not-A.Brand\";v=\"24\", junk"),
+            ("sec-ch-ua-mobile", "?1"),
+            ("sec-ch-ua-platform", "\"Android\""),
+        ]));
+        assert_eq!(fp["lang"], "fr-CH");
+        assert_eq!(fp["langs"], serde_json::json!(["fr-CH", "fr", "en"]));
+        assert_eq!(fp["platform"], "Win32");
+        assert_eq!(fp["uaData"]["brands"], serde_json::json!([{ "brand": "Chromium", "version": "156" }, { "brand": "Not-A.Brand", "version": "24" }]));
+        assert_eq!((fp["uaData"]["mobile"].as_bool(), fp["uaData"]["platform"].as_str()), (Some(true), Some("Android")));
+        let bare = door_fingerprint(&sent(&[("user-agent", "Mozilla/5.0 (Macintosh) Chrome/156.0.0.0")]));
+        assert_eq!((bare["lang"].as_str(), bare["platform"].as_str()), (Some("en-US"), Some("MacIntel")));
+        assert!(bare.get("uaData").is_none(), "a walk that sent no client hints is shown none");
+        assert_eq!(door_fingerprint(&sent(&[])) ["platform"], "Linux x86_64");
+    }
+
+    /// A walk's refusal is the site's answer only when the engine says the page was met (`mint unresolved (`); a launch
+    /// failure, a stop or a busy profile is not.
+    #[test]
+    fn only_a_walk_that_met_the_page_is_the_sites_answer() {
+        assert!(unresolved(&MintError::Browser("mint unresolved (a door asked a person)".into())));
+        assert!(!unresolved(&MintError::Browser("cdp endpoint: connection refused".into())));
+        assert!(!unresolved(&MintError::Browser(agent_browser_core::session::STOPPED.into())));
+    }
+
+    /// The challenge page is the site's own last document; where the site served none of its own, it is the last page
+    /// the main frame was served that reads as markup, wherever from. A trace with no page, or only a call, has none.
+    #[test]
+    fn a_challenge_page_served_from_elsewhere_is_still_the_page() {
+        let doc = |url: &str, mime: &str, body: &str, kind: &str| crate::trace::Exchange {
+            method: "GET".into(),
+            url: url.parse().unwrap(),
+            request_headers: vec![],
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(body.into()),
+            response_mime: mime.into(),
+            resource_type: Some(kind.into()),
+            main_frame: Some(true),
+        };
+        let here = url::Url::parse("https://shop.example/search").unwrap();
+        let trace = |exchanges: Vec<crate::trace::Exchange>| crate::trace::Trace { exchanges, inputs: vec![] };
+        let gate = trace(vec![doc("https://gate.vendor.example/check", "text/html", "<html><title>Checking</title></html>", "Document")]);
+        assert_eq!(challenge_page(&gate, &here).map(|p| p.url.as_str()), Some("https://gate.vendor.example/check"));
+        let own_too = trace(vec![doc("https://gate.vendor.example/check", "text/html", "<html></html>", "Document"), doc("https://shop.example/search", "text/html", "<html>mine</html>", "Document")]);
+        assert_eq!(challenge_page(&own_too, &here).map(|p| p.url.as_str()), Some("https://shop.example/search"), "the site's own page comes before another's");
+        assert!(challenge_page(&trace(vec![doc("https://gate.vendor.example/api", "application/json", "{\"a\":1}", "XHR")]), &here).is_none());
+        assert!(challenge_page(&trace(vec![]), &here).is_none());
+    }
+
+    /// An ask's stop flag is the very flag its thread works under, handed on to what the thread starts; outside the ask
+    /// there is none.
+    #[test]
+    fn the_stop_flag_an_ask_works_under_is_the_one_it_was_given() {
+        let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        assert!(stop_flag().is_none());
+        let seen = stops_with(flag.clone(), stop_flag);
+        assert!(seen.is_some_and(|f| std::sync::Arc::ptr_eq(&f, &flag)));
+        assert!(stop_flag().is_none(), "the ask's flag is gone with its work");
+    }
+
+    /// The browser the node picks for walks is read back as set, and the engine's own pick prefers the Chrome it
+    /// downloaded; neither names a browser that is not there.
+    #[cfg(unix)]
+    #[test]
+    fn the_browser_a_walk_launches_is_the_one_the_node_picked() {
+        let _one = SWITCH.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let before = chromium();
+        set_chromium(Some("/opt/pick/chrome".into()));
+        assert_eq!(chromium().as_deref(), Some("/opt/pick/chrome"));
+        set_chromium(None);
+        assert_eq!(chromium(), None);
+        set_chromium(before);
+        let downloaded = downloaded_chromium();
+        if let Some(d) = &downloaded {
+            assert!(d.exists(), "a downloaded Chrome is one that is there: {d:?}");
+            assert_eq!(engine_chromium().as_ref(), Some(d), "the engine picks the Chrome it downloaded first");
+        }
+        assert!(engine_chromium().iter().all(|p| p.exists()), "{:?}", engine_chromium());
+    }
+
+    /// A DevTools address is a browser only when a profile's own browser proves it: with no profile, or a profile no
+    /// browser holds, a walk has none to ask and launches its own.
+    #[test]
+    fn a_profile_no_browser_holds_has_no_endpoint() {
+        let dir = scratch("profile");
+        assert_eq!(live_endpoint(&agent_browser_core::session::MintOptions::default()), None);
+        assert_eq!(live_endpoint(&agent_browser_core::session::MintOptions { profile: Some(dir.to_string_lossy().into_owned()), ..Default::default() }), None);
+        assert_eq!(live_endpoint_of(&dir.to_string_lossy()), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A box that says it checks for a human is clicked, by its own reference, and the walk says so; a page that has
+    /// none is left alone, and a browser that can't snapshot is an error, not a page without one.
+    #[test]
+    fn a_challenge_box_is_clicked_by_its_reference() {
+        let told = std::cell::RefCell::new(Vec::<String>::new());
+        let ab = |snapshot: &'static str| {
+            let told = &told;
+            move |args: &[&str]| -> Result<String, MintError> {
+                told.borrow_mut().push(args.join(" "));
+                match args[0] {
+                    "snapshot" if snapshot.is_empty() => Err(MintError::Browser("no page".into())),
+                    "snapshot" => Ok(snapshot.to_string()),
+                    _ => Ok(String::new()),
+                }
+            }
+        };
+        let none = ab("- link \"Home\" [ref=e1]\n- text \"Welcome\"");
+        assert!(!pass_challenge(&none).unwrap());
+        assert_eq!(*told.borrow(), ["snapshot"], "nothing was clicked");
+        assert!(matches!(pass_challenge(&ab("")), Err(MintError::Browser(_))));
+        told.borrow_mut().clear();
+        let boxed = ab("- link \"Home\" [ref=e1]\n- checkbox \"Verify you are human\" [ref=e7]\n- button \"Other\" [ref=e8]");
+        assert!(pass_challenge(&boxed).unwrap());
+        assert_eq!(*told.borrow(), ["snapshot", "click @e7"]);
+    }
+
+    /// A line that ends a cookie the capture saw set takes it out of the session, a widget token in a submitted form is
+    /// kept like one in a query or a JSON body, and a line that is no exchange or no JSON is passed over.
+    #[test]
+    fn a_capture_log_keeps_what_the_site_left_standing() {
+        let log = [
+            "not json at all".to_string(),
+            r#"{"type":"action","t":0.5,"action":"click","selector":".go"}"#.to_string(),
+            r#"{"type":"exchange","entry":{"request":{"url":"https://x.example/a","method":"GET","headers":[]},"response":{"status":200,"headers":[{"name":"Set-Cookie","value":"keep=1; Path=/"},{"name":"set-cookie","value":"drop=2; Path=/"},{"name":"set-cookie","value":"bare=3"}]}}}"#.to_string(),
+            r#"{"type":"exchange","entry":{"request":{"url":"https://x.example/b","method":"POST","headers":[],"postData":{"text":"user=a&h-captcha-response=form_777&x=1"}},"response":{"status":200,"headers":[{"name":"set-cookie","value":"drop=; Max-Age=0; Path=/"}]}}}"#.to_string(),
+        ]
+        .join("\n");
+        let session = harvest_capture(&log);
+        assert_eq!(session.cookies.get("keep").map(String::as_str), Some("1"));
+        assert!(!session.cookies.contains_key("drop"), "a cookie the site ended is not kept: {:?}", session.cookies);
+        assert_eq!(session.tokens.get("h-captcha-response").map(String::as_str), Some("form_777"));
+        assert!(!session.tokens.contains_key("user") && !session.tokens.contains_key("x"), "only a widget's answer is a token");
+    }
+
+    /// A line put into a session says what it knows: with its HttpOnly unknown no facts are kept for the name, and with
+    /// no reach of its own the name's old one is dropped.
+    #[test]
+    fn a_cookie_line_with_nothing_known_leaves_no_facts_or_reach_behind() {
+        let mut session = MintedSession::default();
+        let line = |domain: Option<&str>| CookieLine { value: "v".into(), domain: domain.map(String::from), path: "/a".into(), http_only: true, expires: None };
+        line(Some(".Site.Example")).into_session("sid", &mut session, true);
+        assert_eq!(session.domains.get("sid").map(String::as_str), Some(".site.example"));
+        assert_eq!(session.facts.get("sid").map(|f| (f.path.as_str(), f.http_only)), Some(("/a", true)));
+        line(None).into_session("sid", &mut session, false);
+        assert_eq!(session.cookies.get("sid").map(String::as_str), Some("v"));
+        assert!(!session.domains.contains_key("sid") && !session.facts.contains_key("sid"), "{session:?}");
+    }
+
+    /// The program closes the browser the mint's session opened, by its own `close`, in that session.
+    #[cfg(unix)]
+    #[test]
+    fn a_mint_closes_the_browser_its_session_opened() {
+        let dir = scratch("close");
+        let (program, log) = a_program(&dir, "ok");
+        a_mint(program, &dir).close();
+        let said = std::fs::read_to_string(&log).unwrap();
+        assert!(said.lines().last().is_some_and(|l| l.contains("--session learn_test") && l.ends_with(" close")), "{said}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A page that makes no calls in the site's own browser is tried once more in a browser of the bridge's own, and that
+    /// one is closed when the visit ends; the site's own is not the visit's to close. Nothing read is nothing returned.
+    #[cfg(unix)]
+    #[test]
+    fn a_page_that_made_no_calls_is_tried_again_in_a_browser_of_its_own() {
+        let dir = scratch("bridge");
+        let (program, log) = a_program(&dir, r#"{"success":true,"data":{"requests":[]}}"#);
+        let mint = BrowserMint { cdp_endpoint: Some("ws://127.0.0.1:1/devtools/browser/x".into()), ..a_mint(program, &dir) };
+        assert!(mint.signed_page("https://shop.example/search").is_empty());
+        let said = std::fs::read_to_string(&log).unwrap();
+        let opens: Vec<&str> = said.lines().filter(|l| l.contains(" open https://shop.example/search")).collect();
+        assert_eq!(opens.len(), 2, "{said}");
+        assert!(!opens[0].contains("--args"), "the first visit is in the site's own browser, launching nothing: {}", opens[0]);
+        assert!(opens[1].contains("--args"), "the second launches its own: {}", opens[1]);
+        assert_eq!(said.lines().filter(|l| l.ends_with(" close")).count(), 1, "only the browser the visit launched is closed: {said}");
+        assert!(said.lines().last().is_some_and(|l| l.ends_with(" close")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Where the engine can't reach a browser the program walks the page, and the session it keeps is the browser's own
+    /// word: the cookies it holds (not those the capture saw set), the widget token the capture saw submitted, and the
+    /// storage the page kept, which a browser that won't say leaves empty without failing the walk.
+    #[cfg(unix)]
+    #[test]
+    fn a_walk_the_engine_cannot_make_is_walked_through_the_program() {
+        let _one = SWITCH.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let url = url::Url::parse("https://site.example/").unwrap();
+        let dir = scratch("by-program");
+        let (program, log) = a_walker(&dir, THE_PAGE, THE_JAR, THE_STORAGE);
+        let session = without_an_engine(program, &dir).mint(&url).expect("the program walks it");
+        let mut names: Vec<&String> = session.cookies.keys().collect();
+        names.sort();
+        assert_eq!(names, ["clearance", "sid"], "the browser's jar is the session; the capture's `gone` is not in it");
+        assert_eq!(session.cookies["sid"], "abc2");
+        assert_eq!(session.domains.get("clearance").map(String::as_str), Some(".site.example"));
+        assert_eq!(session.tokens.get("cf-turnstile-response").map(String::as_str), Some("tok1"));
+        assert_eq!(session.local_storage.get("theme").map(String::as_str), Some("dark"));
+        assert_eq!(session.session_storage.get("tab").map(String::as_str), Some("3"));
+        assert!(session.judged);
+        let said = std::fs::read_to_string(&log).unwrap();
+        assert!(said.lines().last().is_some_and(|l| l.ends_with(" close")), "{said}");
+        // A browser that won't say its storage: the walk still lands, with none.
+        let quiet = scratch("by-program-quiet");
+        let (program, _) = a_walker(&quiet, THE_PAGE, THE_JAR, "[agent-browser] no page to evaluate in");
+        let session = without_an_engine(program, &quiet).mint(&url).expect("a walk without storage still lands");
+        assert!(session.local_storage.is_empty() && session.session_storage.is_empty());
+        assert_eq!(session.cookies.get("sid").map(String::as_str), Some("abc2"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&quiet);
+    }
+
+    /// A walk whose ask has given up launches no browser and runs no program, in a mint or a sighting alike.
+    #[cfg(unix)]
+    #[test]
+    fn a_walk_whose_ask_gave_up_starts_no_browser() {
+        let _one = SWITCH.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let dir = scratch("stopped");
+        let (program, log) = a_walker(&dir, THE_PAGE, THE_JAR, THE_STORAGE);
+        let url = url::Url::parse("https://site.example/").unwrap();
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let mut mint = without_an_engine(program, &dir);
+        let minted = stops_with(stop.clone(), || mint.mint(&url));
+        assert!(matches!(minted, Err(MintError::Browser(ref m)) if m == agent_browser_core::session::STOPPED), "{minted:?}");
+        let sighted = stops_with(stop, || mint.sight("https://site.example/"));
+        assert!(matches!(sighted, Err(MintError::Browser(ref m)) if m == agent_browser_core::session::STOPPED));
+        assert!(!log.exists(), "the program was never run: {:?}", std::fs::read_to_string(&log));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A sighting is what the visit saw: the exchanges of the capture, and a session made of the browser's word on its
+    /// cookies and the tokens the capture saw submitted. A page that settles and is no door is walked once.
+    #[cfg(unix)]
+    #[test]
+    fn a_sighting_is_the_capture_of_one_visit_and_the_browsers_cookies() {
+        let _one = SWITCH.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let dir = scratch("sight");
+        let (program, log) = a_walker(&dir, THE_PAGE, THE_JAR, THE_STORAGE);
+        let sighting = without_an_engine(program, &dir).sight("https://site.example/").expect("the page is walked");
+        assert!(sighting.trace.exchanges.iter().any(|e| e.url.path() == "/api/items"), "{:?}", sighting.trace.exchanges.iter().map(|e| e.url.to_string()).collect::<Vec<_>>());
+        assert_eq!(sighting.session.cookies.get("sid").map(String::as_str), Some("abc2"));
+        assert!(!sighting.session.cookies.contains_key("gone"));
+        assert_eq!(sighting.session.tokens.get("cf-turnstile-response").map(String::as_str), Some("tok1"));
+        assert!(sighting.session.judged);
+        let said = std::fs::read_to_string(&log).unwrap();
+        assert_eq!(said.lines().filter(|l| l.contains(" open https://site.example/")).count(), 1, "one pass was enough: {said}");
+        assert!(said.lines().last().is_some_and(|l| l.ends_with(" close")), "the walk's browser is closed: {said}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A page that stops at a door is walked again for a person to finish it, and then a second time with the door open;
+    /// the window the person needs is asked for only where windows are allowed.
+    #[cfg(unix)]
+    #[test]
+    fn a_sighting_that_meets_a_door_asks_for_a_window_and_walks_again() {
+        let _one = SWITCH.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let page = serde_json::to_string(A_DOOR).unwrap();
+        for (windows_on, headed) in [(true, 1), (false, 0)] {
+            let dir = scratch(&format!("sight-door-{windows_on}"));
+            let (program, log) = a_walker(&dir, &page, THE_JAR, THE_STORAGE);
+            set_windows(windows_on);
+            let sighting = without_an_engine(program, &dir).sight("https://site.example/");
+            set_windows(true);
+            let sighting = sighting.expect("a door is still a sighting");
+            assert!(!sighting.trace.exchanges.is_empty());
+            let said = std::fs::read_to_string(&log).unwrap();
+            assert_eq!(said.lines().filter(|l| l.contains(concat!("--he", "aded"))).count(), headed, "{said}");
+            let opens = said.lines().filter(|l| l.contains(" open https://site.example/")).count();
+            assert_eq!(opens, 3, "the first pass, the pass for a person, and the pass with the door open: {said}");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+
+    /// A capture is read back as a sighting whatever its state: the browser that won't say its cookies leaves the session
+    /// none of what the capture saw set (and unjudged), and a capture that doesn't parse leaves an empty trace with the
+    /// session the capture still gave.
+    #[cfg(unix)]
+    #[test]
+    fn a_capture_read_back_is_a_sighting_the_browser_may_not_vouch_for() {
+        let dir = scratch("finish");
+        let mint = a_mint("in-process".into(), &dir);
+        std::fs::create_dir_all(&mint.capture_dir).unwrap();
+        let file = mint.capture_dir.join("learn_test.jsonl");
+        let good = concat!(
+            r#"{"type":"exchange","t":1.0,"resourceType":"Document","entry":{"request":{"method":"GET","url":"https://site.example/","headers":[]},"response":{"status":200,"headers":[{"name":"set-cookie","value":"sid=abc; Path=/"}],"content":{"mimeType":"text/html","text":"<html></html>"}}}}"#, "\n"
+        );
+        std::fs::write(&file, good).unwrap();
+        let silent = |_: &[&str]| -> Result<String, MintError> { Ok("the browser is not talking".into()) };
+        let sighting = mint.finish_sighting(&silent, "site.example");
+        assert_eq!(sighting.trace.exchanges.len(), 1);
+        assert!(sighting.session.cookies.is_empty() && !sighting.session.judged, "no browser, no cookie kept on the capture's word: {:?}", sighting.session);
+        let vouching = |_: &[&str]| -> Result<String, MintError> { Ok(THE_JAR.to_string()) };
+        let sighting = mint.finish_sighting(&vouching, "site.example");
+        assert!(sighting.session.judged);
+        assert_eq!(sighting.session.cookies.get("sid").map(String::as_str), Some("abc2"));
+        // A capture with a line that is no record at all: no trace, and the cookie the readable lines set stays judged.
+        std::fs::write(&file, format!("{good}{{\"type\":\"exchange\",\"entry\":\n")).unwrap();
+        let sighting = mint.finish_sighting(&vouching, "site.example");
+        assert!(sighting.trace.exchanges.is_empty(), "an unparseable capture is no trace");
+        assert_eq!(sighting.session.cookies.get("sid").map(String::as_str), Some("abc2"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    const A_DOOR_PAGE: &str = "<html><title>Just a moment...</title><script src=\"/check.js\"></script><body>Verifying you are human</body></html>";
+
+    fn a_page(url: &str, mime: &str, body: &str, kind: &str, main: bool) -> crate::trace::Exchange {
+        crate::trace::Exchange {
+            method: "GET".into(),
+            url: url.parse().unwrap(),
+            request_headers: vec![("user-agent".into(), "Mozilla/5.0 (Macintosh) Chrome/156.0.0.0".into())],
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(body.into()),
+            response_mime: mime.into(),
+            resource_type: Some(kind.into()),
+            main_frame: Some(main),
+        }
+    }
+
+    fn the_fingerprint() -> serde_json::Value {
+        serde_json::json!({ "ua": "Mozilla/5.0 (Macintosh) Chrome/156.0.0.0", "lang": "en-US", "langs": ["en-US"], "platform": "MacIntel", "vendor": "Google Inc.", "cores": 8, "touch": 0 })
+    }
+
+    /// The door pass works from the walk's capture on disk: the page the walk met is booted with its own scripts, and the
+    /// cookie its code writes is the clearance. Where the walk left no capture there is nothing to boot.
+    #[test]
+    fn a_door_is_passed_from_the_capture_the_walk_left() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        crate::sandbox::DOOR_PASS_IN_TEST.set(Some(true));
+        let dir = scratch("door-capture");
+        let mint = a_mint("in-process".into(), &dir);
+        let url = url::Url::parse("https://shop.example/search").unwrap();
+        assert!(mint.door_clearance(&url).is_none(), "no capture, no door to pass");
+        std::fs::create_dir_all(&mint.capture_dir).unwrap();
+        let lines = [
+            serde_json::json!({"type": "mint", "url": "https://shop.example/search", "t": 0.5}),
+            serde_json::json!({"type": "request", "t": 1.0, "requestId": "1", "method": "GET", "url": "https://shop.example/search", "headers": {"user-agent": "Mozilla/5.0 (Macintosh) Chrome/156.0.0.0"}, "resourceType": "Document", "frameId": "MAIN", "initiator": {"type": "other"}}),
+            serde_json::json!({"type": "response", "t": 1.5, "requestId": "1", "url": "https://shop.example/search", "status": 403, "mimeType": "text/html", "headers": {}, "body": A_DOOR_PAGE}),
+            serde_json::json!({"type": "request", "t": 2.0, "requestId": "2", "method": "GET", "url": "https://shop.example/check.js", "headers": {}, "resourceType": "Script", "frameId": "MAIN", "initiator": {"type": "parser"}}),
+            serde_json::json!({"type": "response", "t": 2.5, "requestId": "2", "url": "https://shop.example/check.js", "status": 200, "mimeType": "text/javascript", "headers": {}, "body": "document.cookie = 'cf_clearance=earned-1; path=/';"}),
+        ];
+        let text: String = lines.iter().map(|l| format!("{l}\n")).collect();
+        std::fs::write(agent_browser_core::session::capture_path(&mint.capture_dir, "learn_test"), text).unwrap();
+        let cleared = mint.door_clearance(&url).expect("the page's own code earns the clearance");
+        assert_eq!(cleared.cookies.get("cf_clearance").map(String::as_str), Some("earned-1"), "{:?}", cleared.cookies);
+        assert_eq!(cleared.facts.get("cf_clearance").map(|f| (f.path.as_str(), f.http_only)), Some(("/", false)), "a cookie its script wrote is one its script may read");
+        // The cookie the session already holds as it was is no new clearance.
+        let held = BrowserMint { seed: vec![SeedCookie { name: "cf_clearance".into(), value: "earned-1".into(), domain: None, path: None, http_only: None }], ..a_mint("in-process".into(), &dir) };
+        assert!(held.door_clearance(&url).is_none(), "a cookie held at the same value is not earned again");
+        let stale = BrowserMint { seed: vec![SeedCookie { name: "cf_clearance".into(), value: "old".into(), domain: None, path: None, http_only: None }], ..a_mint("in-process".into(), &dir) };
+        assert_eq!(stale.door_clearance(&url).and_then(|c| c.cookies.get("cf_clearance").cloned()).as_deref(), Some("earned-1"), "a renewed value is");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A door is left alone where its page cannot be passed by script: no page in the walk, a frame of another site that
+    /// asks a person, a page with no script at all, and a page whose code ran and left the site no cookie.
+    #[test]
+    fn a_door_no_script_can_pass_is_left_alone() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        crate::sandbox::DOOR_PASS_IN_TEST.set(Some(true));
+        let dir = scratch("door-alone");
+        let mint = a_mint("in-process".into(), &dir);
+        let url = url::Url::parse("https://shop.example/search").unwrap();
+        let trace = |exchanges: Vec<crate::trace::Exchange>| crate::trace::Trace { exchanges, inputs: vec![] };
+        assert!(mint.door_clearance_from(&url, &trace(vec![])).is_none(), "no page in the walk");
+        let writes = "<html><script>document.cookie = 'k=v; path=/';</script></html>";
+        let frame = a_page("https://challenge.vendor.example/box", "text/html", "<html></html>", "Document", false);
+        let alone = trace(vec![a_page("https://shop.example/search", "text/html", writes, "Document", true)]);
+        assert!(mint.door_clearance_from(&url, &alone).is_some(), "the same page earns its cookie where no frame asks a person");
+        let asks = trace(vec![a_page("https://shop.example/search", "text/html", writes, "Document", true), frame]);
+        assert!(mint.door_clearance_from(&url, &asks).is_none(), "a frame of another site asks a person, whatever the page's own code would write");
+        let plain = trace(vec![a_page("https://shop.example/search", "text/html", "<html><body>no code here</body></html>", "Document", true)]);
+        assert!(mint.door_clearance_from(&url, &plain).is_none(), "a page with no script has nothing to run");
+        let silent = trace(vec![a_page("https://shop.example/search", "text/html", A_DOOR_PAGE, "Document", true), a_page("https://shop.example/check.js", "text/javascript", "var nothing = 1;", "Script", true)]);
+        assert!(mint.door_clearance_from(&url, &silent).is_none(), "its code ran and the site issued no cookie");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A door page served by another host runs at the address the walk asked, not at the host that served it: the
+    /// clearance is the asked site's. A page of the site's own runs where it stood.
+    #[test]
+    fn a_door_page_runs_at_the_site_the_walk_asked() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        crate::sandbox::DOOR_PASS_IN_TEST.set(Some(true));
+        let dir = scratch("door-at");
+        let mint = a_mint("in-process".into(), &dir);
+        let url = url::Url::parse("https://shop.example/search").unwrap();
+        let page = "<html><script>document.cookie = 'ran_at=' + location.hostname + '; path=/';</script></html>";
+        let ran_at = |page_at: &str| {
+            let trace = crate::trace::Trace { exchanges: vec![a_page(page_at, "text/html", page, "Document", true)], inputs: vec![] };
+            mint.door_clearance_from(&url, &trace).and_then(|c| c.cookies.get("ran_at").cloned())
+        };
+        assert_eq!(ran_at("https://gate.vendor.example/gate").as_deref(), Some("shop.example"), "another host's page runs at the asked site");
+        assert_eq!(ran_at("https://shop.example/gate").as_deref(), Some("shop.example"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The cookies a door's page sends along are the seed's, as a browser sends them: those of its own host (or domain),
+    /// whose path covers the call, and never in the clear.
+    #[test]
+    fn a_doors_calls_carry_the_seeds_cookies_a_browser_would_send() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        crate::sandbox::DOOR_PASS_IN_TEST.set(Some(true));
+        let url = url::Url::parse("https://shop.example.com/search").unwrap();
+        let bundle = vec![("https://shop.example.com/check.js".to_string(), "fetch('/verify', { method: 'POST', headers: { 'x-proof': 'p1' }, body: '{}' });".to_string())];
+        let seed = |name: &str, value: &str, domain: Option<&str>, path: Option<&str>| SeedCookie { name: name.into(), value: value.into(), domain: domain.map(String::from), path: path.map(String::from), http_only: Some(true) };
+        let seed = [seed("sid", "s1", None, Some("/")), seed("wide", "w1", Some(".shop.example.com"), None), seed("other", "o1", Some("other.example"), None), seed("admin", "a1", None, Some("/admin"))];
+        let seen = std::cell::RefCell::new(Vec::<String>::new());
+        let net = |r: &crate::replay::Request, _: std::time::Instant| -> Result<crate::trace::Exchange, String> {
+            seen.borrow_mut().push(r.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("cookie")).map(|(_, v)| v.clone()).unwrap_or_default());
+            Ok(crate::trace::Exchange { response_headers: vec![("set-cookie".into(), "cf_clearance=ok; Path=/".into())], ..a_page(r.url.as_str(), "application/json", "{}", "XHR", true) })
+        };
+        let (earned, _) = earned_at_the_door(&url, A_DOOR_PAGE, &bundle, url.as_str(), &the_fingerprint(), "shop.example.com", &seed, net).unwrap_or_else(|| panic!("the call's answer set a cookie; the page's calls carried {:?}", seen.borrow()));
+        assert_eq!(earned.iter().map(|(n, v, _)| (n.as_str(), v.as_str())).collect::<Vec<_>>(), [("cf_clearance", "ok")]);
+        let cookies = seen.borrow().clone();
+        assert_eq!(cookies.len(), 1, "{cookies:?}");
+        let mut sent: Vec<&str> = cookies[0].split("; ").collect();
+        sent.sort();
+        assert_eq!(sent, ["sid=s1", "wide=w1"], "the host's and the domain's cookie at the root, not another site's nor one for another path");
     }
 }

@@ -1,0 +1,28 @@
+{
+ "about": "The short slice a pull request to staging runs (UNB-208). Six bank tasks that were right on staging on 17 Nov 2026, each answered in one or two tool calls in under two minutes, on six different sites; and, since 19 Nov 2026, one search task for each of the three sites Lewis's staging criteria name (lazada.sg, carousell.sg, ticketmaster.com), which a fresh node has to learn first, so they take several calls and up to six minutes each. A slice task right on the reference that is not right on the pull request fails the check as changed, to be re-read by hand; a confident wrong answer fails it; a wall is set aside.",
+ "ids": [
+  "u6:customs-broker-1",
+  "lundy:pypi.org",
+  "u6:court-researcher-4",
+  "u6:sg-gov-officer-4",
+  "u6:patent-analyst-1",
+  "u6:airline-revenue-4",
+  "criteria:lazada.sg",
+  "criteria:carousell.sg",
+  "criteria:ticketmaster.com"
+ ],
+ "reference": {
+  "build": "staging 7071ae02 (17 Nov 2026, debug, Claude Sonnet); the three criteria tasks: staging 98cfffb9 (19 Nov 2026, debug, Claude Sonnet)",
+  "verdicts": {
+   "u6:customs-broker-1": "right",
+   "lundy:pypi.org": "right",
+   "u6:court-researcher-4": "right",
+   "u6:sg-gov-officer-4": "right",
+   "u6:patent-analyst-1": "right",
+   "u6:airline-revenue-4": "right",
+   "criteria:lazada.sg": "right",
+   "criteria:carousell.sg": "right",
+   "criteria:ticketmaster.com": "set_aside"
+  }
+ }
+}

@@ -21,6 +21,18 @@ const login_cols = [_]look.Col{
     .{ .name = "", .w = 290, .end = true },
 };
 
+/// Narrower: the login (site, account and kind) in one column, the buttons one above the other.
+const login_cols_narrow = [_]look.Col{
+    .{ .name = "Login" },
+    .{ .name = "Password", .w = 150 },
+    .{ .name = "", .w = 130, .end = true },
+};
+
+/// Whether the logins' five columns fit the table's width (look.tableWidth).
+fn loginsFit(c: *ui.Context) bool {
+    return look.tableWidth(c) >= 940;
+}
+
 const session_cols = [_]look.Col{
     .{ .name = "Site" },
     .{ .name = "Cookies", .w = 72, .end = true },
@@ -35,6 +47,19 @@ const card_cols = [_]look.Col{
     .{ .name = "Limits" },
     .{ .name = "", .w = 180, .end = true },
 };
+
+/// Narrower: the card with its ending and security code in one column, its limits one above the other, its buttons
+/// stacked.
+const card_cols_narrow = [_]look.Col{
+    .{ .name = "Card" },
+    .{ .name = "Limits", .w = 200 },
+    .{ .name = "", .w = 90, .end = true },
+};
+
+/// Whether the cards' five columns fit the table's width (look.tableWidth).
+fn cardsFit(c: *ui.Context) bool {
+    return look.tableWidth(c) >= 940;
+}
 
 fn keyOf(c: *ui.Context, l: types.Login) []const u8 {
     return c.print("{s}|{s}", .{ l.site, l.account });
@@ -57,7 +82,8 @@ pub fn view(a: *App, c: *ui.Context) void {
     const listed = found.items;
     const rows = look.pageRows(&a.logins_page, listed.len);
     {
-        const t = look.tableHead(c, "Logins", look.countOf(c, listed.len, logins.len, query.len > 0), &login_cols);
+        const wide = loginsFit(c);
+        const t = look.tableHead(c, "Logins", look.countOf(c, listed.len, logins.len, query.len > 0), if (wide) &login_cols else &login_cols_narrow);
         defer t.end();
         if (logins.len == 0) {
             look.rule(c);
@@ -72,26 +98,35 @@ pub fn view(a: *App, c: *ui.Context) void {
             const derived = std.mem.eql(u8, l.kind, "derived");
             const tr = look.tableRow(c, k, false);
             defer tr.end();
-            {
-                const cell = look.cellBox(c, login_cols[0]);
-                defer cell.end();
-                look.label(c, l.site);
-            }
-            {
-                const cell = look.cellBox(c, login_cols[1]);
-                defer cell.end();
-                ui.text(c, l.account, .{ .size = 13, .color = x.text2 });
-            }
-            {
+            const kind = if (derived) c.print("Derived, version {d}", .{l.counter + 1}) else "Stored in Keychain";
+            if (wide) {
+                {
+                    const cell = look.cellBox(c, login_cols[0]);
+                    defer cell.end();
+                    look.label(c, l.site);
+                }
+                {
+                    const cell = look.cellBox(c, login_cols[1]);
+                    defer cell.end();
+                    ui.text(c, l.account, .{ .size = 13, .color = x.text2 });
+                }
                 const cell = look.cellBox(c, login_cols[2]);
                 defer cell.end();
                 const col = ui.div(c).column().gap(2);
                 defer col.end();
-                ui.text(c, if (derived) c.print("Derived, version {d}", .{l.counter + 1}) else "Stored in Keychain", .{ .size = 12.5, .color = x.text2 });
+                ui.text(c, kind, .{ .size = 12.5, .color = x.text2 });
+                if (l.code) ui.text(c, "Two-step code: kept", .{ .size = 12, .color = x.text3 });
+            } else {
+                // The login in one column: on which site, whose, and how its password is kept.
+                const cell = look.cellBox(c, login_cols_narrow[0]);
+                defer cell.end();
+                look.label(c, l.site);
+                ui.text(c, l.account, .{ .size = 13, .color = x.text2, .wrap = true });
+                ui.text(c, kind, .{ .size = 12, .color = x.text3, .wrap = true });
                 if (l.code) ui.text(c, "Two-step code: kept", .{ .size = 12, .color = x.text3 });
             }
             {
-                const cell = look.cellBox(c, login_cols[3]);
+                const cell = look.cellBox(c, if (wide) login_cols[3] else login_cols_narrow[1]);
                 defer cell.end();
                 if (shown) {
                     const sel = ui.div(c).column();
@@ -100,9 +135,10 @@ pub fn view(a: *App, c: *ui.Context) void {
                     ui.text(c, a.revealed.?, .{ .size = 12, .mono = true });
                 } else ui.text(c, "Hidden", .{ .size = 12.5, .color = x.text3 });
             }
-            const cell = look.cellBox(c, login_cols[4]);
+            const cell = look.cellBox(c, if (wide) login_cols[4] else login_cols_narrow[2]);
             defer cell.end();
-            const btns = ui.div(c).row().gap(4);
+            // Side by side when there is room, else one above the other.
+            const btns = if (wide) ui.div(c).row().gap(4) else ui.div(c).column().gap(4).itemsEnd();
             defer btns.end();
             if (look.secondary(c, if (shown) "Hide" else "Show", .{ .size = .xs, .loading = a.store.isBusy(k) })) {
                 if (shown) a.hideReveal() else {
@@ -180,7 +216,8 @@ fn cards(a: *App, c: *ui.Context) void {
     const rows = look.pageRows(&a.cards_page, all.len);
     defer look.pager(c, "cards-pages", &a.cards_page, rows, all.len);
     var add = false;
-    const t = look.tableHeadAction(c, "Cards", fmt.count(fa, @floatFromInt(all.len)), &card_cols, "Add card", &add);
+    const wide = cardsFit(c);
+    const t = look.tableHeadAction(c, "Cards", fmt.count(fa, @floatFromInt(all.len)), if (wide) &card_cols else &card_cols_narrow, "Add card", &add);
     defer t.end();
     if (add) a.open(.add_card);
     if (all.len == 0) {
@@ -190,39 +227,57 @@ fn cards(a: *App, c: *ui.Context) void {
     for (all[rows.from..rows.to]) |card| {
         const tr = look.tableRow(c, c.print("card|{s}", .{card.label}), false);
         defer tr.end();
-        {
-            const cell = look.cellBox(c, card_cols[0]);
-            defer cell.end();
-            look.label(c, card.label);
-        }
-        {
-            const cell = look.cellBox(c, card_cols[1]);
-            defer cell.end();
-            look.figure(c, c.print("\u{2022}\u{2022}\u{2022}\u{2022} {s}", .{card.last4}), false);
-        }
-        {
+        const ending = c.print("\u{2022}\u{2022}\u{2022}\u{2022} {s}", .{card.last4});
+        const code = if (card.code) "Kept" else "Not kept";
+        if (wide) {
+            {
+                const cell = look.cellBox(c, card_cols[0]);
+                defer cell.end();
+                look.label(c, card.label);
+            }
+            {
+                const cell = look.cellBox(c, card_cols[1]);
+                defer cell.end();
+                look.figure(c, ending, false);
+            }
             const cell = look.cellBox(c, card_cols[2]);
             defer cell.end();
-            ui.text(c, if (card.code) "Kept" else "Not kept", .{ .size = 12.5, .color = x.text2 });
+            ui.text(c, code, .{ .size = 12.5, .color = x.text2 });
+        } else {
+            // The card in one column: its label, its ending, and whether its security code is kept.
+            const cell = look.cellBox(c, card_cols_narrow[0]);
+            defer cell.end();
+            look.label(c, card.label);
+            look.figure(c, ending, false);
+            const r = ui.div(c).row().gap(4).itemsCenter();
+            defer r.end();
+            ui.text(c, "Security code:", .{ .size = 12, .color = x.text3 });
+            ui.text(c, code, .{ .size = 12, .color = x.text2 });
         }
         {
-            const cell = look.cellBox(c, card_cols[3]);
+            const cell = look.cellBox(c, if (wide) card_cols[3] else card_cols_narrow[1]);
             defer cell.end();
             var any = false;
             for (limits) |l| {
                 if (!std.mem.eql(u8, l.card, card.label)) continue;
                 any = true;
-                const line = ui.div(c).row().gap(6).itemsCenter();
+                // Beside its Remove when there is room, else above it; the words wrap in what is left.
+                const line = if (wide) ui.div(c).row().wFull().gap(6).itemsCenter() else ui.div(c).column().wFull().gap(2).itemsStart();
                 defer line.end();
                 ui.key(c, c.print("limit|{s}|{s}", .{ l.card, l.site }));
-                ui.text(c, c.print("{s}: {d} a payment, {d} a day, {d} today", .{ l.site, l.per_payment, l.per_day, l.spent }), .{ .size = 12.5, .color = x.text2 });
+                {
+                    const words = if (wide) ui.div(c).grow().minW(0) else ui.div(c).wFull();
+                    defer words.end();
+                    ui.text(c, c.print("{s}: {d} a payment, {d} a day, {d} today", .{ l.site, l.per_payment, l.per_day, l.spent }), .{ .size = 12.5, .color = x.text2, .wrap = true });
+                }
                 if (look.ghost(c, "Remove limit", .{})) a.store.actWith(.card_limit, "limit", "card_limit", .{ .card = l.card, .site = l.site, .per_payment = @as(f64, 0), .per_day = @as(f64, 0) });
             }
-            if (!any) ui.text(c, "None: every payment asks you", .{ .size = 12.5, .color = x.text3 });
+            if (!any) ui.text(c, "None: every payment asks you", .{ .size = 12.5, .color = x.text3, .wrap = true });
         }
-        const cell = look.cellBox(c, card_cols[4]);
+        const cell = look.cellBox(c, if (wide) card_cols[4] else card_cols_narrow[2]);
         defer cell.end();
-        const btns = ui.div(c).row().gap(4);
+        // Side by side when there is room, else one above the other.
+        const btns = if (wide) ui.div(c).row().gap(4) else ui.div(c).column().gap(4).itemsEnd();
         defer btns.end();
         if (look.secondary(c, "Set limit", .{ .size = .xs })) {
             a.open(.card_limit);

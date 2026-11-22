@@ -53,7 +53,7 @@ function answer(req, body) {
   }
   switch (route) {
     case "GET /v1/whoami":
-      return [200, { agent: "claude", address: "0xabc", node: "lewis-mac", browser: "missing", browser_fetch: false }];
+      return [200, { agent: "claude", address: "0xabc", node: "lewis-mac", browser: "missing", browser_fetch: false, owner: "off" }];
     case "GET /v1/routes":
       if (url.searchParams.get("q") === "nothing here") return [200, { routes: [] }];
       if (url.searchParams.get("q") === "flights") {
@@ -64,6 +64,20 @@ function answer(req, body) {
       }
       return [200, { routes: [{ id: "hn-search", site: "hn.algolia.com", what: "search HN stories", method: "GET", path: "/api/v1/search", write: false, listed: false, yours: true, inputs: [{ name: "q", default: "rust", secret: false }] }] }];
     case "POST /v1/do": {
+      const working = { how: "working", ask: "ask_1", phase: "walk", outcome: "still_working", outcome_from: "ask.wait", next: { tool: "unbrowse_do", args: { ask: "ask_1" } } };
+      const slow = { id: "slow", site: "shop.example", what: "list the items", method: "GET", path: "/api/items", write: false, listed: false, yours: true, inputs: [] };
+      const learned = { how: "learned", picked_by: "the rule", route: slow, ask: "ask_1", outcome: "answered", result: { ok: true, ms: 9, data: { items: [{ name: "desk lamp" }] }, error: null, paid_unb: null, possible_commit: false, retry: "as_is" } };
+      // A batch: one ask, and each page its own; still working while a page is pending, the whole batch once collected.
+      const page = (url, ask, done) => (done ? { url, how: "learned", ms: 9, ok: true, route_id: "slow", data: { items: [{ name: "desk lamp" }] }, ask, outcome: "answered", outcome_from: "result.outcome" }
+        : { url, how: "working", ms: 200, ok: false, ask, outcome: "still_working", outcome_from: "ask.wait", next: { tool: "unbrowse_do", args: { ask } } });
+      const batch = (done) => ({ how: "pages", ms: 200, count: done ? { learned: 2 } : { learned: 1, working: 1 }, fields: {}, ask: "ask_batch",
+        pages: [page("https://shop.example/items/1", "ask_p1", true), page("https://shop.example/items/2", "ask_p2", done)],
+        ...(done ? { outcome: "answered", outcome_from: "pages" } : { pending: ["https://shop.example/items/2"], outcome: "still_working", outcome_from: "pages.pending", next: { tool: "unbrowse_do", args: { ask: "ask_batch" } } }) });
+      if (body.ask === "ask_batch") return [200, batch(true)];
+      if (body.pages) return [200, batch(false)];
+      // Collected: still working while a collect says a short wait, else the answer.
+      if (body.ask === "ask_1") return [200, body.wait_ms === 10 ? working : learned];
+      if (body.goal === "list the items slowly") return [200, working];
       if (!body.goal) return [400, { error: "say what you want in goal, e.g. 'search Hacker News stories'" }];
       const hn = { id: "hn-search", site: "hn.algolia.com", what: "search HN stories", method: "GET", path: "/api/v1/search", write: false, listed: false, yours: true, inputs: [{ name: "q", default: "rust", secret: false }] };
       const call = { ok: true, ms: 212, data: { hits: [{ title: body.inputs.q ?? "rust" }] }, error: null, paid_unb: null, possible_commit: false, retry: "as_is" };
@@ -177,7 +191,7 @@ test("reads the token and address from the environment", async () => {
   process.env.UNBROWSE_AGENT_TOKEN = TOKEN;
   try {
     const who = await new UnbrowseNode().whoami();
-    assert.deepEqual(who, { agent: "claude", address: "0xabc", node: "lewis-mac", browser: "missing", browserFetch: false });
+    assert.deepEqual(who, { agent: "claude", address: "0xabc", node: "lewis-mac", browser: "missing", browserFetch: false, owner: "off" });
     assert.equal(last().headers.authorization, `Bearer ${TOKEN}`);
   } finally {
     delete process.env.UNBROWSE_NODE;
@@ -214,6 +228,39 @@ test("do calls the route that does the goal, sending nothing about payment", asy
   assert.equal(r.pickedBy, null);
   assert.equal(r.routeFailed, null);
   assert.equal(r.networkSkipped, null);
+});
+
+test("do says still working with its ask, and the ask collects the answer", async () => {
+  const n = node();
+  const r = await n.do("list the items slowly", { url: "https://shop.example/items", waitMs: 200 });
+  assert.equal(last().body.wait_ms, 200);
+  assert.deepEqual(r, { how: "working", ask: "ask_1", phase: "walk" });
+  assert.equal((await n.do("", { ask: "ask_1", waitMs: 10 })).how, "working");
+  assert.deepEqual(last().body, { ask: "ask_1", session: n.session, wait_ms: 10 });
+  const got = await n.do("", { ask: "ask_1", waitMs: 1000 });
+  assert.equal(got.how, "learned");
+  assert.deepEqual(got.result.data, { items: [{ name: "desk lamp" }] });
+  // Saying no wait, the caller is answered as before: the client collects the ask itself.
+  const before = seen.length;
+  const whole = await n.do("list the items slowly", { url: "https://shop.example/items" });
+  assert.equal(whole.how, "learned");
+  assert.ok(!("wait_ms" in seen[before].body));
+  assert.deepEqual(last().body, { ask: "ask_1", session: n.session });
+});
+
+test("doPages names the batch's ask and each page's own, and the batch's ask collects the whole batch", async () => {
+  const n = node();
+  const r = await n.doPages("list the items", ["https://shop.example/items/1", "https://shop.example/items/2"], { waitMs: 200 });
+  assert.equal(last().body.wait_ms, 200);
+  assert.equal(r.stillWorking, true);
+  assert.equal(r.ask, "ask_batch");
+  assert.deepEqual(r.pages.map((p) => [p.how, p.ask]), [["learned", "ask_p1"], ["working", "ask_p2"]]);
+  assert.deepEqual(r.pending, ["https://shop.example/items/2"]);
+  const whole = await n.doPages("", [], { ask: r.ask });
+  assert.deepEqual(last().body, { ask: "ask_batch", session: n.session });
+  assert.equal(whole.stillWorking, false);
+  assert.deepEqual(whole.pages.map((p) => [p.how, p.ask]), [["learned", "ask_p1"], ["learned", "ask_p2"]]);
+  assert.deepEqual(whole.pending, []);
 });
 
 test("do answers with another contributor's route the node paid for itself", async () => {
@@ -354,7 +401,7 @@ test("logins are references only", async () => {
 });
 
 test("whoami says whether the node has its browser; capabilities reads it, and an older node's as unknown", async () => {
-  assert.deepEqual(await node().whoami(), { agent: "claude", address: "0xabc", node: "lewis-mac", browser: "missing", browserFetch: false });
+  assert.deepEqual(await node().whoami(), { agent: "claude", address: "0xabc", node: "lewis-mac", browser: "missing", browserFetch: false, owner: "off" });
   assert.deepEqual(await node().capabilities(), { browser: "missing", fetchesBrowser: false, browserOption: true });
   const old = new UnbrowseNode({ token: OLD_TOKEN, baseUrl: base });
   assert.deepEqual(await old.whoami(), { agent: "claude", address: "0xabc", node: "old-mac" });

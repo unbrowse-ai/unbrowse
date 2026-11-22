@@ -87,6 +87,9 @@ pub struct Machine {
     pub xdg_config_home: Option<PathBuf>,
     /// The node's own address (`UNBROWSE_NODE`), so an entry pointing at it is Core whatever its port.
     pub node: String,
+    /// Where installed programs are looked for (`connect::Client::found`): the PATH, the folders installers put
+    /// command-line agents in (a GUI app's PATH reaches none of them), and the Applications folders.
+    pub programs: Vec<PathBuf>,
 }
 
 impl Machine {
@@ -94,6 +97,7 @@ impl Machine {
         let var = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
         let home = var("HOME").or_else(|| var("USERPROFILE")).unwrap_or_else(|| PathBuf::from("."));
         Machine {
+            programs: program_dirs(&home),
             home,
             claude_config_dir: var("CLAUDE_CONFIG_DIR"),
             codex_home: var("CODEX_HOME"),
@@ -139,6 +143,26 @@ impl Machine {
             self.home.join("AppData").join("Roaming").join("Code").join("User"),
         ]
     }
+}
+
+/// Where an agent's program may be: the PATH, then where installers put them (npm, bun, Homebrew, nvm, the agents'
+/// own installers), then the Applications folders.
+fn program_dirs(home: &Path) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    for d in [".local/bin", ".bun/bin", ".npm-global/bin", ".volta/bin", ".cargo/bin", ".opencode/bin", ".lmstudio/bin", ".claude/local", "bin"] {
+        dirs.push(home.join(d));
+    }
+    if let Ok(versions) = std::fs::read_dir(home.join(".nvm/versions/node")) {
+        dirs.extend(versions.filter_map(Result::ok).map(|v| v.path().join("bin")));
+    }
+    dirs.extend([PathBuf::from("/opt/homebrew/bin"), PathBuf::from("/usr/local/bin"), PathBuf::from("/Applications"), home.join("Applications")]);
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        dirs.push(PathBuf::from(local).join("Programs"));
+    }
+    if let Some(roaming) = std::env::var_os("APPDATA") {
+        dirs.push(PathBuf::from(roaming).join("npm"));
+    }
+    dirs
 }
 
 /// The names an Unbrowse entry goes by: `unbrowse`, or `unbrowse-<account>` as the 12.x CLI named a second account's.
@@ -494,7 +518,7 @@ pub(crate) mod tests {
     }
 
     pub fn machine(h: &Home) -> Machine {
-        Machine { home: h.0.clone(), claude_config_dir: None, codex_home: None, unbrowse_config_dir: None, xdg_config_home: None, node: "http://127.0.0.1:7788".into() }
+        Machine { home: h.0.clone(), claude_config_dir: None, codex_home: None, unbrowse_config_dir: None, xdg_config_home: None, node: "http://127.0.0.1:7788".into(), programs: vec![] }
     }
 
     fn write(path: &Path, text: &str) {
@@ -672,5 +696,27 @@ pub(crate) mod tests {
         for n in ["unbrowse-", "unbrowsefoo", "my-unbrowse", "unbrowse-a b", "unbrowse.x"] {
             assert!(!is_our_name(n), "{n}");
         }
+    }
+
+    /// An entry in Codex's tables keeps its numbers, flags, dates and nested tables as JSON, and the machine this runs on
+    /// is read from the environment the hosts use; each host has its name.
+    #[test]
+    fn a_codex_entry_keeps_every_kind_of_value_it_holds() {
+        let h = home("codex-values");
+        write(
+            &h.0.join(".codex/config.toml"),
+            "[mcp_servers.unbrowse]\ncommand = \"unbrowse\"\nargs = [\"mcp\", \"--agent\", \"first\"]\nstartup_timeout_sec = 20\nratio = 1.5\nenabled = true\nsince = 2026-01-01T00:00:00Z\nenv = { A = \"1\" }\n\n[[mcp_servers.unbrowse.extra]]\nk = 1\n",
+        );
+        let s = scan(&machine(&h));
+        let f = s.found.iter().find(|f| f.host == Host::Codex).expect("the entry");
+        assert_eq!(f.kind, Kind::Core);
+        assert_eq!((f.raw["startup_timeout_sec"].clone(), f.raw["ratio"].clone(), f.raw["enabled"].clone()), (json!(20), json!(1.5), json!(true)));
+        assert_eq!((f.raw["since"].as_str().map(|d| d.starts_with("2026-01-01")), f.raw["env"]["A"].clone(), f.raw["extra"][0]["k"].clone()), (Some(true), json!("1"), json!(1)));
+        let labels: Vec<&str> = [Host::ClaudeCode, Host::ClaudePlugin, Host::Codex, Host::Cursor, Host::VsCode, Host::Gemini, Host::Zed, Host::Files].iter().map(|h| h.label()).collect();
+        assert_eq!(labels, ["Claude Code", "Claude plugin", "Codex", "Cursor", "VS Code", "Gemini", "Zed", "Files"]);
+        let here = Machine::here("http://127.0.0.1:9999");
+        assert_eq!(here.node, "http://127.0.0.1:9999");
+        let home_var = std::env::var_os("HOME").filter(|v| !v.is_empty()).or_else(|| std::env::var_os("USERPROFILE").filter(|v| !v.is_empty()));
+        assert_eq!(here.home, home_var.map(PathBuf::from).unwrap_or_else(|| PathBuf::from(".")));
     }
 }

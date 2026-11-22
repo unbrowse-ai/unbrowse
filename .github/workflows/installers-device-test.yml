@@ -1,0 +1,71 @@
+# Each installer on a fresh machine of its own kind: the Mac disk image on a Mac, the Windows setup on Windows, the
+# .deb on Ubuntu. Installed and opened the way a person does it, then checked from outside: the window brought the
+# node up by itself and the node's MCP answers (.github/scripts/installer-device-test.sh, DEVICE_TEST_OK). Screenshots
+# of the window go up as the device-<os> artifact.
+#
+# installers.yml calls it with its own run before it makes the draft, so a draft is only made from installers that
+# passed. Push a branch named installers-test/<anything> to test the newest successful Installers run's files again.
+name: Installers device test
+
+on:
+  push:
+    branches: ["installers-test/**"]
+  workflow_call:
+    inputs:
+      run-id:
+        description: The Installers run whose installers artifact to test
+        type: string
+        required: true
+
+permissions: {}
+
+jobs:
+  device:
+    permissions:
+      contents: read
+      actions: read
+    name: Device (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos, runner: blacksmith-6vcpu-macos-15 }
+          - { os: windows, runner: blacksmith-4vcpu-windows-2025 }
+          - { os: linux, runner: blacksmith-2vcpu-ubuntu-2404 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Which run
+        id: run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIVEN: ${{ inputs.run-id }}
+        run: |
+          id=${GIVEN:-$(gh run list --repo "$GITHUB_REPOSITORY" --workflow installers.yml --status success -L 1 --json databaseId --jq '.[0].databaseId')}
+          test -n "$id"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo "Testing the installers of run $id"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: installers
+          path: ${{ runner.temp }}/installers
+          run-id: ${{ steps.run.outputs.id }}
+          github-token: ${{ github.token }}
+      - name: Install, open, check
+        run: bash .github/scripts/installer-device-test.sh "${{ matrix.os }}" "$RUNNER_TEMP/installers" "$RUNNER_TEMP/device"
+      # The remote MCP address by clicks alone, against the live unbrowse.ai gateway: reported, never gating.
+      - name: Remote MCP address, set up in the window
+        continue-on-error: true
+        run: bash .github/scripts/installer-remote-onboarding.sh "${{ matrix.os }}" "$RUNNER_TEMP/device"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: device-${{ matrix.os }}
+          path: ${{ runner.temp }}/device
+          if-no-files-found: warn

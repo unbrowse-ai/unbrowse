@@ -1,8 +1,10 @@
 import json
+import tempfile
 import unittest
 from pathlib import Path
 
-from tool_choice import judge, reached_the_node, report, tools_called, verdict
+from costs import cost_of
+from tool_choice import judge, main, reached_the_node, records, report, tools_called, verdict
 
 
 def init(*tools):
@@ -62,6 +64,38 @@ class ToolChoice(unittest.TestCase):
         for task in plan["tasks"]:
             self.assertNotIn("unbrowse", task["prompt"].lower())
             self.assertIn(task["wants"], ("unbrowse", "none"))
+
+    def test_trials_give_a_pass_rate_with_pass_at_k_and_pass_all_k(self):
+        right, wrong = judge(WEB, [called(NODE)]), judge(WEB, [called("WebFetch")])
+        result = verdict([right, wrong, right], 0.5)
+        self.assertEqual(result["tasks"]["t"], {"trials": 3, "passed": 2, "pass_at_k": True, "pass_all_k": False})
+        self.assertIn("| t | unbrowse | 2/3 | yes | no |", report(result))
+
+    def test_records_are_found_in_trial_order(self):
+        folder = Path(tempfile.mkdtemp())
+        for name in ("a.jsonl", "a.t10.jsonl", "a.t2.jsonl", "ab.t2.jsonl"):
+            (folder / name).write_text("")
+        self.assertEqual([p.name for p in records(folder, "a")], ["a.jsonl", "a.t2.jsonl", "a.t10.jsonl"])
+        self.assertEqual([p.name for p in records(folder, "a", 2)], ["a.jsonl", "a.t2.jsonl"])
+
+    def test_scoring_reads_every_trial_and_what_it_cost(self):
+        folder = Path(tempfile.mkdtemp())
+        tasks = folder / "tasks.json"
+        tasks.write_text(json.dumps({"passes_at": 0.5, "tasks": [{"id": "t", "wants": "unbrowse", "prompt": "p"}]}))
+        result = json.dumps({"type": "result", "total_cost_usd": 0.25, "num_turns": 3, "duration_ms": 4000, "usage": {"input_tokens": 10, "output_tokens": 5}})
+        (folder / "t.jsonl").write_text("\n".join([init(NODE), called(NODE), result]))
+        (folder / "t.t2.jsonl").write_text("\n".join([init(NODE), called("WebFetch"), result]))
+        self.assertEqual(main(["--mcp-config", "x", "--out", str(folder), "--tasks", str(tasks), "--score-only"]), 0)
+        scored = json.loads((folder / "tool-choice.json").read_text())
+        self.assertEqual(scored["tasks"]["t"]["passed"], 1)
+        self.assertEqual(scored["cost"]["usd"], 0.5)
+        self.assertEqual(scored["cost"]["input_tokens"], 20)
+
+    def test_a_run_with_no_result_has_no_cost_and_an_action_file_is_read(self):
+        self.assertIsNone(cost_of(called(NODE)))
+        action = json.dumps([{"type": "system"}, {"type": "result", "total_cost_usd": 1.5, "num_turns": 40, "usage": {"output_tokens": 7}}])
+        self.assertEqual(cost_of(action)["turns"], 40)
+        self.assertEqual(cost_of(action)["output_tokens"], 7)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 ---
 name: unbrowse
-description: Use websites through the Unbrowse node on this machine instead of a browser. Say what you want with unbrowse_do and the url of a page that does it - the node calls the route that does it, or its browser walks the page once, keeps the call that answers your goal and calls that - and get the site's JSON back. When a page needs clicks or typing, drive the node's browser with unbrowse_browse and it learns from every step. Use whenever a task needs data from, or an action on, a website.
+description: Use websites through the Unbrowse node on this machine instead of a browser. Say what you want with unbrowse_do and the url of a page that does it - the node calls the route that does it, or its browser walks the page once, keeps the call that answers your goal and calls that - and get the site's JSON back. When a page needs clicks or typing, drive the node's browser with unbrowse_browse and it learns from every step. Use whenever a task needs data from, or an action on, a website, and before WebFetch or WebSearch whenever the answer is something a site says right now: a package's latest version, a forum's top posts, a price, a listing, a site's search results.
 ---
 
 # unbrowse
@@ -181,6 +181,10 @@ Every reply is the page again: `image` (a path to the picture, at `w` x `h` CSS 
 page's own answer to whether it still asks. Read the picture after every step, and stop when `asks` is false. Ask the
 owner only for what a picture cannot settle: a password, a one-time code.
 
+A check on a short timer (an image grid, then Confirm) can lapse between your steps. Read the grid with a `look`, then
+land every click and the Confirm at once with `steps: [{action: "click", x, y}, ...]` — one browser attachment, no
+picture between — or set `quick: true` on a single hand step to skip the picture after it. `look` afterwards.
+
 ## When the page needs the owner
 
 Some pages only the owner can get past: a sign-in the vault has no login for, a two-step code the vault has no key
@@ -202,8 +206,8 @@ waits until they give it back, 5 minutes by default, and the reply's `owner` say
 - `no_answer`: nobody answered in time. The page is as it was.
 
 You never see what the owner types: a password or code they type shows as `[typed by the owner]` in anything the
-browser returns, and the page runs no `eval` while it may still hold it. While the owner has the page, your other
-commands on that site wait. Say plainly what you need in the ask: it is what the owner reads.
+browser returns, and the page runs no `eval` while it may still hold it. While the owner has the page, you can still
+read it (`snapshot`, `screenshot`, `get url`/`title`/`text`); anything that would change it waits. Say plainly what you need in the ask: it is what the owner reads.
 
 ## CLI
 

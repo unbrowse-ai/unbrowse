@@ -90,6 +90,15 @@ pub fn served_by_the_browser(route: &Route, given: &HashMap<String, String>) -> 
     !route.write && route.socket.is_none() && (stands_on_one_sighting(route) || route.heard.records_at.is_none()) && !moved(route, given).is_empty()
 }
 
+/// What the walk `trace` that taught `route` answered the ask with: the walk's own call of the route
+/// (`its_call`), read as the route reads its answer (`as_the_route_reads`) for the values asked (`given`). The first
+/// reply of a learn is this answer, the browser's for this value; the route's own first call confirms it behind the
+/// reply. None where the walk made no answered call of the route.
+pub fn walks_answer(route: &Route, trace: &Trace, given: &HashMap<String, String>) -> Option<serde_json::Value> {
+    let j = its_call(route, trace)?;
+    as_the_route_reads(route, &trace.exchanges[j], &asked_of(route, given))
+}
+
 /// The call of `trace` that is `route`'s target, answered: the last request the step would send, with a 2xx reply.
 fn its_call(route: &Route, trace: &Trace) -> Option<usize> {
     its_calls(route, trace).first().copied()
@@ -295,23 +304,30 @@ pub fn by_its_call(route: &Route, given: &HashMap<String, String>, answer: &serd
     if ours.is_empty() {
         return Err("its answer says nothing".into());
     }
-    let set = |v: &[String]| v.iter().cloned().collect::<std::collections::BTreeSet<String>>();
-    let (said, lines) = (set(&super::sighted::said_of(&read)), set(&super::sighted::marks_of(&read)));
-    let kept = super::sighted::first_answer(route);
-    let first = kept.as_ref().map(|h| (set(&h.said), set(&h.marks)));
-    // The first answer again says what it said in both: its values (a statement's figures differ for another company)
-    // and its lines (a narrower query's one item, beside the first's list), each no more than a tenth its own.
-    if first.as_ref().is_some_and(|(values, words)| !said.is_empty() && says_what_it_said(&said, values) && (words.is_empty() || says_what_it_said(&lines, words))) {
-        return Err("its answer is the first value's records again".into());
-    }
     let telling = telling_words(&now, &was);
     let place = records_place(&read, &telling);
+    let set = |v: &[String]| v.iter().cloned().collect::<std::collections::BTreeSet<String>>();
+    let kept = super::sighted::first_answer(route);
+    let first_rows = kept.as_ref().map(|h| set(&h.rows)).unwrap_or_default();
     // Said back by the records, never by the page's lines: a results page says the value back in its heading, its
     // crumb, its box and its share link whatever it found, its records empty (the incident this was built against).
+    // Half the records name it, or half of those that are its own: a page read whole holds its results among the
+    // links of its frame, which the first value's page held too (`own_naming_at`).
     let by_records = place.as_deref().filter(|p| *p != WHOLE && route.heard.records_at.as_deref().is_none_or(|seen| seen == *p)).is_some_and(|p| {
         let (naming, all) = naming_at(&read, p, &telling);
-        naming >= 2 && naming * 2 >= all
+        let (own_naming, own) = own_naming_at(&read, p, &telling, &first_rows);
+        (naming >= 2 && naming * 2 >= all) || (own_naming >= 2 && own_naming * 2 >= own)
     });
+    let (said, lines) = (set(&super::sighted::said_of(&read)), set(&super::sighted::marks_of(&read)));
+    let first = kept.as_ref().map(|h| (set(&h.said), set(&h.marks)));
+    // The first answer again says what it said in both: its values (a statement's figures differ for another company)
+    // and its lines (a narrower query's one item, beside the first's list), each no more than a tenth its own. Records
+    // that say the new value back, at the records' place, are not the first value's: a page's state says its menus,
+    // its footer and its translations again for every value, thousands of values beside twenty records, and a search
+    // for another word read as the first word's answer again though every one of its records named the new word.
+    if !by_records && first.as_ref().is_some_and(|(values, words)| !said.is_empty() && says_what_it_said(&said, values) && (words.is_empty() || says_what_it_said(&lines, words))) {
+        return Err("its answer is the first value's records again".into());
+    }
     // A value written in the site's search syntax (`repo:owner/name`) is said back by its terms, as the answer writes
     // them (`ethereum/go-ethereum` its full name, in its address): never the expression whole.
     let by_terms = now.iter().all(|v| terms_of(v).is_some_and(|terms| terms.iter().all(|t| ours.iter().filter(|l| l.contains(t.as_str())).count() >= 2)));
@@ -327,7 +343,6 @@ pub fn by_its_call(route: &Route, given: &HashMap<String, String>, answer: &serd
         // with a field every record repeats and the clock left out, more than a tenth of them not the first answer's.
         // Whatever a frame changes on each load (a token, a time, a strip that rotates one promotion) lives outside
         // the records or in fields they all repeat, and never counts. No records place, no standing.
-        let first_rows: std::collections::BTreeSet<String> = kept.as_ref().map(|h| h.rows.iter().cloned().collect()).unwrap_or_default();
         let rows: Vec<String> = super::sighted::rows_of(&read).unwrap_or_default();
         if first_rows.is_empty() || rows.is_empty() {
             return Err("its answer names no value, and holds no records to tell it from the first one's by".into());
@@ -406,6 +421,14 @@ fn says_back_by_records(answer: &serde_json::Value, walked: &serde_json::Value, 
 
 /// How many records `data` holds at `place` (`records_place`'s) that name one of `words`, and how many it holds.
 fn naming_at(data: &serde_json::Value, place: &str, words: &[String]) -> (usize, usize) {
+    let data = &as_records(data);
+    let items = items_at(data, place);
+    let naming = items.iter().filter(|x| names_one(x, words)).count();
+    (naming, items.len())
+}
+
+/// The items of every list `data` holds at `place` (`records_place`'s), down the keys by name.
+fn items_at<'a>(data: &'a serde_json::Value, place: &str) -> Vec<&'a serde_json::Value> {
     fn there<'a>(v: &'a serde_json::Value, path: &[&str], out: &mut Vec<&'a serde_json::Value>) {
         match (path.split_first(), v) {
             (None, serde_json::Value::Array(a)) => out.extend(a.iter()),
@@ -414,12 +437,29 @@ fn naming_at(data: &serde_json::Value, place: &str, words: &[String]) -> (usize,
             _ => {}
         }
     }
-    let data = &as_records(data);
     let mut items = Vec::new();
     let path: Vec<&str> = if place.is_empty() { Vec::new() } else { place.split('/').collect() };
     there(data, &path, &mut items);
-    let naming = items.iter().filter(|x| x.is_object() && words.iter().any(|w| x.to_string().to_lowercase().contains(w.as_str()))).count();
-    (naming, items.len())
+    items
+}
+
+/// Whether `x` is a record that names one of `words`.
+fn names_one(x: &serde_json::Value, words: &[String]) -> bool {
+    x.is_object() && words.iter().any(|w| x.to_string().to_lowercase().contains(w.as_str()))
+}
+
+/// [`naming_at`] over the records of `data` at `place` that the first answer did not hold (`first`, its records by
+/// mark, `sighted::rows_of`): how many of them name one of `words`, and how many there are. A record both answers hold
+/// is the page's frame (its menus, its footer, its links to the rest of the site), the same whatever was asked: a page
+/// read whole keeps its own results among a hundred such links, and only the records that are not the first answer's
+/// are this value's.
+fn own_naming_at(data: &serde_json::Value, place: &str, words: &[String], first: &std::collections::BTreeSet<String>) -> (usize, usize) {
+    let data = &as_records(data);
+    let items: Vec<&serde_json::Value> = items_at(data, place).into_iter().filter(|x| x.is_object()).collect();
+    let records: Vec<&serde_json::Map<String, serde_json::Value>> = items.iter().filter_map(|x| x.as_object()).collect();
+    let marks = super::sighted::row_marks(&records);
+    let own: Vec<&serde_json::Value> = items.into_iter().zip(&marks).filter(|(_, m)| !first.contains(*m)).map(|(x, _)| x).collect();
+    (own.iter().filter(|x| names_one(x, words)).count(), own.len())
 }
 
 /// An answer as its records, for comparing: text a site serves as markup data (a feed, an XML list, often one line) is
@@ -878,6 +918,17 @@ mod tests {
 
     fn glass() -> HashMap<String, String> {
         HashMap::from([("q".to_string(), "glass".to_string())])
+    }
+
+    /// A learn's first reply is the walk's own answer for the asked value, read as the route reads it: the records the
+    /// route's own first call would have answered (the walk's call is that call), from the walk's own call of the
+    /// route and never from another call of the page (the strip beside it). A walk that made no such call has none.
+    #[test]
+    fn a_learns_first_answer_is_the_walks_own_call_read_as_the_route_reads() {
+        let brass = HashMap::from([("q".to_string(), "brass".to_string())]);
+        assert_eq!(walks_answer(&route(), &walk("brass", true), &brass), Some(records("brass")));
+        assert_eq!(walks_answer(&route_with_its_pages(), &walk_and_its_next_page("brass"), &brass), Some(records("brass")), "the route's own call, not the page's next page");
+        assert_eq!(walks_answer(&route(), &walk("brass", false), &brass), None, "the walk made no call of the route");
     }
 
     /// The route answers the new value with the records the browser's walk got for it: the two agree, and the route is
@@ -1428,7 +1479,7 @@ mod tests {
         let (whole, cut) = (records("glass"), serde_json::json!({ "query": "glass", "results": [records("glass")["results"][0]] }));
         let path = home.join("whole.json");
         std::fs::write(&path, serde_json::to_vec(&whole).unwrap()).unwrap();
-        let t = crate::run::Truncated { kept_bytes: 10, total_bytes: 100, cuts: Vec::new(), whole: Some(path.to_string_lossy().into_owned()), note: String::new() };
+        let t = crate::run::Truncated { kept_bytes: 10, total_bytes: 100, cuts: Vec::new(), whole: Some(path.to_string_lossy().into_owned()), left_out: Vec::new(), next_page: None, note: String::new() };
         assert_eq!(the_whole(Some(cut.clone()), Some(&t)), Some(whole.clone()));
         assert_eq!(the_whole(Some(cut.clone()), None), Some(cut.clone()));
         let gone = crate::run::Truncated { whole: None, ..t };
@@ -1657,6 +1708,50 @@ mod tests {
         assert!(by_its_call(&route, &glass(), &serde_json::json!({ "query": "glass", "results": [] })).is_err(), "nothing found");
     }
 
+    /// A page's state says its menus, its footer and its translations again for every value: thousands of values beside
+    /// a few records. A call whose records say the new value back is not the first value's answer again, however much
+    /// of the page around them is; one whose records are still the first value's is.
+    #[test]
+    fn records_that_say_the_new_value_back_are_not_the_first_answer_again_however_big_the_page_around_them() {
+        store::scratch_home("calls-first-page-state");
+        let frame: serde_json::Map<String, serde_json::Value> = (0..400).map(|n| (format!("label_{n}"), serde_json::json!(format!("Menu entry {n}")))).collect();
+        let page = |word: &str| {
+            let mut answer = records(word);
+            answer["translations"] = serde_json::Value::Object(frame.clone());
+            answer
+        };
+        let route = route();
+        super::super::sighted::called(&route, &HashMap::new(), Some(&page("brass")), true, 40, 0);
+        assert!(by_its_call(&route, &glass(), &page("glass")).is_ok(), "the new value's records, in the same page");
+        assert_eq!(by_its_call(&route, &glass(), &page("brass")), Err("its answer is the first value's records again".into()), "deaf: the first value's records, in the same page");
+    }
+
+    /// A page read whole holds its results among the links of its frame (its menus, its footer, the rest of the site),
+    /// the same links for every value: a hundred beside eight results, so fewer than half its links name the value
+    /// whatever it found. Its own records are the links the first value's page did not hold: where those name the new
+    /// value, the call says it back by its records and stands, with no browser. Live, a location search's page (8
+    /// results among 112 links) and a site search's (26 among 150) went to the browser for every second value, and the
+    /// browser's walk replaced the route. The first value's page again, or the frame alone, is still in doubt.
+    #[test]
+    fn a_pages_own_records_say_the_new_value_back_among_the_links_of_its_frame() {
+        store::scratch_home("calls-first-page-frame");
+        let frame: Vec<serde_json::Value> = (0..100).map(|n| serde_json::json!({ "text": format!("Site section {n}"), "url": format!("https://shop.example/section/{n}") })).collect();
+        let page = |word: &str, found: usize| {
+            let mut links = frame.clone();
+            links.extend((0..found).map(|n| serde_json::json!({ "text": format!("{word} place {n}, region {n}"), "url": format!("https://shop.example/place?key={word}-{n}") })));
+            serde_json::json!({ "title": "Find your place | Shop", "text": format!("Results for {word}\nSite section 1\nSite section 2"), "links": links })
+        };
+        let route = route();
+        super::super::sighted::called(&route, &HashMap::new(), Some(&page("brass", 8)), true, 40, 0);
+        let (naming, all) = naming_at(&page("glass", 8), "links", &["glass".into()]);
+        assert!(naming * 2 < all, "the frame drowns the page's own records: {naming} of {all}");
+        let (place, said) = by_its_call(&route, &glass(), &page("glass", 8)).expect("the page's own records name the new value");
+        assert_eq!((place.as_deref(), said.as_str()), (Some("links"), "glass"));
+        assert_eq!(by_its_call(&route, &glass(), &page("brass", 8)), Err("its answer is the first value's records again".into()), "deaf: the first value's page");
+        assert!(by_its_call(&route, &glass(), &page("glass", 0)).is_err(), "the frame alone, the value said only in its heading");
+        assert!(by_its_call(&route, &glass(), &page("glass", 1)).is_err(), "one record of its own is no list of them");
+    }
+
     /// A value that names a thing (an id: a digit in it) is said back by the thing's own record once: such an answer
     /// stands where its lines are not the first sighting's, and is in doubt where they are, or where no first answer is
     /// kept to tell it from.
@@ -1797,5 +1892,98 @@ mod tests {
         let thirteen = HashMap::from([("q".to_string(), "apollo 13".to_string())]);
         assert!(by_its_call(&search, &thirteen, &page("apollo 11", 100)).is_err(), "the first value's records, more of them");
         assert!(by_its_call(&search, &thirteen, &page("apollo 13", 100)).is_ok(), "its own records");
+    }
+
+    /// The verdict is named by its own word, with its why where it has one.
+    #[test]
+    fn a_verdict_is_said_by_its_word_and_its_why() {
+        let said = |v: Confirmed| (v.word(), v.said());
+        assert_eq!(said(Confirmed::Agreed), ("agreed", "agreed".to_string()));
+        assert_eq!(said(Confirmed::Differed { why: "other records".into() }), ("differed", "differed: other records".to_string()));
+        assert_eq!(said(Confirmed::Failed { why: "403".into() }), ("failed", "failed: 403".to_string()));
+        assert_eq!(said(Confirmed::CannotTell { why: "no records".into() }), ("cannot-tell", "cannot-tell: no records".to_string()));
+    }
+
+    /// A kept walk says what a confirming browse would: the route's call answered as the second walk recorded it,
+    /// held against the first; a walk that holds no such call is a call that failed, not a disagreement.
+    #[test]
+    fn a_kept_walk_says_what_a_confirming_browse_would_say_of_the_route() {
+        let first = walk("brass", true);
+        assert_eq!(as_a_kept_walk_says(&first, &route(), &walk("glass", true), &glass()), Confirmed::Agreed);
+        assert_eq!(as_a_kept_walk_says(&first, &route(), &walk("glass", false), &glass()), Confirmed::Failed { why: "the recording holds no such call".into() });
+        let given = HashMap::from([("q".to_string(), "brass".to_string())]);
+        assert!(matches!(compared(Some(&first), &route(), Ok(&records("brass")), &first, &given), Confirmed::Differed { why } if why.contains("no value other")), "the value the route was learned on is no new value");
+    }
+
+    /// The first walk of a page is the newest other walk of it that made the route's call: a later walk of the page
+    /// that made another call is not it, and with none the browse has no first walk to hold the second beside.
+    #[test]
+    fn the_first_walk_is_the_newest_other_walk_that_made_the_routes_call() {
+        let held = |trace: Trace, url: &str, age: u64| crate::learn::Walk { url: url.into(), trace, probes: Vec::new(), recording: None, at: std::time::Instant::now() - std::time::Duration::from_secs(age), addresses: None };
+        let walks = Walks::default();
+        walks.0.locked().insert("second".into(), held(walk("glass", true), "https://shop.example/search?q=glass", 1));
+        assert!(first_walk(&walks, "second", "https://shop.example/search?q=glass", &route()).is_none(), "no other walk");
+        walks.0.locked().insert("elsewhere".into(), held(walk("iron", false), "https://shop.example/search?q=iron", 5));
+        assert!(first_walk(&walks, "second", "https://shop.example/search?q=glass", &route()).is_none(), "a walk that made another call");
+        walks.0.locked().insert("first".into(), held(walk("brass", true), "https://shop.example/search?q=brass", 20));
+        let found = first_walk(&walks, "second", "https://shop.example/search?q=glass", &route()).expect("the first walk");
+        assert_eq!(found.exchanges[1].url.query(), Some("q=brass"));
+    }
+
+    /// A place is followed down the lists and the keys of an answer by name: how many records are there, whether there
+    /// is one, and how many of them name a word.
+    #[test]
+    fn a_place_is_followed_down_lists_and_keys() {
+        let answer = serde_json::json!({ "query": "x", "groups": [{ "items": [{ "t": "brass lamp" }, { "t": "glass jar" }] }, { "items": [{ "t": "brass bell" }] }, { "other": 1 }] });
+        let empty = serde_json::json!({ "query": "x", "groups": [{ "items": [] }, { "items": [] }] });
+        assert_eq!(count_at(&answer, "groups/[]/items"), Some(3));
+        assert_eq!(count_at(&answer, "groups/[]/nothing"), None);
+        assert_eq!(count_at(&empty, "groups/[]/items"), Some(0));
+        assert_eq!(at_place(&answer, "groups/[]/items"), Some(true));
+        assert_eq!(at_place(&empty, "groups/[]/items"), Some(false), "there, and empty");
+        assert_eq!(at_place(&answer, "groups/[]/nothing"), None);
+        assert_eq!(naming_at(&answer, "groups/[]/items", &["brass".to_string()]), (2, 3));
+        assert_eq!(naming_at(&answer, "groups/[]/nothing", &["brass".to_string()]), (0, 0));
+    }
+
+    /// A route a confirming browse gave way to the route of two sightings is retired for it, once; one that is not in the
+    /// store gives way to nothing.
+    #[test]
+    fn the_route_of_one_sighting_gives_way_to_the_route_of_two_once() {
+        let home = store::scratch_home("confirm-gives-way");
+        store::use_home(&home);
+        let (once, twice) = (sighted("gives-once", 1), sighted("gives-twice", 2));
+        for r in [&once, &twice] {
+            store::save_route(r).unwrap();
+        }
+        assert!(gives_way(&once, &twice));
+        assert!(store::load_route("gives-once").is_none());
+        assert_eq!(store::took_the_place_of("gives-once").map(|r| r.id), Some("gives-twice".to_string()));
+        assert!(!gives_way(&once, &twice), "already retired: nothing to give way");
+    }
+
+    /// An answer that holds only records the first walk's answer held too, with that answer holding many more of its
+    /// own (a feed of every value), is the feed's frame and found nothing: it cannot tell.
+    #[test]
+    fn an_answer_that_is_a_part_of_the_first_walks_feed_cannot_tell() {
+        let feed = |words: &[&str]| {
+            let rows: Vec<serde_json::Value> = words.iter().flat_map(|w| (0..8).map(move |n| serde_json::json!({ "id": n, "title": format!("{w} {} number {n}", ["table lamp", "door knocker", "candle holder", "picture frame"][n % 4]) }))).collect();
+            serde_json::json!({ "query": "everything", "results": rows })
+        };
+        let mut first = walk("brass", false);
+        first.exchanges.push(call("https://shop.example/api/search?q=brass", &feed(&["brass", "glass"]).to_string()));
+        let mut second = walk("glass", false);
+        second.exchanges.push(call("https://shop.example/api/search?q=glass", &feed(&["glass"]).to_string()));
+        let verdict = compared(Some(&first), &route(), Ok(&feed(&["glass"])), &second, &glass());
+        assert_eq!(verdict, Confirmed::CannotTell { why: NO_RECORDS.into() });
+    }
+
+    /// A confirming browse of a page the node never walks (not a web page) learns nothing, and says so as the walk
+    /// failed.
+    #[test]
+    fn a_confirming_browse_of_a_page_that_is_never_walked_learns_nothing() {
+        let walks = Walks::default();
+        let verdict = confirm_by_use(&walks, "ftp://shop.example/search?q=glass", "search", "You", &route(), &glass(), None);
+        assert!(matches!(verdict, Err(Unlearned::Unwalkable(_))), "{:?}", verdict.map(|c| c.verdict));
     }
 }

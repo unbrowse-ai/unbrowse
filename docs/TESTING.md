@@ -27,17 +27,40 @@ builds, so wall times run high.
 |---|---|---|---|---|
 | The node | `unbrowse-node/` | `cargo test --workspace --locked` | 655 passed, 39 ignored on 31 October (after roadmap item 9 and the merge of #112) | `node` job, macOS |
 | The node's ignored tests | `unbrowse-node/` | one per process (§3) | the ones run passed | no |
-| The browser engine | `unbrowse-browser/core`, `unbrowse-browser/cli` | `cargo test --locked` | not run here | `engine` job |
-| The contracts | `unbrowse-settlement/` | `forge test` | 312 passed in 10 suites; 14 min 15 s | `settlement` job |
+| The browser engine | `unbrowse-node/crates/browser`, `unbrowse-browser/cli` | `cargo test --locked` | not run here | Coverage's two browser jobs (measured, and failing on a failed test); `engine` job where Coverage doesn't run |
+| The contracts | `unbrowse-settlement/` | `forge test` | 312 passed in 10 suites; 14 min 15 s | `settlement` job when a file it reads changed; a fresh seed nightly (`fresh-seeds.yml`) |
 | Gas | `unbrowse-settlement/script/gas/` | three scripts (§4) | all exit 0 | no |
 | TypeScript SDK | `unbrowse-sdk/typescript/` | `npm ci && npm test` | 48 passed | `sdk-typescript` |
 | Python SDK | `unbrowse-sdk/python/` | `python -m unittest discover -s tests -v` | 34 passed | `sdk-python` (3.9, 3.13) |
 | The native window | `unbrowse-node/window/` | `zig build test && zig build` | not run here: no Zig 0.17.0 | `window`; `elsewhere` builds it |
-| Telemetry worker | `unbrowse-telemetry/` | `node --test test/*.test.mjs` | 9 passed | `telemetry` |
+| Telemetry worker | `unbrowse-telemetry/` | `node --test test/*.test.mjs` | 9 passed | `short` job, step "Telemetry worker" |
 | Landing worker | the unbrowse-landing repository | `npm test` | 41 passed, the Anvil ones included (31 October 2026, the watchtower's included) | not here |
 | Test bank | `test-banks/popular-sites/` | `python3 -m unittest discover -s test-banks/popular-sites -p 'test_*.py'` | 16 passed | no |
 | QA by an agent | `.github/qa/checklist.md` | `qa.yml` | needs a Claude secret | nightly on staging, and by hand |
 | Antithesis | `antithesis/` | §8 | setup and every command passed once, locally | no |
+
+### What CI leaves out of a run, and what still runs it
+
+A long job runs when it can tell us something new (UNB-166, 21 November 2026; the measurements are in the pull
+request that made the change).
+
+- **A pull request** runs the long jobs its changed files can reach. `.github/scripts/ci-scope.py` holds the table,
+  for `ci.yml` and for `coverage.yml` alike, and each run's summary says why a job ran or was left out. A coverage
+  part left out is as staging has it, and the ratchet is told so; if the diff touches it all the same, the ratchet
+  refuses.
+- **The contracts' tests and the route-coin spec** read a closed set of files (`READS` in the same script). Each
+  records a pass under the hash of the files it read, and a later run on the same files, a push to staging
+  included, leaves the job out. The spec runs fixed seeds, so nothing is lost. The fuzz and invariant tests draw a
+  new seed each run, so `fresh-seeds.yml` runs them every night on staging with four times the cases and prints the
+  seed. A manual run of CI (`workflow_dispatch`) runs both whatever is on record.
+- **The browser's engine and CLI** are tested once on Linux, by Coverage's `rust-browser` jobs, which fail when a
+  test fails. `ci.yml`'s `engine` job runs the same tests only for what Coverage doesn't see: a push to main, a
+  manual run, a pull request into a branch other than staging, main or a release branch.
+- **The workflows' own scripts** (`.github/scripts/test`) are tested by `ci.yml`'s `papers` job on every push and
+  pull request.
+- **Seven checks of under a minute each** (the agent plugins, the route x-ray, the verify skill's CLI, the
+  requirements the source holds, the browser dashboard, the telemetry worker and the RPC gateway) are steps of one
+  job, `short`. Each step runs whatever the others did and carries the name the check had.
 
 ---
 
@@ -72,7 +95,7 @@ cd unbrowse-browser/cli && cargo build --locked && ./target/debug/agent-browser 
 
 Building one crate after a `--workspace` build recompiles the app, because the two resolve features differently.
 
-**The browser engine** is two separate projects with no workspace: `unbrowse-browser/core` (`agent-browser-core`) and
+**The browser engine** is two separate projects with no workspace: `unbrowse-node/crates/browser` (`agent-browser-core`) and
 `unbrowse-browser/cli` (`agent-browser`). Each is `cargo test --locked` in its own directory. CI runs four of the CLI's
 tests on their own with `--test-threads=1` (§9). The CLI's 146 end-to-end tests are ignored; they share Chrome, so run
 them one at a time: `cargo test e2e -- --ignored --test-threads=1` (`cli/src/native/e2e_tests.rs`). The engine's own
@@ -278,6 +301,9 @@ pays anyone (no faucet, no sponsor, spec §76) and that it takes no route on unb
   `.github/qa/tool_choice.py` runs tasks in fresh Claude Code sessions with `WebFetch` and `WebSearch` on hand, and reads
   from each session's record which web tool it reached for first. Run it by hand with
   `python3 .github/qa/tool_choice.py --mcp-config <file> --out <folder>`.
+- One change by hand: [`skills/verify-unbrowse`](../skills/verify-unbrowse/SKILL.md) builds this checkout, starts a
+  scratch node with `scripts/unbrowse-verify`, checks it with `doctor`, asks it a goal and keeps the evidence; its
+  feature map lists what to drive for each surface.
 - Lundy's bank, nightly: `bank.yml` runs `test-banks/popular-sites/regression.json` through `run_bank.py` on a scratch node
   (`scratch-node.sh`) and holds each site to the checks it passed (`run_bank.py compare`), then Claude works through
   `.github/qa/writes.md`. It never gates a pull request: live sites change on their own, and no pull
@@ -368,7 +394,7 @@ podman compose -f antithesis/config/docker-compose.yaml build     # the same wit
 ```
 
 The build context is the repository root, filtered by the root `.dockerignore` to `antithesis/`, `unbrowse-node`,
-`unbrowse-browser/core` and `unbrowse-sdk/python`. The node stage applies `scripts/apply-tls-patch.sh`, builds
+`unbrowse-node/crates/browser` and `unbrowse-sdk/python`. The node stage applies `scripts/apply-tls-patch.sh`, builds
 `cargo build --release --locked -p unbrowse-node-app --bin unbrowse-node --features antithesis-coverage` with
 sanitizer-coverage flags, and checks the binary carries the instrumentation's symbols. Build args all have defaults:
 `RUST_IMAGE` and `PYTHON_IMAGE` pinned by digest, `FOUNDRY_VERSION=v1.8.5` and its checksum. It makes four images:

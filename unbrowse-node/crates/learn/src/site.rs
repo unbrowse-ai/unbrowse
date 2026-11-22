@@ -474,6 +474,105 @@ mod tests {
         }
     }
 
+    /// A loopback site that answers every request with `status` and `body`, keeping each request's head.
+    fn loopback(status: u16, body: &'static str) -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        use std::io::{BufRead, BufReader, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        let heard = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let keep = heard.clone();
+        std::thread::spawn(move || {
+            for s in l.incoming().flatten() {
+                let mut r = BufReader::new(s.try_clone().unwrap());
+                let mut head = String::new();
+                loop {
+                    let mut line = String::new();
+                    if r.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                        break;
+                    }
+                    head.push_str(&line);
+                }
+                keep.lock().unwrap().push(head);
+                let mut s = s;
+                let _ = write!(s, "HTTP/1.1 {status} X\r\ncontent-type: text/html\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+            }
+        });
+        (format!("http://127.0.0.1:{port}/catalog"), heard)
+    }
+
+    fn with_jar(name: &str, host: &str, jar: &[(&str, &str)]) -> (Site, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("site-cached-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let site = Site { jar_root: dir.clone(), cdp_endpoint: None, ..Site::new() };
+        if !jar.is_empty() {
+            site.write_jar(host, &jar.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect());
+        }
+        (site, dir)
+    }
+
+    /// A jar a walk minted before answers the next fetch over plain HTTP, no browser: the session's cookies and a
+    /// browser's navigation headers go with it, and the page says it came browserless.
+    #[test]
+    fn a_jar_that_still_works_answers_without_a_walk() {
+        let (url, heard) = loopback(200, "<html><body><h1>Catalog</h1><p>12 lamps</p></body></html>");
+        let (site, dir) = with_jar("works", "127.0.0.1", &[("sid", "dummy-session-1")]);
+        let page = site.fetch(&url).expect("the jar answers");
+        assert_eq!((page.status, page.source, page.cookies), (200, Source::Browserless, 1));
+        assert!(page.body.contains("12 lamps"));
+        assert!(page.gates.is_empty());
+        let head = heard.lock().unwrap()[0].to_ascii_lowercase();
+        assert!(head.contains("cookie: sid=dummy-session-1"), "{head}");
+        assert!(head.contains("sec-fetch-mode: navigate"), "{head}");
+        assert!(head.contains(&format!("user-agent: {NODE_USER_AGENT}")), "the node says who it is: {head}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The fast path is only for a jar that still works: no jar, a refusal or a door sends the fetch on to the walk.
+    #[test]
+    fn a_missing_or_refused_jar_is_no_fast_answer() {
+        let (url, heard) = loopback(200, "<html>never asked</html>");
+        let (site, dir) = with_jar("none", "127.0.0.1", &[]);
+        assert!(site.cached_call(&url).is_none());
+        assert!(heard.lock().unwrap().is_empty(), "no jar, no call");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let (url, heard) = loopback(404, "<html><body>No such page</body></html>");
+        let (site, dir) = with_jar("refused", "127.0.0.1", &[("sid", "dummy-session-2")]);
+        assert!(site.cached_call(&url).is_none(), "a refusal is no answer");
+        assert_eq!(heard.lock().unwrap().len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let (site, dir) = with_jar("bad", "127.0.0.1", &[("sid", "dummy-session-3")]);
+        assert!(site.cached_call("not a url").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The walk's own request headers for a host are those of its first GET there, without what the transport sets
+    /// itself (pseudo-headers, the host, the length) or the cookie, which the jar carries.
+    #[test]
+    fn the_walks_headers_are_its_first_get_to_the_host() {
+        let dir = std::env::temp_dir().join(format!("site-walked-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let lines = [
+            serde_json::json!({"type": "response", "url": "https://shop.example/", "status": 200}),
+            serde_json::json!({"type": "request", "method": "POST", "url": "https://shop.example/api/log", "headers": {"x-post": "1"}}),
+            serde_json::json!({"type": "request", "method": "GET", "url": "https://cdn.other.example/app.js", "headers": {"x-other": "1"}}),
+            serde_json::json!({"type": "request", "method": "GET", "url": "https://shop.example/", "headers": {
+                ":authority": "shop.example", "Host": "shop.example", "cookie": "sid=1", "content-length": "0",
+                "user-agent": "Mozilla/5.0 Chrome/157", "accept-language": "en-SG", "x-n": 7}}),
+            serde_json::json!({"type": "request", "method": "GET", "url": "https://shop.example/next", "headers": {"x-later": "1"}}),
+        ];
+        let text: String = lines.iter().map(|l| format!("{l}\n")).collect();
+        std::fs::write(agent_browser_core::session::capture_path(&dir, "w"), text).unwrap();
+        let mut got = Site::walked_headers(&dir, "w", "shop.example");
+        got.sort();
+        assert_eq!(got, vec![("accept-language".to_string(), "en-SG".to_string()), ("user-agent".to_string(), "Mozilla/5.0 Chrome/157".to_string())]);
+        assert!(Site::walked_headers(&dir, "w", "nowhere.example").is_empty());
+        assert!(Site::walked_headers(&dir, "missing", "shop.example").is_empty(), "no capture, no headers");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn page_reports_where_it_came_from() {
         let page = Page {

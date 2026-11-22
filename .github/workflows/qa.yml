@@ -1,25 +1,77 @@
-# QA by an agent: a node built from staging runs on a Mac, nightly and by hand, and Claude uses it the way every agent
-# does, through its MCP tools, working through .github/qa/checklist.md (learn and call a route, browse a page that
-# needs hands, sign in from the vault without seeing the password, the refusals). The report goes in the run's summary
-# and its `qa-report` artifact, on no pull request; a check that fails fails the job.
+# QA of the built node, used the way people and agents use it (UNB-235). On every push to staging and main, on the
+# pushed commit, nightly on staging, and by hand. A push to staging whose tree already passed the MCP check, Claude QA
+# and the slice on its pull request (pr-agent-checks.yml, a successful run on the same tree) does not run those three
+# again: the job `passed` looks it up, and the nightly run still runs everything (UNB-166). The node is built once (`build`: the node, its CLI, its browser and
+# the window, one archive every job below checks by its SHA-256 and unpacks), then, side by side where they can be:
 #
-# Needs a Claude credential as a repository secret: ANTHROPIC_API_KEY (an API key) or CLAUDE_CODE_OAUTH_TOKEN (a
-# subscription, from `claude setup-token`). `/install-github-app` in Claude Code adds either. Without one the job says
-# so and passes.
+#   MCP check        no model. The node built from the commit, its MCP surface checked as a contract (the tool list,
+#                    each tool's schema, refusals that name what is missing, replies against the node's published
+#                    schemas) and walked as a person's journey (.github/qa/mcp-journey.json), a picture of every step;
+#                    the shipped skills checked against the tools the node lists; the window opened on that node and
+#                    pictured. Fails on any failed step.
+#   Claude QA        Claude uses that node as its people do, working through .github/qa/checklist.md: as an agent
+#                    through its MCP tools, and as its owner through its own commands (unb, unbrowse-node, the npm
+#                    package built from the commit) and its window, by qa_tools.py, a picture per check and per
+#                    terminal and window step; and first, with other web tools on hand, whether an agent reaches for the
+#                    node at all (.github/qa/tool-choice.json, several trials a task, a pass rate).
+#                    Sharded: four jobs side by side, each on a machine and a node of its own with a few of the checks
+#                    (its matrix row's CHECKS), so the 27 checks take minutes, not one 17-minute session; the report
+#                    job merges their verdicts (.github/qa/merge_shards.py) and fails on any check no shard answered.
+#   Skill triggers   whether each skill in skills/ is chosen when it should be and kept clear of near misses
+#                    (.github/qa/skill-evals.json, several trials a query).
+#                    Not asked again when the same skills, queries, scripts and CLI already passed (the pass is
+#                    kept under their hash); the nightly run always asks.
+#   Gate bank        the task gate's slice (gate-bank.yml, called here): a model asks a scratch node each slice task and
+#                    another judges the answer. On a push, and by hand with the model on.
+#   Journey coverage no model. Every journey in .github/qa/journeys.json has a QA step (a check, a journey step, a job or
+#                    a bank task) or a waiver a person can check: journey_coverage.py, red when one has none.
+#   QA report        the agent's report, one picture per check and per terminal and window step, each journey's result
+#                    across every job, the gate bank's verdict, and what every model run cost, into the run's summary.
 #
-# The agent reads pages anyone can write, so its job holds nothing it could hand on: a read-only token, kept off the
-# disk, no OIDC, no cache another job reads, no shell or file reads outside the work tree, and a report scrubbed of
-# anything shaped like a key before it leaves. The summary is written by a job of its own that holds no permission and
-# runs nothing the agent wrote: it only copies the scrubbed report into the run's summary.
+# Every run's report, pictures and costs go in the run's summary and its artifacts; a failed step fails its job. The
+# agent jobs need a Claude credential as a repository secret: ANTHROPIC_API_KEY, or CLAUDE_CODE_OAUTH_TOKEN /
+# CLAUDE_CODE_OAUTH_TOKEN_2 (a subscription, from `claude setup-token`). Without one they say so and pass; the MCP
+# check needs none and always runs.
+#
+# The agents read pages anyone can write, so a job holding a credential holds nothing it could hand on: a read-only
+# token, kept off the disk, no OIDC, no shell or file reads outside the work tree, no cache saved (the build job, which
+# starts no node and runs no agent, saves the build's), and a report scrubbed of anything shaped like a key before it
+# leaves. After the agent has run, its job runs only shell, jq and perl: the scripts that read what it left run in the
+# report job, from a fresh checkout.
+#
+# Where each check runs: on a pull request, or only after a push (UNB-235). This workflow never runs on a pull request.
+#
+#   Every pull request into staging or main, draft or ready, no credential at all (pr-check.yml):
+#     MCP check (no model)   this workflow's MCP check, on a node built from the merge commit, step for step
+#     Journey coverage       this workflow's journey coverage, step for step
+#     Also no model: CI (ci.yml) and line coverage with its ratchet (coverage.yml).
+#   A ready pull request into staging from a branch of this repository, the Claude credential held in the GitHub
+#   environment `pr-agent-checks` and nowhere else (pr-agent-checks.yml, UNB-248): the MCP check, Claude QA and tool
+#   choice, skill triggers and the gate bank's slice, on the merge commit, before it merges. A draft, a fork's pull
+#   request and a pull request into main never reach that credential; pr-check.yml is what they get.
+#   A push to staging or main (this workflow): the build, MCP check, Claude QA, skill triggers, the gate bank's slice,
+#   journey coverage and the report, on the pushed commit, all on Blacksmith machines. The MCP check, Claude QA and the
+#   slice are not run again for a tree that already passed them on its pull request (`passed`, passed_on_pr.py).
+#   Nightly and by hand only: this workflow whatever passed before (nightly, one job may take Lewis's Mac when it is
+#   free), the full gate bank (gate-bank.yml) and the hard-site and writes banks (bank.yml).
 name: QA
 
-# Nightly and by hand, never on each push: the agent's part spends the Claude subscription's weekly allowance. Not on
-# a pull request either, labelled or not: a job that holds the model's credential runs no code a pull request brought
-# (test_workflow_security.py).
+# A push to staging or main runs it on the commit pushed, which only someone who may push there put there: never a pull
+# request, labelled or not, and never a fork's code. A job that holds the model's credential runs no code a pull request
+# brought (test_workflow_security.py). A newer push to the same branch cancels the older run.
+# On a pull request the checks that need no credential run in pr-check.yml, and the model's in pr-agent-checks.yml
+# (UNB-248) for a ready one from a branch of this repository: the split is in the header above.
 on:
+  push:
+    branches: [staging, main]
   schedule:
     - cron: '47 20 * * *'
   workflow_dispatch:
+    inputs:
+      model:
+        description: Run the model jobs too (Claude QA, skill triggers). Off runs the MCP check alone, spending no model use.
+        type: boolean
+        default: true
 
 concurrency:
   group: qa-${{ github.ref }}
@@ -28,12 +80,315 @@ concurrency:
 permissions: {}
 
 jobs:
-  qa:
-    name: Claude QA
-    if: >-
-      github.ref == 'refs/heads/staging'
+  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
+  # machine that starts at once, so a Mac that is asleep or busy never holds a run up. The summary says why for each
+  # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
+  place:
+    name: Where the agent jobs run
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      qa1: ${{ steps.place.outputs.qa1 }}
+      qa2: ${{ steps.place.outputs.qa2 }}
+      qa3: ${{ steps.place.outputs.qa3 }}
+      qa4: ${{ steps.place.outputs.qa4 }}
+      slice: ${{ steps.place.outputs.slice }}
+      check: ${{ steps.place.outputs.check }}
+      skills: ${{ steps.place.outputs.skills }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/place_jobs.py
+          sparse-checkout-cone-mode: false
+      - id: place
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+          # A push (and a run by hand, which measures one) has 15 minutes (UNB-235), and Lewis's Mac can't promise them:
+          # on dispatch 44948600956 it took 9 min 36 s to download the build (42 to 54 s before, 7 to 11 s on
+          # Blacksmith) and ran shard 4 in 430 s against Blacksmith's 295 to 335 s. So only the nightly run uses it.
+          MAC_POOL: ${{ github.event_name == 'schedule' && vars.MAC_RUNNER || '' }}
+          LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
+        # One Mac takes one job, the gate bank's slice (as before sharding); the Claude QA shards and the MCP check go
+        # to Blacksmith at once, side by side, rather than queueing behind each other on it. The slice's place is
+        # handed to gate-bank.yml (runs_on), whose own place job can't see this run's jobs (UNB-235).
+        run: python3 -I .github/scripts/place_jobs.py slice=mac qa4=mac qa1=mac qa2=mac qa3=mac check=mac skills=linux
+
+  # A push to staging whose tree already passed these checks on its pull request does not run them again (UNB-166,
+  # Lewis, 21 Nov 2026): pr-agent-checks.yml ran the MCP check, Claude QA and the slice on the pull request's merge
+  # commit, and when staging had not moved the push holds the same tree, so the same code, workflows and tests.
+  # passed_on_pr.py looks for a successful pull request run of pr-agent-checks.yml, from this repository, that kept its
+  # slice under this tree; anything it cannot read is no hit and every check runs. The nightly run and a run by hand
+  # never look. A plain job, on Blacksmith (#787).
+  passed:
+    name: Look up the pull request's run
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      hit: ${{ steps.look.outputs.hit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/qa
+      - name: Look for a pull request run that passed on this tree
+        id: look
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -I .github/qa/passed_on_pr.py --repo "$GITHUB_REPOSITORY" --event "$GITHUB_EVENT_NAME" --ref "$GITHUB_REF" \
+            --tree "$(git rev-parse 'HEAD^{tree}')"
+
+  # The node, its CLI, its browser and the window, built once from the commit with no secret and no write permission, and
+  # packed into one archive whose SHA-256 each job below checks before it unpacks it (as pr-agent-checks.yml's build job
+  # does). Before this the MCP check, Claude QA and the gate bank's slice each built the same commit: medians of 78 s,
+  # 86 s and 79 s on a push to staging, 17 to 21 Nov 2026 (the CI audit of 21 Nov, U8).
+  # Skipped on a push whose tree already passed on its pull request, and with it the three jobs that need its build:
+  # the MCP check, Claude QA and the gate bank's slice.
+  build:
+    name: Build the node once
+    needs: passed
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/staging') && (github.event_name != 'push' || needs.passed.outputs.hit != 'true')
+    # A plain build, no agent: on Blacksmith (#787), so the one Mac slot stays for an agent job. Lewis's Mac and
+    # Blacksmith's are both Apple-silicon macOS, so the archive runs on whichever the place job picks.
     runs-on: blacksmith-6vcpu-macos-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.pack.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: vendor
+        with:
+          path: unbrowse-node/vendor
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-pss.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-grease-sigalg.patch') }}
+      - if: steps.vendor.outputs.cache-hit != 'true'
+        working-directory: unbrowse-node
+        run: sh scripts/apply-tls-patch.sh
+      # The build's folders, by commit: a push restores the newest build of its lockfile and builds only what changed,
+      # then saves straight after the build. This job starts no node and runs no agent, so nothing but the build has
+      # touched what it saves.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: build-cache
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            unbrowse-node/target
+            unbrowse-browser/cli/target
+          key: qa-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            qa-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}-
+            qa-${{ runner.os }}-rust-1.99.1-
+      - name: Build the node and its browser
+        run: |
+          cargo build --locked --manifest-path unbrowse-browser/cli/Cargo.toml
+          cargo build --locked --manifest-path unbrowse-node/Cargo.toml --bin unbrowse-node --bin unb
+      - name: Save the build's folders before anything else runs
+        if: github.event_name == 'push' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            unbrowse-node/target
+            unbrowse-browser/cli/target
+          key: qa-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}-${{ github.sha }}
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          version: 0.17.0
+      - name: Build the window
+        working-directory: unbrowse-node/window
+        run: zig build
+      # One archive, at the paths the build left them: a debug node finds its browser program by the path it was built
+      # at, which is the same work folder on every runner of this label. tar keeps the programs executable.
+      - name: Pack the build
+        id: pack
+        run: |
+          tar -cf "$RUNNER_TEMP/node-build.tar" \
+            unbrowse-node/target/debug/unbrowse-node unbrowse-node/target/debug/unb \
+            unbrowse-browser/cli/target/debug/agent-browser unbrowse-node/window/zig-out
+          digest=$(shasum -a 256 "$RUNNER_TEMP/node-build.tar" | cut -d' ' -f1)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          ls -l "$RUNNER_TEMP/node-build.tar"
+          echo "sha256 $digest"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: qa-node-build
+          path: ${{ runner.temp }}/node-build.tar
+          retention-days: 3
+          if-no-files-found: error
+
+  check:
+    name: MCP check (no model)
+    needs: [place, build]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/staging'
+    runs-on: ${{ fromJSON(needs.place.outputs.check) }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: qa-node-build
+          path: ${{ runner.temp }}/node-build
+      - name: Unpack the build this run made
+        env:
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
+          tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
+          # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
+          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
+          # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
+          browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
+          test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
+          echo "UNBROWSE_BROWSER=$browser" >> "$GITHUB_ENV"
+      # The checks' own tests first: a checker that can't fail proves nothing (fake server, fake browser, no node).
+      - name: Test the checks
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet jsonschema==4.23.0
+          "$RUNNER_TEMP/venv/bin/python" -m unittest discover -s .github/qa -p 'test_*.py'
+      # A person's Mac keeps what an earlier job left running (a node on the port this job wants): stop it.
+      - name: Stop what an earlier job left running
+        run: sh .github/qa/stop-left-nodes.sh
+      - name: Start the node
+        run: sh .github/qa/start-node.sh unbrowse-node/target/debug/unbrowse-node "$GITHUB_WORKSPACE/unbrowse-node/target/debug/unb" "$RUNNER_TEMP/unbrowse"
+      - name: MCP contract and journey
+        id: mcp
+        continue-on-error: true
+        run: |
+          UNBROWSE_AGENT_TOKEN="$(cat "$UNBROWSE_HOME/token")" "$RUNNER_TEMP/venv/bin/python" .github/qa/mcp_check.py \
+            --unb "$UNB" --out "$RUNNER_TEMP/check" --chrome "$QA_CHROME"
+      - name: Skills against the node's tools
+        id: skills
+        continue-on-error: true
+        run: python3 .github/qa/skill_check.py --tools "$RUNNER_TEMP/check/tools.json" --out "$RUNNER_TEMP/check"
+      # The owner's side: the window, opened on this node as the owner opens it, and pictured. It reads the node's
+      # home from ~/.unbrowse, so it runs with a home whose .unbrowse is this node's.
+      - name: The window, on this node
+        id: window
+        continue-on-error: true
+        # The window draws itself (qa_tools.py --picture: nanoui's offscreen snapshot) on this node: no screen is read
+        # and nothing comes in front of anyone, so a person's own Mac needs no screen permission. A home whose
+        # .unbrowse is this node's points it here.
+        env:
+          QA_WINDOW: ${{ github.workspace }}/unbrowse-node/window/zig-out/bin/unbrowse-window
+          QA_WORK: ${{ runner.temp }}/window
+          QA_SHOTS: ${{ runner.temp }}/window
+          QA_WINDOW_WAIT: "8"
+        run: |
+          shots="$RUNNER_TEMP/check/shots"
+          mkdir -p "$shots"
+          drew=fail; python3 -I .github/qa/qa_tools.py --picture "$shots/window.png" > "$RUNNER_TEMP/check/window.log" 2>&1 && drew=pass
+          # A new node opens on its terms; Open my node, and the same window asks its owner to sign in (Skip for now).
+          opened=fail; python3 -I .github/qa/qa_tools.py --picture "$shots/window-open-my-node.png" "click:Open my node;live:4" >> "$RUNNER_TEMP/check/window.log" 2>&1 && opened=pass
+          # The sign-in shows only in the window that pressed Open my node (window/src/app.zig acceptTerms), so a window
+          # opened after it goes on to Connect your agents when it finds agent apps here (Skip, which the node
+          # remembers), else to the node. Skip on Connect goes on to ChatGPT and Claude on the web, whose Not now ends it
+          # (screens/connect.zig webStep).
+          # With no agent installed here the sheet's button is Next, not Skip.
+          clicked=fail
+          for script in "click:Skip;live:2;click:Not now;live:2;click:Vault;live:2" "click:Next;live:2;click:Not now;live:2;click:Vault;live:2" "click:Skip;live:2;click:Vault;live:2" "click:Vault;live:2"; do
+            python3 -I .github/qa/qa_tools.py --picture "$shots/window-vault.png" "$script" >> "$RUNNER_TEMP/check/window.log" 2>&1 && { clicked=pass; break; }
+          done
+          size=$(wc -c < "$shots/window.png" 2>/dev/null || echo 0)
+          {
+            echo "#### The window"
+            echo
+            echo "| Step | Result | Note |"
+            echo "| --- | --- | --- |"
+            echo "| opens on this node and draws | $drew | window.png, $size bytes |"
+            echo "| its terms, then Open my node opens the node | $opened | window-open-my-node.png |"
+            echo "| opened again: Skip on Connect your agents if it shows, then Vault shows the Vault screen | $clicked | window-vault.png |"
+          } > "$RUNNER_TEMP/check/window.md"
+          cat "$RUNNER_TEMP/check/window.md" "$RUNNER_TEMP/check/window.log"
+          [ "$drew" = pass ] && [ "$opened" = pass ] && [ "$clicked" = pass ]
+      - name: Collect the node's log
+        if: always()
+        run: cp "$UNBROWSE_HOME/node.log" "$RUNNER_TEMP/check/node.log" 2>/dev/null || true
+      - id: upload
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: qa-mcp-check
+          path: ${{ runner.temp }}/check/
+          if-no-files-found: warn
+      - name: Summary
+        if: always()
+        env:
+          SHOTS_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          {
+            echo "## MCP check (no model)"
+            echo
+            echo "Every step's picture is in the artifact [qa-mcp-check]($SHOTS_URL) (shots/, named by step)."
+            echo
+            cat "$RUNNER_TEMP/check/mcp-check.md" 2>/dev/null || echo "**MCP check: didn't finish.** See its step's log."
+            echo
+            cat "$RUNNER_TEMP/check/skill-check.md" 2>/dev/null || echo "**Skill check: didn't finish.** See its step's log."
+            echo
+            cat "$RUNNER_TEMP/check/window.md" 2>/dev/null || echo "**The window: didn't finish.** See its step's log."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Verdict
+        if: always()
+        env:
+          MCP: ${{ steps.mcp.outcome }}
+          SKILLS: ${{ steps.skills.outcome }}
+          WINDOW: ${{ steps.window.outcome }}
+        run: |
+          echo "MCP check: $MCP, skills: $SKILLS, window: $WINDOW"
+          [ "$MCP" = success ] && [ "$SKILLS" = success ] && [ "$WINDOW" = success ]
+      - if: always()
+        run: kill "$(cat "$UNBROWSE_HOME/node.pid")" 2>/dev/null || true
+
+  # A push or the nightly run has no inputs, and GitHub's == reads a missing input as false, so the model switch is read
+  # on a dispatch only (`inputs.model != false` skipped these jobs on every push: run 44710075088, test_qa_workflow.py).
+  # Sharded (UNB-235): each row is a job on its own machine with its own node, given the checks in CHECKS; a check that
+  # leans on another is in its row (test_merge_shards.py). Tool choice runs in row 1, whose checks take the least time (43 s of
+  # session against the window row's 295 s, dispatch 44947487340).
+  qa:
+    name: Claude QA (${{ matrix.shard }})
+    needs: [place, build]
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/staging') && (github.event_name != 'workflow_dispatch' || inputs.model)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+            checks: "1,2,3,8,9,12,13,17"
+            choice: true
+          - shard: 2
+            checks: "4,5,6,7,10,11,18"
+          - shard: 3
+            checks: "14,15,16,19,20,21,22,23,24"
+          - shard: 4
+            checks: "25,26,27"
+    runs-on: ${{ fromJSON(needs.place.outputs[format('qa{0}', matrix.shard)]) }}
+    timeout-minutes: 40
     permissions:
       contents: read
     outputs:
@@ -64,7 +419,12 @@ jobs:
       # The Claude CLI the credential is asked with: the locked one, its lifecycle scripts off, in a step with no secret.
       - name: Install the pinned Claude CLI
         if: steps.auth.outputs.ok == 'true'
-        run: npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
+        run: |
+          npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
+          # The CLI is a stub until its own install.cjs, from the same locked package, links in the native binary of
+          # the platform's locked optional package; skipped, every ask says "claude native binary not installed" (UNB-235).
+          node .github/tools/claude-cli/node_modules/@anthropic-ai/claude-code/install.cjs
+          .github/tools/claude-cli/node_modules/.bin/claude --version
       - name: Pick the Claude credential that answers
         id: credential
         if: steps.auth.outputs.ok == 'true'
@@ -74,112 +434,82 @@ jobs:
           TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
           TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+      # The build this run's `build` job made, checked against the SHA-256 that job gave before it is unpacked. This job
+      # builds nothing and saves no cache: the tree it ends with has been in reach of the agent's Write.
       - if: steps.auth.outputs.ok == 'true'
-        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          toolchain: 1.99.1
-      # Restored, never saved: the tree this job ends with has been in reach of the agent's Write.
-      - if: steps.auth.outputs.ok == 'true'
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: vendor
-        with:
-          path: unbrowse-node/vendor
-          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch') }}
-      - if: steps.auth.outputs.ok == 'true' && steps.vendor.outputs.cache-hit != 'true'
-        working-directory: unbrowse-node
-        run: sh scripts/apply-tls-patch.sh
-      # The build's folders are restored here and saved straight after the build, before anything that reads the web
-      # or an agent with Write runs: a cache this job saves holds only what the build made. A key is saved once, for a
-      # lockfile, by the first run that misses it, and no other workflow restores it.
-      - if: steps.auth.outputs.ok == 'true'
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: build-cache
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            unbrowse-node/target
-            unbrowse-browser/cli/target
-          key: qa-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}
-          restore-keys: qa-${{ runner.os }}-rust-1.99.1-
-      - name: Build the node and its browser
+          name: qa-node-build
+          path: ${{ runner.temp }}/node-build
+      - name: Unpack the build this run made
+        if: steps.auth.outputs.ok == 'true'
+        env:
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
+          tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
+          # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
+          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
+          # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
+          browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
+          test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
+          echo "UNBROWSE_BROWSER=$browser" >> "$GITHUB_ENV"
+      # The npm package as npm ships it (pack-sdks.sh's steps, with no release manifest): built and packed from this
+      # commit, unpacked where `npm install -g` would put it.
+      - name: Pack the npm package
         if: steps.auth.outputs.ok == 'true'
         run: |
-          cargo build --locked --manifest-path unbrowse-browser/cli/Cargo.toml
-          cargo build --locked --manifest-path unbrowse-node/Cargo.toml --bin unbrowse-node --bin unb
+          ts=unbrowse-sdk/typescript
+          rm -rf "$ts/skill" && cp -R skills/unbrowse "$ts/skill"
+          mkdir -p "$RUNNER_TEMP/npm/global"
+          ( cd "$ts" && npm ci --silent --ignore-scripts && npm run build --silent && npm pack --silent --pack-destination "$RUNNER_TEMP/npm" )
+          tar -xzf "$RUNNER_TEMP"/npm/unbrowse-*.tgz -C "$RUNNER_TEMP/npm/global"
+          test -f "$RUNNER_TEMP/npm/global/package/dist/cli.js"
 
-      - name: Save the build's folders before anything else runs
-        if: steps.auth.outputs.ok == 'true' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            unbrowse-node/target
-            unbrowse-browser/cli/target
-          key: qa-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}
-
-      # A node of its own, as an agent's machine would have: an agent key, a login in the vault for the sign-in check,
-      # and a browser (the node downloads Chrome for Testing when the runner has none).
+      # A person's Mac keeps what an earlier job left running (a node on the port this job wants): stop it.
+      - name: Stop what an earlier job left running
+        run: sh .github/qa/stop-left-nodes.sh
+      # The node's browser writes files only under its file root, which the owner picks: the agent's screenshots go to
+      # SHOTS, where the step that takes them looks. With the default root (~/.agent-browser/files) every one was
+      # refused and the report fell back to pictures of each check's page (run 44656967013, UNB-235).
       - name: Start the node
         if: steps.auth.outputs.ok == 'true'
+        env:
+          AGENT_BROWSER_FILE_ROOT: ${{ github.workspace }}/qa-shots
+        run: mkdir -p qa-shots && sh .github/qa/start-node.sh unbrowse-node/target/debug/unbrowse-node "$GITHUB_WORKSPACE/unbrowse-node/target/debug/unb" "$RUNNER_TEMP/unbrowse"
+
+      # The owner's surfaces for the agent: the terminal and the window (qa_tools.py). What they run is copied to the
+      # temp folder first, where the agent can't Write: the programs, the window, the npm package and the tool itself,
+      # so nothing the agent writes in the work tree is ever run.
+      - name: The terminal and the window, for the agent
+        if: steps.auth.outputs.ok == 'true'
         run: |
-          node=unbrowse-node/target/debug/unbrowse-node
-          export UNBROWSE_HOME="$RUNNER_TEMP/unbrowse"
-          echo "UNBROWSE_HOME=$UNBROWSE_HOME" >> "$GITHUB_ENV"
-          mkdir -p "$UNBROWSE_HOME"
-
-          if printf 'SuperSecretPassword!\n' | "$node" vault add the-internet.herokuapp.com tomsmith --stored; then
-            echo "VAULT_READY=yes" >> "$GITHUB_ENV"
-          else
-            echo "VAULT_READY=no" >> "$GITHUB_ENV"
-          fi
-          # The setup names the key by its number, never its token: read the token by that number.
-          index=$("$node" agent new qa 2>/dev/null | grep -o -- '--agent [0-9]*' | head -n 1 | cut -d' ' -f2)
-          token=$([ -n "$index" ] && "$node" agent token "$index")
-          [ -n "$token" ] || { echo "::error::couldn't make an agent key"; exit 1; }
-          echo "::add-mask::$token"
-
-          # Telemetry and bug reports on, sent to an address nothing answers: this node is off the network, so check 12's
-          # report must stay on it with reports on, and no QA run ever files a real issue.
-          UNBROWSE_TELEMETRY=1 UNBROWSE_TELEMETRY_URL=http://127.0.0.1:9/v1/events \
-          UNBROWSE_REPORTS=1 UNBROWSE_REPORTS_URL=http://127.0.0.1:9/v1/reports \
-            nohup "$node" > "$RUNNER_TEMP/node.log" 2>&1 &
-          # `unb` signs each request with the token, as every client does: the node takes no bearer token.
-          unb="$GITHUB_WORKSPACE/unbrowse-node/target/debug/unb"
-          echo "UNB=$unb" >> "$GITHUB_ENV"
-          for _ in $(seq 60); do
-            UNBROWSE_AGENT_TOKEN="$token" "$unb" whoami > /dev/null 2>&1 && break
-            sleep 2
-          done
-          UNBROWSE_AGENT_TOKEN="$token" "$unb" whoami > /dev/null || { cat "$RUNNER_TEMP/node.log"; exit 1; }
-
-          for _ in $(seq 120); do
-            using=$("$node" browser status --json | jq -r '.chromium // empty')
-            [ -n "$using" ] && break
-            sleep 5
-          done
-          [ -n "$using" ] || { echo "::error::the node has no browser"; cat "$RUNNER_TEMP/node.log"; exit 1; }
-          echo "Browsing in $using"
-
-          # The node's MCP server as a shipped setup gives it: `unb mcp`, which signs each message.
-          jq -n --arg unb "$unb" --arg token "$token" \
-            '{mcpServers: {unbrowse: {command: $unb, args: ["mcp"], env: {UNBROWSE_NODE: "http://127.0.0.1:7788", UNBROWSE_AGENT_TOKEN: $token}}}}' \
-            > "$RUNNER_TEMP/mcp.json"
+          kit="$RUNNER_TEMP/qa-kit"
+          mkdir -p "$kit/bin" qa-work
+          cp unbrowse-node/target/debug/unbrowse-node unbrowse-node/target/debug/unb "$kit/bin/"
+          cp unbrowse-node/window/zig-out/bin/unbrowse-window "$kit/bin/" 2>/dev/null || echo "::warning::the window didn't build: checks 25 to 27 are blocked"
+          cp .github/qa/qa_tools.py "$kit/"
+          cp -R .github/qa/fixtures "$kit/fixtures"
+          jq --arg py "$(command -v python3)" --arg kit "$kit" --arg ws "$GITHUB_WORKSPACE" --arg home "$UNBROWSE_HOME" \
+            --arg chrome "$QA_CHROME" --arg npm "$RUNNER_TEMP/npm/global/package/dist/cli.js" --arg display "${DISPLAY:-}" \
+            '.mcpServers.qa = {command: $py, args: ["-I", ($kit + "/qa_tools.py")], env: ((.mcpServers.unbrowse.env) + {
+              QA_PROGRAMS: ($kit + "/bin"), QA_WINDOW: ($kit + "/bin/unbrowse-window"), QA_NPM_CLI: $npm, QA_SHOTS: ($ws + "/qa-shots"),
+              QA_WORK: ($ws + "/qa-work"), QA_FIXTURES: ($kit + "/fixtures"), QA_CHROME: $chrome, UNBROWSE_HOME: $home,
+              PATH: env.PATH} + (if $display == "" then {} else {DISPLAY: $display} end)
+              + (if env.UNBROWSE_BROWSER then {UNBROWSE_BROWSER: env.UNBROWSE_BROWSER} else {} end))}' \
+            "$RUNNER_TEMP/unbrowse/mcp.json" > "$RUNNER_TEMP/unbrowse/qa-mcp.json"
+          echo "QA_FIXTURES=$kit/fixtures" >> "$GITHUB_ENV"
 
       # Whether an agent reaches for the node when nothing tells it to: the QA below turns every other web tool off, so it
       # can't show this. Before QA, so its verdict is out of the agent's reach. It has no shell and no file tools, and a
       # failure here doesn't stop QA: the verdict step at the end reads it. On a scratch node of its own: what its sessions
-      # learn (a signed-in session teaches a sign-in route) would otherwise answer the checklist's first asks.
+      # learn (a signed-in session teaches a sign-in route) would otherwise answer the checklist's first asks. Each task
+      # runs several times (tool-choice.json `trials`): one session's choice is a sample, not a rate.
       - name: Tool choice setup
         id: choice-setup
-        if: steps.auth.outputs.ok == 'true'
+        if: steps.auth.outputs.ok == 'true' && matrix.choice
         continue-on-error: true
         run: |
-          (cd .github/qa && python3 -m unittest test_tool_choice)
-          npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
           scratch="$RUNNER_TEMP/tc"
           PORT=17820 sh test-banks/popular-sites/scratch-node.sh "$scratch"
           echo "::add-mask::$(cat "$scratch/token")"
@@ -188,11 +518,13 @@ jobs:
           jq -n --arg unb "$UNB" --arg token "$(cat "$scratch/token")" \
             '{mcpServers: {unbrowse: {command: $unb, args: ["mcp"], env: {UNBROWSE_NODE: "http://127.0.0.1:17820", UNBROWSE_AGENT_TOKEN: $token}}}}' \
             > "$scratch/mcp.json"
+          python3 .github/qa/tool_choice.py --plan-only --mcp-config "$scratch/mcp.json" --out "$RUNNER_TEMP/tool-choice"
 
       # Only the pinned CLI process receives a model credential. PR scripts, setup and scoring run in separate steps
       # without secrets; CLI dependencies are locked in .github/tools/claude-cli and lifecycle scripts are disabled.
+      # Three sessions at a time, each capped in turns and dollars.
       - name: Run tool choice sessions
-        if: steps.auth.outputs.ok == 'true'
+        if: steps.auth.outputs.ok == 'true' && matrix.choice
         continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -200,73 +532,120 @@ jobs:
         run: |
           cli="$GITHUB_WORKSPACE/.github/tools/claude-cli/node_modules/.bin/claude"
           out="$RUNNER_TEMP/tool-choice"
-          mkdir -p "$out"
-          while IFS= read -r task; do
-            id=$(jq -r .id <<< "$task")
-            prompt=$(jq -r .prompt <<< "$task")
+          while IFS= read -r line; do
+            record=$(jq -r .record <<< "$line")
+            prompt=$(jq -r .prompt <<< "$line")
             "$cli" -p "$prompt" --output-format stream-json --verbose --strict-mcp-config \
               --mcp-config "$RUNNER_TEMP/tc/mcp.json" --setting-sources project \
               --tools WebFetch,WebSearch --allowedTools mcp__unbrowse,WebFetch,WebSearch \
               --max-turns 12 --max-budget-usd 0.75 --no-session-persistence \
-              > "$out/$id.jsonl" 2>/dev/null || true
-          done < <(jq -c '.tasks[]' .github/qa/tool-choice.json)
+              > "$out/$record" 2>/dev/null < /dev/null &
+            while [ "$(jobs -rp | wc -l)" -ge 3 ]; do sleep 1; done
+          done < "$out/plan.jsonl"
+          wait
 
       - name: Score tool choice
         id: choice
-        if: steps.auth.outputs.ok == 'true'
+        if: steps.auth.outputs.ok == 'true' && matrix.choice
         continue-on-error: true
         run: |
           python3 .github/qa/tool_choice.py --score-only --mcp-config "$RUNNER_TEMP/tc/mcp.json" --out "$RUNNER_TEMP/tool-choice"
           echo "pass=$(jq -r .pass "$RUNNER_TEMP/tool-choice/tool-choice.json")" >> "$GITHUB_OUTPUT"
-          cat "$RUNNER_TEMP/tool-choice/tool-choice.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stop tool choice node
-        if: always()
+        if: always() && matrix.choice
         run: kill "$(cat "$RUNNER_TEMP/tc/node.pid")" 2>/dev/null || true
 
+      # The agent, run by the pinned CLI as the tool choice sessions are. claude-code-action throws "Unsupported event
+      # type: push" for every push (it takes issues, pull requests, comments, dispatch, schedule and workflow_run, to
+      # its main of 20 Nov 2026), so Claude QA never ran on a push to staging (runs 44596008842 to 44691479204, UNB-235).
+      # The node's tools, Read for the checklist and Write for the report. No shell, no web of its own, no GitHub token,
+      # and nothing read or written in the runner's temp folder, where the node's keys and the MCP config are. Capped
+      # in turns, and the job in minutes. Its stream (the result event says what it cost) goes to the temp folder.
       - name: QA
+        id: claude
         if: steps.auth.outputs.ok == 'true'
-        uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_code_oauth_token: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ github.token }}
-          prompt: |
-            Read .github/qa/checklist.md and do what it says. VAULT_READY: ${{ env.VAULT_READY }}.
-          # The node's tools, Read for the checklist and Write for the report. No shell, no web of its own, and nothing
-          # read from the runner's temp folder, where the node's keys and the MCP config are.
-          claude_args: >-
-            --mcp-config ${{ runner.temp }}/mcp.json
-            --allowedTools "mcp__unbrowse__unbrowse_do,mcp__unbrowse__unbrowse_browse,mcp__unbrowse__unbrowse_search,mcp__unbrowse__unbrowse_call,mcp__unbrowse__unbrowse_judge,mcp__unbrowse__unbrowse_report,Read,Write"
-            --disallowedTools "Bash,WebFetch,WebSearch,Edit,NotebookEdit,Glob,Grep,Read(/${{ runner.temp }}/**)"
-            --max-turns 80
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          PROMPT: 'Read .github/qa/checklist.md and do what it says. CHECKS: ${{ matrix.checks }}. VAULT_READY: ${{ env.VAULT_READY }}. SHOTS: ${{ github.workspace }}/qa-shots. WORK: ${{ github.workspace }}/qa-work. FIXTURES: ${{ env.QA_FIXTURES }}'
+        run: |
+          echo "execution_file=$RUNNER_TEMP/qa-execution.jsonl" >> "$GITHUB_OUTPUT"
+          "$GITHUB_WORKSPACE/.github/tools/claude-cli/node_modules/.bin/claude" -p "$PROMPT" --output-format stream-json --verbose \
+            --strict-mcp-config --mcp-config "$RUNNER_TEMP/unbrowse/qa-mcp.json" --setting-sources project \
+            --tools Read,Write \
+            --allowedTools "mcp__unbrowse__unbrowse_do,mcp__unbrowse__unbrowse_browse,mcp__unbrowse__unbrowse_search,mcp__unbrowse__unbrowse_call,mcp__unbrowse__unbrowse_judge,mcp__unbrowse__unbrowse_report,mcp__qa__terminal,mcp__qa__window,Read,Write" \
+            --disallowedTools "Bash,WebFetch,WebSearch,Edit,NotebookEdit,Glob,Grep,Read(/$RUNNER_TEMP/**),Write(/$RUNNER_TEMP/**)" \
+            --max-turns 170 --no-session-persistence \
+            > "$RUNNER_TEMP/qa-execution.jsonl" < /dev/null
 
       # Nothing shaped like a key leaves in the report: the node's owner token by value, and agent keys, GitHub tokens
-      # and Anthropic keys by their shape.
+      # and Anthropic keys by their shape. From here on this job runs only shell, jq and perl: the agent could write
+      # to the work tree, so nothing in it is run.
       - name: Scrub the report
         if: always() && steps.auth.outputs.ok == 'true'
+        env:
+          EXECUTION: ${{ steps.claude.outputs.execution_file }}
+          SHARD: ${{ matrix.shard }}
         run: |
-          [ -f qa-report.md ] || echo "Claude QA wrote no report: see the QA step's log." > qa-report.md
+          mkdir -p "$RUNNER_TEMP/qa-out/shots"
+          # The checklist says the repository root; a run that wrote its report into WORK instead (PR #792's run
+          # passed all 27 checks and put both files in qa-work/) is still read, never a link the agent planted.
+          for f in qa-report.md qa-verdict.json; do
+            if [ ! -e "$f" ] && [ -f "qa-work/$f" ] && [ ! -L "qa-work/$f" ]; then cp "qa-work/$f" "$f"; fi
+          done
+          wrote=yes
+          [ -f qa-report.md ] || { wrote=no; echo "Claude QA wrote no report: its last words are in qa-cost.json's result." > qa-report.md; }
+          cp qa-report.md "$RUNNER_TEMP/qa-out/qa-report.md"
+          cp qa-verdict.json "$RUNNER_TEMP/qa-out/qa-verdict.json" 2>/dev/null || echo '{"pass": false, "checks": []}' > "$RUNNER_TEMP/qa-out/qa-verdict.json"
+          # What the run cost, from the CLI's stream: its result event alone, never the conversation. When the
+          # run ended in an error, or ended without a report (PR #789's run stopped after check 26 with no word of
+          # why), its last words say why (a spent or expired token says so here), scrubbed below like the report.
+          if [ -n "$EXECUTION" ] && [ -f "$EXECUTION" ]; then
+            jq -sc --arg wrote "$wrote" '[.[] | select(.type == "result")] | last | {type, subtype, is_error, total_cost_usd, num_turns, duration_ms, usage,
+              result: (if .is_error or $wrote == "no" then ((.result // "") | tostring | .[0:600]) else null end)}' "$EXECUTION" > "$RUNNER_TEMP/qa-out/qa-cost.json" || true
+          fi
+          cp "$RUNNER_TEMP"/tool-choice/*.md "$RUNNER_TEMP"/tool-choice/*.json "$RUNNER_TEMP/qa-out/" 2>/dev/null || true
+          # The terminal's and the window's own pictures, a PNG per step (qa_tools.py), and their log.
+          mkdir -p "$RUNNER_TEMP/qa-out/shots/steps"
+          for shot in qa-shots/steps/*.png; do
+            [ -f "$shot" ] && [ ! -L "$shot" ] || continue
+            [ "$(head -c 4 "$shot" | od -An -c | tr -d ' \n')" = '211PNG' ] || continue
+            # Each shard numbers its steps from 001: its number goes first, so the merged folder keeps them all.
+            cp "$shot" "$RUNNER_TEMP/qa-out/shots/steps/s${SHARD}-$(basename "$shot")"
+          done
+          [ -f qa-shots/steps/steps.jsonl ] && [ ! -L qa-shots/steps/steps.jsonl ] && cp qa-shots/steps/steps.jsonl "$RUNNER_TEMP/qa-out/steps.json" || true
           OWNER_TOKEN=$(cat "$UNBROWSE_HOME/owner.token" 2>/dev/null || true) perl -pi -e '
             s/\Q$ENV{OWNER_TOKEN}\E/[redacted]/g if length $ENV{OWNER_TOKEN};
             s/\bunb_[A-Za-z0-9_.-]+/[redacted]/g;
             s/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})/[redacted]/g;
             s/\bsk-ant-[A-Za-z0-9_-]+/[redacted]/g;
-          ' qa-report.md
-      - name: Tool choice in the report
+          ' "$RUNNER_TEMP"/qa-out/*.md "$RUNNER_TEMP"/qa-out/*.json
+      # The agent's screenshots, by the paths its verdict names: only a PNG, only from the shots folder, the node's
+      # home or the temp folders, and only under the check's number.
+      - name: Take the agent's screenshots
         if: always() && steps.auth.outputs.ok == 'true'
         run: |
-          { echo; cat "$RUNNER_TEMP/tool-choice/tool-choice.md" 2>/dev/null || echo "**Tool choice: didn't finish.** See the step's log."; } >> qa-report.md
+          jq -r '.checks[]? | select(.shot != null) | "\(.n) \(.shot)"' "$RUNNER_TEMP/qa-out/qa-verdict.json" 2>/dev/null |
+          while read -r n shot; do
+            case "$n" in '' | *[!0-9]*) continue ;; esac
+            case "$shot" in *..*) continue ;; esac
+            case "$shot" in "$GITHUB_WORKSPACE"/qa-shots/* | "$UNBROWSE_HOME"/* | /tmp/* | /private/tmp/* | /var/folders/* | /private/var/folders/*) ;; *) continue ;; esac
+            [ -f "$shot" ] && [ ! -L "$shot" ] || continue
+            [ "$(head -c 4 "$shot" | od -An -c | tr -d ' \n')" = '211PNG' ] || continue
+            cp "$shot" "$RUNNER_TEMP/qa-out/shots/check-$(printf '%02d' "$n").png"
+          done
+          ls "$RUNNER_TEMP/qa-out/shots"
       - if: always() && steps.auth.outputs.ok == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: qa-report
-          path: qa-report.md
+          name: qa-report-${{ matrix.shard }}
+          path: ${{ runner.temp }}/qa-out/
       - name: Verdict
         if: always() && steps.auth.outputs.ok == 'true'
-        run: jq -e '.pass == true' qa-verdict.json > /dev/null || { echo "::error::Claude QA found a failing check"; exit 1; }
+        run: jq -e '.pass == true' "$RUNNER_TEMP/qa-out/qa-verdict.json" > /dev/null || { echo "::error::Claude QA found a failing check, or wrote no verdict"; exit 1; }
       - name: Tool choice verdict
-        if: always() && steps.auth.outputs.ok == 'true'
+        if: always() && steps.auth.outputs.ok == 'true' && matrix.choice
         env:
           CHOSE: ${{ steps.choice.outputs.pass }}
         run: '[ "$CHOSE" = true ] || { echo "::error::An agent with other web tools on hand did not reach for the node: see the report"; exit 1; }'
@@ -274,27 +653,320 @@ jobs:
       - if: always() && steps.auth.outputs.ok == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: qa-node-log
-          path: ${{ runner.temp }}/node.log
+          name: qa-node-log-${{ matrix.shard }}
+          path: ${{ runner.temp }}/unbrowse/node.log
           if-no-files-found: ignore
 
-  # The run's summary, from a job that holds no permission, checks nothing out and runs nothing the agent wrote: it only
-  # copies the scrubbed report there. A nightly or hand-started run has no pull request to post to, so none is asked for.
-  report:
-    name: QA report
-    needs: qa
-    if: always() && needs.qa.outputs.ran == 'true'
+  skills:
+    needs: place
+    name: Skill triggers
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/staging') && (github.event_name != 'workflow_dispatch' || inputs.model)
+    runs-on: ${{ fromJSON(needs.place.outputs.skills) }}
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    outputs:
+      key: ${{ steps.inputs.outputs.key }}
+      pass: ${{ steps.score.outputs.pass }}
+    steps:
+      - id: auth
+        env:
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$API_KEY$OAUTH_TOKEN" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Skill triggers didn't run: no Claude credential is set"
+          fi
+      - if: steps.auth.outputs.ok == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The verdict depends on the skills, the queries, the scripts, the locked CLI and these workflows (and on the
+      # model): `skill_trigger.py --key` hashes git's record of them. When a run with the same inputs already passed,
+      # an empty cache entry is kept under that key and the sessions are not run again. The nightly run does not
+      # look, so a model that drifts is seen within a day. `lookup-only`: nothing is downloaded, the entry is a name.
+      - name: What the verdict depends on
+        id: inputs
+        if: steps.auth.outputs.ok == 'true'
+        run: |
+          key=$(python3 .github/qa/skill_trigger.py --key)
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Whether these inputs already passed
+        id: passed
+        if: steps.auth.outputs.ok == 'true' && github.event_name != 'schedule'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .skill-triggers-passed
+          key: ${{ steps.inputs.outputs.key }}
+          lookup-only: true
+      - name: Already passed
+        if: steps.passed.outputs.cache-hit == 'true'
+        env:
+          KEY: ${{ steps.inputs.outputs.key }}
+        run: |
+          { echo "## Skill triggers"; echo; echo "Not run again: a run with the same skills, queries, scripts, CLI and workflows already passed (\`$KEY\`). The nightly run asks the model again."; } >> "$GITHUB_STEP_SUMMARY"
+      - if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - name: Install the pinned Claude CLI
+        if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        run: |
+          npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
+          # The CLI is a stub until its own install.cjs, from the same locked package, links in the native binary of
+          # the platform's locked optional package; skipped, every ask says "claude native binary not installed" (UNB-235).
+          node .github/tools/claude-cli/node_modules/@anthropic-ai/claude-code/install.cjs
+          .github/tools/claude-cli/node_modules/.bin/claude --version
+      - name: Pick the Claude credential that answers
+        id: credential
+        if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        env:
+          CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
+          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+      # A project holding the repository's skills, as an agent that installed them has them, and the sessions to run.
+      - name: Prepare the sessions
+        if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/skill-project/.claude/skills"
+          cp -R skills/*/ "$RUNNER_TEMP/skill-project/.claude/skills/"
+          python3 .github/qa/skill_trigger.py --plan "$RUNNER_TEMP/skill-runs/plan.jsonl"
+      # Only the pinned CLI receives the credential: the Skill tool beside the web tools, a few turns and cents each.
+      - name: Run skill trigger sessions
+        if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          cli="$GITHUB_WORKSPACE/.github/tools/claude-cli/node_modules/.bin/claude"
+          out="$RUNNER_TEMP/skill-runs"
+          cd "$RUNNER_TEMP/skill-project"
+          while IFS= read -r line; do
+            record=$(jq -r .record <<< "$line")
+            prompt=$(jq -r .prompt <<< "$line")
+            "$cli" -p "$prompt" --output-format stream-json --verbose --setting-sources project \
+              --tools Skill,WebFetch,WebSearch --allowedTools Skill \
+              --max-turns 3 --max-budget-usd 0.25 --no-session-persistence \
+              > "$out/$record" 2>/dev/null < /dev/null &
+            while [ "$(jobs -rp | wc -l)" -ge 4 ]; do sleep 1; done
+          done < "$out/plan.jsonl"
+          wait
+      - name: Score
+        id: score
+        if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          python3 .github/qa/skill_trigger.py --score "$RUNNER_TEMP/skill-runs"
+          echo "pass=$(jq -r .pass "$RUNNER_TEMP/skill-runs/skill-trigger.json")" >> "$GITHUB_OUTPUT"
+      - name: Summary
+        if: always() && steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        run: |
+          { echo "## Skill triggers"; echo; cat "$RUNNER_TEMP/skill-runs/skill-trigger.md" 2>/dev/null || echo "**Skill triggers: didn't finish.** See the steps' logs."; } >> "$GITHUB_STEP_SUMMARY"
+      - if: always() && steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: qa-skill-triggers
+          path: |
+            ${{ runner.temp }}/skill-runs/skill-trigger.*
+          if-no-files-found: ignore
+      - name: Verdict
+        if: always() && steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        env:
+          PASSED: ${{ steps.score.outputs.pass }}
+        run: '[ "$PASSED" = true ] || { echo "::error::A shipped skill was not chosen when it should be, or was chosen for a near miss: see the summary"; exit 1; }'
+
+  # The pass, remembered: an empty cache entry under the hash of what the verdict depended on. Its own job, so the job
+  # that ran the model's sessions saves nothing (test_workflow_security.py). It holds no secret and checks out nothing.
+  # A cache saved by a push to staging is read by every pull request into staging.
+  skills-passed:
+    name: Skill triggers, remembered
+    needs: skills
+    if: needs.skills.outputs.pass == 'true' && needs.skills.outputs.key != ''
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
     permissions: {}
     steps:
+      - env:
+          KEY: ${{ needs.skills.outputs.key }}
+        run: echo "$KEY passed in run $GITHUB_RUN_ID" > .skill-triggers-passed
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .skill-triggers-passed
+          key: ${{ needs.skills.outputs.key }}
+
+  # Every journey the product promises (.github/qa/journeys.json) has a QA step or a reason it can't: red otherwise. No
+  # model, no build, no secret.
+  coverage:
+    name: Journey coverage
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            test-banks/gate
+      - name: Every journey has a QA step
+        run: python3 -I .github/qa/journey_coverage.py check --out "$RUNNER_TEMP/coverage"
+      - name: Summary
+        if: always()
+        run: |
+          { echo "## Journey coverage"; echo; cat "$RUNNER_TEMP/coverage/coverage.md" 2>/dev/null || echo "**Journey coverage: didn't finish.** See its step's log."; } >> "$GITHUB_STEP_SUMMARY"
+
+  # The task gate's slice on the pushed commit (gate-bank.yml, which runs it alone only for release branches, nightly
+  # and by hand), so its verdict is in this run's report beside the journeys.
+  bank:
+    name: Gate bank
+    needs: [place, build]
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.model)
+    # actions: read is for gate-bank.yml's dashboard job, which is skipped when QA calls it, but a called workflow's
+    # jobs may ask no more than the caller gives.
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/gate-bank.yml
+    with:
+      scope: slice
+      build_digest: ${{ needs.build.outputs.digest }}
+      runs_on: ${{ needs.place.outputs.slice }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
+      RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+
+  # The run's summary, from a job that holds no secret and only reads: a fresh checkout of the pushed commit's scripts
+  # reads what the agent left (its report, verdict, screenshots and cost) as data, pictures every check (the agent's own
+  # screenshot, else the check's page straight in Chrome, else its result drawn), and writes the summary. A nightly or
+  # hand-started run has no pull request to post to, so none is asked for.
+  report:
+    name: QA report
+    needs: [check, qa, skills, coverage, bank]
+    if: always() && needs.qa.outputs.ran == 'true'
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            test-banks/gate
+      # One folder per Claude QA shard (qa-report-<shard>/), merged into one verdict that fails on any check no shard
+      # answered, one report and one folder of pictures.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         continue-on-error: true
         with:
-          name: qa-report
-          path: ${{ runner.temp }}/qa
-      - name: Report
+          pattern: qa-report-*
+          path: ${{ runner.temp }}/qa-shards
+      - name: Merge the shards
         run: |
-          report="$RUNNER_TEMP/qa/qa-report.md"
-          mkdir -p "$RUNNER_TEMP/qa"
-          [ -f "$report" ] || echo "Claude QA wrote no report: see the QA job's log." > "$report"
-          { echo "## Claude QA"; echo; cat "$report"; } >> "$GITHUB_STEP_SUMMARY"
+          python3 -I .github/qa/merge_shards.py --checklist .github/qa/checklist.md --plan .github/workflows/qa.yml \
+            --shards "$RUNNER_TEMP/qa-shards" --out "$RUNNER_TEMP/qa"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: qa-mcp-check
+          path: ${{ runner.temp }}/mcp
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          pattern: gate-bank-slice-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/bank
+      # Each journey's result across every job of this run: the agent's checks, the model-free journey, the jobs and
+      # the gate bank's slice, read as data (journey_coverage.py report).
+      - name: Journeys
+        env:
+          CHECK: ${{ needs.check.result }}
+          QA: ${{ needs.qa.result }}
+          SKILLS: ${{ needs.skills.result }}
+        run: |
+          python3 -I .github/qa/journey_coverage.py report --out "$RUNNER_TEMP/journeys" \
+            --verdict "$RUNNER_TEMP/qa/qa-verdict.json" --mcp "$RUNNER_TEMP/mcp/mcp-check.json" --bank "$RUNNER_TEMP/bank/results.jsonl" \
+            --job "qa.yml#check=$CHECK" --job "qa.yml#qa=$QA" --job "qa.yml#skills=$SKILLS" > /dev/null
+      - name: Pictures and costs
+        env:
+          QA_CHROME_NO_SANDBOX: "1"
+        run: |
+          qa="$RUNNER_TEMP/qa"
+          mkdir -p "$qa/shots"
+          chrome=$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)
+          python3 -I .github/qa/collect_shots.py --verdict "$qa/qa-verdict.json" --shots "$qa/shots" --chrome "$chrome" || true
+          python3 -I .github/qa/costs.py --label "Claude QA (claude CLI)" "$qa"/qa-cost-*.json > "$qa/cost.md" || true
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: qa-screenshots
+          path: ${{ runner.temp }}/qa/shots/
+          if-no-files-found: warn
+      - name: Report
+        env:
+          SHOTS_URL: ${{ steps.upload.outputs.artifact-url }}
+          BANK: ${{ needs.bank.result }}
+        run: |
+          qa="$RUNNER_TEMP/qa"
+          [ -f "$qa/qa-report.md" ] || echo "Claude QA wrote no report: see the QA job's log." > "$qa/qa-report.md"
+          {
+            echo "## Claude QA"
+            echo
+            cat "$qa/qa-report.md"
+            echo
+            echo "Pictures: [qa-screenshots]($SHOTS_URL), one per check."
+            echo
+            cat "$qa/shots/shots.md" 2>/dev/null || true
+            echo
+            for cost in "$qa"/qa-cost-*.json; do
+              jq -r --arg f "${cost##*/}" 'select(.is_error == true) | "**An agent run ended in an error (\($f)):** " + (.result // "no words")' "$cost" 2>/dev/null || true
+            done
+            echo
+            cat "$qa/cost.md" 2>/dev/null || true
+            echo
+            cat "$qa/tool-choice.md" 2>/dev/null || echo "**Tool choice: didn't finish.** See the QA job's log."
+            echo
+            echo "## Journeys"
+            echo
+            cat "$RUNNER_TEMP/journeys/journeys.md" 2>/dev/null || echo "**Journeys: didn't finish.** See the Journeys step's log."
+            echo
+            echo "## Gate bank (slice)"
+            echo
+            if [ -f "$RUNNER_TEMP/bank/verdict.md" ]; then cat "$RUNNER_TEMP/bank/verdict.md" "$RUNNER_TEMP/bank/score.md" 2>/dev/null; else echo "**Gate bank: no verdict in this run** (the job was ${BANK:-not run}): see its job."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          jq -e '.pass == true' "$qa/shots/shots.json" > /dev/null || { echo "::error::A check has no picture: see the summary"; exit 1; }
+      # The one line a person or an agent watching the run looks for: printed only when every QA job of this run passed
+      # and the merged verdict answers every check.
+      - name: QA verdict
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          qa="$RUNNER_TEMP/qa"
+          jq -e '.pass == true' "$qa/qa-verdict.json" > /dev/null || { jq -r '.problems[]? | "::error::" + .' "$qa/qa-verdict.json"; exit 1; }
+          bad=$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key)=\(.value.result)"' <<< "$RESULTS")
+          [ -z "$bad" ] || { echo "::error::QA jobs that did not pass: $bad"; exit 1; }
+          for job in check qa coverage; do
+            [ "$(jq -r --arg j "$job" '.[$j].result' <<< "$RESULTS")" = success ] || { echo "::error::$job did not run"; exit 1; }
+          done
+          echo "QA_OK checks=$(jq '.checks | length' "$qa/qa-verdict.json") shards=$(jq '.shards | length' "$qa/qa-verdict.json") sha=${GITHUB_SHA::8}"
+
+  # The run's numbers to the test dashboard (UNB-250): dashboard-post.yml. Never turns the run red.
+  dashboard:
+    needs: [passed, check, qa, skills, coverage, bank, report]
+    # Not for a push whose checks were skipped as already passed: that run measured nothing to post.
+    if: always() && (github.event_name != 'push' || needs.passed.outputs.hit != 'true')
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/dashboard-post.yml
+    with:
+      conclusion: ${{ (contains(needs.*.result, 'failure') && 'failure') || (contains(needs.*.result, 'cancelled') && 'cancelled') || 'success' }}
+    secrets:
+      DASHBOARD_INGEST_KEY: ${{ secrets.DASHBOARD_INGEST_KEY }}

@@ -22,11 +22,11 @@ The sidebar, in order (`window/src/app.zig` `screen_labels`); ⌘1 to ⌘9 and �
 | **Agent access** | The agent keys: each one's daily limit and what it spent today, **Add agent** and **Revoke**; and how an agent connects, with example requests to copy | `screens/access.zig`, `wallet.zig` `keys` |
 | **Activity** | Every call, walk and payment, with its result and its reference. Export it as CSV | `screens/activity.zig` |
 | **Leaderboard** | Contributors ranked by the paid fetches their routes served, counted from the network's listings and the usage it collected | `screens/board.zig` |
-| **Settings** | Pause, map while browsing, the peer network, private networks, serving routes for others, updates, the API port, sharing, the per-fetch maximum, the linked wallet, the backup key, the browser, excluded sites. Each control saves itself ([node-settings.md](../reference/node-settings.md)) | `screens/settings.zig` |
+| **Settings** | Pause, map while browsing, the peer network, private networks, serving routes for others, updates, the API port, sharing, the per-fetch maximum, your account (optional sign-in), the backup key, the browser, excluded sites. Each control saves itself ([node-settings.md](../reference/node-settings.md)) | `screens/settings.zig` |
 
 The window asks first: the node holds off the network until its owner has seen the current terms and chosen whether
 to keep it off (`screens/first_run.zig`). The window shows the terms themselves, as the node carries them; looking at
-the screen records nothing. There is no sign-in: the node uses its own wallet (spec §86).
+the screen records nothing. No sign-in is needed: the node is on the network with its own address (spec §86).
 
 ## What the node asks you
 

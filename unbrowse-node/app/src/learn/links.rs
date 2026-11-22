@@ -804,7 +804,7 @@ pub(super) fn with_proposed_links(route: Route, walked: &Trace, again: Option<&T
     if own_asks::held_at(own_asks::Ask::Shrink, "learn::links::with_proposed_links") {
         return route;
     }
-    let command = std::env::var("UNBROWSE_PROPOSE_PROGRAM").ok().filter(|c| !c.trim().is_empty());
+    let command = super::trial::proposer();
     // A second walk that never reached the page's calls measures nothing.
     if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() {
         eprintln!("   [links] a second walk {}", match again { None => "was not kept".to_string(), Some(t) => format!("of {} exchange(s), the route's call {}", t.exchanges.len(), if route.graph.steps.last().is_some_and(|s| sighting_again(walked, t, s, &asked_of(&route.graph)).is_some()) { "among them" } else { "not among them" }) });
@@ -946,7 +946,7 @@ fn held_all(answer: &serde_json::Value, paths: &[String]) -> serde_json::Value {
 /// agent already said which fields are the answer, when the walk's answer is neither, or when there is no second
 /// walk's answer to hold the naming to.
 pub(super) fn with_proposed_fields(mut route: Route, walked: &Trace, again: Option<&Trace>, goal: &str) -> Route {
-    let Some(command) = std::env::var("UNBROWSE_PROPOSE_PROGRAM").ok().filter(|c| !c.trim().is_empty()) else { return route };
+    let Some(command) = super::trial::proposer() else { return route };
     if route.judged.fields || route.write {
         return route;
     }
@@ -1424,5 +1424,196 @@ mod tests {
         by_the_site_alone(writes, &walk(), &Default::default(), &asked, "tokyo", &mut counts);
         by_the_site_alone(alone, &walk(), &Default::default(), &asked, "tokyo", &mut counts);
         assert_eq!(asked_at_all, 0);
+    }
+
+    /// A hotel site on this machine: its search page hands out the signature the booking call is sent to, and the
+    /// booking answers with hotels of the city named in its body. Counts the requests it has had.
+    fn a_hotel_site() -> (u16, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let seen = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = seen.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut buf = [0u8; 8192];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).to_string();
+                counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let target = request.split_whitespace().nth(1).unwrap_or("").to_string();
+                let sent = request.split("\r\n\r\n").nth(1).unwrap_or("");
+                let body = if target.starts_with("/search") {
+                    r#"{"props":{"signature":"abc123","limit":50,"other":7}}"#.to_string()
+                } else if target.starts_with("/query/") {
+                    let city = if sent.contains("tokyo") { "harbour" } else { "riverside" };
+                    serde_json::json!({ "hotels": (0..12).map(|n| format!("{city} house number {n}")).collect::<Vec<_>>() }).to_string()
+                } else {
+                    r#"{"d":50}"#.to_string()
+                };
+                let _ = write!(stream, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+            }
+        });
+        (port, seen)
+    }
+
+    /// The hotel chain as `base` serves it, and the walk that made it.
+    fn on_the_site(base: &str) -> (Route, Trace) {
+        let text = serde_json::to_string(&chain()).unwrap().replace("https://www.stay.example", base).replace("https://ads.example", base);
+        let graph: Graph = serde_json::from_str(&text).unwrap();
+        let mut route = Route::from_graph("links-test-hotels".into(), "search stays".into(), format!("{base}/search?dest=paris"), graph).unwrap();
+        route.write = false;
+        route.inputs = vec![store::RouteInput { name: "dest".into(), secret: false, default: Some("paris".into()), file: false, optional: false, options: Vec::new() }];
+        let ex = |method: &str, url: String, sent: Option<&str>, headers: &[(&str, &str)], answer: &str, doc: bool| Exchange {
+            method: method.into(),
+            url: url::Url::parse(&url).unwrap(),
+            request_headers: headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            request_body: sent.map(String::from),
+            status: 200,
+            response_headers: Vec::new(),
+            response_body: Some(answer.into()),
+            response_mime: if doc { "text/html".into() } else { "application/json".into() },
+            resource_type: Some(if doc { "Document" } else { "XHR" }.into()),
+            main_frame: Some(true),
+        };
+        let walked = Trace {
+            exchanges: vec![
+                ex("GET", format!("{base}/search?dest=paris"), None, &[], r#"{"props":{"signature":"abc123","limit":50,"other":7}}"#, false),
+                ex("POST", format!("{base}/deliver"), Some("{}"), &[], r#"{"d":50}"#, false),
+                ex("POST", format!("{base}/query/abc123"), Some(r#"{"distance":50,"dest":"paris"}"#), &[("traceparent", "00-aa-bb-01")], r#"{"hotels":[]}"#, false),
+            ],
+            inputs: Vec::new(),
+        };
+        (route, walked)
+    }
+
+    fn walk_held(trace: &Trace, url: &str, age: u64) -> Walk {
+        Walk { url: url.into(), trace: trace.clone(), probes: Vec::new(), recording: None, at: std::time::Instant::now() - std::time::Duration::from_secs(age), addresses: None }
+    }
+
+    /// The walk a route was learned from is the newest one the node holds that made every call of it; the same page
+    /// walked for another word is the next that made its last call too, and a node that holds neither says so.
+    #[test]
+    fn the_walks_a_route_was_learned_from_are_found_among_those_held() {
+        let (route, walked) = on_the_site("http://127.0.0.1:9");
+        let walks = Walks::default();
+        assert!(walks_of(&walks, &route).is_none(), "no walk held");
+        let page = "http://127.0.0.1:9/search?dest=paris";
+        walks.0.locked().insert("old".into(), walk_held(&Trace { exchanges: walked.exchanges[..1].to_vec(), inputs: Vec::new() }, page, 30));
+        assert!(walks_of(&walks, &route).is_none(), "a walk that did not make every call is not the route's");
+        walks.0.locked().insert("first".into(), walk_held(&walked, page, 20));
+        let (first, again) = walks_of(&walks, &route).expect("the walk");
+        assert_eq!(first.exchanges.len(), 3);
+        assert!(again.is_none(), "no other word was walked");
+        let mut tokyo = walked.clone();
+        tokyo.exchanges[0].url = url::Url::parse("http://127.0.0.1:9/search?dest=tokyo").unwrap();
+        tokyo.exchanges[2].request_body = Some(r#"{"distance":50,"dest":"tokyo"}"#.into());
+        walks.0.locked().insert("second".into(), walk_held(&tokyo, "http://127.0.0.1:9/search?dest=tokyo", 10));
+        let (first, again) = walks_of(&walks, &route).expect("the walks");
+        assert_eq!(first.exchanges[0].url.query(), Some("dest=tokyo"), "the newest walk that made every call is the first");
+        assert!(again.is_some(), "and the page walked for another word is held beside it");
+    }
+
+    /// An agent's wiring is read as the walk the node holds and the site bear it out: said wrongly, nothing is
+    /// kept; with no walk held, or no second value to ask with, it says so; said as the walk shows and the site
+    /// answers, the route is kept as wired.
+    #[test]
+    fn an_agents_links_are_put_to_the_walk_the_node_holds_and_the_site() {
+        let (port, _) = a_hotel_site();
+        let base = format!("http://127.0.0.1:{port}");
+        let (route, walked) = on_the_site(&base);
+        let walks = Walks::default();
+        let links = vec![(3, "json:/distance".to_string(), "from:1:/props/limit".to_string()), (3, "header:traceparent".to_string(), "drop".to_string())];
+        let said_wrong = wired_by_an_agent(&walks, route.clone(), &[(0, "json:/distance".into(), "fixed".into())], Some("tokyo")).unwrap_err();
+        assert!(said_wrong.contains("each link is a step"), "{said_wrong}");
+        let none_held = wired_by_an_agent(&walks, route.clone(), &links, Some("tokyo")).unwrap_err();
+        assert!(none_held.contains("no longer holds the walk"), "{none_held}");
+        walks.0.locked().insert("first".into(), walk_held(&walked, &format!("{base}/search?dest=paris"), 5));
+        let no_word = wired_by_an_agent(&walks, route.clone(), &links, Some("  ")).unwrap_err();
+        assert!(no_word.contains("give a second value"), "{no_word}");
+        let unborne = wired_by_an_agent(&walks, route.clone(), &[(3, "json:/distance".into(), "from:1:/props/other".into())], Some("tokyo")).unwrap_err();
+        assert!(unborne.contains("nothing changed"), "{unborne}");
+        let kept = wired_by_an_agent(&walks, route.clone(), &links, Some("tokyo")).expect("the site answers both words");
+        assert_eq!((kept.graph.steps.len(), kept.steps, kept.plain_trial), (2, 2, Some(true)), "the advert step feeds nothing now");
+        assert_eq!(store::load_route(&route.id).map(|r| r.steps), Some(2), "and the route is kept as wired");
+        // The word the route already said back is the second value when the agent names none.
+        let mut heard = route.clone();
+        heard.heard.said_back = Some("tokyo".into());
+        assert!(wired_by_an_agent(&walks, heard, &links, None).is_ok());
+    }
+
+    /// The links step asks the site for the route's last call alone with the word the route already said back, and
+    /// keeps that one call where the site answers both words; held, or with no word, it asks nothing.
+    #[test]
+    fn the_links_step_shrinks_the_chain_by_what_the_site_answers() {
+        let _old = crate::learn::own_asks::as_the_old_node();
+        let (port, seen) = a_hotel_site();
+        let base = format!("http://127.0.0.1:{port}");
+        let (mut route, walked) = on_the_site(&base);
+        let url = format!("{base}/search?dest=paris");
+        // No second word is known, none offered: the chain stands and the site hears nothing.
+        let same = super::trial::with_a_proposer("", || with_proposed_links(route.clone(), &walked, None, &url, "search stays"));
+        assert_eq!(same.graph.steps.len(), 3);
+        assert_eq!(seen.load(std::sync::atomic::Ordering::SeqCst), 0);
+        route.heard.said_back = Some("tokyo".into());
+        let (held, said) = super::own_asks::holding(super::own_asks::Ask::Shrink, || super::trial::with_a_proposer("", || with_proposed_links(route.clone(), &walked, None, &url, "search stays")));
+        assert_eq!(held.graph.steps.len(), 3, "held, the chain stands as walked");
+        assert_eq!(seen.load(std::sync::atomic::Ordering::SeqCst), 0, "and the site is asked nothing");
+        assert_eq!(said, vec!["   [own-ask] held: shrink at learn::links::with_proposed_links".to_string()]);
+        let shrunk = super::trial::with_a_proposer("", || with_proposed_links(route.clone(), &walked, None, &url, "search stays"));
+        assert_eq!(shrunk.graph.steps.iter().map(|s| s.exchange).collect::<Vec<_>>(), [2], "the last call alone answers both words");
+        assert!(seen.load(std::sync::atomic::Ordering::SeqCst) >= 2);
+        assert_eq!(store::load_route(&route.id).map(|r| r.steps), Some(1), "and the shorter route is kept");
+    }
+
+    /// A proposer's naming of the fields that are the answer is taken only where the two walks' answers differ by
+    /// it, and is kept on the route; with no proposer, no second walk, or an agent's own say, the rule's stand.
+    #[test]
+    fn the_fields_a_proposer_names_are_kept_on_the_route_it_was_shown_two_walks_of() {
+        let graph: Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "steps": [{ "exchange": 1, "method": "GET", "status": 200, "url": "https://shop.example/api/search?q={q}", "needs_browser": false,
+                "fields": [{ "loc": { "in": "query", "key": "q" }, "class": "input", "name": "q", "secret": false, "default": "lamp" }] }]
+        }))
+        .unwrap();
+        let route = || {
+            let mut r = Route::from_graph("links-test-fields".into(), "search".into(), "https://shop.example/s?q=lamp".into(), graph.clone()).unwrap();
+            r.write = false;
+            r
+        };
+        let page = |word: &str| {
+            let answer = serde_json::json!({ "bar": [{ "title": "Filters" }, { "title": "All" }], "results": (0..3).map(|n| serde_json::json!({ "id": format!("{word}-{n}"), "image": format!("https://img.example/{word}/{n}.jpg") })).collect::<Vec<_>>() });
+            let ex = |url: String, body: String, doc: bool| Exchange {
+                method: "GET".into(),
+                url: url::Url::parse(&url).unwrap(),
+                request_headers: Vec::new(),
+                request_body: None,
+                status: 200,
+                response_headers: Vec::new(),
+                response_body: Some(body),
+                response_mime: if doc { "text/html".into() } else { "application/json".into() },
+                resource_type: Some(if doc { "Document" } else { "XHR" }.into()),
+                main_frame: Some(true),
+            };
+            Trace { exchanges: vec![ex(format!("https://shop.example/s?q={word}"), "<html></html>".into(), true), ex(format!("https://shop.example/api/search?q={word}"), answer.to_string(), false)], inputs: Vec::new() }
+        };
+        let (lamp, kettle) = (page("lamp"), page("kettle"));
+        let names = r#"Here: {"fields":["results[].image","results[].id"]}"#;
+        let program = format!("cat >/dev/null; echo '{names}'");
+        let wired = super::trial::with_a_proposer(&program, || with_proposed_fields(route(), &lamp, Some(&kettle), "search pictures"));
+        assert_eq!(wired.fields, ["results[].image", "results[].id"]);
+        assert_eq!(store::load_route(&wired.id).map(|r| r.fields), Some(wired.fields.clone()), "kept on the route");
+        assert_eq!(wired.stats.fields_rule, unbrowse_learn::fields::DEFAULTS_RULE);
+        let furniture = super::trial::with_a_proposer("cat >/dev/null; echo '{\"fields\":[\"bar[].title\"]}'", || with_proposed_fields(route(), &lamp, Some(&kettle), "search pictures"));
+        assert!(furniture.fields.is_empty(), "what is the same for both words is not the result");
+        assert!(super::trial::with_a_proposer("", || with_proposed_fields(route(), &lamp, Some(&kettle), "search pictures")).fields.is_empty(), "no proposer, the rule's stay");
+        let one_walk = super::trial::with_a_proposer(&program, || with_proposed_fields(route(), &lamp, None, "search pictures"));
+        assert!(one_walk.fields.is_empty(), "one answer cannot bear a naming out");
+        let mut said = route();
+        said.judged.fields = true;
+        assert!(super::trial::with_a_proposer(&program, || with_proposed_fields(said, &lamp, Some(&kettle), "search pictures")).fields.is_empty(), "an agent already said which fields");
+        let mut writes = route();
+        writes.write = true;
+        assert!(super::trial::with_a_proposer(&program, || with_proposed_fields(writes, &lamp, Some(&kettle), "search pictures")).fields.is_empty());
     }
 }

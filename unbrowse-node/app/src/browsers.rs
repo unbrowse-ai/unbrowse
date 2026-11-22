@@ -81,6 +81,10 @@ pub fn chosen() -> Option<String> {
 /// never launches the browser of the machine it happens to run on, whatever path it takes there (a call's heal, a
 /// walled step, a sign-in, the agent's hands).
 pub fn current() -> Option<String> {
+    // A public peer never opens a browser: one would walk a page with whatever its profile holds.
+    if crate::remote::public_home() {
+        return None;
+    }
     #[cfg(test)]
     {
         NAMED.with(|named| named.borrow().clone())
@@ -122,6 +126,36 @@ pub fn found() -> Vec<Found> {
         .collect();
     out.extend(installed());
     out
+}
+
+/// The Flatpak browsers installed here the node can read a session from (never drive): for a Flatpak app the program
+/// the owner launches is a wrapper in a Flatpak `exports/bin` folder, named by the app's id, and its profile lives in
+/// the app's sandbox folder under `~/.var/app`.
+pub fn flatpak_browsers() -> Vec<Found> {
+    let user = unbrowse_files::private::user_home().join(".local/share/flatpak/exports/bin");
+    flatpak_browsers_in(&[PathBuf::from("/var/lib/flatpak/exports/bin"), user])
+}
+
+/// The Chromium-family apps among the wrappers in `bins`, by app id (`org.chromium.Chromium`): an id that names a
+/// Chromium-family vendor, as [`safe_storage`] reads the program's path. Firefox, chat apps and the rest are no browser
+/// to read a session from.
+fn flatpak_browsers_in(bins: &[PathBuf]) -> Vec<Found> {
+    bins.iter()
+        .filter_map(|d| std::fs::read_dir(d).ok())
+        .flat_map(|d| d.flatten().map(|e| e.path()))
+        .filter(|p| p.is_file())
+        .filter_map(|p| {
+            let id = p.file_name()?.to_str()?.to_string();
+            safe_storage(&id)?;
+            Some(Found { name: format!("{id} (Flatpak)"), path: p.display().to_string(), downloaded: false })
+        })
+        .collect()
+}
+
+/// The app id of a Flatpak wrapper at `exe` (`…/flatpak/exports/bin/<id>`), None for any other program.
+fn flatpak_id(exe: &str) -> Option<&str> {
+    let p = Path::new(exe);
+    p.parent()?.ends_with("flatpak/exports/bin").then(|| p.file_name()?.to_str()).flatten()
 }
 
 /// The Chromium browsers installed here, by name: none while the system's browsers are off.
@@ -551,6 +585,9 @@ pub enum Need {
     Walk,
     /// Browsing by hand: the browser program, driving a Chromium.
     Hands,
+    /// A walk that serves a value a route learned from one sighting was not learned on, the route compared beside it
+    /// (`learn::confirm`): a route answers the page, and the browser confirms it. A walk's parts.
+    Confirm,
 }
 
 /// The parts `need` lacks now: `program`, `chromium`.
@@ -615,10 +652,13 @@ pub const INSTALL: &str = "unbrowse browser install";
 #[derive(Clone, Debug, PartialEq)]
 pub struct Missing {
     pub message: String,
-    /// The parts it lacked (`program`, `chromium`); empty when the call said `browser: never` with the browser here.
+    /// The parts it lacked (`program`, `chromium`); none for a call that ruled the browser out (`declined`).
     pub lacking: Vec<&'static str>,
     /// The browser's [`state`] when it was answered.
     pub state: &'static str,
+    /// The call said `browser: never`, and only the browser could do what it asked: nothing is lacking that an
+    /// install would bring, whatever the browser's state.
+    pub declined: bool,
 }
 
 /// The error code `Missing` goes by.
@@ -647,21 +687,31 @@ impl Missing {
             (false, Some(e)) => format!("this needs the node's browser: {what}, and fetching it failed ({e}). To get it, {how}"),
             (false, None) => format!("this needs the node's browser: {what}. To get it, {how}"),
         };
-        Missing { message, lacking, state: if running { "installing" } else { state() } }
+        Missing { message, lacking, state: if running { "installing" } else { state() }, declined: false }
     }
 
-    /// The call said `browser: never`, and the goal needs the browser. The refusal ends with how to let this one call
+    /// The call said `browser: never`, and the goal needs the browser: what was declined, and how to let this one call
     /// use it (UNB-148: agents told only "let the call use the browser" sent it again unchanged, or gave up).
-    fn declined(need: Need) -> Missing {
+    pub fn declined(need: Need) -> Missing {
+        let what = match need {
+            Need::Walk => "no route answers it, and the page has to be walked in the node's browser to learn the call that does",
+            Need::Hands => "the page needs clicks or typing in the node's browser",
+            Need::Confirm => "a route answers this page, learned from one sighting, and a value it was not learned on is served by the node's browser with the route compared beside it, so a route that answers another value's records is never handed over as this one's",
+        };
         Missing {
-            message: "this needs the node's browser, and the call said browser: never. Call a route that does it (unbrowse_search), or let this one call use the browser: send it again with browser: \"auto\" (or leave browser out)".into(),
-            lacking: lacking(need),
+            message: format!("this needs the node's browser, and the call said browser: never, so the node opened none: {what}. To let this one call use the browser, send it again with browser: \"auto\" (or leave browser out)"),
+            lacking: Vec::new(),
             state: state(),
+            declined: true,
         }
     }
 
-    /// The answer an agent gets.
+    /// The answer an agent gets: what the browser lacks and how to get it, or for a call that ruled it out, that it
+    /// was declined, with nothing to install.
     pub fn body(&self) -> Value {
+        if self.declined {
+            return serde_json::json!({ "error": self.message, "code": CODE, "browser": self.state, "declined": true });
+        }
         serde_json::json!({ "error": self.message, "code": CODE, "browser": self.state, "missing": self.lacking, "install": INSTALL, "fetch": fetch_allowed() })
     }
 }
@@ -720,6 +770,16 @@ pub fn ensure(node: &Arc<crate::Node>, need: Need, how: Use) -> Result<(), Missi
 /// whose place the node knows, or the directory isn't there. Read from the program's path, never a list of brands:
 /// the path names the vendor, and the vendor names the folder.
 pub fn profile_dir(exe: &str) -> Option<PathBuf> {
+    profile_dir_in(exe, &unbrowse_files::private::user_home(), base_dir()?)
+}
+
+/// [`profile_dir`] with the home and the OS's base directory given.
+pub(crate) fn profile_dir_in(exe: &str, home: &Path, base: PathBuf) -> Option<PathBuf> {
+    // A Flatpak app keeps its profile in its sandbox's config folder, not in the owner's.
+    let base = match flatpak_id(exe) {
+        Some(id) => home.join(".var/app").join(id).join("config"),
+        None => base,
+    };
     let lower = exe.to_ascii_lowercase();
     let has = |name: &str| lower.contains(name);
     // The vendor's folder under the OS's base directory, as (macOS, Linux, Windows). Brave, Edge, Vivaldi and
@@ -737,7 +797,7 @@ pub fn profile_dir(exe: &str) -> Option<PathBuf> {
     } else {
         return None;
     };
-    let dir = base_dir()?.join(if cfg!(target_os = "macos") {
+    let dir = base.join(if cfg!(target_os = "macos") {
         mac
     } else if cfg!(target_os = "windows") {
         win
@@ -745,6 +805,26 @@ pub fn profile_dir(exe: &str) -> Option<PathBuf> {
         linux
     });
     dir.is_dir().then_some(dir)
+}
+
+/// The keychain item a Chromium-family browser on macOS seals its cookies under: its "Safe Storage" password
+/// (service, account), named the way `profile_dir` names its folder. None for a program it doesn't know.
+pub fn safe_storage(exe: &str) -> Option<(&'static str, &'static str)> {
+    let lower = exe.to_ascii_lowercase();
+    let has = |name: &str| lower.contains(name);
+    Some(if has("brave") {
+        ("Brave Safe Storage", "Brave")
+    } else if has("edge") || has("msedge") {
+        ("Microsoft Edge Safe Storage", "Microsoft Edge")
+    } else if has("vivaldi") {
+        ("Vivaldi Safe Storage", "Vivaldi")
+    } else if has("chromium") {
+        ("Chromium Safe Storage", "Chromium")
+    } else if has("chrome") || has("google") {
+        ("Chrome Safe Storage", "Chrome")
+    } else {
+        return None;
+    })
 }
 
 /// Where a browser family's folder sits: the Mac's Application Support, Windows' LocalAppData, else the XDG config
@@ -790,7 +870,7 @@ mod addon_tests {
     /// The answer an agent gets says what's missing and how to get it, under its own code.
     #[test]
     fn browser_missing_says_what_and_how() {
-        let m = Missing { message: "no browser".into(), lacking: vec!["program", "chromium"], state: "missing" };
+        let m = Missing { message: "no browser".into(), lacking: vec!["program", "chromium"], state: "missing", declined: false };
         let b = m.body();
         assert_eq!(b["code"], CODE);
         assert_eq!(b["browser"], "missing");
@@ -807,6 +887,86 @@ mod addon_tests {
         assert!(m.message.ends_with("send it again with browser: \"auto\" (or leave browser out)"), "{}", m.message);
         assert_eq!(Use::parse("auto").unwrap(), Use::Auto);
         assert_eq!(Use::parse("").unwrap(), Use::Auto);
+    }
+
+    /// A browser's profile folder and its keychain item are named by the vendor its program's path names, in the
+    /// place the OS keeps them; a program of no known vendor, or a vendor with no folder yet, has neither.
+    #[test]
+    fn a_browsers_profile_and_key_are_named_by_its_vendor() {
+        let base = std::env::temp_dir().join(format!("unbrowse-vendors-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let home = base.join("home");
+        let folders = [
+            ("/usr/bin/brave-browser", "BraveSoftware/Brave-Browser", "Brave Safe Storage"),
+            ("/opt/microsoft/msedge/msedge", "microsoft-edge", "Microsoft Edge Safe Storage"),
+            ("/usr/bin/vivaldi-stable", "vivaldi", "Vivaldi Safe Storage"),
+            ("/usr/bin/chromium", "chromium", "Chromium Safe Storage"),
+            ("/opt/google/chrome/chrome", "google-chrome", "Chrome Safe Storage"),
+        ];
+        for (exe, folder, item) in folders {
+            assert_eq!(safe_storage(exe).map(|(service, _)| service), Some(item), "{exe}");
+            assert_eq!(profile_dir_in(exe, &home, base.join("config")), None, "{exe}: no profile folder made yet");
+            #[cfg(target_os = "linux")]
+            {
+                std::fs::create_dir_all(base.join("config").join(folder)).unwrap();
+                assert_eq!(profile_dir_in(exe, &home, base.join("config")), Some(base.join("config").join(folder)), "{exe}");
+            }
+            let _ = folder;
+        }
+        assert_eq!(safe_storage("/opt/google-chrome/x").map(|(_, account)| account), Some("Chrome"));
+        assert_eq!(safe_storage("/usr/bin/brave").map(|(_, account)| account), Some("Brave"));
+        assert!(safe_storage("/opt/mystery/browser").is_none() && profile_dir_in("/opt/mystery/browser", &home, base.clone()).is_none());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    /// A package is told from the program by its name, and a program the node was handed is installed only when it
+    /// runs here: one that fails says what it printed, and one that isn't there says so.
+    #[cfg(unix)]
+    #[test]
+    fn a_browser_program_is_installed_only_when_it_runs_here() {
+        use std::os::unix::fs::PermissionsExt;
+        let home = store::scratch_home("browser-install");
+        let script = |name: &str, body: &str| {
+            let p = home.join(name);
+            std::fs::write(&p, format!("#!/bin/sh\n{body}\n")).unwrap();
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+            p
+        };
+        assert!(is_package(Path::new("/x/browser.TGZ")) && is_package(Path::new("browser-1.tar.gz")) && !is_package(Path::new("/x/agent-browser")));
+        let good = script("good", "exit 0");
+        assert!(runs(&good).is_ok());
+        let bad = script("bad", "echo 'wrong architecture' >&2; exit 3");
+        assert!(runs(&bad).unwrap_err().contains("it said wrong architecture"));
+        assert!(runs(&home.join("not-there")).unwrap_err().contains("doesn't run here"));
+
+        // Installed from a file it was handed: it stays installed as the program, and the install says where from.
+        let program = script("agent-browser-src", "[ \"$1\" = --version ] && exit 0\necho 'no network' >&2\nexit 1");
+        if std::env::var_os("UNBROWSE_BROWSER").is_none() && !std::env::current_exe().unwrap().with_file_name(program_file()).exists() {
+            let said = install(Some(&program));
+            // With a Chromium here the install is done; without, the program's own download is what failed, said as it said.
+            match said {
+                Ok(did) => assert!(did[0].contains("the browser program from") && did[0].contains(&program.display().to_string()), "{did:?}"),
+                Err(e) => assert!(e.contains("downloading Chrome for Testing: no network"), "{e}"),
+            }
+            assert_eq!(std::fs::read(addon_program()).unwrap(), std::fs::read(&program).unwrap(), "the program it was given is the one installed");
+            assert_eq!(addon_version().as_deref(), Some("local"));
+            let broken = script("agent-browser-broken", "exit 9");
+            assert!(install(Some(&broken)).unwrap_err().contains("doesn't run here"), "a program that fails its version isn't kept as working");
+        }
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// The owner picks a browser only from those found on this machine; saying none lets the node pick again.
+    #[test]
+    fn a_browser_the_owner_picks_must_be_one_found_here() {
+        let home = store::scratch_home("browser-choice");
+        let err = choose(Some(home.join("no-such-browser").display().to_string())).unwrap_err();
+        assert!(err.contains("isn't a Chromium browser on this machine"), "{err}");
+        assert!(!home.join("browser.json").exists(), "a refused pick is not kept");
+        choose(None).expect("the node picks");
+        assert!(home.join("browser.json").is_file());
+        assert!(chosen().is_none());
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     /// The program the node installed is kept under its own home, whole or not at all, with the release it came from,
@@ -955,6 +1115,40 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// A Flatpak browser is a wrapper named by its app id in an `exports/bin` folder; only a Chromium-family app is a
+    /// browser to read a session from, and its profile sits in its own sandbox folder under `~/.var/app`, not in
+    /// `~/.config`. Flatpak is Linux's alone, and the vendor's folder name is Linux's.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_flatpak_chromium_is_found_and_its_profile_is_in_its_sandbox() {
+        let dir = std::env::temp_dir().join(format!("unbrowse-flatpak-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let bins = dir.join("flatpak/exports/bin");
+        std::fs::create_dir_all(&bins).unwrap();
+        for id in ["org.chromium.Chromium", "com.brave.Browser", "org.mozilla.firefox", "com.discordapp.Discord"] {
+            std::fs::write(bins.join(id), "").unwrap();
+        }
+        let found = flatpak_browsers_in(&[dir.join("no/such/bin"), bins.clone()]);
+        let mut names: Vec<&str> = found.iter().map(|f| f.name.as_str()).collect();
+        names.sort();
+        assert_eq!(names, ["com.brave.Browser (Flatpak)", "org.chromium.Chromium (Flatpak)"], "Firefox and Discord are no Chromium browser");
+        let chromium = found.iter().find(|f| f.name.starts_with("org.chromium")).unwrap();
+        assert!(!chromium.downloaded && Path::new(&chromium.path) == bins.join("org.chromium.Chromium"));
+        assert_eq!(flatpak_id(&chromium.path), Some("org.chromium.Chromium"));
+        assert_eq!(flatpak_id("/usr/bin/chromium"), None, "an ordinary program is no Flatpak");
+
+        let home = dir.join("home");
+        let sandbox = home.join(".var/app/org.chromium.Chromium/config/chromium");
+        std::fs::create_dir_all(&sandbox).unwrap();
+        let config = dir.join("config");
+        std::fs::create_dir_all(config.join("chromium")).unwrap();
+        assert_eq!(profile_dir_in(&chromium.path, &home, config.clone()), Some(sandbox), "the sandbox's profile, not ~/.config's");
+        let brave = found.iter().find(|f| f.name.starts_with("com.brave")).unwrap();
+        assert_eq!(profile_dir_in(&brave.path, &home, config.clone()), None, "no profile made in its sandbox yet");
+        assert_eq!(profile_dir_in("/usr/bin/chromium", &home, config.clone()), Some(config.join("chromium")), "an ordinary Chromium keeps its place");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Windows keeps Chromium's pack in a version folder beside the program; `reg query`'s value is read from its
     /// line, whatever the key's name is.
     #[test]
@@ -975,6 +1169,19 @@ mod tests {
 
 #[cfg(test)]
 mod profile_tests {
+    /// The run that exposed it: a page whose route was learned from one sighting, asked a new value with
+    /// `browser: never`, was told "no route answers it, and the page has to be walked to learn the call": a route
+    /// did answer it. A declined confirming walk says a route answers the page and why the browser was wanted.
+    #[test]
+    fn a_declined_confirm_says_a_route_answers_the_page() {
+        use super::{lacking, Missing, Need};
+        let confirm = Missing::declined(Need::Confirm).message;
+        assert!(confirm.contains("a route answers this page") && confirm.contains("browser: \"auto\""), "{confirm}");
+        assert!(!confirm.contains("no route answers it"), "{confirm}");
+        assert!(Missing::declined(Need::Walk).message.contains("no route answers it"));
+        assert_eq!(lacking(Need::Confirm), lacking(Need::Walk), "a walk's parts");
+    }
+
 
     /// A panic in a fetch is a failed fetch: the window says so, and it can be tried again.
     #[test]

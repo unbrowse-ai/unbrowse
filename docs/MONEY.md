@@ -184,9 +184,9 @@ exactly the amount it is about to take.
 
 | Action | Call | Gas | Token | When |
 |---|---|---:|---|---|
-| Launch a listing's coin with its first buy | `RouteCoins.launch(entry, unb, …)` | about 309,000 (forge) | the buy, UNB | The node, when its listing is credited, with 1% of the wallet's UNB by default (`coin_dev_buy`; 0 turns it off); or the owner (`coin_launch`). Only the entry's credited contributor launches a coin; a bounty never does |
-| Buy a coin | `RouteCoins.buy` | about 103,000 median (forge) | UNB; 1% fee, and a snipe tax in a coin's first 5 minutes | Owner only (`coin_buy`). A fetch's own buy needs nothing from the owner |
-| Sell a coin | `RouteCoins.sell` | | UNB back, less 1% | Owner only (`coin_sell`); staked coins are asked back first |
+| Launch a listing's coin with its first buy | `RouteCoins.launch(entry, unb, …)` | about 309,000 (forge) | the buy, UNB | The node, when its listing is credited, with 1% of the wallet's UNB by default (`coin_dev_buy`; 0 turns it off); or the owner (`coin_launch`), on their yes in the node's window. Only the entry's credited contributor launches a coin; a bounty never does |
+| Buy a coin | `RouteCoins.buy` | about 103,000 median (forge) | UNB; 1% fee, and a snipe tax in a coin's first 5 minutes | Owner only (`coin_buy`), on their yes in the node's window each time. A fetch's own buy needs nothing from the owner |
+| Sell a coin | `RouteCoins.sell` | | UNB back, less 1% | Owner only (`coin_sell`), on their yes in the node's window each time; staked coins are asked back first |
 | Stake coins | `CoinStakes.stake(coin, amount, delay)` | | | Owner (`coin_stake`); a lot per exit delay, 24 hours unless named. They earn from the next epoch close, once the wallet has checked the entry |
 | Set the delay a fetch's coins are staked with | `CoinStakes.setFetchDelay` | | | Owner (`coin_fetch_delay`); 24 hours until set |
 | Ask coins back | `CoinStakes.requestUnstake(coin, delay, amount)` | | | Owner (`coin_unstake`). They stop earning and counting at once and return after that lot's own delay |
@@ -476,7 +476,7 @@ Arc's gas. Nobody is sent USDC to spend.
     *witnessed* reading is one it answered alike at the same head; it has nothing to do with domains, which are proven
     by DNSSEC alone. With one named, the chain ID, every finalized head the node takes, every proven
     block's hash, and the balances and allowances its writes are judged by are read there too, and any disagreement
-    stops every write until the node restarts. A write is signed only once the node has followed the chain to its
+    stops every write until the node restarts; an RPC that only doesn't answer (a refusal, a rate limit, a block it hasn't yet) contradicts nothing, so the chain is just not followed that pass and the node reads again (`anchor::Broken`). A write is signed only once the node has followed the chain to its
     finalized head on that very call with the second RPC standing behind it: a second RPC behind, or not answering,
     and every write waits, and the owner is told (`rpc::followed_now`). The second stands behind a head only as its
     own: its finalized head must be within `anchor::HEAD_SKEW` (64) blocks of the first's, and hold the first's block

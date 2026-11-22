@@ -1,0 +1,134 @@
+{
+ "about": "Every answer the bank's check called confidently wrong on staging 7071ae02 (programme 887958 step 7, 17-18 Nov 2026), with what a person found on the site itself (each opened by hand outside the node). The bank's checks must agree with these audits: test_run_gate.py reads each check literally against each answer.",
+ "audits": [
+  {
+   "id": "u6:tender-hunter-1",
+   "audit": "right",
+   "node_build": "staging 7071ae02 (=e1bb35c6) debug",
+   "at": "2026-11-17T21:50:39+0800",
+   "note": "Hand audit 17 Nov 23:15 SGT: GeBIZ BOListing keyword 'cleaning services' shows Open (1)/Closed (25), 'cleaning' Open (1)/Closed (33); the one open tender is FINAGDETT26000006 closing 23 Nov 2026 = the agent's answer. Check count>=3 is wrong. Reclassified right by hand audit (step 7, run 4702f5ad); check fix is Lewis's call.",
+   "answer": {
+    "status": "answered",
+    "answer": "One open GeBIZ tender matching 'cleaning services' closes within the next 14 days: the AGD Offices at MND Annex A cleaning ITT (FINAGDETT26000006), closing 23 Nov 2026 4:00PM.",
+    "items": [
+     "FINAGDETT26000006 - Invitation to Tender (ITT) for the Provision of Cleaning Services for the AGD Offices at MND Annex A - Ministry of Finance-Accountant-General's Department - Tender Lite - published 03 Nov 2026 - closing 23 Nov 2026 04:00PM (Corrigendum No.2 dated 16 Nov 2026)"
+    ],
+    "source_url": "https://www.gebiz.gov.sg/"
+   }
+  },
+  {
+   "id": "lundy:postgresql.org",
+   "audit": "right",
+   "node_build": "staging 7071ae02 (=e1bb35c6) debug",
+   "at": "2026-11-18T02:53:20+0800",
+   "note": "Hand audit 18 Nov 03:00 SGT: postgresql.org/search shows 'Results 1-20 of 552' and the first 5 titles exactly as the agent listed. Only 1 title has 'replication|slot'; the check's items_match>=3 assumes keyword titles. Reclassified right by hand audit (step 7, run 4702f5ad); check fix is Lewis's call.",
+   "answer": {
+    "status": "answered",
+    "answer": "Top 5 results for 'logical replication slots' on postgresql.org search: 47.2 Logical Decoding Concepts; 9.28 System Administration Functions; Index; 47.2 Logical Decoding Concepts (docs/18 URL); 54.4 Streaming Replication Protocol (all PostgreSQL 18 docs).",
+    "items": [
+     "Documentation: 18: 47.2. Logical Decoding Concepts",
+     "Documentation: 18: 9.28. System Administration Functions",
+     "Documentation: 18: Index",
+     "Documentation: 18: 47.2. Logical Decoding Concepts (docs/18 URL)",
+     "Documentation: 18: 54.4. Streaming Replication Protocol"
+    ],
+    "source_url": "https://www.postgresql.org/search/?q=logical%20replication%20slots"
+   }
+  },
+  {
+   "id": "lundy:mastodon.social",
+   "audit": "right",
+   "node_build": "staging 7071ae02 (=e1bb35c6) debug",
+   "at": "2026-11-18T02:53:59+0800",
+   "note": "Hand audit 18 Nov 03:00 SGT: /api/v2/search returns 5 accounts, 0 statuses, same 5 in the same order as the agent. Only 2 contain 'garden'; check needs 3. Reclassified right by hand audit (step 7, run 4702f5ad); check fix is Lewis's call.",
+   "answer": {
+    "status": "answered",
+    "answer": "The first 5 results for \"open source gardening\" on mastodon.social are accounts: Open Source (opensource@lemmy.ml), gardening (gardening@hexbear.net), Open Source Italia (opensource@mastodon.uno), Gardening (gardening@lemmy.world), and Open Source italia (opensource@diggita.com).",
+    "items": [
+     "Open Source (@opensource@lemmy.ml)",
+     "gardening (@gardening@hexbear.net)",
+     "Open Source Italia (@opensource@mastodon.uno)",
+     "Gardening (@gardening@lemmy.world)",
+     "Open Source italia (@opensource@diggita.com)"
+    ],
+    "source_url": "https://mastodon.social/search?q=open%20source%20gardening"
+   }
+  },
+  {
+   "id": "lundy:foodnetwork.com",
+   "audit": "right",
+   "node_build": "staging 7071ae02 (=e1bb35c6) debug",
+   "at": "2026-11-18T02:56:15+0800",
+   "note": "Hand audit 18 Nov 03:05 SGT: page shows 'Showing 1 - 10 of 31,904', first 5 titles exactly as the agent listed; first pancake recipe is #10 (agent said so). Check assumes pancake titles. Reclassified right by hand audit (step 7, run 4702f5ad); check fix is Lewis's call.",
+   "answer": {
+    "status": "answered",
+    "answer": "The first 5 Food Network search results for \"gluten free pancakes\" (Best Match order) are: The Chewy Gluten Free, Gluten-Free Pumpkin Muffins, Gluten-Free Pizza Dough, Gluten-Free Blueberry Muffins, and Gluten-Free Cornbread.",
+    "items": [
+     "The Chewy Gluten Free",
+     "Gluten-Free Pumpkin Muffins",
+     "Gluten-Free Pizza Dough",
+     "Gluten-Free Blueberry Muffins",
+     "Gluten-Free Cornbread"
+    ],
+    "source_url": "https://www.foodnetwork.com/search/gluten%20free%20pancakes-"
+   }
+  },
+  {
+   "id": "lundy:substack.com",
+   "audit": "right",
+   "node_build": "staging 7071ae02 (=e1bb35c6) debug",
+   "at": "2026-11-18T04:26:38+0800",
+   "note": "Hand audit 18 Nov 04:40 SGT: substack.com/search page lists the same first 5 post titles in the same order as the agent. Only 0 contain 'broadband'; check assumes keyword titles. Reclassified right (step 7); check fix is Lewis's call.",
+   "answer": {
+    "status": "answered",
+    "answer": "The first 5 Substack post results for \"rural broadband policy\" are: Rural News Clips, Nov. 5, 2026; What Keisha Lance Bottoms Owes Rural Georgia; The Satellite Internet Conundrum for India; Digital Infrastructure and Sustainable Convergence; Nov. 13 Safe Tech International News and Notes.",
+    "items": [
+     "Rural News Clips, Nov. 5, 2026",
+     "What Keisha Lance Bottoms Owes Rural Georgia",
+     "The Satellite Internet Conundrum for India",
+     "Digital Infrastructure and Sustainable Convergence",
+     "Nov. 13 Safe Tech International News and Notes"
+    ],
+    "source_url": "https://substack.com/search/rural%20broadband%20policy?searching=all_posts"
+   }
+  },
+  {
+   "id": "lundy:nasa.gov",
+   "audit": "right",
+   "node_build": "staging 7071ae02 (=e1bb35c6) debug",
+   "at": "2026-11-18T02:31:41+0800",
+   "note": "Hand audit 18 Nov 03:00 SGT: the agent's 5 titles and '10622 results found' are verbatim from the node's page read at 02:31 (trace). Live page at 03:00 shows 10466 results, 4 of the agent's 5 titles (Solar Electric Propulsion at #3 instead of Space Nuclear Propulsion): the index moved. No first-5 title contains 'sail' in either reading, so the check fails the site itself. Reclassified right by hand audit (step 7, run 4702f5ad); check fix is Lewis's call.",
+   "answer": {
+    "status": "answered",
+    "answer": "The first 5 results for 'solar sail propulsion' on nasa.gov search are: Ion Propulsion - NASA Science; 4.0 In-Space Propulsion - NASA; The Marshall Star - NASA; Small Satellite Missions - NASA; Space Nuclear Propulsion - NASA.",
+    "items": [
+     "Ion Propulsion - NASA Science",
+     "4.0 In-Space Propulsion - NASA",
+     "The Marshall Star - NASA",
+     "Small Satellite Missions - NASA",
+     "Space Nuclear Propulsion - NASA"
+    ],
+    "source_url": "https://www.nasa.gov/?search=solar%20sail%20propulsion"
+   }
+  },
+  {
+   "id": "lundy:wordpress.com",
+   "audit": "confidently_wrong",
+   "node_build": "staging 7071ae02 (=e1bb35c6) debug",
+   "at": "2026-11-18T04:20:03+0800",
+   "note": "Hand audit 18 Nov 04:38 SGT: CONFIRMED confidently wrong. wordpress.com/support/?s=custom css mobile menu shows 58 guides; first 5: Edit the mobile version; Customize the menu design; Troubleshoot common menu issues; Edit menu items; Choose a mobile-friendly theme. Agent listed 5 other pages (Set up your theme; Cookies & Consents legacy widget; ...) from a learned route whose query param was templated: the route answered a different query. The agent hedged in notes but said answered.",
+   "answer": {
+    "status": "answered",
+    "answer": "The first 5 WordPress.com support results for \"custom css mobile menu\" are: Set up your theme; Cookies & Consents legacy widget; Create a menu; Create a social links menu; Update the images on an AI-created website.",
+    "items": [
+     "Set up your theme",
+     "Cookies & Consents legacy widget",
+     "Create a menu",
+     "Create a social links menu",
+     "Update the images on an AI-created website"
+    ],
+    "source_url": "https://wordpress.com/support/?s=custom%20css%20mobile%20menu"
+   }
+  }
+ ]
+}

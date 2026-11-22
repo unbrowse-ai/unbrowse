@@ -350,25 +350,38 @@ fn nodes_spread_their_burn_batches_over_the_first_half_of_an_epoch() {
 
 #[test]
 fn a_node_runs_on_its_devnet_unless_told_otherwise() {
-    assert!(matches!(choose(None, "devnet", None), Ok(Mode::Devnet)));
-    assert!(matches!(choose(None, "", None), Ok(Mode::Devnet)), "an empty setting is the default");
+    assert!(matches!(choose(None, "devnet", None, |_| None), Ok(Mode::Devnet)));
+    assert!(matches!(choose(None, "", None, |_| None), Ok(Mode::Devnet)), "an empty setting is the default");
     assert_eq!(store::Settings::default().chain, DEVNET);
 }
 
 #[test]
 fn the_setting_names_a_live_network_and_the_environment_overrides_it() {
-    let Ok(Mode::Live(l)) = choose(None, "arc-testnet", None) else { panic!("the setting names arc-testnet") };
+    let Ok(Mode::Live(l)) = choose(None, "arc-testnet", None, |_| None) else { panic!("the setting names arc-testnet") };
     assert_eq!((l.net.chain_id, l.rpc.as_str()), (arc::ARC_TESTNET.chain_id, "https://rpc.testnet.arc.io/"), "its RPC from the table");
-    assert!(matches!(choose(Some("devnet"), "arc-testnet", None), Ok(Mode::Devnet)), "UNBROWSE_CHAIN over the setting");
-    let Ok(Mode::Live(l)) = choose(Some("arc-mainnet"), "devnet", None) else { panic!("UNBROWSE_CHAIN names arc-mainnet") };
+    assert!(matches!(choose(Some("devnet"), "arc-testnet", None, |_| None), Ok(Mode::Devnet)), "UNBROWSE_CHAIN over the setting");
+    let Ok(Mode::Live(l)) = choose(Some("arc-mainnet"), "devnet", None, |_| None) else { panic!("UNBROWSE_CHAIN names arc-mainnet") };
     assert_eq!(l.net.chain_id, arc::ARC_MAINNET.chain_id);
-    assert!(matches!(choose(Some(" "), "devnet", None), Ok(Mode::Devnet)), "an empty variable chooses nothing");
-    let Ok(Mode::Live(l)) = choose(None, "arc-testnet", Some("http://127.0.0.1:9999")) else { panic!("arc-testnet") };
+    assert!(matches!(choose(Some(" "), "devnet", None, |_| None), Ok(Mode::Devnet)), "an empty variable chooses nothing");
+    let Ok(Mode::Live(l)) = choose(None, "arc-testnet", Some("http://127.0.0.1:9999"), |_| None) else { panic!("arc-testnet") };
     assert_eq!(l.rpc.as_str(), "http://127.0.0.1:9999/", "UNBROWSE_RPC moves the RPC");
-    assert!(matches!(choose(None, "devnet", Some("http://127.0.0.1:9999")), Ok(Mode::Devnet)), "and only a live network's");
-    let e = choose(Some("another-chain"), "devnet", None).unwrap_err();
+    assert!(matches!(choose(None, "devnet", Some("http://127.0.0.1:9999"), |_| None), Ok(Mode::Devnet)), "and only a live network's");
+    let e = choose(Some("another-chain"), "devnet", None, |_| None).unwrap_err();
     assert!(e.contains("devnet, arc-mainnet, arc-testnet"), "{e}");
-    assert!(choose(None, "arc-testnet", Some("not a url")).is_err());
+    assert!(choose(None, "arc-testnet", Some("not a url"), |_| None).is_err());
+}
+
+/// A node holding a pass for Unbrowse's gateway reads its network there; an RPC named by hand wins over it, and the
+/// network's table RPC is the rest's.
+#[test]
+fn a_node_with_a_gateway_pass_reads_through_the_gateway_unless_an_rpc_is_named() {
+    let gateway = |net: &str| (net == "arc-testnet").then(|| "https://rpc.unbrowse.ai/arc-testnet/0xabc.1.0xdef".to_string());
+    let Ok(Mode::Live(l)) = choose(None, "arc-testnet", None, gateway) else { panic!("arc-testnet") };
+    assert_eq!(l.rpc.as_str(), "https://rpc.unbrowse.ai/arc-testnet/0xabc.1.0xdef", "the gateway with the node's pass");
+    let Ok(Mode::Live(l)) = choose(None, "arc-testnet", Some("http://127.0.0.1:9999"), gateway) else { panic!("arc-testnet") };
+    assert_eq!(l.rpc.as_str(), "http://127.0.0.1:9999/", "UNBROWSE_RPC over the gateway");
+    let Ok(Mode::Live(l)) = choose(None, "arc-mainnet", None, gateway) else { panic!("arc-mainnet") };
+    assert_eq!(l.rpc.as_str(), "https://rpc.mainnet.arc.io/", "no pass for this network: its table RPC");
 }
 
 #[test]
@@ -2207,10 +2220,11 @@ fn a_voucher_never_covers_a_line_written_under_another_settlement() {
 }
 
 /// What stays in a chain's folder over a deployment is what belongs to the chain, whatever new file a deployment's
-/// state comes to be kept in.
+/// state comes to be kept in. A dev build's root key lives in the devnet's folder (`root.key`): it is the node's
+/// identity, never a deployment's state (audit 1118 N3).
 #[test]
 fn only_the_chains_own_files_outlast_a_deployment() {
-    for f in ["deployer.key", "mark.key", "deployment.json", "network.json", "state.json", "sending.json", "before-0xab-1", "node.lock", "sending.lock"] {
+    for f in ["root.key", "deployer.key", "mark.key", "deployment.json", "network.json", "state.json", "sending.json", "before-0xab-1", "node.lock", "sending.lock"] {
         assert!(outlasts_a_deployment(f), "{f}");
     }
     for f in ["owed.json", "served.json", "refused-payers.json", "watching.json", "handed.json", "receipts", "bounty-auto-0xab.json", "anything-new.json"] {
@@ -3274,7 +3288,7 @@ async fn a_bounty_allowed_before_its_coin_waits_for_a_hand_confirm_on_a_local_ch
 #[test]
 fn a_deposit_answers_only_for_the_lines_of_its_own_payer() {
     let _home = store::scratch_home("per-payer");
-    let own = crate::agents::Agent { index: 1, name: "own".into(), address: String::new(), cap_usdc: 100.0, expires: 0, created: 0, revoked: false, tx: None, salt: None, auto: false, cap_set: false, payers: vec![] };
+    let own = crate::agents::Agent { index: 1, name: "own".into(), address: String::new(), cap_usdc: 100.0, expires: 0, created: 0, revoked: false, tx: None, salt: None, auto: false, cap_set: false, payers: vec![], gateway: None };
     let wallet = crate::agents::Agent { index: 2, name: "wallet's".into(), payers: vec![(0, Some(format!("{:#x}", Address::repeat_byte(0xaa))))], ..own.clone() };
     store::write_json(&store::home().join("agents.json"), &unbrowse_files::AGENTS, &vec![own, wallet]).unwrap();
     add_receipt(1, 10, "route-a", 8.0, true, 0.0, 100.0, 10.0).unwrap();
@@ -3790,4 +3804,201 @@ async fn an_oversized_log_answer_is_never_read() {
     let many = (200, serde_json::json!({"jsonrpc": "2.0", "id": 1, "result": vec![log; gas::MAX_LOGS_PER_WINDOW + 1]}).to_string());
     let (url, _) = scripted_rpc(vec![many]).await;
     assert!(gas::window_logs(&url, &filter, 0, 15).await.unwrap_err().starts_with(gas::LOGS_OVER_CAP));
+}
+
+/// UNB-170: a log read turned away for the RPC's rate, as a public RPC does a fresh node reading its first windows
+/// (-32005 in the answer, or HTTP 429), waits and asks again, and the logs are read: it doesn't fail the join.
+#[tokio::test]
+async fn a_log_read_waits_out_a_rate_limit() {
+    use crate::rpc::tests::scripted_rpc;
+    let limited = (200, r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32005,"message":"request rate exceeded"}}"#.to_string());
+    let too_many = (429, r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32005,"message":"Too Many Requests"}}"#.to_string());
+    let log = serde_json::json!({"address": Address::repeat_byte(1), "topics": [], "data": "0x", "blockNumber": "0x1", "blockHash": FixedBytes::<32>::ZERO, "transactionHash": FixedBytes::<32>::ZERO, "transactionIndex": "0x0", "logIndex": "0x0", "removed": false});
+    let one = (200, serde_json::json!({"jsonrpc": "2.0", "id": 1, "result": [log]}).to_string());
+    let filter = alloy::rpc::types::Filter::new().address(Address::repeat_byte(1));
+    let (url, asked) = scripted_rpc(vec![limited, too_many, one]).await;
+    let logs = gas::window_logs(&url, &filter, 0, 9_999).await.expect("the read waits out the limit");
+    assert_eq!(logs.len(), 1);
+    assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 3, "asked again after each refusal");
+}
+
+/// A history read again on a live network asks the RPC only for the blocks past where it was read to, less
+/// `LOGS_REREAD`, and still returns every log it held: each claim pass reads the coins' and Settlement's events from the
+/// deployment's block five times or more, and each read was every window since. The devnet holds nothing.
+#[tokio::test]
+async fn a_history_read_again_asks_only_for_the_new_blocks() {
+    use std::sync::{Arc, Mutex as StdMutex};
+    let asked: Arc<StdMutex<Vec<(u64, u64)>>> = Arc::default();
+    let seen = asked.clone();
+    let hex = |v: &serde_json::Value| u64::from_str_radix(v.as_str().unwrap_or("0x0").trim_start_matches("0x"), 16).unwrap();
+    // One log, at block 5; every window asked for is noted.
+    let url = rpc_replying(move |body| {
+        let (a, b) = (hex(&body["params"][0]["fromBlock"]), hex(&body["params"][0]["toBlock"]));
+        seen.lock().unwrap().push((a, b));
+        let log = serde_json::json!({"address": Address::repeat_byte(9), "topics": [], "data": "0x", "blockNumber": "0x5", "blockHash": FixedBytes::<32>::ZERO, "transactionHash": FixedBytes::<32>::ZERO, "transactionIndex": "0x0", "logIndex": "0x0", "removed": false});
+        let result = if a <= 5 && 5 <= b { vec![log] } else { vec![] };
+        serde_json::json!({"jsonrpc": "2.0", "id": body["id"], "result": result})
+    })
+    .await;
+    let url: reqwest_url::Url = url.parse().unwrap();
+    let filter = alloy::rpc::types::Filter::new().address(Address::repeat_byte(9));
+    // A chain no other test holds histories on.
+    let chain = Some(0xC0FFEE_u64);
+
+    let first = gas::held_logs(&url, chain, &filter, 0, 25_000).await.unwrap();
+    assert_eq!(first.len(), 1);
+    assert_eq!(asked.lock().unwrap().drain(..).count(), 3, "the first read is every window");
+
+    let again = gas::held_logs(&url, chain, &filter, 0, 25_100).await.unwrap();
+    assert_eq!(again.len(), 1, "the log held from the first read is still there");
+    assert_eq!(asked.lock().unwrap().clone(), vec![(25_000 - gas::LOGS_REREAD + 1, 25_100)], "only the blocks past the held history, and the last few again");
+    asked.lock().unwrap().clear();
+
+    let behind = gas::held_logs(&url, chain, &filter, 0, 1_000).await.unwrap();
+    assert_eq!(behind.len(), 1, "a read to a block already held asks nothing");
+    assert!(asked.lock().unwrap().is_empty());
+
+    // Another start block is another history.
+    gas::held_logs(&url, chain, &filter, 10, 25_100).await.unwrap();
+    assert_eq!(asked.lock().unwrap().drain(..).count(), 3);
+
+    // The devnet holds nothing: each read is every window.
+    gas::held_logs(&url, None, &filter, 0, 25_000).await.unwrap();
+    gas::held_logs(&url, None, &filter, 0, 25_000).await.unwrap();
+    assert_eq!(asked.lock().unwrap().len(), 6);
+}
+
+/// A JSON-RPC endpoint on this machine that answers `eth_chainId` as `chain_id`, for as long as the test runs.
+async fn rpc_answering(chain_id: u64) -> String {
+    rpc_saying(move |id| serde_json::json!({ "jsonrpc": "2.0", "id": id, "result": format!("{chain_id:#x}") })).await
+}
+
+/// A JSON-RPC endpoint on this machine that answers every call with what `reply` makes of its id.
+async fn rpc_saying(reply: impl Fn(serde_json::Value) -> serde_json::Value + Send + Sync + 'static) -> String {
+    rpc_replying(move |body| reply(body["id"].clone())).await
+}
+
+/// A JSON-RPC endpoint on this machine that answers every call with what `reply` makes of the whole request.
+async fn rpc_replying(reply: impl Fn(&serde_json::Value) -> serde_json::Value + Send + Sync + 'static) -> String {
+    let reply = std::sync::Arc::new(reply);
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        loop {
+            let Ok((mut conn, _)) = listener.accept().await else { return };
+            let reply = reply.clone();
+            tokio::spawn(async move {
+                let mut asked = Vec::new();
+                let mut buf = [0u8; 4096];
+                // The headers, then as much body as they say.
+                loop {
+                    let Ok(n) = conn.read(&mut buf).await else { return };
+                    if n == 0 {
+                        return;
+                    }
+                    asked.extend_from_slice(&buf[..n]);
+                    let text = String::from_utf8_lossy(&asked);
+                    let Some(end) = text.find("\r\n\r\n") else { continue };
+                    let length = text[..end].lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(0))).unwrap_or(0);
+                    if asked.len() >= end + 4 + length {
+                        let body: serde_json::Value = serde_json::from_slice(&asked[end + 4..end + 4 + length]).unwrap_or_default();
+                        let reply = reply(&body).to_string();
+                        let _ = conn.write_all(format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}", reply.len()).as_bytes()).await;
+                        return;
+                    }
+                }
+            });
+        }
+    });
+    url
+}
+
+/// Unbrowse's gateway that doesn't answer (down, or its name doesn't resolve) is no reason for the chain not to start:
+/// the node goes on with the network's public RPC, and isn't marked refused, so a renewed pass can take the gateway
+/// again (UNB-222). A gateway that answers is used; an RPC that isn't the gateway and doesn't answer is the error it was.
+#[tokio::test]
+async fn a_gateway_that_doesnt_answer_leaves_the_node_on_the_public_rpc() {
+    let public = rpc_answering(arc::ARC_TESTNET.chain_id).await;
+    let net: &'static arc::Network = Box::leak(Box::new(arc::Network { rpc: Box::leak(public.clone().into_boxed_str()), ..arc::ARC_TESTNET }));
+    let dead = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let gateway: reqwest_url::Url = format!("http://127.0.0.1:{dead}/arc-testnet/0xabc.1.0xdef").parse().unwrap();
+
+    let l = check_or_public_from(Live { net, rpc: gateway.clone() }, true).await.expect("the public RPC answers");
+    assert_eq!(l.rpc.as_str(), public, "on the public RPC");
+    assert_eq!(live().map(|l| l.rpc.to_string()), Some(public.clone()), "and every provider reads it");
+    assert!(crate::gateway::refused().is_none(), "a gateway that is down hasn't refused the node");
+
+    let answering: reqwest_url::Url = format!("{}arc-testnet/0xabc.1.0xdef", rpc_answering(arc::ARC_TESTNET.chain_id).await).parse().unwrap();
+    let l = check_or_public_from(Live { net, rpc: answering.clone() }, true).await.expect("the gateway answers");
+    assert_eq!(l.rpc, answering, "a gateway that answers is used");
+
+    let e = check_or_public_from(Live { net, rpc: gateway.clone() }, false).await.unwrap_err();
+    assert!(e.contains("doesn't answer"), "an RPC named by hand that is down stays the error: {e}");
+
+    // Both down: the error names both, and the node still isn't refused, so the next try asks the gateway again.
+    let nowhere: &'static arc::Network = Box::leak(Box::new(arc::Network { rpc: Box::leak(gateway.origin().ascii_serialization().into_boxed_str()), ..arc::ARC_TESTNET }));
+    let e = check_or_public_from(Live { net: nowhere, rpc: gateway.clone() }, true).await.unwrap_err();
+    assert!(e.contains("; and the public RPC: "), "{e}");
+    assert!(crate::gateway::refused().is_none());
+
+    // A gateway that refuses the node (not a member) is left for good, as before; when the public RPC is down too, its
+    // error is the one said.
+    let refusing: reqwest_url::Url = format!(
+        "{}arc-testnet/0xabc.1.0xdef",
+        rpc_saying(|id| serde_json::json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32001, "message": "this node isn't a member" } })).await
+    )
+    .parse()
+    .unwrap();
+    let l = check_or_public_from(Live { net, rpc: refusing.clone() }, true).await.expect("the public RPC answers");
+    assert_eq!(l.rpc.as_str(), public);
+    assert!(crate::gateway::refused().is_some_and(|why| why.contains("isn't a member")), "refused for good");
+    let e = check_or_public_from(Live { net: nowhere, rpc: refusing }, true).await.unwrap_err();
+    assert!(!e.contains("; and the public RPC: "), "the public RPC's own error: {e}");
+    crate::gateway::forget_refusal();
+    forget_live();
+}
+
+/// An HTTP server on this machine that gives every request the same `status` and JSON `body`: an RPC, or the gateway
+/// refusing a node, for as long as the test runs.
+async fn replying(status: u16, body: String) -> String {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let at = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        while let Ok((mut s, _)) = listener.accept().await {
+            let body = body.clone();
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 16 * 1024];
+                let _ = s.read(&mut buf).await;
+                let head = format!("HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", body.len());
+                let _ = s.write_all(head.as_bytes()).await;
+                let _ = s.write_all(body.as_bytes()).await;
+            });
+        }
+    });
+    format!("http://{at}")
+}
+
+/// A node the gateway refused (its owner hadn't signed in yet) reads the public RPC; once the gateway answers as the
+/// network (the owner signed in while the node ran), the node is taken back onto it, and while it still refuses the
+/// node stays where it is. Seen 2026-11-18 on the production gateway: a node linked after it started read the public
+/// RPC until it restarted, so it was never gassed.
+#[tokio::test]
+async fn a_node_the_gateway_refused_takes_it_again_once_it_answers() {
+    let net = arc::by_name("arc-testnet").unwrap();
+    let chain_id = format!(r#"{{"jsonrpc":"2.0","id":0,"result":"0x{:x}"}}"#, net.chain_id);
+    let public = replying(200, chain_id.clone()).await;
+    let on_public = Live { net, rpc: public.parse().unwrap() };
+
+    let refusing = replying(403, r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"this node isn't a member"}}"#.into()).await;
+    assert!(retaken(&on_public, &format!("{refusing}/arc-testnet/pass")).await.is_none(), "still refused: the node stays on the public RPC");
+
+    let taking = replying(200, chain_id).await;
+    let back = retaken(&on_public, &format!("{taking}/arc-testnet/pass")).await.expect("the gateway answers: back onto it");
+    assert_eq!(back.rpc.as_str(), format!("{taking}/arc-testnet/pass"));
+    assert_eq!(back.net.chain_id, net.chain_id);
+
+    let wrong = replying(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#.into()).await;
+    assert!(retaken(&on_public, &format!("{wrong}/arc-testnet/pass")).await.is_none(), "an answer as another chain is never taken");
 }

@@ -1,0 +1,20 @@
+// The RPC gateway on staging: its own Worker and its own member list, at rpc-staging.unbrowse.ai. Same code as wrangler.jsonc; the
+// name, the routes and the origins differ. Secrets: ALCHEMY_KEY (the same Alchemy app).
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "unbrowse-rpc-staging",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": false,
+  // The custom domain makes the DNS record and certificate; the zone route is what answers. The zone's catch-all
+  // `*.unbrowse.ai/*` route (another Worker) wins over a custom domain, and only a more specific route wins over it.
+  "routes": [{ "pattern": "rpc-staging.unbrowse.ai", "custom_domain": true }, { "pattern": "rpc-staging.unbrowse.ai/*", "zone_name": "unbrowse.ai" }],
+  "vars": {
+    "PRIVY_APP_ID": "cmpalnem701z00cjmncqve4q0",
+    "SITE_ORIGINS": "https://staging.unbrowse.ai"
+  },
+  "durable_objects": { "bindings": [{ "name": "MEMBERS", "class_name": "Members" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Members"] }],
+  "ratelimits": [{ "name": "PER_NODE", "namespace_id": "5043", "simple": { "limit": 600, "period": 60 } }],
+  "observability": { "enabled": false }
+}

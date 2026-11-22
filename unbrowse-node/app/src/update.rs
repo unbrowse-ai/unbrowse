@@ -824,11 +824,14 @@ const PROVEN_AFTER: Duration = Duration::from_secs(120);
 /// How long a release gets to answer `--help` before the node goes through with leaving the network for it.
 const ANSWERS_WITHIN: Duration = Duration::from_secs(30);
 
-/// A release being tried, and how many times it was started without yet staying up.
+/// A release being tried, how many times it was started without yet staying up, and what its latest start noted of
+/// how far it got (`reached`), so a release given up on can be said to have stopped there.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 struct Trial {
     version: String,
     starts: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    reached: Vec<String>,
 }
 
 /// What a start does with release `v`, given what stayed up here and what is on trial.
@@ -882,6 +885,7 @@ fn about_to_start(dir: &Path, v: &str) -> bool {
             let trial = serde_json::to_string(&Trial {
                 version: v.to_string(),
                 starts,
+                reached: Vec::new(),
             })
             .unwrap_or_default();
             if let Err(e) = put_whole(&dir.join(TRIAL), &trial) {
@@ -896,6 +900,34 @@ fn about_to_start(dir: &Path, v: &str) -> bool {
     }
 }
 
+/// Notes how far this start got, when this program is the release on trial: the start that gives up on it says so, since
+/// a release that stops (or is stopped) before it has proved itself can't say why itself.
+pub fn reached(step: &str) {
+    note_reached(&versions(), RUNNING, step);
+}
+
+fn note_reached(dir: &Path, running: &str, step: &str) {
+    let Some(mut trial) = word_in(dir, TRIAL).and_then(|t| serde_json::from_str::<Trial>(&t).ok()) else { return };
+    if trial.version != running {
+        return;
+    }
+    trial.reached.push(step.to_string());
+    if let Err(e) = put_whole(&dir.join(TRIAL), &serde_json::to_string(&trial).unwrap_or_default()) {
+        eprintln!("update: couldn't note how far {running} got: {e}");
+    }
+}
+
+/// What release `v`'s latest start noted of how far it got, to say beside giving up on it. Read before `about_to_start`,
+/// which clears the trial when it gives up.
+fn how_far(dir: &Path, v: &str) -> String {
+    match word_in(dir, TRIAL).and_then(|t| serde_json::from_str::<Trial>(&t).ok()) {
+        Some(t) if t.version == v && !t.reached.is_empty() => format!("its latest start noted: {}", t.reached.join("; ")),
+        _ => "its latest start noted nothing: it stopped before it began, or was stopped from outside (the system \
+              refusing its signature, a kill)"
+            .into(),
+    }
+}
+
 /// This node stays off release `v`: no start runs it and no check fetches it again, until a newer one comes.
 fn give_up(dir: &Path, v: &str) {
     if let Err(e) = put_whole(&dir.join(GAVE_UP), v) {
@@ -905,6 +937,25 @@ fn give_up(dir: &Path, v: &str) {
     if word_in(dir, CURRENT).as_deref() == Some(v) {
         let _ = std::fs::remove_file(dir.join(CURRENT));
     }
+}
+
+/// Forgets the release this node gave up on once it holds nothing back: the node runs that release or a newer one (a
+/// newer install landed, or the owner put it in by hand). Core #630: it used to be kept for good.
+fn forget_gave_up_behind(dir: &Path, running: &str) {
+    if word_in(dir, GAVE_UP).is_some_and(|v| !newer(&v, running)) {
+        let _ = std::fs::remove_file(dir.join(GAVE_UP));
+    }
+}
+
+/// The owner asking for an update (`unbrowse update`) tries a release given up on once more, on a count of starts of
+/// its own: they may have fixed what stopped it (core #630).
+fn try_gave_up_again(dir: &Path) {
+    let _ = std::fs::remove_file(dir.join(GAVE_UP));
+}
+
+/// What the owner is told of release `w`, given up on here, while the node stays on `running`.
+fn stays_on(w: &str, running: &str) -> String {
+    format!("{w} didn't start here, so this node stays on {running} until a newer release; `unbrowse update` tries {w} again")
 }
 
 /// The node has stayed up as `running`: a release on trial has proved itself.
@@ -956,8 +1007,9 @@ pub fn run_newest() {
             return;
         }
     }
+    let why = how_far(&dir, &v);
     if !about_to_start(&dir, &v) {
-        eprintln!("update: {v} didn't stay up in {STARTS_ALLOWED} starts, so this node stays on {RUNNING}");
+        eprintln!("update: {v} didn't stay up in {STARTS_ALLOWED} starts, so this node stays on {RUNNING} ({why})");
         return;
     }
     eprintln!("update: running {v}, the newest here");
@@ -1078,9 +1130,10 @@ fn restart_when_idle(node: &crate::Node, rt: &tokio::runtime::Handle, exe: PathB
             ));
             return;
         }
+        let why = how_far(&dir, &into);
         if !about_to_start(&dir, &into) {
             say_stayed(format!(
-                "{into} didn't stay up in {STARTS_ALLOWED} starts, so this node stays on {RUNNING}"
+                "{into} didn't stay up in {STARTS_ALLOWED} starts, so this node stays on {RUNNING} ({why})"
             ));
             return;
         }
@@ -1407,7 +1460,8 @@ pub fn check(
     let (channel, want) = choose(&targets, place);
     forget_unwanted(versions, &targets, place, running);
     // Never an older release than this one: a channel moved back is a rollback, and isn't followed. Nor one that didn't
-    // stay up here: it is fetched again only when a newer one comes.
+    // stay up here: it is fetched again only when a newer one comes, or the owner asks for it (`try_gave_up_again`).
+    forget_gave_up_behind(versions, running);
     let gave_up = word_in(versions, GAVE_UP);
     let Some(next) = want
         .clone()
@@ -1669,7 +1723,7 @@ pub fn check_now(node: Option<&crate::Node>) -> Result<Option<(String, PathBuf)>
     let gave_up = word_in(&versions(), GAVE_UP);
     set(|s| match &r {
         Ok(c) => {
-            s.error = c.want.as_ref().filter(|w| gave_up.as_ref() == Some(*w) && newer(w, RUNNING)).map(|w| format!("{w} didn't start here, so this node stays on {RUNNING} until a newer release"));
+            s.error = c.want.as_ref().filter(|w| gave_up.as_ref() == Some(*w) && newer(w, RUNNING)).map(|w| stays_on(w, RUNNING));
             s.ready = c
                 .unpacked
                 .as_ref()
@@ -1691,6 +1745,7 @@ pub fn update_now(node: &Arc<crate::Node>) -> Result<Status, String> {
     if !released() {
         return Err("this node was built from source, so it doesn't update itself".into());
     }
+    try_gave_up_again(&versions());
     let found = check_now(Some(node));
     node.events.emit("update", ());
     if let Some((v, dir)) = found? {
@@ -1769,6 +1824,46 @@ mod tests {
         );
     }
 
+    /// Core #630: a release given up on is forgotten once the node runs it or a newer one, kept while it is still ahead,
+    /// and the owner is told how to try it again, which `unbrowse update` does.
+    #[test]
+    fn a_release_given_up_on_is_forgotten_once_passed_and_the_owner_can_try_it_again() {
+        let dir = tried("gave-up-again", "2.0.0");
+        give_up(&dir, "2.0.0");
+        forget_gave_up_behind(&dir, "1.9.0");
+        assert_eq!(word_in(&dir, GAVE_UP).as_deref(), Some("2.0.0"), "still ahead of the node: kept");
+        forget_gave_up_behind(&dir, "2.0.1");
+        assert_eq!(word_in(&dir, GAVE_UP), None, "a newer install landed: nothing to hold back");
+        give_up(&dir, "2.0.0");
+        forget_gave_up_behind(&dir, "2.0.0");
+        assert_eq!(word_in(&dir, GAVE_UP), None, "the owner put it in by hand");
+        give_up(&dir, "2.0.0");
+        assert!(stays_on("2.0.0", "1.9.0").contains("`unbrowse update` tries 2.0.0 again"));
+        try_gave_up_again(&dir);
+        assert_eq!(word_in(&dir, GAVE_UP), None);
+        assert!(about_to_start(&dir, "2.0.0"), "and it starts on a count of its own");
+    }
+
+    /// A release that stops before it proves itself can't say why, so each start notes how far it got, and the start that
+    /// gives up on it says so. Its count starts afresh each start; what any other program notes is no part of it.
+    #[test]
+    fn giving_up_says_how_far_the_latest_start_got() {
+        let dir = tried("how-far", "2.0.0");
+        assert!(how_far(&dir, "2.0.0").contains("noted nothing"));
+        assert!(about_to_start(&dir, "2.0.0"));
+        note_reached(&dir, "2.0.0", "it started");
+        note_reached(&dir, "1.9.0", "not the release on trial");
+        note_reached(&dir, "2.0.0", "it stopped: a node was already running here (pid 7)");
+        assert!(about_to_start(&dir, "2.0.0"));
+        assert!(how_far(&dir, "2.0.0").contains("noted nothing"), "a new start's notes start empty");
+        note_reached(&dir, "2.0.0", "it started");
+        note_reached(&dir, "2.0.0", "it stopped: port 7788: address in use");
+        let why = how_far(&dir, "2.0.0");
+        assert_eq!(why, "its latest start noted: it started; it stopped: port 7788: address in use");
+        assert!(how_far(&dir, "2.0.1").contains("noted nothing"), "another release's notes aren't this one's");
+        assert!(!about_to_start(&dir, "2.0.0"));
+    }
+
     /// Staying up ends the trial: a proved release is started as often as a machine restarts, and counts nothing.
     #[test]
     fn a_release_that_stayed_up_is_never_counted_again() {
@@ -1795,7 +1890,8 @@ mod tests {
                 Some("2.0.0"),
                 &Trial {
                     version: "2.0.0".into(),
-                    starts: 9
+                    starts: 9,
+                    reached: Vec::new(),
                 }
             ),
             Turn::Try(1)
@@ -3306,5 +3402,123 @@ mod tests {
         assert!(!release_build_enabled(Some("0")));
         assert!(!release_build_enabled(Some("true")));
         assert!(!release_build_enabled(None));
+    }
+
+    /// Dates compare as the text of a day (`YYYY-MM-DD`): earlier is before, equal and later are not, and anything not ten
+    /// bytes long is before nothing.
+    #[test]
+    fn a_date_is_before_another_only_when_both_are_days_and_it_is_earlier() {
+        assert!(date_before("2026-11-01", "2026-11-02"));
+        assert!(date_before("2025-12-31", "2026-01-01"));
+        assert!(!date_before("2026-11-02", "2026-11-01"));
+        assert!(!date_before("2026-11-01", "2026-11-01"));
+        assert!(!date_before("2026-11-1", "2026-11-02"));
+        assert!(!date_before("2026-11-01", ""));
+    }
+
+    /// Two keys are the same only when every byte is, and keys of another length are never the same.
+    #[test]
+    fn two_strings_are_equal_only_when_every_byte_is() {
+        assert!(str_eq("abc", "abc") && str_eq("", ""));
+        assert!(!str_eq("abc", "abd") && !str_eq("abc", "ab") && !str_eq("ab", "abc"));
+    }
+
+    /// A role's keys must be 64 lowercase hex digits each, at least `minimum` of them, none repeated, none the release key.
+    #[test]
+    fn a_roles_keys_are_valid_only_as_64_distinct_hex_digits_and_not_the_release_key() {
+        let a = "a".repeat(64);
+        let b = "b".repeat(64);
+        assert!(role_keys_valid(&[a.as_str(), b.as_str()], 2));
+        assert!(role_keys_valid(&[a.as_str()], 1));
+        assert!(!role_keys_valid(&[a.as_str()], 2), "too few");
+        assert!(!role_keys_valid(&[a.as_str(), a.as_str()], 2), "a key twice");
+        assert!(!role_keys_valid(&["abc"], 1), "too short");
+        assert!(!role_keys_valid(&["A".repeat(64).as_str()], 1), "capitals");
+        assert!(!role_keys_valid(&["g".repeat(64).as_str()], 1), "not hex");
+        assert!(!role_keys_valid(&[RELEASE_KEY], 1), "the online release key is not an offline key");
+        assert!(role_keys_valid(&[], 0));
+    }
+
+    /// Two roles may not share a key.
+    #[test]
+    fn two_roles_are_disjoint_only_when_they_share_no_key() {
+        assert!(roles_disjoint(&["a", "b"], &["c"]));
+        assert!(roles_disjoint(&[], &["c"]));
+        assert!(!roles_disjoint(&["a", "b"], &["c", "b"]));
+    }
+
+    /// This build holds no offline keys yet, so a release build of it is allowed only by the dated online-root exception:
+    /// the keys are empty, not partial, and not valid.
+    #[test]
+    fn the_build_holds_no_offline_keys_and_says_so() {
+        assert!(offline_roles_empty());
+        assert!(!release_offline_keys_valid());
+    }
+
+    /// A build that isn't a release has no package to fetch for the browser or for itself, and says why; it never asks a
+    /// registry.
+    #[test]
+    fn a_build_from_source_fetches_no_browser_and_does_not_update_itself() {
+        if released() {
+            return;
+        }
+        let e = browser_package().unwrap_err();
+        assert!(e.starts_with("this node was built from source, so no release holds its browser"), "{e}");
+        assert!(e.contains("unbrowse browser install --from"), "{e}");
+    }
+
+    /// The machine this runs on has a released package named for it.
+    #[test]
+    fn this_machine_has_a_named_package() {
+        let name = platform().expect("a tested machine");
+        assert!(["darwin-arm64", "darwin-x64", "linux-x64", "linux-arm64", "win32-x64"].contains(&name), "{name}");
+        assert!(name.starts_with(match std::env::consts::OS { "macos" => "darwin", "windows" => "win32", o => o }));
+    }
+
+    /// A node's place for a rollout carries the channel its owner chose (and none when the owner chose nothing), and a
+    /// word that is no channel is none.
+    #[test]
+    fn the_place_holds_the_channel_the_owner_chose() {
+        let _home = store::scratch_home("update-place");
+        assert_eq!(place(None).chosen, None);
+        let mut s = store::load_settings();
+        s.update_channel = Some("canary".into());
+        store::save_settings(&s).unwrap();
+        assert_eq!(place(None).chosen, Some(Channel::Canary));
+        s.update_channel = Some("beta".into());
+        store::save_settings(&s).unwrap();
+        assert_eq!(place(None).chosen, None);
+        assert!(place(None).seed.is_none(), "no node, no identity to place by");
+        assert!(place(None).now > 1_700_000_000);
+    }
+
+    /// A restart that didn't happen leaves the status with the reason and no promise of a release ready.
+    #[test]
+    fn a_restart_that_did_not_happen_leaves_the_reason_and_no_release_ready() {
+        set(|s| s.ready = Some("9.9.9".into()));
+        say_stayed("9.9.9 wasn't started".into());
+        let s = status();
+        assert_eq!(s.ready, None);
+        assert_eq!(s.error.as_deref(), Some("9.9.9 wasn't started"));
+    }
+
+    /// A release waits to be run only when it is unpacked here with its program and is newer than this one: none unpacked,
+    /// an older one, or a newer one with no program, wait for nothing.
+    #[test]
+    fn a_release_waits_only_when_it_is_newer_and_has_its_program() {
+        let home = store::scratch_home("update-waiting");
+        let versions = home.join("versions");
+        assert!(waiting().is_none(), "nothing unpacked");
+        for v in ["0.0.1", "9999.0.0"] {
+            std::fs::create_dir_all(versions.join(v).join("bin")).unwrap();
+        }
+        std::fs::write(versions.join(CURRENT), "9999.0.0\n").unwrap();
+        assert!(waiting().is_none(), "newer, but its program isn't there");
+        let exe = versions.join("9999.0.0/bin").join(format!("unbrowse-node{}", std::env::consts::EXE_SUFFIX));
+        std::fs::write(&exe, "").unwrap();
+        std::fs::write(versions.join("0.0.1/bin").join(exe.file_name().unwrap()), "").unwrap();
+        assert_eq!(waiting(), Some(("9999.0.0".to_string(), exe)));
+        std::fs::write(versions.join(CURRENT), "0.0.1").unwrap();
+        assert!(waiting().is_none(), "older than this program");
     }
 }

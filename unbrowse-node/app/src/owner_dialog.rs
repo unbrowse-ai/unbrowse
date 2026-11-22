@@ -335,6 +335,79 @@ pub fn set_payment_approver(keys: &dyn KeyStore, approver: &str, who: &str) -> R
     Ok(now)
 }
 
+// ---- asks answered from another device (UNB-147) ----
+
+/// The label the remote-answers seal is made under.
+const REMOTE_SEAL: &str = "remote-answers";
+
+/// Whether an agent's ask for the owner (`ask_owner`: a sign-in, a two-step code) may be answered from another device
+/// through the owner SDK, such as the daemon hub's Telegram bot: off by default. With it on, an ask reaches the owner
+/// when a device of theirs is watching (`hands::away_there`) though no window is open here, and `hands_answer` types
+/// the code the owner sends into the page's code field, as their own typing, never shown to an agent.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct RemoteAnswers {
+    pub on: bool,
+    /// When the owner turned it on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub since: Option<u64>,
+}
+
+/// Where it is kept: beside the payment approver, sealed with the node's key, so a hand edit never turns it on.
+pub fn remote_answers_file() -> std::path::PathBuf {
+    store::home().join("owner.remote-answers")
+}
+
+/// Whether asks may be answered from another device now. Anything but a record this node's key sealed is off.
+pub fn remote_answers(keys: Option<&dyn KeyStore>) -> RemoteAnswers {
+    let off = RemoteAnswers { on: false, since: None };
+    let Some(keys) = keys else { return off };
+    let Ok(text) = std::fs::read_to_string(remote_answers_file()) else { return off };
+    let Ok(r) = serde_json::from_str::<ApproverRecord>(&text) else { return off };
+    let Ok(root) = RootKey::load(keys) else { return off };
+    if r.approver == "on" && unbrowse_core::owner_pass::sealed_text(&root, REMOTE_SEAL, &format!("on {}", r.since), &r.mac) {
+        RemoteAnswers { on: true, since: Some(r.since) }
+    } else {
+        off
+    }
+}
+
+/// Turns answering from another device on (on the owner's yes in the dialog: `commands::asks_the_owner`) or off (asks
+/// nothing: it only makes the node ask at the screen again).
+pub fn set_remote_answers(keys: &dyn KeyStore, on: bool, who: &str) -> Result<RemoteAnswers, String> {
+    let path = remote_answers_file();
+    if on {
+        let since = store::now();
+        let root = RootKey::load(keys).map_err(|e| e.to_string())?;
+        let mac = unbrowse_core::owner_pass::seal_text(&root, REMOTE_SEAL, &format!("on {since}"));
+        let text = serde_json::to_string(&ApproverRecord { approver: "on".into(), since, mac }).map_err(|e| e.to_string())?;
+        unbrowse_files::private::write(&path, text.as_bytes()).map_err(|e| format!("{}: {e}", path.display()))?;
+    } else {
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("{}: {e}", path.display())),
+        }
+    }
+    let now = remote_answers(Some(keys));
+    store::log_activity(&store::Activity {
+        at: store::now(),
+        who: who.into(),
+        site: String::new(),
+        what: if now.on {
+            "Let a device of yours answer agents' sign-in and code asks away from this screen (Telegram, say)".into()
+        } else {
+            "Agents' sign-in and code asks wait on this screen again".into()
+        },
+        kind: "hands".into(),
+        result: "done".into(),
+        ms: None,
+        unb: None,
+        tx: None,
+        note: None,
+    });
+    Ok(now)
+}
+
 // ---- the owner passphrase ----
 
 /// Where the owner passphrase's sealed hash is kept: beside the owner's token, readable by the owner's user only.
@@ -702,6 +775,26 @@ fn system_folder() -> std::path::PathBuf {
     #[cfg(not(windows))]
     {
         std::path::PathBuf::new()
+    }
+}
+
+/// Why this process can't show the owner a dialog now, or `None` when it can: whether the node's yes will be asked on
+/// a screen or with the owner passphrase on a terminal (`ask`), said before asking (`onboard`). A test has no screen.
+pub fn why_no_dialog() -> Option<String> {
+    #[cfg(test)]
+    {
+        Some("a test has no screen".into())
+    }
+    #[cfg(not(test))]
+    {
+        if let Err(why) = screen() {
+            return Some(why);
+        }
+        let system = system_folder();
+        match places(std::env::consts::OS, &system).into_iter().any(|(_, path)| trusted(&path)) {
+            true => None,
+            false => Some("no dialog program is installed in the system's own folders".into()),
+        }
     }
 }
 

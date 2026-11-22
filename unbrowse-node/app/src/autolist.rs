@@ -49,6 +49,9 @@ pub enum Waiting {
     /// Signed and kept, under no posted root yet, so nobody can check it and it isn't spread (R2.19). `poster` is whether
     /// a reserve's poster will post that root; with none, the node's own next pass does, and needs gas to.
     Unspread { poster: bool },
+    /// Listed under the owner's wallet's identity, and waiting for the wallet to sign it (`listings_to_sign`): this node
+    /// doesn't hold the wallet's key, and no other key signs for it (R1.12, issue #184).
+    Unsigned,
     /// It stays on this node: learned before the owner signed in, or no one has signed in yet (R2.8).
     Local { signed_in: bool },
     /// It will be listed once the owner has seen which routes the node shares (`share_status`).
@@ -457,11 +460,14 @@ pub fn view_on(chain: &chain::Chain) -> View {
     v
 }
 
-/// A route marked listed whose latest listing has no posted root reads as what it is: nobody else can see it yet.
+/// A route marked listed whose latest listing has no posted root reads as what it is: nobody else can see it yet,
+/// because the owner's wallet hasn't signed it or because no root holds it.
 fn unspread(v: &mut View, book: &crate::listing::Book, poster: bool) {
     for r in v.routes.iter_mut().filter(|r| r.standing == Waiting::Listed) {
-        if book.latest(&r.id).is_some_and(|k| k.root.is_none()) {
-            r.standing = Waiting::Unspread { poster };
+        match book.latest(&r.id) {
+            Some(k) if !k.signed() => r.standing = Waiting::Unsigned,
+            Some(k) if k.root.is_none() => r.standing = Waiting::Unspread { poster },
+            _ => {}
         }
     }
 }
@@ -715,7 +721,7 @@ mod tests {
     /// Listed means others can find it: a listing no root holds yet says it is waiting, whatever the route's mark says.
     #[test]
     fn a_listing_under_no_root_is_not_shown_listed() {
-        let kept = |id: &str, root: Option<alloy::primitives::FixedBytes<32>>| crate::listing::Kept {
+        let kept = |id: &str, root: Option<alloy::primitives::FixedBytes<32>>, sig: &str| crate::listing::Kept {
             listing: crate::listing::SignedListing {
                 route_id: id.into(),
                 site: "shop.example".into(),
@@ -724,19 +730,21 @@ mod tests {
                 version: 1,
                 supersedes: None,
                 terms: crate::listing::Terms { description: "search items".into(), response: None, price: Default::default() },
-                sig: String::new(),
+                sig: sig.into(),
             },
             leaf: alloy::primitives::FixedBytes::ZERO,
             root,
         };
         let mut book = crate::listing::Book::default();
-        book.listings.push(kept("waits", None));
-        book.listings.push(kept("spread", Some(alloy::primitives::FixedBytes::repeat_byte(1))));
+        book.listings.push(kept("waits", None, "0x01"));
+        book.listings.push(kept("spread", Some(alloy::primitives::FixedBytes::repeat_byte(1)), "0x01"));
+        book.listings.push(kept("unsigned", None, ""));
         let row = |id: &str| RouteView { standing: Waiting::Listed, id: id.into(), site: String::new(), what: String::new(), share: None, passed: 0, days: 0 };
-        let mut v = View { mode: ShareMode::Used, per_day: 1, listed_today: 0, blocked: None, routes: vec![row("waits"), row("spread")] };
+        let mut v = View { mode: ShareMode::Used, per_day: 1, listed_today: 0, blocked: None, routes: vec![row("waits"), row("spread"), row("unsigned")] };
         unspread(&mut v, &book, false);
         assert_eq!(v.routes[0].standing, Waiting::Unspread { poster: false });
         assert_eq!(v.routes[1].standing, Waiting::Listed);
+        assert_eq!(v.routes[2].standing, Waiting::Unsigned, "waiting for the owner's wallet to sign it");
     }
 
     use super::*;

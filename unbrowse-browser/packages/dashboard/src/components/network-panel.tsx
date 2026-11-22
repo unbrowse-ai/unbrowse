@@ -1,11 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAtom, useAtomValue } from "jotai/react";
-import { activePortAtom, activeSessionNameAtom } from "@/store/sessions";
-import { sessionSettingsAtom } from "@/store/session-settings";
+import { useAtomValue } from "jotai/react";
+import { activeSessionNameAtom } from "@/store/sessions";
 import { execCommand, sessionArgs } from "@/lib/exec";
-import { confirmSetting, settingsFor, settingsKey, withSetting } from "@/lib/session-settings";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -82,11 +80,7 @@ export function NetworkPanel() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const port = useAtomValue(activePortAtom);
-  const [settingsBook, setSettingsBook] = useAtom(sessionSettingsAtom);
-  const harKey = settingsKey(sessionName, port);
-  const { harRecording } = settingsFor(settingsBook, harKey);
-  const [harError, setHarError] = useState("");
+  const [harRecording, setHarRecording] = useState(false);
   const [harDialogOpen, setHarDialogOpen] = useState(false);
   const [harPath, setHarPath] = useState("capture.har");
   const harInputRef = useRef<HTMLInputElement>(null);
@@ -127,7 +121,7 @@ export function NetworkPanel() {
       setRequests([]);
       setExpanded(null);
       setDetail(null);
-      setHarError("");
+      setHarRecording(false);
     }
     doFetch(true);
   }, [sessionName, typeFilter, doFetch]);
@@ -180,29 +174,19 @@ export function NetworkPanel() {
     }
   }, [expanded, sessionName]);
 
-  const applyHar = useCallback(
-    async (args: string[], harRecording: boolean) => {
-      setHarError(
-        await confirmSetting(
-          () => execCommand(args),
-          () => setSettingsBook((book) => withSetting(book, harKey, { harRecording })),
-        ),
-      );
-    },
-    [harKey, setSettingsBook],
-  );
-
   const handleHarStart = useCallback(async () => {
     if (!sessionName) return;
-    await applyHar(sessionArgs(sessionName, "network", "har", "start"), true);
-  }, [sessionName, applyHar]);
+    await execCommand(sessionArgs(sessionName, "network", "har", "start"));
+    setHarRecording(true);
+  }, [sessionName]);
 
   const handleHarStop = useCallback(async () => {
     if (!sessionName) return;
     const path = harPath.trim() || "capture.har";
     setHarDialogOpen(false);
-    await applyHar(sessionArgs(sessionName, "network", "har", "stop", path), false);
-  }, [sessionName, harPath, applyHar]);
+    await execCommand(sessionArgs(sessionName, "network", "har", "stop", path));
+    setHarRecording(false);
+  }, [sessionName, harPath]);
 
   return (
     <div className="flex h-full flex-col">
@@ -276,9 +260,6 @@ export function NetworkPanel() {
           </button>
         </div>
       </div>
-      {harError && (
-        <p className="bg-destructive/10 px-3 py-1.5 text-xs text-destructive">{harError}</p>
-      )}
       <Separator />
 
       <div className="min-h-0 flex-1 overflow-y-auto font-mono">
@@ -347,7 +328,7 @@ export function NetworkPanel() {
             value={harPath}
             onChange={(e) => setHarPath(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                 e.preventDefault();
                 handleHarStop();
               }
