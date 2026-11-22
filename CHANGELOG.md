@@ -3,7 +3,7 @@
 ## 13.0.0
 
 **Unbrowse now runs on your own computer.** This release replaces the hosted client (12.x) on npm. The package name is
-the same. Until 13.0.0 is the npm `latest`, install it with `npm i -g unbrowse@next`.
+the same: `npm i -g unbrowse` installs it.
 
 ### Moving from 12.x
 
