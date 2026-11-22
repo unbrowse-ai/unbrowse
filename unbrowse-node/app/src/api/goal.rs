@@ -3,21 +3,44 @@
 
 use super::*;
 use crate::learn::Unlearned;
+use crate::outcome::{Outcome, Said};
 
 /// What an agent wants, done the fastest way there is: the route that does it, called; else the call the page makes
 /// for it, learned from one walk of the page and called; else the page itself, open in the node's browser for the
 /// agent to drive (`unbrowse_browse`), which learns from every step. A write that fails is answered as it failed and
-/// never tried again another way: it may have landed.
+/// never tried again another way: it may have landed. Every reply, answered or failed, names its outcome
+/// (`outcome::stamp`): what was read where it was made, else what its own fields or its status say.
+pub(crate) async fn do_goal_said(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Value, Failed> {
+    // `browser: never` holds for everything the ask does, the routes it calls as much as the pages it would walk.
+    let shut = matches!(crate::browsers::Use::parse(&body.browser), Ok(crate::browsers::Use::Never));
+    let mut r = call::with_the_browser_shut(shut, do_goal_unsaid(node, a, body)).await;
+    crate::outcome::stamp("unbrowse_do", &mut r);
+    r
+}
+
+/// The same, its failure as a status and words alone.
+#[cfg(test)]
 pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Value, Fail> {
+    do_goal_said(node, a, body).await.map_err(Failed::plain)
+}
+
+async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Value, Failed> {
     if store::load_settings().paused {
-        return Err((StatusCode::SERVICE_UNAVAILABLE, "the node is paused by its owner".into()));
+        return Err(Failed::new(StatusCode::SERVICE_UNAVAILABLE, crate::outcome::PAUSED, Said::new(Outcome::Paused, "settings.paused")));
     }
+    // The ask's time to its reply, as a reply the browser answered says it (`run::as_a_reply`).
+    let ask_began = std::time::Instant::now();
     let goal = body.goal.trim().to_string();
     if goal.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "say what you want in goal, e.g. 'search Hacker News stories'".into()));
+        return Err(Failed::new(StatusCode::BAD_REQUEST, "say what you want in goal, e.g. 'search Hacker News stories'", Said::new(Outcome::BadRequest, "args")));
     }
     let browser = crate::browsers::Use::parse(&body.browser).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     let url = body.url.trim().to_string();
+    #[cfg(test)]
+    if let Some(r) = slow::run(&url).await {
+        return r;
+    }
+    super::asks::phase("routes");
     // A route of this site learned a moment ago is being held to a second walk: this ask waits for the verdict, so
     // it is answered by the route that stood. Bounded: an experiment that hangs holds no one for long.
     let waited = std::time::Instant::now();
@@ -63,7 +86,7 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
     let sites: std::collections::BTreeSet<String> = found.iter().map(|r| route_origin_site(r)).collect();
     if sites.len() > 1 {
         let sites: Vec<String> = sites.into_iter().collect();
-        return Err((StatusCode::CONFLICT, format!("routes on {} do that: give url, a page of the site you mean", sites.join(", "))));
+        return Err(Failed::new(StatusCode::CONFLICT, format!("routes on {} do that: give url, a page of the site you mean", sites.join(", ")), Said::new(Outcome::BadRequest, "args")));
     }
     // A read that failed even after its page was walked again is learned afresh below; the route that failed is said.
     // So is a route an agent judged wrong for this page (`unbrowse_judge`): it is passed over, and the page learned
@@ -121,10 +144,20 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
         // learned again as the goal goes on (a plain request), never walked to learn nothing.
         if learn::own_asks::confirms_by_use() && learn::own_asks::calls_first() && !url.is_empty() && !browsed && learn::confirm::served_by_the_browser(&route, &inputs) {
             let began = std::time::Instant::now();
-            let doubt = match do_call_fields(node, a, route.id.clone(), inputs.clone(), vec!["*".to_string()]).await {
-                Ok(r) if r["ok"].as_bool() == Some(true) => {
-                    let whole = r["truncated"]["whole"].as_str().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice::<Value>(&b).ok()).unwrap_or_else(|| r["data"].clone());
-                    let reply = crate::run::as_a_reply(&route, &inputs, &body.fields, whole.clone());
+            // The call is made as a reply's, and its whole answer is read here, where the call kept it
+            // (`run::take_whole_here`), never cut to a reply's size and read back from a file; where it isn't there, the
+            // call is made again for the whole answer.
+            let called = match do_call_fields(node, a, route.id.clone(), inputs.clone(), Vec::new()).await {
+                Ok(r) if r["ok"].as_bool() == Some(true) => match crate::run::take_whole_here(&route.id, &inputs) {
+                    Some(whole) => Ok((r, Some(whole))),
+                    None => do_call_fields(node, a, route.id.clone(), inputs.clone(), vec!["*".to_string()]).await.map(|r| (r, None)),
+                },
+                other => other.map(|r| (r, None)),
+            };
+            let doubt = match called {
+                Ok((r, kept)) if r["ok"].as_bool() == Some(true) => {
+                    let whole = kept.unwrap_or_else(|| r["truncated"]["whole"].as_str().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice::<Value>(&b).ok()).unwrap_or_else(|| r["data"].clone()));
+                    let reply = crate::run::as_a_reply(&route, &inputs, &body.fields, whole.clone(), began.elapsed().as_millis() as u64, r["browser"].as_bool() == Some(true));
                     let held = unanswered(&reply, &route, &Asked { url: &url, goal: &goal, subject: &subject, reworded, sibling, given: &inputs }).map(|w| w.as_str().unwrap_or("its answer is not this page's").to_string());
                     match held.map_or_else(|| learn::confirm::by_its_call(&route, &inputs, &whole), Err) {
                         Ok((place, said)) => {
@@ -139,16 +172,21 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
                             .flatten()
                             .unwrap_or_else(|| route.clone());
                             eprintln!("   [confirm] {}: agreed by its own call for the value, {} ms", route.id, began.elapsed().as_millis());
-                            let reply = crate::run::as_a_reply(&standing, &inputs, &body.fields, whole);
+                            // The reply already made of the whole answer is this one: what the route is said to be
+                            // now (confirmed, its records' place) is nothing a reply is shaped by.
                             let mut out = json!({ "how": "called", "route": route_json(&standing), "result": own_records(reply, &subject, &body.fields) });
-                            out["result"]["answered_by"] = json!("the route's call");
                             out["route"]["verdict"] = json!("agreed");
+                            // What the call fell back on reaching this answer says is beside it, as a call's own reply
+                            // says it: a step sent as the route builds it answered cheaper than the route says.
+                            if let Some(notes) = r.get("notes") {
+                                out["notes"] = notes.clone();
+                            }
                             return Ok(out);
                         }
                         Err(why) => why,
                     }
                 }
-                Ok(r) => r["error"].as_str().unwrap_or("its call failed").to_string(),
+                Ok((r, _)) => r["error"].as_str().unwrap_or("its call failed").to_string(),
                 Err((_, e)) => e,
             };
             eprintln!("   [confirm] {}: in doubt by its own call for the value: {doubt}", route.id);
@@ -165,10 +203,13 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
         // answer nor a call of the route that stands, which is noted beside it. A walk that learns nothing passes the
         // route over.
         if learn::own_asks::confirms_by_use() && !url.is_empty() && (browsed || learn::confirm::served_by_the_browser(&route, &inputs)) {
-            ready(node, crate::browsers::Need::Walk, browser).await?;
+            ready(node, crate::browsers::Need::Confirm, browser).await?;
             let began = std::time::Instant::now();
             let (n, who, page, wanted, first, given) = (node.clone(), a.name.clone(), url.clone(), goal.clone(), route.clone(), inputs.clone());
-            let confirmed = tokio::task::spawn_blocking(move || learn::confirm::confirm_by_use(&n.walks, &page, &wanted, &who, &first, &given, Some(&n))).await;
+            // The browser's walk for the value ends on the ask's stop flag, as a learn's does.
+            let stop = super::mcp::ask_stop();
+            super::asks::phase("confirm");
+            let confirmed = tokio::task::spawn_blocking(move || unbrowse_learn::mint::stops_with(stop, || learn::confirm::confirm_by_use(&n.walks, &page, &wanted, &who, &first, &given, Some(&n)))).await;
             node.events.emit("activity", ());
             let confirmation = match confirmed {
                 Ok(Ok(c)) => c,
@@ -176,13 +217,17 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
                 // and nothing that page loads is served.
                 Ok(Err(Unlearned::Elsewhere(why))) => {
                     crate::run::served_by_the_browser(&route, false, began.elapsed().as_millis() as u64, Some(why.clone()));
-                    return Ok(json!({ "how": "elsewhere", "why": why, "route": route_json(&route) }));
+                    let mut v = elsewhere(&why);
+                    v["route"] = route_json(&route);
+                    return Ok(v);
                 }
                 // The browser's walk for this value found nothing: the site answered and has nothing for it. The route
                 // stands as it was.
                 Ok(Err(Unlearned::Nothing(why))) => {
                     crate::run::served_by_the_browser(&route, false, began.elapsed().as_millis() as u64, Some(why.clone()));
-                    return Ok(json!({ "how": "nothing", "why": why, "route": route_json(&route) }));
+                    let mut v = nothing(&why);
+                    v["route"] = route_json(&route);
+                    return Ok(v);
                 }
                 Ok(Err(why)) => {
                     let why = format!("the browser's walk for this value learned nothing: {why}");
@@ -201,7 +246,7 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
             let answered = match confirmation.answer {
                 Some(data) => {
                     crate::run::served_by_the_browser(&standing, true, began.elapsed().as_millis() as u64, None);
-                    Ok(crate::run::as_a_reply(&standing, &inputs_for(&standing, &url, body.inputs.clone()), &body.fields, data))
+                    Ok(crate::run::as_a_reply(&standing, &inputs_for(&standing, &url, body.inputs.clone()), &body.fields, data, began.elapsed().as_millis() as u64, true))
                 }
                 None => do_call_fields(node, a, standing.id.clone(), inputs_for(&standing, &url, body.inputs.clone()), body.fields.clone()).await,
             };
@@ -212,6 +257,12 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
                     reply["route"]["why"] = json!(confirmation.verdict.why());
                     if standing.id != route.id {
                         reply["route"]["was"] = json!(route.id);
+                    }
+                    // The browser answered because this machine's runtime can't hold the route's page code: said beside
+                    // the answer, typed, as a call's reply says it.
+                    let page_code = standing.graph.steps.iter().any(|s| s.is_page_signed());
+                    if let Some(held) = held_back_beside(page_code, unbrowse_learn::sandbox::unheld()) {
+                        reply["held_back"] = held;
                     }
                     return Ok(reply);
                 }
@@ -239,14 +290,21 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
                 }
                 Some(why) => {
                     // An answer that lacks only what the goal asks of each result, for another value than the route's
-                    // own, from a route that still gives it for its own: a search that found nothing. It is the
-                    // site's answer to this value, and the page is not walked again to learn from its empty page.
+                    // own, from a route that still gives it for its own, where the page asked for shows nothing for
+                    // it either: a search that found nothing. It is the site's answer to this value, and the page is
+                    // not walked again to learn from its empty page.
                     if !reworded && why.as_str() == Some(LACKS_THE_GOAL) {
-                        let (held, given, wanted) = (route.clone(), asked.clone(), goal.clone());
-                        let nothing = tokio::task::spawn_blocking(move || found_nothing_of_the_goal(&held, &given, &wanted, &mut crate::run::asked_plainly)).await.unwrap_or(false);
+                        let (held, given, wanted, page) = (route.clone(), asked.clone(), goal.clone(), url.clone());
+                        let nothing = tokio::task::spawn_blocking(move || {
+                            found_nothing_of_the_goal(&held, &given, &wanted, &mut crate::run::asked_plainly, &mut |values: &[String]| crate::learn::page_lists(&page, &wanted, values))
+                        })
+                        .await
+                        .unwrap_or(false);
                         if nothing {
                             eprintln!("   [goal] {} {} found nothing for this value: its answer lacks only what the goal asks of each result, and the site still gives that for the value the route was learned on", route.method, route.site);
-                            return Ok(json!({ "how": "called", "route": route_json(&route), "result": own_records(r, &subject, &body.fields) }));
+                            let mut reply = json!({ "how": "called", "route": route_json(&route), "result": own_records(r, &subject, &body.fields) });
+                            Said::new(Outcome::AnsweredEmpty, "goal.found_nothing_of_the_goal").put(&mut reply);
+                            return Ok(reply);
                         }
                     }
                     // No answer for this value from a route that hears its caller and still answers its own: the
@@ -254,7 +312,11 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
                     let (held, given, reply) = (route.clone(), asked.clone(), r.clone());
                     let told = tokio::task::spawn_blocking(move || nothing_for_this_value(&held, &given, &reply, &mut crate::run::asked_plainly)).await.ok().flatten();
                     match told {
-                        Some(said) => return Ok(json!({ "how": "called", "route": route_json(&route), "result": said })),
+                        Some(said) => {
+                            let mut reply = json!({ "how": "called", "route": route_json(&route), "result": said });
+                            Said::new(Outcome::AnsweredEmpty, "goal.nothing_for_this_value").put(&mut reply);
+                            return Ok(reply);
+                        }
                         None if learn::own_asks::confirms_by_use() && !url.is_empty() && !route.write && !browsed => {
                             // With the browser the one fallback (`UNBROWSE_CONFIRM_BY_USE`), a read whose answer was
                             // not taken is served by the browser, the route called beside it (`learn::confirm`): a
@@ -277,16 +339,19 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
             Err((StatusCode::GONE, e)) if route.fetched.is_some() => fail(json!(e)),
             // So does a kept copy whose call its rule refused: it was set aside, and nothing was sent.
             Err((StatusCode::FORBIDDEN, e)) if route.fetched.is_some() => fail(json!(e)),
-            Err(e) if ends_the_goal(&route, &url) => return Err(e),
+            Err(e) if ends_the_goal(&route, &url) => return Err(Failed::of_call(e)),
             Err((_, e)) => fail(json!(e)),
         };
         failed = failed.or(this);
     }
     if url.is_empty() {
-        return Err((StatusCode::NOT_FOUND, "no route does that yet: give url, a page that does it, and the node learns it".into()));
+        // No page was given to learn from: the call to make is a search for a page or a route that does it.
+        let said = Said::new(Outcome::NoRoute, "routes").then("unbrowse_search", json!({ "query": goal }));
+        return Err(Failed::new(StatusCode::NOT_FOUND, "no route does that yet: give url, a page that does it, and the node learns it", said));
     }
     // Other contributors' routes for the page's site come before the browser (R3.1). The node pays their fee itself,
     // with nothing to approve, up to the owner's per-fetch maximum; one over it is passed over, and the reply says so.
+    super::asks::phase("network");
     let (answered, failures, skipped) = network_goal(node, a, &goal, &url, &body, &tried).await?;
     if let Some(mut answered) = answered {
         if let Some(f) = failed {
@@ -311,26 +376,32 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
         if let Some(u) = &unpaid {
             why = format!("{why}. {}", u["why"].as_str().unwrap_or_default());
         }
-        return Err((StatusCode::FORBIDDEN, why));
+        return Err(Failed::new(StatusCode::FORBIDDEN, why, Said::new(Outcome::NoRoute, "settings.map_while_browsing")));
     }
     // A url that answers with data itself is its own route, learned with no browser; a refusal is said as the site
     // said it, and one the browser can't change ends here.
+    super::asks::phase("plain");
     let (plain, refusal) = match learn_plain(&a.name, &url, &goal).await {
         learn::Plain::Route(route) => (Some(Ok((route, "the page itself, a plain request"))), None),
-        learn::Plain::Refused(why) => return Err((StatusCode::BAD_GATEWAY, why)),
+        learn::Plain::Refused(why) => return Err(Failed::new(StatusCode::BAD_GATEWAY, why, Said::new(Outcome::Refused, "plain.refused"))),
         learn::Plain::Page(refusal) => (None, refusal),
     };
+    // The walk that taught the route, when a walk did: its own answer for the value is the first reply.
+    let mut walked: Option<String> = None;
     let learned = match plain {
         Some(learned) => learned,
         None => {
             // Past here the page is walked: the browser, or `browser_missing` saying what it lacks.
             ready(node, crate::browsers::Need::Walk, browser).await?;
-            learn_page(node, &a.name, &url, &goal).await
+            learn_page(node, &a.name, &url, &goal).await.map(|(route, by, walk)| {
+                walked = Some(walk);
+                (route, by)
+            })
         }
     };
     // A walk that failed says what the site said to a plain request for the page, when it refused it.
-    let learned = learned.map_err(|why| match (&why, &refusal) {
-        (Unlearned::Hands(_) | Unlearned::Loading, Some(said)) => Unlearned::Hands(format!("{why}; {said}")),
+    let learned = learned.map_err(|why| match &refusal {
+        Some(said) if why.for_hands() => why.and(said),
         _ => why,
     });
     // A read-only goal that could only learn a write (e.g. a background admin POST) is not answered by it: the write
@@ -397,6 +468,18 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
                 let inputs = inputs_for(&route, &url, body.inputs.clone());
                 let given = inputs.clone();
                 let ask = Asked { url: &url, goal: &goal, subject: &subject, reworded: false, sibling: false, given: &given };
+                // A read the walk answered: the walk's own answer for this value is the reply, read as the route reads
+                // it, and the route's own first call confirms it behind the reply (`first_call_behind`), as a route of
+                // one sighting is confirmed by use. The reply says the browser answered, for this value.
+                let from_the_walk = walked
+                    .as_deref()
+                    .filter(|_| takes_the_walks_answer(&route))
+                    .and_then(|w| learn::walks_answer(&node.walks, w, &route, &inputs))
+                    .and_then(|whole| take_the_walks_answer(&route, &inputs, &body.fields, &whole, &ask, ask_began.elapsed().as_millis() as u64));
+                if let Some(r) = from_the_walk {
+                    first_call_behind(node, a, &route, &inputs, &body.fields, &url, &subject);
+                    break Ok((route, BY_THE_WALK, r));
+                }
                 let mut called = do_call_as_seen(node, a, route.id.clone(), inputs.clone(), body.fields.clone(), Some(route.write)).await;
                 if came_back_empty(&called, &route, &url) && !learn::own_asks::held_at(learn::own_asks::Ask::Again, "api::goal::came_back_empty") {
                     called = do_call_as_seen(node, a, route.id.clone(), inputs, body.fields.clone(), Some(route.write)).await;
@@ -413,7 +496,7 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
                             Err(Unlearned::Hands(format!("the call the walk found doesn't answer on its own: {said}")))
                         }
                     },
-                    Err(e) if ends_the_goal(&route, &url) => return Err(e),
+                    Err(e) if ends_the_goal(&route, &url) => return Err(Failed::of_call(e)),
                     Err((_, e)) => {
                         failed = failed.or(Some(json!({ "route_id": route.id, "error": e })));
                         Err(Unlearned::Hands(format!("the call the walk found doesn't answer on its own: {e}")))
@@ -433,7 +516,10 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
         }
         learned = loop {
             again -= 1;
-            match learn_page(node, &a.name, &url, &goal).await {
+            match learn_page(node, &a.name, &url, &goal).await.map(|(route, by, walk)| {
+                walked = Some(walk);
+                (route, by)
+            }) {
                 // The walk found the same call again: walk once more while walks are left, else nothing on the page
                 // answers it.
                 Ok((route, _)) if route.wrong_for(&url).is_some() => {
@@ -454,31 +540,42 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
             json!({ "how": "learned", "picked_by": by, "route": route_json(&route), "result": own_records(r, &subject, &body.fields) })
         }
         // Nothing done on the page changes these: the agent hears why, as for a plain request refused above.
-        Err(Unlearned::Unwalkable(why)) => return Err((StatusCode::BAD_REQUEST, why)),
-        Err(Unlearned::Gone(why)) => return Err((StatusCode::BAD_GATEWAY, why)),
+        Err(Unlearned::Unwalkable(why)) => return Err(Failed::new(StatusCode::BAD_REQUEST, why, Said::new(Outcome::NotAllowed, "learn.unwalkable"))),
+        Err(Unlearned::Gone(why)) => return Err(Failed::new(StatusCode::BAD_GATEWAY, why, Said::new(Outcome::Gone, "learn.gone"))),
         // The site turned the value away to another page: it has nothing for it, and no route is kept from that page.
-        Err(Unlearned::Elsewhere(why)) => json!({ "how": "elsewhere", "why": why }),
+        Err(Unlearned::Elsewhere(why)) => elsewhere(&why),
         // The site answered the page's ask and has nothing for the value: no route is kept from a walk that saw no
         // record.
-        Err(Unlearned::Nothing(why)) => json!({ "how": "nothing", "why": why }),
+        Err(Unlearned::Nothing(why)) => nothing(&why),
+        // Only the page's own code reads the answer, and this machine runs none: no route, said as the sandbox's reader.
+        Err(Unlearned::Runtime(why)) => unheld(&why, &url),
         // The agent gave up on this ask (cancelled it, or hung up): nothing more is opened for it.
-        Err(_) if super::mcp::ask_stop().load(std::sync::atomic::Ordering::Relaxed) => {
-            return Err((StatusCode::REQUEST_TIMEOUT, agent_browser_core::session::STOPPED.to_string()))
+        Err(why) if super::mcp::ask_stop().load(std::sync::atomic::Ordering::Relaxed) => return Err(stopped(&why, &url)),
+        // Loading the page doesn't answer the goal by itself: it needs clicks or typing, a sign-in or a check stood in
+        // the way, or the site's door held (`learn::stood_in_the_way`). The agent drives it from here, in the node's
+        // browser, and every step it takes is learned from.
+        Err(why) if body.many => {
+            let said = hands_said(&why, &goal, &url, None, false);
+            let mut reply = json!({ "how": "browse", "why": why.to_string(),
+                "note": "This page needs clicks or typing: ask unbrowse_do for it alone, with its url, and it opens in the node's browser." });
+            said.put(&mut reply);
+            reply
         }
-        // Loading the page doesn't answer the goal by itself: it needs clicks or typing. The agent drives it from
-        // here, in the node's browser, and every step it takes is learned from.
-        Err(why) if body.many => json!({ "how": "browse", "why": why.to_string(),
-            "next": "This page needs clicks or typing: ask unbrowse_do for it alone, with its url, and it opens in the node's browser." }),
-        Err(why) => {
-            let why = why.to_string();
+        Err(unlearned) => {
+            let why = unlearned.to_string();
             // A browser that can't open the page either says so beside why it was opened, which is the part that helps.
             let said = |(status, e): Fail| (status, format!("{why}; and the page couldn't be opened: {e}"));
             ready(node, crate::browsers::Need::Hands, browser).await?;
             let opened = do_browse(node, a, vec!["open".into(), url.clone()], String::new(), goal.clone(), &body.session).await.map_err(said)?;
             let site = opened["site"].as_str().unwrap_or_default().to_string();
-            let page = do_browse(node, a, vec!["snapshot".into(), "-i".into()], site.clone(), String::new(), &body.session).await?;
-            json!({ "how": "browse", "site": site, "page": page["output"], "why": why,
-                    "next": "The page is open in the node's browser. Drive it with unbrowse_browse (click, fill, press): the call your steps send becomes a route, named in the reply's learned, and next time unbrowse_do calls it." })
+            // With each link's address: a page of results is read for its links as often as for its names (each event's
+            // own page, not the search it was listed on), and without them the agent can only hand on the page itself.
+            let page = do_browse(node, a, vec!["snapshot".into(), "-i".into(), "--urls".into()], site.clone(), String::new(), &body.session).await?;
+            let mut reply = json!({ "how": "browse", "site": site, "page": page["output"], "why": why,
+                    "note": "The page is open in the node's browser. Drive it with unbrowse_browse (click, fill, press): the call your steps send becomes a route, named in the reply's learned, and next time unbrowse_do calls it." });
+            let owner = crate::hands::owner_reach(node.events.watchers(), crate::browsers::headless_only()) != "off";
+            hands_said(&unlearned, &goal, &url, Some(&site), owner).put(&mut reply);
+            reply
         }
     };
     // A first answer comes from one walk, and one walk ranks the page's calls by what they carry: it can land on a
@@ -501,6 +598,49 @@ pub(crate) async fn do_goal(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result
         reply["payment_refused"] = u;
     }
     Ok(reply)
+}
+
+/// What a page that wasn't answered by loading it came to, and the call to make next: the page itself, open in the
+/// node's browser (`site`) or to be asked for alone; the site's check, for the agent's own eyes; the owner's sign-in,
+/// where the owner can be asked (`owner`, as `unbrowse_whoami` says it); a door that held, nothing.
+pub(super) fn hands_said(why: &Unlearned, goal: &str, url: &str, site: Option<&str>, owner: bool) -> Said {
+    let (outcome, from) = why.outcome();
+    let said = Said::new(outcome, from);
+    match (outcome, site) {
+        (Outcome::Challenge, _) => {
+            let mut look = json!({ "action": "look", "url": url });
+            if let Some(site) = site {
+                look["site"] = json!(site);
+            }
+            said.then("unbrowse_challenge", look)
+        }
+        (Outcome::Refused, _) => said,
+        (Outcome::NeedsPerson, Some(site)) if owner => {
+            said.then("unbrowse_browse", json!({ "do": ["ask_owner", format!("sign in to {site}: it sent the page to its sign-in")], "site": site }))
+        }
+        // The page is open and needs the owner, and none can be asked: said, with no ask_owner to make.
+        (Outcome::NeedsPerson, Some(_)) => Said::new(Outcome::OwnerUnavailable, "owner.reach"),
+        (Outcome::NeedsPerson, None) => said,
+        (_, Some(site)) => said.then("unbrowse_browse", json!({ "do": ["snapshot", "-i", "--urls"], "site": site })),
+        // The page asked for alone, with the goal it was asked for: an ask with no goal (one stopped) has no call to
+        // repeat as given.
+        (_, None) if !goal.trim().is_empty() => said.then("unbrowse_do", json!({ "goal": goal, "url": url })),
+        (_, None) => said,
+    }
+}
+
+/// What an ask its agent gave up on answers: stopped, unless the walk had already read what stood in its way (a
+/// check, a sign-in, a door), which is said as itself. Either way what the walk met stays in `why`, and nothing more
+/// is opened for it.
+pub(super) fn stopped(why: &Unlearned, url: &str) -> Failed {
+    let stop = agent_browser_core::session::STOPPED;
+    let said = match why {
+        Unlearned::Door(..) | Unlearned::SignIn(..) | Unlearned::Check(..) => hands_said(why, "", url, None, false),
+        _ => Said::new(Outcome::Stopped, "ask.stop"),
+    };
+    let mut failed = Failed::new(StatusCode::REQUEST_TIMEOUT, stop, said);
+    failed.why = Some(why.to_string()).filter(|w| !w.ends_with(stop));
+    failed
 }
 
 /// What one ask of the ladder is: what a route's answer is read against.
@@ -576,14 +716,24 @@ pub(super) fn its_own_value(route: &store::Route, given: &HashMap<String, String
 /// own value (`its_own_value`) and, asked once more for that value, the site's answer holds what the goal asks
 /// (`asks`). A route whose own answer has lost it too is the one at fault, and the failure stands. As
 /// `run::found_nothing` reads an answer that left its list out. One plain ask, made only for such an answer.
+///
+/// And the page the caller named must not say otherwise (`page_lists`, one plain request for it, made last): a call
+/// that answers only some of a page's results (Carousell's strip of certified products beside its listings) is empty
+/// for a value the page lists dozens of. Its empty answer is the call's, not the site's, and taking it answered every
+/// such search `ok` with nothing (UNB-165); the page is learned again, as it was before this shortcut.
 pub(super) fn found_nothing_of_the_goal(
     route: &store::Route,
     given: &HashMap<String, String>,
     goal: &str,
     asks: &mut impl FnMut(&unbrowse_learn::Graph, &HashMap<String, String>) -> Option<Value>,
+    page_lists: &mut impl FnMut(&[String]) -> bool,
 ) -> bool {
     let Some(walked) = its_own_value(route, given) else { return false };
-    asks(&route.graph, &walked).is_some_and(|own| holds_goal(&own, goal))
+    if !asks(&route.graph, &walked).is_some_and(|own| holds_goal(&own, goal)) {
+        return false;
+    }
+    let asked: Vec<String> = given.iter().filter(|(name, now)| walked.get(*name).is_some_and(|was| was != *now)).map(|(_, now)| now.clone()).collect();
+    !page_lists(&asked)
 }
 
 /// Whether `route`'s call is the page `url` itself: the same host and the same path, piece by piece, a piece the route
@@ -900,6 +1050,13 @@ pub(super) async fn network_goal(node: &Arc<Node>, a: &Agent, goal: &str, url: &
     Ok((None, failures, skipped))
 }
 
+/// What a reply served by the browser says beside its answer of the sandbox: for a route that needs the page's own
+/// code (`needs_page_code`) on a machine whose runtime can't hold it (`unheld`), the sandbox reader's fact and next
+/// steps (`outcome::held_back`); nothing otherwise.
+pub(super) fn held_back_beside(needs_page_code: bool, unheld: Option<unbrowse_learn::sandbox::Unheld>) -> Option<Value> {
+    unheld.filter(|_| needs_page_code).as_ref().map(crate::outcome::held_back)
+}
+
 /// The site whose page taught the route. Its API call may go to a different host (for example, an Algolia endpoint).
 pub(super) fn route_origin_site(route: &store::Route) -> String {
     url::Url::parse(&route.root)
@@ -975,8 +1132,12 @@ pub(super) fn said_with_another_value<'a>(routes: &'a [store::Route], goal: &str
             let [at] = at[..] else { return None };
             let (before, after) = (&what[..at], &what[at + own.len()..]);
             let fits = before.len() + after.len() >= 2 && said.len() > before.len() + after.len() && said.starts_with(before) && said.ends_with(after);
+            // Only a goal that says more than the words around the value has a value in their place to read.
+            if !fits {
+                return None;
+            }
             let value = asked[before.len()..asked.len() - after.len()].join(" ");
-            (fits && !value.eq_ignore_ascii_case(i.default.as_deref()?)).then(|| (r, i.name.clone(), value))
+            (!value.eq_ignore_ascii_case(i.default.as_deref()?)).then(|| (r, i.name.clone(), value))
         })
     }).collect();
     if !learn::wants_one(goal) {
@@ -1264,12 +1425,14 @@ pub(super) fn holds_goal(data: &Value, goal: &str) -> bool {
     unbrowse_learn::goal::holding(data, &fields, &[]).has_shapes()
 }
 
-/// The routes that may answer `goal`: all of them, unless `goal` only reads, in which case the writes are dropped (#25).
+/// The routes that may answer `goal`. A route made from another contributor's body that writes answers only a goal
+/// that asks for a change in its own words (`asks_a_change`): the one rule the network's call path holds the same goal
+/// to (`ForGoal::reads_only`), so a goal that names no change ("the posts on my page") runs no stranger's write here
+/// either (audit 1118 M8). A route this node learned that writes is dropped when the goal only reads (#25).
 pub(super) fn reads_only<'a>(found: Vec<&'a store::Route>, goal: &str) -> Vec<&'a store::Route> {
-    if unbrowse_learn::goal::only_reads(goal) {
-        return found.into_iter().filter(|r| !r.write).collect();
-    }
-    found
+    let change = unbrowse_learn::goal::asks_a_change(goal);
+    let only_reads = unbrowse_learn::goal::only_reads(goal);
+    found.into_iter().filter(|r| !r.write || if r.fetched.is_some() { change } else { !only_reads }).collect()
 }
 
 /// What to call `route` with: the url's query values for the inputs they name (`?q=rust` gives `q`; a fragment written
@@ -1356,7 +1519,7 @@ pub(crate) fn call_inputs(step: &unbrowse_learn::Step, u: &url::Url) -> Option<H
             Some(Class::Input { name, .. }) => take(name, v.to_string()),
             Some(Class::Constant { value, .. } | Class::Unconfirmed { value }) => *value == v,
             // A value an answer, the session, the page, the file or each call makes fits whatever it is.
-            Some(Class::Derived { .. } | Class::Minted { .. } | Class::Computed | Class::Script { .. } | Class::Recipe { .. } | Class::Generated { .. } | Class::Fresh { .. } | Class::File { .. } | Class::Piece { .. }) => true,
+            Some(Class::Derived { .. } | Class::Minted { .. } | Class::Computed | Class::Script { .. } | Class::Recipe { .. } | Class::Generated { .. } | Class::Fresh { .. } | Class::CookieIn { .. } | Class::File { .. } | Class::Piece { .. }) => true,
             None => at.query_pairs().any(|(ak, av)| ak == k && av == v),
         };
         if !fits {
@@ -1613,13 +1776,14 @@ pub(super) async fn do_walk(node: &Arc<Node>, a: &Agent, url: String, goal: Stri
         if !cfg!(test) {
             let (n, walk, id, url, goal) = (node.clone(), view.walk.clone(), route.id.clone(), url.clone(), if goal.trim().is_empty() { route.what.clone() } else { goal.clone() });
             learn::verification_begins(&url);
-            std::thread::spawn(move || learn::hold_picked(&n.walks, &walk, &id, &url, &goal));
+            super::asks::spawn_behind("hold_picked", move || learn::hold_picked(&n.walks, &walk, &id, &url, &goal));
         }
     }
     Ok(out)
 }
 
-pub(super) async fn learn_page(node: &Arc<Node>, who: &str, url: &str, goal: &str) -> Result<(store::Route, &'static str), Unlearned> {
+pub(super) async fn learn_page(node: &Arc<Node>, who: &str, url: &str, goal: &str) -> Result<(store::Route, &'static str, String), Unlearned> {
+    super::asks::phase("walk");
     let (asked_by, page, wanted) = (who.to_string(), url.to_string(), goal.to_string());
     let (n, who, url, goal) = (node.clone(), who.to_string(), url.to_string(), goal.to_string());
     // The walk ends when the ask gives up on it (`mcp::ask_stop`): its request cancelled or dropped. The blocking task
@@ -1645,9 +1809,10 @@ pub(super) async fn learn_page(node: &Arc<Node>, who: &str, url: &str, goal: &st
     // an ask is not kept waiting for an experiment, and the next ask of this site waits for its verdict. A held second
     // look starts no thread and marks no site, so no later ask waits for a verdict.
     if !cfg!(test) && !learn::own_asks::held_at(learn::own_asks::Ask::SecondLook, "api::goal::learn_page") {
-        let (n, who, url, goal, first) = (node.clone(), asked_by, page, wanted, route.clone());
+        let (n, who, url, goal, first, second) = (node.clone(), asked_by, page, wanted, route.clone(), walk.clone());
         learn::verification_begins(&url);
-        std::thread::spawn(move || {
+        // Work of this ask behind its reply (`asks::spawn_behind`), its walks ending on the ask's stop flag.
+        super::asks::spawn_behind("second_look", move || {
             // The first answer goes first. The route was learned for an ask that is being answered now, and a route
             // that runs through the site's one browser found it held by this second walk: the answer timed out behind
             // the experiment it was meant not to wait for. Bounded, so a route nobody calls is still checked.
@@ -1656,9 +1821,173 @@ pub(super) async fn learn_page(node: &Arc<Node>, who: &str, url: &str, goal: &st
             while !called(&first.id) && asked.elapsed() < std::time::Duration::from_secs(90) {
                 std::thread::sleep(std::time::Duration::from_millis(500));
             }
-            learn::verify_learned(&n.walks, &url, &goal, &who, &walk, &first, Some(&n))
+            learn::verify_learned(&n.walks, &url, &goal, &who, &second, &first, Some(&n))
         });
     }
-    Ok((route, by))
+    Ok((route, by, walk))
 }
 
+/// The reply a learn's first answer makes when the walk answered (`learn::walks_answer`, `whole` as the site sent it):
+/// shaped as a call's (`run::as_a_reply`), with `records` counted on the whole answer where the route's records were
+/// seen (`run::records_where_seen`), as a call's reply carries it, so `unanswered` reads it alike.
+pub(super) fn walk_served(route: &store::Route, inputs: &HashMap<String, String>, fields: &[String], whole: &Value, ms: u64) -> Value {
+    let mut r = crate::run::as_a_reply(route, inputs, fields, whole.clone(), ms, true);
+    if let Some(records) = crate::run::records_where_seen(route, whole) {
+        r["records"] = json!(records);
+    }
+    r
+}
+
+/// A learn's first reply from the walk's own answer (`whole`, as the site sent it), when it answers the ask as a call's
+/// answer would (`unanswered`): the reply (`walk_served`), and the route's first answer written whole as a call's
+/// sighting is (`sighted::called`, as `run.rs` writes one): the answer a later value's own call is held against (calls
+/// first, `confirm::by_its_call`). None, and nothing written, where it doesn't answer.
+pub(super) fn take_the_walks_answer(route: &store::Route, inputs: &HashMap<String, String>, fields: &[String], whole: &Value, ask: &Asked, ms: u64) -> Option<Value> {
+    let r = walk_served(route, inputs, fields, whole, ms);
+    if unanswered(&r, route, ask).is_some() {
+        return None;
+    }
+    learn::sighted::called(route, &HashMap::new(), Some(whole), true, 0, 0);
+    Some(r)
+}
+
+/// Whether a learn's first reply may be the walk's own answer for the value: the route's call writes nothing, so the
+/// site answered it in the walk as it answers the call. Read from the route's call, never from the goal's wording: "the
+/// front page's stories" names no read word and reads all the same. A call that writes is made, as before.
+pub(super) fn takes_the_walks_answer(route: &store::Route) -> bool {
+    !route.write
+}
+
+/// Who answered a learn's first reply when the walk did: the browser, for the value asked (`picked_by`, as a
+/// confirming browse's reply says it). The route stands on that one sighting until its own first call confirms it.
+pub(super) const BY_THE_WALK: &str = "the browser, for this value";
+
+/// The route's own first call, made behind the reply the walk answered (`learn::walks_answer`): its confirmation by
+/// use. Work of the ask (`asks::spawn_behind`: bounded by its wall, ended with its stop flag). A route that does not
+/// answer on its own (a failed call, or an answer that is not the page's, `unanswered`) is judged wrong for the page
+/// where the next ask reads it (`first_call_judged`), so it is never served warm for it: the page is walked again.
+fn first_call_behind(node: &Arc<Node>, a: &Agent, route: &store::Route, inputs: &HashMap<String, String>, fields: &[String], url: &str, subject: &[String]) -> std::thread::JoinHandle<()> {
+    let (n, a, route, inputs, fields, url, subject) = (node.clone(), a.clone(), route.clone(), inputs.clone(), fields.to_vec(), url.to_string(), subject.to_vec());
+    let rt = tokio::runtime::Handle::current();
+    super::asks::spawn_behind("first_call", move || {
+        if unbrowse_learn::mint::stop_flag().is_some_and(|s| s.load(std::sync::atomic::Ordering::Relaxed)) {
+            return;
+        }
+        // Called as the read it was when the walk answered (`do_call_as_seen`): a second look that has since written a
+        // body that changes the site under the route's name is not this route, and nothing is sent.
+        let called = rt.block_on(do_call_as_seen(&n, &a, route.id.clone(), inputs.clone(), fields, Some(route.write)));
+        let ask = Asked { url: &url, goal: &route.what, subject: &subject, reworded: false, sibling: false, given: &inputs };
+        let why = match &called {
+            Ok(r) => unanswered(r, &route, &ask).map(|w| w.as_str().unwrap_or("its answer is not the page's").to_string()),
+            Err((_, e)) => Some(e.clone()),
+        };
+        eprintln!("   [confirm] {}: its first call, behind the reply: {}", route.id, why.as_deref().map_or("answered on its own".to_string(), |w| format!("didn't answer on its own: {w}")));
+        first_call_judged(&route.id, &url, why.as_deref());
+    })
+}
+
+/// Writes what the route's first call behind the reply came to where the next ask of the page reads it: a call that
+/// didn't answer on its own (`why`) judges the route wrong for the page (`store::WrongPage`, by the node), so the
+/// next ask is not served by it warm; one that answered leaves the route as it stands.
+pub(super) fn first_call_judged(route_id: &str, url: &str, why: Option<&str>) {
+    let (Some(why), Some(page)) = (why, store::page_key(url)) else { return };
+    let _ = store::update_route(route_id, |r| {
+        let kept: Vec<store::WrongPage> = r.judged.wrong.iter().filter(|w| !r.same_page(&w.page, &page)).cloned().collect();
+        r.judged.wrong = kept;
+        r.judged.wrong.push(store::WrongPage { page: page.clone(), why: format!("its first call didn't answer on its own: {why}"), by: "the node".into(), at: store::now() });
+    });
+}
+
+/// The reply to a learn whose only reader of the answer is the page's own code, on a machine that runs none
+/// (`Unlearned::Runtime`): no route, from the sandbox's reader (`sandbox.no_runtime`, `sandbox.lacks`, `sandbox.not_confined`), with what the
+/// owner can do and what answers meanwhile: the page in the node's browser, whose own code reads it.
+pub(super) fn unheld(why: &str, url: &str) -> Value {
+    unheld_with(why, url, unbrowse_learn::sandbox::unheld())
+}
+
+/// [`unheld`], with the sandbox's reader's answer given.
+pub(super) fn unheld_with(why: &str, url: &str, u: Option<unbrowse_learn::sandbox::Unheld>) -> Value {
+    let mut v = json!({ "how": "unheld", "why": why });
+    if let Some(u) = &u {
+        v["held_back"] = crate::outcome::held_back_with(u, "the page's own code runs in the node's browser: open the page with unbrowse_browse and read it there");
+    }
+    let from = u.as_ref().map(crate::outcome::unheld_from).unwrap_or("sandbox.unheld");
+    Said::new(Outcome::NoRoute, from).then("unbrowse_browse", json!({ "do": ["open", url] })).put(&mut v);
+    v
+}
+
+/// The reply to a value the site turned away to another page (`Unlearned::Elsewhere`): the site has nothing for it.
+/// Said as `answered_empty` from its own reader, `learn.elsewhere`, never `call.data`'s: an agent tells "the site sent
+/// the browser elsewhere for this value" from "the site answered with an empty list" by `outcome_from` and `how`.
+pub(super) fn elsewhere(why: &str) -> Value {
+    let mut v = json!({ "how": "elsewhere", "why": why });
+    let (outcome, from) = Unlearned::Elsewhere(why.to_string()).outcome();
+    Said::new(outcome, from).put(&mut v);
+    v
+}
+
+/// The reply to a walk whose own answer lists nothing for the value (`Unlearned::Nothing`): the site answered, with
+/// nothing for it, and no route was kept. `answered_empty`, from `learn.nothing`.
+pub(super) fn nothing(why: &str) -> Value {
+    let mut v = json!({ "how": "nothing", "why": why });
+    let (outcome, from) = Unlearned::Nothing(why.to_string()).outcome();
+    Said::new(outcome, from).put(&mut v);
+    v
+}
+
+/// Pages a test makes slow, as a walk is: a do of one of them works for as long as it is told (or, told no time, until
+/// its ask's stop flag is set), saying it walks, and answers as a learned route would. Nothing is walked or opened.
+#[cfg(test)]
+pub(crate) mod slow {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    #[derive(Default)]
+    pub(crate) struct Slow {
+        takes: Option<std::time::Duration>,
+        /// What the walk found, when it found nothing for the value (`Unlearned::Nothing`): the reply is that.
+        nothing: Option<String>,
+        /// How many dos of the page started.
+        pub(crate) started: AtomicUsize,
+        /// Whether one saw its ask's stop flag set.
+        pub(crate) stopped: AtomicBool,
+        /// The asks each worked for.
+        pub(crate) asks: std::sync::Mutex<Vec<String>>,
+    }
+
+    static PAGES: std::sync::Mutex<Vec<(String, Arc<Slow>)>> = std::sync::Mutex::new(Vec::new());
+
+    /// Makes a do of `url` take `takes`, or until its ask gives up.
+    pub(crate) fn make(url: &str, takes: Option<std::time::Duration>) -> Arc<Slow> {
+        let slow = Arc::new(Slow { takes, ..Slow::default() });
+        PAGES.locked().push((url.to_string(), slow.clone()));
+        slow
+    }
+
+    /// Makes a do of `url` a walk that finds nothing for its value, said `why`.
+    pub(crate) fn finds_nothing(url: &str, why: &str) -> Arc<Slow> {
+        let slow = Arc::new(Slow { takes: Some(std::time::Duration::ZERO), nothing: Some(why.to_string()), ..Slow::default() });
+        PAGES.locked().push((url.to_string(), slow.clone()));
+        slow
+    }
+
+    pub(super) async fn run(url: &str) -> Option<Result<Value, Failed>> {
+        let slow = PAGES.locked().iter().find(|(u, _)| u == url).map(|(_, s)| s.clone())?;
+        slow.started.fetch_add(1, Ordering::SeqCst);
+        slow.asks.locked().extend(crate::api::asks::current().map(|a| a.id.clone()));
+        crate::api::asks::phase("walk");
+        let stop = super::super::mcp::ask_stop();
+        let began = std::time::Instant::now();
+        while slow.takes.is_none_or(|t| began.elapsed() < t) {
+            if stop.load(Ordering::Relaxed) {
+                slow.stopped.store(true, Ordering::SeqCst);
+                return Some(Err(Failed::new(StatusCode::REQUEST_TIMEOUT, "the walk stopped: its ask gave up", Said::new(Outcome::Stopped, "ask.stop"))));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        if let Some(why) = &slow.nothing {
+            return Some(Ok(super::nothing(why)));
+        }
+        Some(Ok(json!({ "how": "learned", "picked_by": "a test", "route": { "id": "slow" }, "result": { "ok": true, "data": { "items": [{ "name": "desk lamp" }] } } })))
+    }
+}

@@ -1,0 +1,20 @@
+{
+  "_what": "Known deviations from the MCP spec the node's MCP check (mcp_check.py) accepts, so it fails on a new one and says when one is fixed: the conformance suite's baseline pattern (github.com/modelcontextprotocol/conformance). Shrink it; never grow it to make a run pass without a line in the pull request saying why.",
+  "input_errors_as_protocol_errors": [
+    "unbrowse_walk",
+    "unbrowse_browse",
+    "unbrowse_challenge",
+    "unbrowse_open",
+    "unbrowse_call",
+    "unbrowse_inspect",
+    "unbrowse_judge",
+    "unbrowse_report"
+  ],
+  "_input_errors_as_protocol_errors": "unbrowse-node/app/src/api/mcp.rs answers a missing required input with JSON-RPC -32602 ('<tool> needs <field>'). The spec (2025-11-25, server/tools, Error Handling) files input validation errors under tool execution errors (isError: true), which a client hands the model to correct itself. The message already names the field. Seen 19 Nov 2026, UNB-235.",
+  "reply_schema_drift": {
+    "unbrowse_inspect": [
+      "'carried_page', 'page_reads', 'page_signed_steps', 'plain_trial' were unexpected"
+    ]
+  },
+  "_reply_schema_drift": "Replies that leave the schema unbrowse-node/agent-api.json publishes for their tool, by words of the problem mcp_check.py reports. The node is the truth (apischema.rs): the fix is the schema in api.rs/apischema.rs, regenerated with UNBROWSE_WRITE_AGENT_API=1 cargo test -p unbrowse-node-app the_agent_api_manifest_is_current, and the SDKs regenerated. Seen 19 Nov 2026 on QA run 44548395439, UNB-235."
+}

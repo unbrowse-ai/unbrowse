@@ -4,11 +4,9 @@ import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useAtomValue } from "jotai/react";
 import { useChat } from "@ai-sdk/react";
 import { Streamdown } from "streamdown";
-import { chatModelAtom, availableModelsAtom } from "@/store/chat";
-import { chatFor, clearChatFor, loadChatFor, saveChatFor } from "@/store/chat-book";
+import { CHAT_STORAGE_PREFIX, chatModelAtom, availableModelsAtom, getChat, setChatModel, stripImagesForStorage } from "@/store/chat";
 import { activeSessionNameAtom } from "@/store/sessions";
 import { ModelSelector } from "@/components/model-selector";
-import { compactMessages, isCompactionMessage } from "@/lib/chat-compaction";
 import { shikiTheme } from "@/lib/shiki-theme";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -245,7 +243,7 @@ function ContextMeter({ used, total }: { used: number; total: number }) {
   );
 }
 
-const DEFAULT_MODEL = "anthropic/claude-sonnet-4.6";
+const DEFAULT_MODEL = "openai/gpt-6-luna-fast";
 
 function useTimeAgo(ts: number | undefined) {
   const [, setTick] = useState(0);
@@ -304,7 +302,7 @@ interface PendingImage {
 
 export function ChatPanel() {
   const [input, setInput] = useState("");
-  const [dismissedError, setDismissedError] = useState<Error | undefined>();
+  const [errorDismissed, setErrorDismissed] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const defaultModel = useAtomValue(chatModelAtom);
@@ -313,16 +311,21 @@ export function ChatPanel() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sessionName = useAtomValue(activeSessionNameAtom);
   const chatId = sessionName || "default";
+  const storageKey = `${CHAT_STORAGE_PREFIX}${chatId}`;
+  setChatModel(selectedModel);
   const messageTimestamps = useRef<Record<string, number>>({});
 
   useEffect(() => {
     if (defaultModel) setSelectedModel(defaultModel);
   }, [defaultModel]);
 
-  const chat = chatFor(chatId);
-  const { messages, sendMessage, stop, status, setMessages, error } = useChat({ chat });
+  const { messages, sendMessage, stop, status, setMessages, error } = useChat({ chat: getChat(chatId) });
 
-  const visibleError = error && error !== dismissedError ? error : undefined;
+  useEffect(() => {
+    setErrorDismissed(false);
+  }, [error]);
+
+  const visibleError = error && !errorDismissed ? error : undefined;
   const isLoading = status === "streaming" || status === "submitted";
   const hasMessages = messages.length > 0 || !!visibleError;
 
@@ -369,19 +372,19 @@ export function ChatPanel() {
     scrollToBottom();
   }, [messages, visibleError, scrollToBottom]);
 
-  // A chat with messages of its own, such as one mid-turn, is already current.
+  // Persist messages to localStorage (strip base64 images to save space)
   useEffect(() => {
-    if (chat.messages.length > 0) return;
-    const stored = loadChatFor(chatId);
-    if (stored.length > 0) setMessages(stored);
-  }, [chat, chatId, setMessages]);
-
-  // An empty chat saves nothing: clearing and closing remove the entry themselves,
-  // and a chat not yet restored must not wipe what it is about to read.
-  useEffect(() => {
-    if (isLoading || messages.length === 0) return;
-    saveChatFor(chatId, chat, messages);
-  }, [messages, isLoading, chatId, chat]);
+    if (isLoading) return;
+    if (messages.length === 0) {
+      localStorage.removeItem(storageKey);
+      return;
+    }
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(stripImagesForStorage(messages)));
+    } catch {
+      // ignore quota
+    }
+  }, [messages, isLoading, storageKey]);
 
   const addImages = useCallback((files: FileList | null) => {
     if (!files) return;
@@ -408,28 +411,52 @@ export function ChatPanel() {
       const dt = new DataTransfer();
       for (const img of pendingImages) dt.items.add(img.file);
       const files = dt.files.length > 0 ? dt.files : undefined;
-      sendMessage({ text: input, files }, { body: { model: selectedModel } });
+      sendMessage({ text: input, files });
       setInput("");
       setPendingImages((prev) => {
         for (const p of prev) URL.revokeObjectURL(p.preview);
         return [];
       });
     },
-    [input, isLoading, sendMessage, pendingImages, selectedModel],
+    [input, isLoading, sendMessage, pendingImages],
   );
 
+  const lastCompactedId = useRef<string | null>(null);
   useEffect(() => {
-    if (isLoading) return;
-    const compacted = compactMessages(messages);
-    if (compacted) setMessages(compacted);
+    if (isLoading || messages.length === 0) return;
+    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+    if (!lastAssistant) return;
+    if (lastAssistant.id === lastCompactedId.current) return;
+    const meta = (lastAssistant as any).metadata as
+      | { compacted?: boolean; summary?: string; keepLastN?: number }
+      | undefined;
+    if (!meta?.compacted || typeof meta.keepLastN !== "number") return;
+
+    lastCompactedId.current = lastAssistant.id;
+    const keep = meta.keepLastN;
+    if (keep >= messages.length) return;
+
+    const summaryMsg = {
+      id: `compaction-${Date.now()}`,
+      role: "assistant" as const,
+      parts: [
+        {
+          type: "text" as const,
+          text: `*Earlier messages were summarized to stay within the context window.*`,
+        },
+      ],
+    };
+
+    const kept = messages.slice(messages.length - keep);
+    setMessages([summaryMsg as any, ...kept]);
   }, [isLoading, messages, setMessages]);
 
   const handleClear = useCallback(() => {
     setMessages([]);
-    setDismissedError(error);
-    clearChatFor(chatId);
+    setErrorDismissed(true);
+    localStorage.removeItem(storageKey);
     requestAnimationFrame(() => inputRef.current?.focus());
-  }, [setMessages, chatId, error]);
+  }, [setMessages, storageKey]);
 
   const handleDownload = useCallback(() => {
     const data = messages.map((msg) => ({
@@ -501,7 +528,7 @@ export function ChatPanel() {
                   <button
                     key={s}
                     type="button"
-                    onClick={() => sendMessage({ text: s }, { body: { model: selectedModel } })}
+                    onClick={() => sendMessage({ text: s })}
                     className="text-[10px] px-2 py-1 rounded-md border bg-secondary/50 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
                   >
                     {s}
@@ -512,7 +539,7 @@ export function ChatPanel() {
           )}
 
           {messages.map((message) => {
-            if (isCompactionMessage(message)) {
+            if (message.id.startsWith("compaction-")) {
               return (
                 <div key={message.id} className="flex items-center gap-2 text-[10px] text-muted-foreground/60">
                   <div className="flex-1 border-t border-border/40" />
@@ -679,7 +706,7 @@ export function ChatPanel() {
               rows={1}
               placeholder="Ask something..."
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                   e.preventDefault();
                   handleSubmit(e);
                 }

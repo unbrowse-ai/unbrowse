@@ -942,7 +942,7 @@ fn said(l: &SignedListing, price_usdc: Option<f64>, wallet: Address) -> String {
     let site: String = crate::owner_dialog::plain(&l.site).replace('\n', " ").chars().take(80).collect();
     let price = price_usdc.map(|p| format!(", at {p} USDC or more a use")).unwrap_or_default();
     format!(
-        "Share your route on {site}, \"{words}\"{price}, under your wallet's identity. Other agents can then find it, and each use pays {wallet:#x}. Signing sends no transaction and costs nothing; your wallet signs it, and no agent key can."
+        "Share your route on {site}, \"{words}\"{price}, under your account. Other agents can then find it, and each use pays {wallet:#x}. Approving sends nothing and costs nothing; only you can approve it, never an agent key."
     )
 }
 
@@ -1835,5 +1835,43 @@ mod tests {
             None,
         );
         assert_eq!(rebuilt.eip712_signing_hash(&domain), l.digest(&chain::domain(&dep)));
+    }
+
+    /// Anyone may publish a listing for any route (R2.14): two contributors who are not the route's first builder, each
+    /// under an identity and key of their own, list the same route of the same site, one of them the very same body as
+    /// the other, and every listing is accepted: each checks as its own contributor's, and a lookup keeps all of them
+    /// beside the builder's. Nothing refuses a listing for a route someone else already listed, or a copy of a body.
+    #[tokio::test]
+    async fn two_unrelated_contributors_may_each_publish_an_entry_for_the_same_route() {
+        let d = domain(31337, Address::repeat_byte(0x11));
+        let (builder, first, second) = (PrivateKeySigner::random(), PrivateKeySigner::random(), PrivateKeySigner::random());
+        let by = |key: &PrivateKeySigner, agent: &str, body: char, words: &str| {
+            let mut l = listing(1);
+            l.agent_id = agent.into();
+            l.content_id = format!("sha256:{}", body.to_string().repeat(64));
+            l.terms.description = words.into();
+            l.signed(key, &d).unwrap()
+        };
+        let listed = [
+            (by(&builder, "7", 'a', "Search the shop"), builder.address()),
+            (by(&first, "8", 'b', "Find things in the shop"), first.address()),
+            (by(&second, "9", 'b', "Find things in the shop"), second.address()),
+        ];
+        assert!(listed.iter().all(|(l, _)| l.route_id == listed[0].0.route_id && l.site == listed[0].0.site), "one route of one site");
+        assert_eq!(listed[1].0.entry(), listed[2].0.entry(), "two contributors list one body");
+        for (l, who) in &listed {
+            assert_eq!(proven_alone(l.clone(), &d).check(&d, *who), Ok(*who), "each is its own contributor's, whoever listed the route first");
+        }
+        // A listing signed by one contributor's key never passes as another's: openness is not impersonation.
+        assert!(proven_alone(listed[1].0.clone(), &d).check(&d, second.address()).is_err());
+        let found: Vec<_> = listed.iter().map(|(l, _)| on_wire(&proven_alone(l.clone(), &d))).collect();
+        let dr = &d;
+        let kept = checked_found(found, "shop.example", &d, |p: Proven| async move {
+            let contributor = p.listing.signer(dr).unwrap();
+            Ok(Verified { proven: p, contributor, fee: 0.0, fee_units: alloy::primitives::U256::ZERO, root_block: 1, credited: false })
+        })
+        .await;
+        assert_eq!(kept.iter().map(|v| v.contributor).collect::<Vec<_>>(), vec![builder.address(), first.address(), second.address()]);
+        assert!(kept.iter().all(|v| v.proven.listing.route_id == "a1b2c3"));
     }
 }

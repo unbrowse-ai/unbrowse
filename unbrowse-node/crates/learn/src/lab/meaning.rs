@@ -274,4 +274,70 @@ mod tests {
         assert_eq!(found.fields, vec![Field { name: "price".into(), at: "/price".into(), says: None }, Field { name: "title".into(), at: "/title".into(), says: Some("q".into()) }]);
         assert_eq!(records(&[(json!({ "ok": true }), Vec::new())]), None, "a reply with no list of records has none");
     }
+
+    /// A one-step body whose ways are `ways` (one hole each, `k0`, `k1`, ...), asking `slots`.
+    fn body_of(ways: Vec<Expr>, slots: Vec<route::Slot>) -> route::Route {
+        let holes = ways.into_iter().enumerate().map(|(i, w)| route::Hole { at: route::Place::Query(format!("k{i}")), ways: vec![way(w)], over: false, open: false }).collect();
+        let step = route::Step { id: "x0".into(), method: "GET".into(), url: "https://shop.example/api".into(), holes, body: None, expect: 200, script: None, page: false, writes: false, on_load: false, sets_cookie: false, lifetime: None, shape: None };
+        route::Route { v: route::VERSION, tests: Vec::new(), plan: None, meaning: Default::default(), site: "shop.example".into(), slots, steps: vec![step], answer: route::Answer { step: "x0".into(), page: false, decode: None } }
+    }
+
+    fn dated(name: &str) -> Expr {
+        Expr::Format { of: Box::new(Expr::Slot { name: name.into(), or: None, optional: false }), read: Pattern::Time { form: "{yyyy}-{mm}-{dd}".into() }, write: Pattern::Time { form: "{dd}/{mm}/{yyyy}".into() } }
+    }
+
+    /// Where the body knows its records and the field that says the asked word back, an answer says the word back when
+    /// more than half of its records do: two kettles of three say `kettle`, one teapot of three does not say `teapot`.
+    #[test]
+    fn an_answer_says_a_word_back_when_most_of_its_records_do() {
+        let mut body = body_of(vec![Expr::Slot { name: "q".into(), or: None, optional: false }], vec![slot("q", "kettle")]);
+        body.meaning.records = Some(Records { list: "/results".into(), fields: vec![Field { name: "title".into(), at: "/title".into(), says: Some("q".into()) }] });
+        let answer = json!({ "results": [{ "title": "Steel Kettle one" }, { "title": "kettle two" }, { "title": "teapot" }] });
+        assert!(says_back(&body, "q", "kettle", &answer), "two records of three say it");
+        assert!(!says_back(&body, "q", "teapot", &answer), "one record of three does not");
+        assert!(!says_back(&body, "q", "kettle", &json!({ "results": [] })), "no records say nothing back");
+        assert_eq!(records_saying(&body, &answer, "q", &["kettle".to_string()]), Some((3, 2)));
+        assert_eq!(records_saying_but(&body, &answer, "q", &["kettle".to_string()], &["one".to_string()]), Some((3, 1)), "a record that says the other word is not the first's");
+        assert_eq!(records_saying(&body, &answer, "other", &["kettle".to_string()]), None, "no field says another slot back");
+    }
+
+    /// Where the body knows no records, an answer says a word back when two of its lines hold it, in any form the route
+    /// writes the slot in: one line is no saying, and a date asked `2026-03-25` is said back as `25/03/2026`.
+    #[test]
+    fn without_records_an_answer_says_a_word_back_on_two_lines_in_any_form_the_route_writes() {
+        let body = body_of(vec![dated("when")], vec![slot("when", "2026-03-04")]);
+        let lines = |a: &str, b: &str| json!({ "items": [{ "name": format!("slot on {a}") }, { "name": format!("another slot on {b}") }, { "name": "waiting list" }] });
+        assert!(says_back(&body, "when", "2026-03-25", &lines("25/03/2026", "25/03/2026")), "two lines hold the written form");
+        assert!(says_back(&body, "when", "2026-03-25", &lines("2026-03-25", "25/03/2026")), "the asked form counts too");
+        assert!(!says_back(&body, "when", "2026-03-25", &lines("25/03/2026", "26/03/2026")), "one line is no saying");
+        assert_eq!(said_as(&body, "when", "2026-03-25"), vec!["2026-03-25".to_string(), "25/03/2026".to_string()]);
+        assert_eq!(said_as(&body, "other", "2026-03-25"), vec!["2026-03-25".to_string()], "a slot the route never formats is said as asked");
+    }
+
+    /// The slots a route's tests can ask a value of their kind: a date and a listed word, not free text and not a slot
+    /// of no kind, in the order the body asks them.
+    #[test]
+    fn the_slots_with_a_kind_that_says_what_another_value_is_are_the_dates_and_the_listed_words() {
+        let mut body = body_of(Vec::new(), vec![slot("city", "Lisbon"), slot("q", "red lamp"), slot("when", "2026-03-04"), slot("unused", "x")]);
+        body.meaning.kinds = BTreeMap::from([("city".to_string(), Kind::Listed), ("q".to_string(), Kind::Text), ("when".to_string(), Kind::Date)]);
+        assert_eq!(kind_slots(&body), vec![("city".to_string(), Kind::Listed), ("when".to_string(), Kind::Date)]);
+    }
+
+    /// A nonsense value of a slot's kind is one the route can send: a date a century before the walk's in the slot's own
+    /// form, a number far from any in its own point and group; none for a slot the route reads as neither, and a listed
+    /// word the site's table does not list is named by `listed_nothing`.
+    #[test]
+    fn a_nonsense_value_of_a_kind_is_one_the_route_can_send() {
+        let price = Expr::Format { of: Box::new(Expr::Slot { name: "price".into(), or: None, optional: false }), read: Pattern::Number { point: ".".into(), group: ",".into(), places: None }, write: Pattern::Number { point: ".".into(), group: String::new(), places: Some(2) } };
+        let mut body = body_of(vec![dated("when"), price, Expr::Slot { name: "q".into(), or: None, optional: false }], vec![slot("when", "2026-03-04"), slot("price", "1,500"), slot("q", "lamp")]);
+        assert_eq!(nonsense_of_its_kind(&body, "when", "2026-03-04").as_deref(), Some("1926-03-04"));
+        assert_eq!(nonsense_of_its_kind(&body, "price", "1,500").as_deref(), Some("987,654,321"));
+        assert_eq!(nonsense_of_its_kind(&body, "q", "lamp"), None, "free text is given a nonsense word instead");
+        assert_eq!(nonsense_of_its_kind(&body, "when", "not a date"), None, "a value the form does not read has no nonsense of its kind");
+        body.slots.push(route::Slot { name: "city".into(), secret: false, example: Some("Lisbon".into()), choices: vec!["Lisbon".into(), "Oslo".into()] });
+        body.meaning.kinds.insert("city".into(), Kind::Listed);
+        let inputs = |city: &str| std::collections::HashMap::from([("city".to_string(), city.to_string())]);
+        assert_eq!(listed_nothing(&body, &inputs("zqxjvkwfyb")), Some(("city".to_string(), "zqxjvkwfyb".to_string())));
+        assert_eq!(listed_nothing(&body, &inputs("OSLO")), None, "a listed word, in any case, is listed");
+    }
 }

@@ -1,10 +1,15 @@
 #!/bin/sh
-# Vendor btls-sys with the Chrome-extensions patch and enable it.
+# Vendor btls-sys with the Chrome-handshake patches and enable them.
 #
-# The patch adds the two extensions Chrome sends that BoringSSL does not
+# chrome-ext.patch adds the two extensions Chrome sends that BoringSSL does not
 # (0x12e0, 0xca34), whose bytes were captured from a live browser ClientHello
-# (crates/learn/assets/chrome-clienthello/). A door that judges the handshake
-# expects them; with them, Skyscraper-grade WAFs stop challenging the client.
+# (crates/learn/assets/chrome-clienthello/). chrome-pss.patch adds the three
+# RSA-PSS-PSS signature schemes Chrome offers (0x0904..0x0906); without them the
+# transport's JA4 is not the minting browser's, and a door-bound clearance is
+# refused on replay. chrome-grease-sigalg.patch prepends the GREASE signature
+# algorithm Chrome sends ahead of its real ones (peetprint's `GREASE-2308-…`);
+# without it peetprint differs from the browser's even when JA4 matches. A door
+# that judges the handshake expects all three.
 #
 # Idempotent: safe to re-run.
 set -e
@@ -35,8 +40,10 @@ mkdir -p "$here/vendor"
 cp -R "$src" "$here/vendor/btls-sys"
 chmod -R u+w "$here/vendor/btls-sys"
 cp "$here/crates/learn/assets/chrome-clienthello/chrome-ext.patch" "$here/vendor/btls-sys/patches/"
+cp "$here/crates/learn/assets/chrome-clienthello/chrome-pss.patch" "$here/vendor/btls-sys/patches/"
+cp "$here/crates/learn/assets/chrome-clienthello/chrome-grease-sigalg.patch" "$here/vendor/btls-sys/patches/"
 
-# Register the patch right after the fork's own boringssl.patch.
+# Register the patches right after the fork's own boringssl.patch.
 "$python3" - "$here/vendor/btls-sys/build/main.rs" <<'PY'
 import sys
 p=sys.argv[1]
@@ -47,7 +54,20 @@ new=('    apply_patch(config, "boringssl.patch")?;\n'
      '    apply_patch(config, "chrome-ext.patch")?;')
 if 'chrome-ext.patch' not in s:
     assert old in s
-    open(p,'w').write(s.replace(old,new,1))
+    s = s.replace(old,new,1)
+if 'chrome-pss.patch' not in s:
+    anchor = '    apply_patch(config, "chrome-ext.patch")?;'
+    assert anchor in s
+    s = s.replace(anchor, anchor + '\n'
+        '    println!("cargo:warning=applying chrome pss sigalgs patch to boringssl");\n'
+        '    apply_patch(config, "chrome-pss.patch")?;', 1)
+if 'chrome-grease-sigalg.patch' not in s:
+    anchor = '    apply_patch(config, "chrome-pss.patch")?;'
+    assert anchor in s
+    s = s.replace(anchor, anchor + '\n'
+        '    println!("cargo:warning=applying chrome grease sigalg patch to boringssl");\n'
+        '    apply_patch(config, "chrome-grease-sigalg.patch")?;', 1)
+open(p,'w').write(s)
 PY
 
 # Point the workspace at the vendored fork.

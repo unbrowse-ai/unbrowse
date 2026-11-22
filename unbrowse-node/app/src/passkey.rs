@@ -61,6 +61,9 @@ pub enum How {
     /// The owner asked for it (`passkey enrol`). Passkeys kept before automatic enrolment read as this.
     #[default]
     Manual,
+    /// The site offered it after the owner signed in with their own phone or security key (`owner_authn`): it stands
+    /// in for that device, so each sign-in with it waits on the owner's yes, as the device would.
+    Phone,
 }
 
 impl How {
@@ -68,6 +71,7 @@ impl How {
         match self {
             How::Auto => "auto",
             How::Manual => "manual",
+            How::Phone => "phone",
         }
     }
 }
@@ -89,6 +93,10 @@ pub struct Passkey {
     /// How it was enrolled.
     #[serde(default)]
     pub how: How,
+    /// Each sign-in with it waits on the owner's yes, in the window or from their phone (the owner SDK), as the device
+    /// it stands in for would ask them. On for a passkey enrolled after a sign-in with the owner's own device.
+    #[serde(default)]
+    pub approve: bool,
     /// The credential, sealed, in base64. Never shown: [`View`] is what leaves the node's files.
     sealed: String,
 }
@@ -102,11 +110,13 @@ pub struct View {
     pub created: u64,
     pub used: Option<u64>,
     pub how: How,
+    #[serde(default)]
+    pub approve: bool,
 }
 
 impl From<&Passkey> for View {
     fn from(p: &Passkey) -> View {
-        View { id: p.id.clone(), site: p.site.clone(), account: p.account.clone(), created: p.created, used: p.used, how: p.how }
+        View { id: p.id.clone(), site: p.site.clone(), account: p.account.clone(), created: p.created, used: p.used, how: p.how, approve: p.approve }
     }
 }
 
@@ -324,7 +334,7 @@ fn keep(dir: &Path, sealer: &Sealer, s: &Secret, how: How) -> Result<Passkey, St
     let _held = store::hold_file(&file(dir))?;
     let mut all = list_in(dir);
     let id = short_id(&s.credential_id);
-    let mut p = Passkey { id: id.clone(), site: s.rp_id.clone(), account: s.user_name.clone(), created: store::now(), used: None, how, sealed: String::new() };
+    let mut p = Passkey { id: id.clone(), site: s.rp_id.clone(), account: s.user_name.clone(), created: store::now(), used: None, how, approve: how == How::Phone, sealed: String::new() };
     seal_into(sealer, &mut p, s)?;
     all.retain(|k| k.id != id);
     all.push(p.clone());
@@ -654,6 +664,19 @@ struct Guard {
 
 static GUARDS: Mutex<Vec<Arc<Guard>>> = Mutex::new(Vec::new());
 
+/// Whether a sign-in with `site`'s passkeys waits on the owner's yes: one the vault keeps for it says so.
+fn needs_approval(dir: &Path, site: &str) -> bool {
+    list_in(dir).iter().any(|p| p.approve && fits(&p.site, site))
+}
+
+/// The running node, for what a passkey approval needs of it: the window's events, and whether the owner answers from
+/// another device. Set as the node starts; a test has none, and its approvals are answered through `hands` directly.
+static NODE: std::sync::OnceLock<Arc<crate::Node>> = std::sync::OnceLock::new();
+
+pub fn set_node(node: Arc<crate::Node>) {
+    let _ = NODE.set(node);
+}
+
 fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
@@ -856,6 +879,11 @@ fn after_sign_in(site: &str, browser: &Browser, keys: &dyn KeyStore, dir: PathBu
     Ok(arm(&g, &site, AFTER_SIGN_IN_MINUTES, How::Auto))
 }
 
+/// How long the owner has to approve a sign-in with a kept passkey.
+const APPROVAL_WAIT: Duration = Duration::from_secs(180);
+/// How long an approval lets the page's authenticator sign, for the sign-in it was given for.
+const APPROVED_FOR: Duration = Duration::from_secs(30);
+
 /// The longest a site stays armed, whatever was asked.
 const MOST_ARMED_MINUTES: u64 = 30;
 
@@ -883,6 +911,7 @@ fn arm(g: &Guard, site: &str, minutes: u64, how: How) -> Armed {
     let how = match how {
         How::Manual => format!("on {site}, open the account's security settings and add a passkey (\"Create a passkey\"); the node keeps the one it makes"),
         How::Auto => format!("a passkey {site} offers to make in the next {minutes} minutes is kept"),
+        How::Phone => format!("a passkey {site} offers to make in the next {minutes} minutes is kept, standing in for your phone or key: each sign-in with it waits on your yes"),
     };
     Armed { site: site.to_string(), until, how }
 }
@@ -969,6 +998,9 @@ struct Page {
     held: Option<usize>,
     /// The page script's id in the browser, so a new count replaces it.
     script: Option<String>,
+    /// Whether its authenticator answers with no one present, as last set: off while the site's passkeys wait on the
+    /// owner's yes, except for the moment an approval lets one sign-in through.
+    presence: Option<bool>,
 }
 
 /// The page function the page script reports each passkey request through.
@@ -988,20 +1020,86 @@ static LOSE_NEXT_BINDING: std::sync::atomic::AtomicBool = std::sync::atomic::Ato
 /// fails at once as a person's "cancel" would, and the site offers its other ways in. A passkey the site offers to
 /// make, and the autofill kind of sign-in (`mediation: "conditional"`), still go to the authenticator. Each request
 /// is reported (its shape, never a secret), so a site that refuses a passkey says what it asked for.
-const PAGE_GUARD: &str = r#"(()=>{try{window.__unbrowseHeld=HELD;const c=navigator.credentials;if(!c||c.__unbrowse)return;
+const PAGE_GUARD: &str = r#"(()=>{try{window.__unbrowseHeld=HELD;window.__unbrowseWays={get:OWNER_GET,create:OWNER_CREATE,approve:APPROVE};const c=navigator.credentials;if(!c||c.__unbrowse)return;
 const say=o=>{try{window.__unbrowsePasskey&&window.__unbrowsePasskey(JSON.stringify(o))}catch(e){}};
 const brief=pk=>{const s=pk.authenticatorSelection||{};return{rp:pk.rpId||(pk.rp&&pk.rp.id),uv:pk.userVerification||s.userVerification,
 attachment:s.authenticatorAttachment,residentKey:s.residentKey||s.requireResidentKey,attestation:pk.attestation,hints:pk.hints,
 algs:(pk.pubKeyCredParams||[]).map(p=>p.alg),allow:(pk.allowCredentials||[]).length,exclude:(pk.excludeCredentials||[]).length,
 extensions:Object.keys(pk.extensions||{})}};
-const g=c.get.bind(c),m=c.create.bind(c);
-c.get=function(o){const pk=o&&o.publicKey;if(pk&&o.mediation!=='conditional'&&!(window.__unbrowseHeld>0)){
-say(Object.assign({op:'get',answer:'refused at once: the node holds no passkey here'},brief(pk)));
+const g=c.get.bind(c),m=c.create.bind(c),ways=()=>window.__unbrowseWays||{},top=window===window.top,origin=location.origin;
+OWNER_JS
+const told=(pk,p)=>{if(pk)p.then(()=>say(Object.assign({op:'get',answer:'ok'},brief(pk))),e=>say(Object.assign({op:'get',answer:e.name+': '+e.message},brief(pk))));return p};
+c.get=function(o){const pk=o&&o.publicKey,w=ways();if(pk&&o.mediation!=='conditional'){
+if(!(window.__unbrowseHeld>0)){if(w.get)return ask('get',pk,o.signal);
+say(Object.assign({op:'get',answer:'refused at once: the node holds no passkey here; ask_owner has the owner answer it themselves'},brief(pk)));
 return Promise.reject(new DOMException('The operation either timed out or was not allowed.','NotAllowedError'))}
-const p=g(o);if(pk)p.then(()=>say(Object.assign({op:'get',answer:'ok'},brief(pk))),e=>say(Object.assign({op:'get',answer:e.name+': '+e.message},brief(pk))));return p};
-c.create=function(o){const pk=o&&o.publicKey;const p=m(o);
+const kept=()=>{const p=told(pk,g(o));return w.get?p.catch(e=>e&&e.name==='NotAllowedError'&&!(o.signal&&o.signal.aborted)?ask('get',pk,o.signal):Promise.reject(e)):p};
+return w.approve?approval(pk,o.signal).then(kept):kept()}
+return told(pk,g(o))};
+c.create=function(o){const pk=o&&o.publicKey;if(pk&&ways().create&&o.mediation!=='conditional')return ask('create',pk,o.signal);const p=m(o);
 if(pk)p.then(r=>say(Object.assign({op:'create',answer:'ok'},brief(pk))),e=>say(Object.assign({op:'create',answer:e.name+': '+e.message},brief(pk))));return p};
 Object.defineProperty(c,'__unbrowse',{value:true})}catch(e){}})()"#;
+
+/// The part of the page guard that hands a passkey request to the owner's own authenticator (`owner_authn`): the
+/// request goes to the node as WebAuthn JSON, the page draws the node's prompt (the phone's QR, a line of status) over
+/// itself in a closed shadow root, as a browser draws its own, and the request's promise ends with the credential or
+/// the refusal the node sends back through `__unbrowseOwner`. Cancel on the prompt, or the request's own signal,
+/// ends it as a person's cancel would.
+const OWNER_JS: &str = r#"const pend=new Map();let box=null,boxFor=null;
+const u=b=>{const a=b instanceof ArrayBuffer?new Uint8Array(b):new Uint8Array(b.buffer,b.byteOffset,b.byteLength);let s='';for(let i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')};
+const ub=s=>{s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';const r=atob(s),a=new Uint8Array(r.length);for(let i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a.buffer};
+const enc=pk=>{const o={};for(const k in pk)o[k]=pk[k];o.challenge=u(pk.challenge);if(pk.user)o.user=Object.assign({},pk.user,{id:u(pk.user.id)});
+for(const k of['allowCredentials','excludeCredentials'])if(pk[k])o[k]=pk[k].map(d=>Object.assign({},d,{id:u(d.id)}));delete o.extensions;return o};
+const def=(o,p)=>{for(const k in p)Object.defineProperty(o,k,{value:p[k],enumerable:true});return o};
+const cred=(op,j)=>{const r=j.response;let resp;
+if(op==='get')resp=def(Object.create(AuthenticatorAssertionResponse.prototype),{clientDataJSON:ub(r.clientDataJSON),authenticatorData:ub(r.authenticatorData),signature:ub(r.signature),userHandle:r.userHandle?ub(r.userHandle):null});
+else{const ad=r.authenticatorData?ub(r.authenticatorData):null,pub=r.publicKey?ub(r.publicKey):null;resp=def(Object.create(AuthenticatorAttestationResponse.prototype),{clientDataJSON:ub(r.clientDataJSON),attestationObject:ub(r.attestationObject),
+getTransports:()=>(r.transports||[]).slice(),getAuthenticatorData:()=>ad,getPublicKey:()=>pub,getPublicKeyAlgorithm:()=>r.publicKeyAlgorithm})}
+return def(Object.create(PublicKeyCredential.prototype),{id:j.id,rawId:ub(j.rawId),type:'public-key',response:resp,authenticatorAttachment:j.authenticatorAttachment||'cross-platform',getClientExtensionResults:()=>({}),toJSON:()=>j})};
+const hide=()=>{if(box)box.remove();box=null;boxFor=null};
+const show=(id,m)=>{if(!box||boxFor!==id){hide();box=document.createElement('div');boxFor=id;box.setAttribute('style','position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center');
+const sh=box.attachShadow({mode:'closed'});sh.innerHTML='<div role="dialog" aria-label="Use your passkey" style="background:#fff;color:#111;font:15px system-ui,sans-serif;border-radius:12px;padding:20px 24px;max-width:340px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.3)"><h2 style="font-size:17px;margin:0 0 8px">Use your passkey for '+location.hostname+'</h2><p class="s" style="margin:0 0 12px">Scan with your phone, or touch your security key</p><div class="q"></div><p class="u" style="font:10px monospace;word-break:break-all;color:#666;margin:8px 0"></p><button type="button" style="font:inherit;padding:6px 16px">Cancel</button></div>';
+box.__s=sh;sh.querySelector('button').onclick=()=>cancel(id);(document.body||document.documentElement).appendChild(box)}
+const sh=box.__s;if(m.qr){sh.querySelector('.q').innerHTML=m.svg||'';sh.querySelector('.u').textContent=m.qr}if(m.status)sh.querySelector('.s').textContent=m.status};
+const cancel=id=>{const p=pend.get(id);if(!p)return;pend.delete(id);if(boxFor===id)hide();say({op:'owner-cancel',id});p.rej(new DOMException('The operation either timed out or was not allowed.','NotAllowedError'))};
+// A request is said again until the node answers anything about it: a guard taking another's place can miss the first.
+const send=(id,o)=>{say(o);let n=0;const t=setInterval(()=>{const p=pend.get(id);if(!p||p.heard||++n>8)return clearInterval(t);say(o)},1500)};
+Object.defineProperty(window,'__unbrowseOwner',{value:(id,m)=>{const p=pend.get(id);if(!p)return;p.heard=true;if(m.qr||m.status){show(id,m);return}
+pend.delete(id);if(boxFor===id)hide();if(m.approved&&p.op==='approval')p.res();else if(m.credential){try{p.res(cred(p.op,m.credential))}catch(e){p.rej(e)}}else p.rej(new DOMException(m.error||'The operation either timed out or was not allowed.',m.name||'NotAllowedError'))}});
+const ask=(op,pk,sig)=>new Promise((res,rej)=>{if(sig&&sig.aborted)return rej(sig.reason||new DOMException('aborted','AbortError'));
+const id=Math.random().toString(36).slice(2)+Date.now().toString(36);pend.set(id,{res,rej,op});
+if(sig)sig.addEventListener('abort',()=>{if(!pend.delete(id))return;if(boxFor===id)hide();say({op:'owner-cancel',id});rej(sig.reason||new DOMException('aborted','AbortError'))});
+let body;try{body=enc(pk)}catch(e){pend.delete(id);return rej(new DOMException('The request could not be read.','NotSupportedError'))}
+show(id,{status:'Waiting for your phone or security key'});send(id,Object.assign({op:'owner',kind:op,id,origin,top,publicKey:body},brief(pk)))});
+const approval=(pk,sig)=>new Promise((res,rej)=>{if(sig&&sig.aborted)return rej(sig.reason||new DOMException('aborted','AbortError'));
+const id=Math.random().toString(36).slice(2)+Date.now().toString(36);pend.set(id,{res,rej,op:'approval'});
+if(sig)sig.addEventListener('abort',()=>{if(!pend.delete(id))return;if(boxFor===id)hide();say({op:'owner-cancel',id});rej(sig.reason||new DOMException('aborted','AbortError'))});
+show(id,{status:'Approve this sign-in in the Unbrowse window or on your phone'});send(id,Object.assign({op:'approve',id,top},brief(pk)))});"#;
+
+/// The guard for a page: `held` passkeys on its authenticator, and with `owner` a request it can't answer goes to the
+/// owner's own authenticator instead of being refused.
+fn guard_source(held: usize, ways: Ways) -> String {
+    // The settings are read at each request, so a guard that takes another's place changes a page already loaded; the
+    // owner's prompt is always there to be used. A page that rewrites them gets nothing from it: the node checks every
+    // request it hands on, and an authenticator that waits on the owner's yes signs nothing without it.
+    PAGE_GUARD
+        .replace("OWNER_JS", OWNER_JS)
+        .replace("HELD", &held.to_string())
+        .replace("OWNER_GET", if ways.get { "true" } else { "false" })
+        .replace("OWNER_CREATE", if ways.create { "true" } else { "false" })
+        .replace("APPROVE", if ways.approve { "true" } else { "false" })
+}
+
+/// Where a page's passkey request goes past the authenticator's own answer.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Ways {
+    /// A sign-in the authenticator can't answer goes to the owner's own phone or key.
+    get: bool,
+    /// So does a passkey the site makes, where no authenticator would keep it.
+    create: bool,
+    /// A sign-in with the site's kept passkeys waits on the owner's yes first.
+    approve: bool,
+}
 
 struct Watcher<'a> {
     cdp: CdpClient,
@@ -1022,6 +1120,12 @@ struct Watcher<'a> {
     unkept: HashMap<String, (How, Secret)>,
     /// Kept passkeys are being held off the page: a script may have run on the site (`no_script_left_behind`).
     held_off: bool,
+    /// What the owner's own authenticator says back to a page, while a request it forwarded waits (`owner_authn`).
+    to_page: tokio::sync::mpsc::UnboundedSender<(String, String, crate::owner_authn::ToPage)>,
+    /// Each request waiting on the owner's authenticator, by the page's id for it: what ends its wait.
+    waiting: HashMap<String, Arc<AtomicBool>>,
+    /// Pages whose authenticator may sign now, the owner having approved a sign-in there, and since when.
+    presence_on: HashMap<String, Instant>,
 }
 
 const EVENTS: &[&str] =
@@ -1036,7 +1140,23 @@ async fn run(g: &Guard, browser: &Browser, ws: Option<String>, sealer: &Sealer, 
     let cdp = CdpClient::connect(&ws).await.map_err(|e| format!("couldn't reach the browser's DevTools: {e}"))?;
     let mut events = cdp.subscribe_methods(EVENTS);
     cdp.send_command("Target.setDiscoverTargets", Some(json!({ "discover": true })), None).await?;
-    let mut w = Watcher { cdp, guard: g, browser, sealer, dir, pages: HashMap::new(), known: HashMap::new(), heard: HashMap::new(), refused: HashSet::new(), unkept: HashMap::new(), held_off: false };
+    let (to_page, mut owner_says) = tokio::sync::mpsc::unbounded_channel();
+    let mut w = Watcher {
+        cdp,
+        guard: g,
+        browser,
+        sealer,
+        dir,
+        pages: HashMap::new(),
+        known: HashMap::new(),
+        heard: HashMap::new(),
+        refused: HashSet::new(),
+        unkept: HashMap::new(),
+        held_off: false,
+        to_page,
+        waiting: HashMap::new(),
+        presence_on: HashMap::new(),
+    };
     w.reconcile().await?;
     g.up.store(true, Ordering::SeqCst);
     let _ = ready.send(Ok(()));
@@ -1045,24 +1165,33 @@ async fn run(g: &Guard, browser: &Browser, ws: Option<String>, sealer: &Sealer, 
         tokio::select! {
             e = events.recv() => {
                 let Some(e) = e else { break };
+                // Another guard took this one's place: it answers the pages now.
+                if !g.alive.load(Ordering::SeqCst) {
+                    break;
+                }
                 match e.method.as_str() {
-                    "WebAuthn.credentialAsserted" => w.asserted(&e.params),
+                    "WebAuthn.credentialAsserted" => {
+                        w.asserted(&e.params);
+                        w.presence_off(false).await;
+                    }
                     // The event carries the credential whole: kept or refused now, before anything can turn the page's
                     // authenticator off and take the credential with it.
                     "WebAuthn.credentialAdded" => w.added(&e.params["credential"]),
                     "Target.targetCreated" | "Target.targetInfoChanged" => w.consider(&e.params["targetInfo"]).await,
-                    "Runtime.bindingCalled" if e.params["name"] == BINDING => w.reported(e.params["payload"].as_str().unwrap_or_default()),
+                    "Runtime.bindingCalled" if e.params["name"] == BINDING => w.reported(e.params["payload"].as_str().unwrap_or_default(), e.session_id.as_deref()).await,
                     _ => {}
                 }
                 if e.method.starts_with("WebAuthn.") && w.reconcile().await.is_err() {
                     break;
                 }
             }
+            Some((session, id, say)) = owner_says.recv() => w.tell_owner_answer(&session, &id, say).await,
             _ = tick.tick() => {
                 if w.reconcile().await.is_err() {
                     break;
                 }
                 w.reassert().await;
+                w.presence_off(true).await;
             }
         }
     }
@@ -1110,7 +1239,7 @@ impl Watcher<'_> {
         if !lost {
             let _ = self.cdp.send_command("Runtime.addBinding", Some(json!({ "name": BINDING })), Some(&session)).await;
         }
-        let mut page = Page { session, authenticator, held: None, script: None };
+        let mut page = Page { session, authenticator, held: None, script: None, presence: None };
         let held = list_in(self.dir).iter().filter(|p| fits(&p.site, self.site())).count();
         self.tell(&mut page, held).await;
         Ok(page)
@@ -1122,7 +1251,7 @@ impl Watcher<'_> {
         if page.held == Some(held) {
             return;
         }
-        let source = PAGE_GUARD.replace("HELD", &held.to_string());
+        let source = guard_source(held, self.ways());
         if let Some(old) = page.script.take() {
             let _ = self.cdp.send_command("Page.removeScriptToEvaluateOnNewDocument", Some(json!({ "identifier": old })), Some(&page.session)).await;
         }
@@ -1147,19 +1276,235 @@ impl Watcher<'_> {
         for page in self.pages.values() {
             let _ = self.cdp.send_command("Runtime.addBinding", Some(json!({ "name": BINDING })), Some(&page.session)).await;
             if let Some(held) = page.held {
-                let source = PAGE_GUARD.replace("HELD", &held.to_string());
+                let source = guard_source(held, self.ways());
                 let _ = self.cdp.send_command("Runtime.evaluate", Some(json!({ "expression": source })), Some(&page.session)).await;
             }
         }
     }
 
+    /// Whether this guard's pages hand a request they can't answer to the owner's own authenticator: a guard with no
+    /// authenticator of its own (the vault holds no passkey for the site), on a node that can reach one.
+    fn owner(&self) -> bool {
+        crate::owner_authn::available()
+    }
+
+    fn ways(&self) -> Ways {
+        Ways { get: self.owner(), create: self.guard.bare && self.owner(), approve: needs_approval(self.dir, self.site()) }
+    }
+
     /// A passkey request a page reported: its shape and how it ended, for the owner to read when a site refuses one.
-    fn reported(&self, payload: &str) {
+    /// A request the page hands to the owner's own authenticator (`owner`), or its cancel, is taken here.
+    async fn reported(&mut self, payload: &str, session: Option<&str>) {
         let v: Value = serde_json::from_str(payload).unwrap_or_default();
+        // A guard another has taken the place of still hears the page for a moment: the request is the new one's.
+        let live = self.guard.alive.load(Ordering::SeqCst);
+        match (v["op"].as_str(), session) {
+            (Some("owner"), Some(session)) if live => return self.ask_owner(session, &v).await,
+            // Only a guard with the authenticator signs with a kept passkey.
+            (Some("approve"), Some(session)) if live && !self.guard.bare => return self.ask_approval(session, &v).await,
+            (Some("owner" | "approve"), _) => return,
+            (Some("owner-cancel"), _) => {
+                if let Some(c) = v["id"].as_str().and_then(|id| self.waiting.remove(id)) {
+                    c.store(true, Ordering::SeqCst);
+                }
+                return;
+            }
+            _ => {}
+        }
         let (op, answer) = (v["op"].as_str().unwrap_or("?"), v["answer"].as_str().unwrap_or("?"));
         eprintln!("passkeys: {}: {op} -> {answer} {payload}", self.site());
         if op == "create" || answer != "ok" {
             note(self.dir, "Node", self.site(), &format!("Passkey {op} request: {answer}"), Some(payload.chars().take(600).collect()));
+        }
+    }
+
+    /// Hands a page's passkey request to the owner's own authenticator: checked against the page's address as the
+    /// browser reports it, refused where an agent's script ran on the site, and answered on a thread of its own, its
+    /// progress and its end sent back to the page.
+    async fn ask_owner(&mut self, session: &str, v: &Value) {
+        use crate::owner_authn::{Ask, Refusal, ToPage, Ui};
+        let Some(id) = v["id"].as_str().map(String::from) else { return };
+        // The page says a request again until it hears of it: one already taken is not asked twice.
+        if self.waiting.contains_key(&id) {
+            return;
+        }
+        let refuse = |r: Refusal| ToPage::Refused(r);
+        let target = self.pages.iter().find(|(_, p)| p.session == session).map(|(t, _)| t.clone());
+        let url = match &target {
+            Some(t) => self.cdp.send_command("Target.getTargetInfo", Some(json!({ "targetId": t })), None).await.ok().and_then(|i| i["targetInfo"]["url"].as_str().map(String::from)),
+            None => None,
+        };
+        let ask = if !self.owner() {
+            Err(Refusal { name: "NotAllowedError", message: "the node can't reach the owner's authenticator here".into() })
+        } else if matches!(self.browser, Browser::Node) && crate::browse::script_may_have_run_on_any(|s| fits(s, self.site())) {
+            Err(Refusal {
+                name: "NotAllowedError",
+                message: "an agent's script ran in a tab of this site, so the owner's passkey isn't asked for until those tabs are closed".into(),
+            })
+        } else {
+            match url {
+                Some(url) => Ask::from_page(&url, v),
+                None => Err(Refusal { name: "NotAllowedError", message: "the node lost track of the page that asked".into() }),
+            }
+        };
+        let ask = match ask {
+            Ok(a) => a,
+            Err(r) => {
+                note(self.dir, "Node", self.site(), &format!("Refused a page's request for your own passkey: {}", r.message), None);
+                return self.tell_owner_answer(session, &id, refuse(r)).await;
+            }
+        };
+        let what = match ask.kind {
+            crate::owner_authn::Kind::Get => "sign in",
+            crate::owner_authn::Kind::Create => "make a passkey",
+        };
+        note(self.dir, "Node", &ask.site(), &format!("A page asked to {what} with your own passkey (your phone or security key)"), Some(ask.origin.to_string()));
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.waiting.insert(id.clone(), cancel.clone());
+        self.tell_owner_answer(session, &id, ToPage::Status("Waiting for your phone or security key".into())).await;
+        let (tx, page, rid) = (self.to_page.clone(), session.to_string(), id.clone());
+        let ui = Ui::new(move |say| {
+            let _ = tx.send((page.clone(), rid.clone(), say));
+        });
+        let dir = self.dir.to_path_buf();
+        crate::owner_authn::run(ask, ui, cancel, move |ask, result| {
+            let (what, why) = match result {
+                Ok(_) => (format!("Used your own passkey to {what}"), None),
+                Err(r) => (format!("Your own passkey wasn't used to {what}"), Some(r.message.clone())),
+            };
+            note(&dir, "Node", &ask.site(), &what, why);
+        });
+    }
+
+    /// A page asks to sign in with a passkey the vault keeps for a site whose passkeys wait on the owner's yes: the
+    /// owner is asked, as any ask reaches them (the window, or their phone through the owner SDK when they answer from
+    /// another device), and the page hears their answer. The authenticator signs only after a yes (`approved`).
+    async fn ask_approval(&mut self, session: &str, v: &Value) {
+        use crate::owner_authn::{Refusal, ToPage};
+        let Some(id) = v["id"].as_str().map(String::from) else { return };
+        if self.waiting.contains_key(&id) {
+            return;
+        }
+        let site = self.site().to_string();
+        let account = list_in(self.dir).into_iter().find(|p| p.approve && fits(&p.site, &site)).map(|p| p.account).unwrap_or_default();
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.waiting.insert(id.clone(), cancel.clone());
+        self.tell_owner_answer(session, &id, ToPage::Status("Approve this sign-in in the Unbrowse window or on your phone".into())).await;
+        let (tx, page, dir) = (self.to_page.clone(), session.to_string(), self.dir.to_path_buf());
+        tokio::spawn(async move {
+            let refuse = |message: String| ToPage::Refused(Refusal { name: "NotAllowedError", message });
+            let node = NODE.get().cloned();
+            if let Some(n) = &node {
+                let events = n.events.clone();
+                let away = crate::hands::away_there() && crate::owner_dialog::remote_answers(n.key().ok().map(|k| k as &dyn KeyStore)).on;
+                if let Err(e) = crate::hands::reach_owner(move || events.watchers() + usize::from(away), crate::hands::open_window, crate::hands::WINDOW_WAIT).await {
+                    note(&dir, "Node", &site, "Couldn't ask you to approve a sign-in with a kept passkey", Some(e.clone()));
+                    let _ = tx.send((page, id, refuse(e)));
+                    return;
+                }
+            }
+            let who = if account.is_empty() { String::new() } else { format!(" as {account}") };
+            let why = format!("Sign in to {site}{who} with the passkey this node keeps for you? Done lets this sign-in through; Can't do it refuses it.");
+            let events = node.as_ref().map(|n| n.events.clone());
+            let asked = crate::hands::ask(&site, None, &why, "this node", APPROVAL_WAIT, None, |ask| {
+                if let Some(e) = &events {
+                    e.tell("hands", &json!({ "kind": "ask", "site": ask.site, "ask": ask }));
+                    e.emit("activity", ());
+                }
+            });
+            let cancelled = async {
+                while !cancel.load(Ordering::SeqCst) {
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                }
+            };
+            let answer = tokio::select! {
+                a = asked => a,
+                _ = cancelled => crate::hands::Answer::Declined,
+            };
+            let (what, say) = match answer {
+                crate::hands::Answer::Done => ("You approved a sign-in with a kept passkey", ToPage::Approved),
+                crate::hands::Answer::Declined => ("You refused a sign-in with a kept passkey", refuse("the owner refused this sign-in".into())),
+                crate::hands::Answer::NoAnswer => ("A sign-in with a kept passkey wasn't approved in time", refuse("the owner didn't approve this sign-in in time".into())),
+            };
+            note(&dir, "Node", &site, what, None);
+            let _ = tx.send((page, id, say));
+        });
+    }
+
+    /// Has every page's authenticator answer with no one present only where it may: never while the site's passkeys wait
+    /// on the owner's yes, save a page an approval is open for. A page whose authenticator was armed before such a
+    /// passkey was kept (a tab already open) is brought in line too, or its sign-in, the autofill kind included, would
+    /// go through unasked.
+    async fn presence_in_line(&mut self) {
+        let alone = !needs_approval(self.dir, self.site());
+        let mut changes = Vec::new();
+        for page in self.pages.values() {
+            let on = alone || self.presence_on.contains_key(&page.session);
+            if page.presence != Some(on) && !page.authenticator.is_empty() {
+                changes.push((page.session.clone(), page.authenticator.clone(), on));
+            }
+        }
+        for (session, authenticator, on) in changes {
+            let set = self.cdp.send_command("WebAuthn.setAutomaticPresenceSimulation", Some(json!({ "authenticatorId": authenticator, "enabled": on })), Some(&session)).await;
+            if set.is_ok() {
+                if let Some(p) = self.pages.values_mut().find(|p| p.session == session) {
+                    p.presence = Some(on);
+                }
+            }
+        }
+    }
+
+    /// Lets a page's authenticator sign again only by the owner's yes: after the sign-in it was for, or once `stale`
+    /// a while has passed with none.
+    async fn presence_off(&mut self, stale: bool) {
+        let ids: Vec<String> = self.presence_on.iter().filter(|(_, at)| !stale || at.elapsed() > APPROVED_FOR).map(|(s, _)| s.clone()).collect();
+        for session in ids {
+            self.presence_on.remove(&session);
+        }
+        self.presence_in_line().await;
+    }
+
+    /// After a sign-in with the owner's own phone or key: for the next few minutes a passkey the site offers is kept,
+    /// standing in for that device, and each sign-in with it waits on the owner's yes (`How::Phone`). On its own
+    /// thread: it can take this guard's place.
+    fn after_owner_sign_in(&self) {
+        let (site, browser, sealer, dir) = (self.site().to_string(), self.browser.clone(), self.sealer.duplicate(), self.dir.to_path_buf());
+        std::thread::spawn(move || {
+            if allowed_in(&dir, &site).is_err() {
+                return;
+            }
+            match start(&site, &browser, sealer, dir.clone()) {
+                Ok(g) => {
+                    arm(&g, &site, AFTER_SIGN_IN_MINUTES, How::Phone);
+                    note(&dir, "Node", &site, "After your sign-in with your own phone or key, a passkey the site offers in the next few minutes is kept; each sign-in with it waits on your yes", None);
+                }
+                Err(e) => eprintln!("passkeys: {site}: {e}"),
+            }
+        });
+    }
+
+    /// Sends what the owner's authenticator said to the page that asked.
+    async fn tell_owner_answer(&mut self, session: &str, id: &str, say: crate::owner_authn::ToPage) {
+        use crate::owner_authn::ToPage;
+        if matches!(say, ToPage::Done(_) | ToPage::Refused(_) | ToPage::Approved) {
+            self.waiting.remove(id);
+        }
+        if matches!(say, ToPage::Approved) {
+            // The page's authenticator holds the site's passkeys before it may sign: a tab opened a moment ago may not
+            // have been given them yet.
+            let _ = self.reconcile().await;
+            self.presence_on.insert(session.to_string(), Instant::now());
+            self.presence_in_line().await;
+        }
+        let signed_in = matches!(&say, ToPage::Done(c) if c["response"]["signature"].is_string());
+        let expression = format!(
+            "window.__unbrowseOwner&&window.__unbrowseOwner({},{})",
+            serde_json::to_string(id).unwrap_or_default(),
+            say.to_json()
+        );
+        let _ = self.cdp.send_command("Runtime.evaluate", Some(json!({ "expression": expression })), Some(session)).await;
+        if signed_in {
+            self.after_owner_sign_in();
         }
     }
 
@@ -1175,7 +1520,9 @@ impl Watcher<'_> {
             "hasResidentKey": true,
             "hasUserVerification": true,
             "isUserVerified": true,
-            "automaticPresenceSimulation": true,
+            // A passkey that waits on the owner's yes is only signed with once they give it (`approved`): until then a
+            // request, the page's own or one a script sends past its guard, has no presence and is never answered.
+            "automaticPresenceSimulation": !needs_approval(self.dir, self.site()),
             // What a platform authenticator offers today; a site asking for one of these on its new passkey
             // otherwise gets an authenticator that looks older than any it trusts.
             "hasPrf": true,
@@ -1265,6 +1612,7 @@ impl Watcher<'_> {
             return Ok(());
         }
         let kept: HashSet<String> = list_in(self.dir).into_iter().filter(|p| fits(&p.site, self.site())).map(|p| p.id).collect();
+        self.presence_in_line().await;
 
         // What each page's authenticator holds now: short name -> (credential id, counter).
         let mut fetched = Vec::new();
@@ -1284,6 +1632,7 @@ impl Watcher<'_> {
                     let Ok(authenticator) = self.arm(&session).await else { continue };
                     if let Some(p) = self.pages.get_mut(&target) {
                         p.authenticator = authenticator;
+                        p.presence = None;
                     }
                     Vec::new()
                 }
@@ -1385,6 +1734,7 @@ impl Watcher<'_> {
         match how {
             // The site and when, no account: the list says whose it is.
             How::Auto => note(self.dir, "Node", &p.site, "Enrolled a passkey the site offered after signing in", None),
+            How::Phone => note(self.dir, "Node", &p.site, "Enrolled a passkey the site offered after your sign-in with your own phone or key: each sign-in with it waits on your yes", None),
             How::Manual => {
                 let account = if p.account.is_empty() { String::new() } else { format!(" for {}", p.account) };
                 note(self.dir, "You", &p.site, &format!("Enrolled a passkey{account}"), None);
@@ -1687,6 +2037,28 @@ const signin = (n = 5) => tries(n, async (signal) => {
 });
 </script>"#;
 
+    /// A sign-in the demo site checks (the signature against the key it registered, the challenge, the origin), with
+    /// no timeout of its own: `allow` names the credential, else the authenticator picks a discoverable one.
+    fn checked_signin(allow: Option<&str>) -> String {
+        let allow = match allow {
+            Some(id) => format!("allowCredentials: [{{ type: 'public-key', id: unb64({id:?}.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice(({id:?}.length + 3) % 4)) }}],"),
+            None => String::new(),
+        };
+        format!(
+            "(async () => {{ for (let i = 0; i < 150 && !navigator.credentials.__unbrowse; i++) await new Promise(r => setTimeout(r, 100)); \
+             const challenge = crypto.getRandomValues(new Uint8Array(32)); \
+             const a = await navigator.credentials.get({{ publicKey: {{ challenge, rpId: 'localhost', {allow} userVerification: 'preferred' }} }}); \
+             const {{ key }} = await (await fetch('/key?id=' + a.id)).json(); \
+             const pub = await crypto.subtle.importKey('spki', unb64(key), {{ name: 'ECDSA', namedCurve: 'P-256' }}, false, ['verify']); \
+             const authData = new Uint8Array(a.response.authenticatorData); \
+             const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', a.response.clientDataJSON)); \
+             const signed = new Uint8Array(authData.length + hash.length); signed.set(authData); signed.set(hash, authData.length); \
+             const verified = await crypto.subtle.verify({{ name: 'ECDSA', hash: 'SHA-256' }}, pub, raw(new Uint8Array(a.response.signature)), signed); \
+             const client = JSON.parse(new TextDecoder().decode(a.response.clientDataJSON)); \
+             return JSON.stringify({{ id: a.id, ok: verified && a instanceof PublicKeyCredential && client.type === 'webauthn.get' && client.challenge === b64url(challenge) && client.origin === location.origin }}); }})()"
+        )
+    }
+
     fn serve_demo() -> u16 {
         use std::io::{Read, Write};
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -1746,12 +2118,15 @@ const signin = (n = 5) => tries(n, async (signal) => {
             let turn = CHROME_TURN.locked();
             let path = agent_browser_core::cdp::chrome::find_chrome().expect("the passkey test drives Chrome: install it, or Chrome for Testing with `agent-browser install`");
             let profile = temp(name);
+            // A container without user namespaces can't run Chrome's sandbox; the launcher drops it on the same variable.
+            let no_sandbox: &[&str] = if std::env::var_os("AGENT_BROWSER_NO_SANDBOX").is_some() { &["--no-sandbox"] } else { &[] };
             let child = std::process::Command::new(path)
+                .args(no_sandbox)
                 .args(["--headless=new", "--remote-debugging-port=0", "--no-first-run", "--no-default-browser-check", "--disable-gpu"])
                 .arg(format!("--user-data-dir={}", profile.display()))
                 .arg("about:blank")
                 .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
+                .stderr(std::fs::File::create(profile.with_extension("err")).map(std::process::Stdio::from).unwrap_or_else(|_| std::process::Stdio::null()))
                 .spawn()
                 .unwrap();
             for _ in 0..150 {
@@ -1764,7 +2139,8 @@ const signin = (n = 5) => tries(n, async (signal) => {
             let mut child = child;
             let _ = child.kill();
             let _ = child.wait();
-            panic!("Chrome didn't open its DevTools");
+            let said = std::fs::read_to_string(profile.with_extension("err")).unwrap_or_default();
+            panic!("Chrome didn't open its DevTools: {}", said.chars().take(1500).collect::<String>());
         }
     }
 
@@ -1773,6 +2149,7 @@ const signin = (n = 5) => tries(n, async (signal) => {
             let _ = self.child.kill();
             let _ = self.child.wait();
             let _ = std::fs::remove_dir_all(&self.profile);
+            let _ = std::fs::remove_file(self.profile.with_extension("err"));
         }
     }
 
@@ -2038,6 +2415,111 @@ const signin = (n = 5) => tries(n, async (signal) => {
         assert!(!LOSE_NEXT_GUARD.load(std::sync::atomic::Ordering::SeqCst) && !LOSE_NEXT_BINDING.load(std::sync::atomic::Ordering::SeqCst), "the first sends were lost");
         assert!(guarded, "the node puts the guard and its way of reporting back");
         rt.block_on(cdp.close());
+        drop(chrome);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A site asks for a passkey the vault doesn't hold, on a node that can reach the owner's own authenticator (a
+    /// software key stands in for their security key here): the page's own request goes to it instead of being
+    /// refused, the page shows the prompt, and the site gets credentials it checks as it would any browser's. The
+    /// site registers a passkey on the owner's key, then signs in with it, checking the signature against the key it
+    /// registered; both are lines in the activity log.
+    #[test]
+    fn a_page_asks_the_owners_own_authenticator_for_a_passkey_the_vault_does_not_hold() {
+        let (dir, keys) = (temp("e2e-owner"), root());
+        let page = format!("http://localhost:{}/", serve_demo());
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let chrome = Chrome::launch("e2e-owner");
+        // Set while this test holds the one Chrome turn: no other passkey test sees the software key.
+        *crate::owner_authn::TEST_DEVICE.lock().unwrap() = Some(Arc::new(crate::owner_authn::tests::SoftKey::new()));
+        let browser = Browser::At(chrome.ws.clone());
+        let bare = watch_as("localhost", &browser, None, sealer(&keys).unwrap(), dir.clone(), true).unwrap();
+        // The software key makes non-discoverable passkeys only, so the sign-in names the one it made.
+        let register = "(async () => { for (let i = 0; i < 150 && !navigator.credentials.__unbrowse; i++) await new Promise(r => setTimeout(r, 100)); \
+            const cred = await navigator.credentials.create({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { id: 'localhost', name: 'Demo' }, \
+              user: { id: new TextEncoder().encode('user-1'), name: 'me@demo.example', displayName: 'Me' }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }], \
+              authenticatorSelection: { residentKey: 'discouraged', userVerification: 'preferred' } } }); \
+            if (!(cred instanceof PublicKeyCredential) || cred.response.getPublicKeyAlgorithm() !== -7) throw new Error('not a credential the page can read'); \
+            await fetch('/register', { method: 'POST', body: JSON.stringify({ id: cred.id, key: b64(cred.response.getPublicKey()) }) }); return cred.id; })()";
+        let made = run_on_page(&rt, &chrome.ws, &page, register);
+        let signed = made.as_ref().ok().map(|id| run_on_page(&rt, &chrome.ws, &page, &checked_signin(Some(id))));
+        *crate::owner_authn::TEST_DEVICE.lock().unwrap() = None;
+        let made = made.expect("the site registers a passkey on the owner's own key");
+        let answer: Value = serde_json::from_str(&signed.unwrap().expect("the site signs in with it")).unwrap();
+        assert_eq!(answer["ok"], json!(true), "the site checked the signature, the challenge and the client data: {answer}");
+        assert_eq!(answer["id"], json!(made), "with the passkey it registered");
+        assert!(list_in(&dir).is_empty(), "the vault keeps nothing: the passkey is on the owner's own key");
+        let log = std::fs::read_to_string(dir.join("activity.jsonl")).unwrap_or_default();
+        assert!(log.contains("Used your own passkey to make a passkey") && log.contains("Used your own passkey to sign in"), "{log}");
+        bare.alive.store(false, Ordering::SeqCst);
+        drop(chrome);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Option 2 end to end: the owner signs in once with their own key (a software key stands in), which arms an
+    /// enrolment; the passkey the site then makes is kept by the node as one that stands in for that key. A sign-in with
+    /// it waits on the owner's yes (an ask, as the window and the owner SDK see them): approved, the site checks the
+    /// signature; refused, the page hears NotAllowedError; and a request sent past the guard gets no answer at all.
+    #[test]
+    fn a_passkey_kept_after_a_phone_sign_in_signs_in_only_on_the_owners_yes() {
+        let (dir, keys) = (temp("e2e-approve"), root());
+        let page = format!("http://localhost:{}/", serve_demo());
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let chrome = Chrome::launch("e2e-approve");
+        *crate::owner_authn::TEST_DEVICE.lock().unwrap() = Some(Arc::new(crate::owner_authn::tests::SoftKey::new()));
+        let browser = Browser::At(chrome.ws.clone());
+        let _bare = watch_as("localhost", &browser, None, sealer(&keys).unwrap(), dir.clone(), true).unwrap();
+        let guarded = "for (let i = 0; i < 150 && !navigator.credentials.__unbrowse; i++) await new Promise(r => setTimeout(r, 100));";
+        // The owner's own key: a credential made on it, then a sign-in with it.
+        let on_key = run_on_page(&rt, &chrome.ws, &page, &format!("(async () => {{ {guarded} \
+            const c = await navigator.credentials.create({{ publicKey: {{ challenge: new Uint8Array(32), rp: {{ id: 'localhost', name: 'Demo' }}, \
+              user: {{ id: new Uint8Array([9]), name: 'me@demo.example', displayName: 'Me' }}, pubKeyCredParams: [{{ type: 'public-key', alg: -7 }}] }} }}); \
+            await navigator.credentials.get({{ publicKey: {{ challenge: new Uint8Array(32), rpId: 'localhost', allowCredentials: [{{ type: 'public-key', id: c.rawId }}] }} }}); return c.id; }})()"));
+        *crate::owner_authn::TEST_DEVICE.lock().unwrap() = None;
+        on_key.expect("the owner's key made a credential and signed in with it");
+        // The sign-in armed an enrolment: the guard with the authenticator takes over, and the site's passkey is kept.
+        wait_for("the enrolment armed by the owner's sign-in", || guard_of("localhost", &browser.name()).is_some_and(|g| !g.bare && g.armed.locked().is_some()));
+        run_on_page(&rt, &chrome.ws, &page, "register()").expect("the site makes a passkey on the node's authenticator");
+        for _ in 0..100 {
+            if list_in(&dir).len() == 1 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        assert_eq!(list_in(&dir).len(), 1, "the vault keeps it: {}", std::fs::read_to_string(dir.join("activity.jsonl")).unwrap_or_default());
+        let kept = &list_in(&dir)[0];
+        assert_eq!((kept.how, kept.approve), (How::Phone, true), "kept as standing in for the owner's key");
+
+
+        // Each sign-in waits on the owner: answered here as the window or the owner SDK would.
+        let answer_next = |how: crate::hands::Answer| {
+            std::thread::spawn(move || {
+                for _ in 0..300 {
+                    if crate::hands::asks().iter().any(|a| a.site == "localhost") {
+                        return crate::hands::answer("localhost", how);
+                    }
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+                0
+            })
+        };
+        let approving = answer_next(crate::hands::Answer::Done);
+        let signed = run_on_page(&rt, &chrome.ws, &page, &checked_signin(None));
+        let log = || std::fs::read_to_string(dir.join("activity.jsonl")).unwrap_or_default();
+        let signed: Value = serde_json::from_str(&signed.unwrap_or_else(|e| panic!("approved, it signs in: {e}\n{}", log()))).unwrap();
+        assert_eq!(approving.join().unwrap(), 1, "the sign-in waited on one ask");
+        assert_eq!(signed["ok"], json!(true), "the site checked the signature: {signed}");
+
+        let refusing = answer_next(crate::hands::Answer::Declined);
+        let refused = run_on_page(&rt, &chrome.ws, &page, &format!("(async () => {{ {guarded} try {{ await navigator.credentials.get({{ publicKey: {{ challenge: new Uint8Array(32), rpId: 'localhost' }} }}); return 'signed'; }} catch (e) {{ return e.name; }} }})()")).unwrap();
+        assert_eq!(refusing.join().unwrap(), 1);
+        assert_eq!(refused, "NotAllowedError", "refused by the owner");
+
+        // Past the guard (the prototype's own get): no presence, no answer.
+        let past = run_on_page(&rt, &chrome.ws, &page, &format!("(async () => {{ {guarded} return Promise.race([CredentialsContainer.prototype.get.call(navigator.credentials, {{ publicKey: {{ challenge: new Uint8Array(32), rpId: 'localhost' }} }}).then(() => 'signed', e => e.name), new Promise(r => setTimeout(() => r('waiting'), 4000))]); }})()")).unwrap();
+        assert_eq!(past, "waiting", "the authenticator signs nothing without the owner's yes");
+        let log = std::fs::read_to_string(dir.join("activity.jsonl")).unwrap_or_default();
+        assert!(log.contains("You approved a sign-in") && log.contains("You refused a sign-in"), "{log}");
         drop(chrome);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -2319,6 +2801,147 @@ const signin = (n = 5) => tries(n, async (signal) => {
         assert!(run_on_page(&rt, &chrome.ws, &page, "login(1)").is_err());
         assert!(list_in(&dir).is_empty());
         drop(chrome);
+    }
+
+    /// A sign-in with a kept passkey writes the browser's new signature counter back into the vault, sealed, with when
+    /// it was used; a counter that isn't higher (a replayed or stale report) leaves the saved one as it was.
+    #[test]
+    fn a_sign_in_saves_the_new_sign_count_and_never_lowers_it() {
+        let (dir, keys) = (temp("sign-count"), root());
+        let sealer = sealer(&keys).unwrap();
+        let kept = keep(&dir, &sealer, &Secret::from_cdp(&credential()).unwrap(), How::Manual).unwrap();
+        let held = || {
+            let (p, s) = secrets_for(&dir, &sealer, "example.com").remove(0);
+            (s.sign_count, p.used)
+        };
+        assert_eq!(held(), (3, None), "kept at the counter the site gave it, never used");
+        set_count(&dir, &sealer, &kept.id, 7, Some(1_700_000_000)).unwrap();
+        assert_eq!(held(), (7, Some(1_700_000_000)), "the new counter and when it was used");
+        set_count(&dir, &sealer, &kept.id, 5, Some(1_700_000_500)).unwrap();
+        assert_eq!(held(), (7, Some(1_700_000_500)), "a lower counter is not saved; the use still is");
+        set_count(&dir, &sealer, &kept.id, 9, None).unwrap();
+        assert_eq!(held(), (9, Some(1_700_000_500)), "no new time leaves the last one");
+        assert_eq!(set_count(&dir, &sealer, "000000000000", 12, None).unwrap_err(), "no such passkey");
+        let disk = std::fs::read_to_string(file(&dir)).unwrap();
+        assert!(!disk.contains("signCount") && !disk.contains("sign_count"), "the counter is sealed with the rest");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The owner's deny list (`passkey never <site>`) and the off switch are checked before any browser is touched: no
+    /// way of starting a watch, by hand or after a sign-in, gets as far as the browser, and nothing is left running.
+    #[test]
+    fn a_site_on_the_deny_list_is_refused_before_any_browser_is_reached() {
+        let (dir, keys) = (temp("deny"), root());
+        let sealer = sealer(&keys).unwrap();
+        keep(&dir, &sealer, &Secret::from_cdp(&credential()).unwrap(), How::Manual).unwrap();
+        // A browser nothing listens at: reaching it would say so, not that the owner said never.
+        let nowhere = Browser::At("ws://127.0.0.1:9/devtools/browser/none".into());
+        set_never_in(&dir, "example.com", true).unwrap();
+        for site in ["example.com", "https://login.example.com/signin"] {
+            assert!(hold(site, &nowhere, &keys, dir.clone()).unwrap_err().contains("the owner said never"), "{site}: use");
+            assert!(enrol_in(site, &nowhere, 5, &keys, dir.clone()).unwrap_err().contains("the owner said never"), "{site}: enrol");
+            assert!(after_sign_in(site, &nowhere, &keys, dir.clone()).unwrap_err().contains("the owner said never"), "{site}: after a sign-in");
+        }
+        assert!(guard_of("example.com", &nowhere.name()).is_none(), "no watch was started");
+        let off = store::Settings { passkeys: false, ..Default::default() };
+        store::write_json(&dir.join("settings.json"), &unbrowse_files::SETTINGS, &off).unwrap();
+        assert_eq!(hold("example.com", &nowhere, &keys, dir.clone()).unwrap_err(), OFF);
+        assert_eq!(enrol_in("other.example", &nowhere, 5, &keys, dir.clone()).unwrap_err(), OFF);
+        assert!(guard_of("other.example", &nowhere.name()).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A browser the owner names with `--cdp` is given a passkey only when it runs on this machine: one on another
+    /// address is refused, with no watch left behind and the vault as it was.
+    #[test]
+    fn a_cdp_browser_on_another_machine_is_given_no_passkey() {
+        let (dir, keys) = (temp("far-cdp"), root());
+        let sealer = sealer(&keys).unwrap();
+        keep(&dir, &sealer, &Secret::from_cdp(&credential()).unwrap(), How::Manual).unwrap();
+        for far in ["ws://10.0.0.5:9222/devtools/browser/x", "http://browser.example:9222"] {
+            let browser = Browser::At(far.into());
+            assert!(hold("example.com", &browser, &keys, dir.clone()).unwrap_err().contains("another machine"), "{far}: use");
+            assert!(enrol_in("example.com", &browser, 5, &keys, dir.clone()).unwrap_err().contains("another machine"), "{far}: enrol");
+            assert!(guard_of("example.com", far).is_none(), "{far}: no watch left");
+        }
+        assert_eq!(list_in(&dir).len(), 1, "the vault is as it was");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A passkey sign-in on a page where the node holds no passkey is refused at once, and what is said plainly names
+    /// ask_owner, the way to have the owner sign in themselves.
+    #[test]
+    fn a_passkey_challenge_with_no_passkey_held_says_so_and_points_to_ask_owner() {
+        let (dir, keys) = (temp("no-passkey-said"), root());
+        let page = format!("http://localhost:{}/", serve_demo());
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let chrome = Chrome::launch("no-passkey-said");
+        enrol_in("localhost", &Browser::At(chrome.ws.clone()), 5, &keys, dir.clone()).unwrap();
+        let probe = "(async () => { for (let i = 0; i < 150 && !navigator.credentials.__unbrowse; i++) await new Promise(r => setTimeout(r, 100)); \
+            try { await navigator.credentials.get({ publicKey: { challenge: new Uint8Array(32), rpId: 'localhost', userVerification: 'required' } }); return 'answered'; } \
+            catch (e) { return e.name; } })()";
+        assert_eq!(run_on_page(&rt, &chrome.ws, &page, probe).expect("the page runs"), "NotAllowedError");
+        wait_for("the refusal said", || std::fs::read_to_string(dir.join("activity.jsonl")).unwrap_or_default().contains("Passkey get request"));
+        let log = std::fs::read_to_string(dir.join("activity.jsonl")).unwrap();
+        assert!(log.contains("the node holds no passkey here"), "{log}");
+        assert!(log.contains("ask_owner"), "it points to ask_owner: {log}");
+        drop(chrome);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Arming an enrolment says what the owner does next, for as long as the site stays armed (never past the most),
+    /// and a longer wait already armed, or one the owner asked for by hand, is not cut short or taken over by a later
+    /// sign-in's shorter automatic one.
+    #[test]
+    fn an_enrolment_armed_again_keeps_the_longer_wait_and_the_owners_own() {
+        let guard = || Guard { site: "shop.example".into(), at: "node".into(), armed: Mutex::new(None), alive: AtomicBool::new(true), up: AtomicBool::new(true), bare: false };
+        let g = guard();
+        let manual = arm(&g, "shop.example", 20, How::Manual);
+        assert!(manual.how.contains("add a passkey") && manual.site == "shop.example");
+        let soon = arm(&g, "shop.example", 10, How::Auto);
+        assert!(soon.until >= manual.until, "the shorter automatic wait leaves the longer one");
+        assert!(soon.how.contains("add a passkey"), "and the enrolment stays the owner's own: {}", soon.how);
+        assert_eq!(g.armed.locked().map(|(_, how)| how), Some(How::Manual));
+
+        let g = guard();
+        let auto = arm(&g, "shop.example", 10, How::Auto);
+        assert!(auto.how.contains("in the next 10 minutes is kept") && !auto.how.contains("waits on your yes"));
+        let phone = arm(&g, "shop.example", 99, How::Phone);
+        assert!(phone.how.contains("waits on your yes"), "{}", phone.how);
+        assert!(phone.until >= now_ms() + (MOST_ARMED_MINUTES - 1) * 60_000 && phone.until <= now_ms() + MOST_ARMED_MINUTES * 60_000, "cut to the most a site stays armed");
+        assert_eq!(enrol_wait_secs(99_999), MOST_ARMED_MINUTES * 60);
+        assert_eq!(enrol_wait_secs(90), 90);
+    }
+
+    /// Removing a passkey tells the owner the site still lists it, names it in the activity log without the credential,
+    /// and says plainly when no passkey has that id.
+    #[test]
+    fn a_removed_passkey_is_said_to_still_be_listed_on_its_site() {
+        let home = store::scratch_home("passkey-remove");
+        let keys = root();
+        let sealer = sealer(&keys).unwrap();
+        let kept = keep(&home, &sealer, &Secret::from_cdp(&credential()).unwrap(), How::Manual).unwrap();
+        assert!(remove(" 000000000000", "You").unwrap_err().contains("no such passkey"));
+        let said = remove(&format!(" {} ", kept.id), "You").unwrap();
+        assert!(said.contains("The site still lists it") && said.contains("example.com") && said.contains("me@example.com"), "{said}");
+        assert!(list_in(&home).is_empty());
+        let log = std::fs::read_to_string(home.join("activity.jsonl")).unwrap();
+        assert!(log.contains("Removed a stored passkey") && !log.contains("credential-id"), "{log}");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// The first start with passkeys on leaves a mark that the owner was told, and a start after that leaves it be.
+    #[test]
+    fn the_notice_that_passkeys_are_on_is_marked_once() {
+        let home = store::scratch_home("passkey-notice");
+        let mark = home.join("passkeys.notice");
+        announce();
+        let first = std::fs::read_to_string(&mark).expect("the first start marks the notice");
+        assert!(first.trim().parse::<u64>().is_ok(), "{first}");
+        std::fs::write(&mark, "told\n").unwrap();
+        announce();
+        assert_eq!(std::fs::read_to_string(&mark).unwrap(), "told\n", "already told: left as it was");
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     /// The credential crosses DevTools in the clear, so only a browser on this machine is ever given one.

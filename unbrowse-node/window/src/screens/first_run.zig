@@ -1,7 +1,8 @@
 //! First run: the terms and the choice to stay off the network, before anything else the window shows. The node holds
 //! off joining until it is answered (`terms::standing`), and it comes back whenever the node carries a newer version.
 //! Only pressing Open my node answers it: seeing it sends nothing. The words are the node's (`terms_text`), since the
-//! node updates by itself and can be newer than this window.
+//! node updates by itself and can be newer than this window. Answering it goes on to Connect your agents (the shell's
+//! next screen in line, `shell.front`) and then to Home.
 const std = @import("std");
 const nanoui = @import("nanoui");
 const ui = nanoui.ui;

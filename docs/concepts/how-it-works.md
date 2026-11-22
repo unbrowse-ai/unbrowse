@@ -60,7 +60,7 @@ relearning is the network's own redundancy (spec R7.17).
 **Built.**
 
 - **Route coins are built.** The contracts are in `unbrowse-settlement/src/coins/` (private repository; the coin, its curve, staking, the fetch path and bounties), Settlement pays the 65 / 30 / 5 split and calls them on every claimed line, and the node trades, stakes, claims and ranks through them (`unbrowse-node/app/src/chain/coins.rs`, `rank/coin.rs`). The earlier economy (entry bond, route pool, fraud court, HTTP domain witnesses) is removed. Nothing is deployed yet: Arc mainnet has no deployment, and the earlier Arc testnet contracts are no longer supported.
-- The five steps: `mint()` and `walk_har()` in `unbrowse-browser/core/src/session.rs`, then `build()`
+- The five steps: `mint()` and `walk_har()` in `unbrowse-node/crates/browser/src/session.rs`, then `build()`
   (`graph.rs`) and `RouteClient` (`client.rs`) in `unbrowse-node/crates/learn`, driven by
   `unbrowse-node/app/src/learn.rs`.
   [ARCHITECTURE.md §3](../ARCHITECTURE.md#3-the-pipeline-browse-once-call-forever) walks them with a diagram, and

@@ -1,0 +1,650 @@
+{
+ "pick_rule": "(proposed for Lewis's approval, UNB-208):\n  A. unbrowse6 coverage bank (docs/qa/benchmark-harness/bank/bank.json, 276 tasks, unbrowse6 8b7ff88):\n     every task that is (1) not deferred (no login or live id needed), (2) checked by a deterministic rule only\n     (regex / contains / count>=N alternatives; no judge, no numeric-needs-ground-truth, no gate), (3) passed at\n     least once before (ever_passed), and (4) not expected to end at a wall (gate_expected false).\n  B. Lundy nightly regression set (unbrowse-core test-banks/popular-sites/regression.json, 13 sites): one task per\n     site, its search case's third (long-tail) value, scored by: at least 3 listed results that each name a\n     distinctive word of the value.\n  C. The staging criteria sites (Lewis, 18 Nov 2026: \"unbrowse staging is performing super fast browserlessly with\n     max coverage on sites like lazada carousell and ticketmaster\"; added to the bank 19 Nov 2026): one search task\n     per site, asking for the first 5 results with the fields the criteria name (name or title, price or date, link),\n     checked by the judge reading the answer: at least 5 items of that kind, each with those fields. A check a\n     pattern cannot make: on 19 Nov a rule that counted \"the largest list in the reply\" passed a reply whose largest\n     list was the page's advertising slots.",
+ "count": 91,
+ "tasks": [
+  {
+   "id": "u6:customs-broker-1",
+   "source": "unbrowse6",
+   "url": "https://hts.usitc.gov/",
+   "task": "Find the HTS code and general duty rate for 'lithium-ion battery packs for laptops'",
+   "check": "regex:8507\\.60"
+  },
+  {
+   "id": "u6:customs-broker-2",
+   "source": "unbrowse6",
+   "url": "https://www.customs.gov.sg/",
+   "task": "Find Singapore's GST and customs duty treatment for importing wine (HS 2204)",
+   "check": "contains:2204"
+  },
+  {
+   "id": "u6:customs-broker-4",
+   "source": "unbrowse6",
+   "url": "https://ec.europa.eu/taxation_customs/dds2/taric/taric_consultation.jsp?Lang=en",
+   "task": "Find the EU third-country duty for HS 8507600010",
+   "check": "regex:\\d+(\\.\\d+)?\\s?%"
+  },
+  {
+   "id": "u6:customs-broker-5",
+   "source": "unbrowse6",
+   "url": "https://comtradeplus.un.org/",
+   "task": "Using UN Comtrade, list the top 3 partner countries for US imports of HS 8507 (electric accumulators) in the latest full year",
+   "check": "count>=3:country"
+  },
+  {
+   "id": "u6:pharmacist-1",
+   "source": "unbrowse6",
+   "url": "https://www.drugs.com/drug_interactions.html",
+   "task": "Check the interaction severity between warfarin and ibuprofen",
+   "check": "regex:(?i)major|moderate"
+  },
+  {
+   "id": "u6:pharmacist-2",
+   "source": "unbrowse6",
+   "url": "https://dailymed.nlm.nih.gov/dailymed/",
+   "task": "Get the boxed warning text from the current label for fluoroquinolone ciprofloxacin tablets",
+   "check": "contains:tendinitis"
+  },
+  {
+   "id": "u6:pharmacist-4",
+   "source": "unbrowse6",
+   "url": "https://www.hsa.gov.sg/",
+   "task": "List the therapeutic-product recalls HSA has announced so far in {year} and name the most recent one",
+   "check": "count>=1:recall"
+  },
+  {
+   "id": "u6:patent-analyst-1",
+   "source": "unbrowse6",
+   "url": "https://patents.google.com/",
+   "task": "List 10 granted US patents assigned to 'Dyson' mentioning 'cyclonic separation' since 2020",
+   "check": "count>=10:patent_number"
+  },
+  {
+   "id": "u6:airline-revenue-4",
+   "source": "unbrowse6",
+   "url": "https://www.flightradar24.com/",
+   "task": "Current live status of flight SQ321 (Singapore–London): scheduled, en route or landed, and its departure time",
+   "check": "regex:(?i)en route|landed|scheduled"
+  },
+  {
+   "id": "u6:court-researcher-1",
+   "source": "unbrowse6",
+   "url": "https://www.courtlistener.com/",
+   "task": "List the 5 most recent docket entries in Epic Games, Inc. v. Apple Inc. (N.D. Cal., 4:20-cv-05640) from RECAP",
+   "check": "count>=5:docket_entry"
+  },
+  {
+   "id": "u6:court-researcher-4",
+   "source": "unbrowse6",
+   "url": "https://www.bailii.org/",
+   "task": "Find the latest UK Supreme Court judgment mentioning 'restitution'",
+   "check": "regex:\\[\\d{4}\\] UKSC \\d+"
+  },
+  {
+   "id": "u6:tender-hunter-1",
+   "source": "unbrowse6",
+   "url": "https://www.gebiz.gov.sg/",
+   "task": "List open tenders for 'cleaning services' closing in the next 14 days",
+   "check": "count>=1:open GeBIZ tender for cleaning services, with its closing date",
+   "check_before_2026_11_18": "count>=3:tender"
+  },
+  {
+   "id": "u6:tender-hunter-2",
+   "source": "unbrowse6",
+   "url": "https://sam.gov/search/?index=opp",
+   "task": "List 5 active opportunities with NAICS 541512 posted this week",
+   "check": "count>=5:notice_id"
+  },
+  {
+   "id": "u6:tender-hunter-3",
+   "source": "unbrowse6",
+   "url": "https://ted.europa.eu/",
+   "task": "List 5 open EU tenders for 'drones' with their deadlines",
+   "check": "count>=5:tender"
+  },
+  {
+   "id": "u6:esg-analyst-3",
+   "source": "unbrowse6",
+   "url": "https://www.sgx.com/securities/company-announcements",
+   "task": "Find the latest sustainability report filing by DBS Group Holdings on SGX and give its date",
+   "check": "regex:\\d{1,2} \\w+ \\d{4}"
+  },
+  {
+   "id": "u6:esg-analyst-5",
+   "source": "unbrowse6",
+   "url": "https://climatetrace.org/",
+   "task": "Top 3 emitting facilities in Singapore",
+   "check": "count>=3:facility"
+  },
+  {
+   "id": "u6:librarian-5",
+   "source": "unbrowse6",
+   "url": "https://arxiv.org/list/cs.AI/recent",
+   "task": "List arXiv cs.AI submissions from the last listing day with 'agent' in the title",
+   "check": "count>=3:arxiv_id"
+  },
+  {
+   "id": "u6:sg-gov-officer-4",
+   "source": "unbrowse6",
+   "url": "https://www.cpf.gov.sg/",
+   "task": "Current CPF contribution rates for an employee aged 56–60",
+   "check": "regex:\\d+(\\.\\d+)?%"
+  },
+  {
+   "id": "u6:r2-hard-imperva-incapsula-12",
+   "source": "unbrowse6",
+   "url": "https://www.udemy.com",
+   "task": "Get the current price and star rating for the Udemy course 'The Complete Python Bootcamp From Zero to Hero in Python' by Jose Portilla.",
+   "check": "regex:\\b[1-5]\\.\\d\\b"
+  },
+  {
+   "id": "u6:r2-hard-recaptcha-gated-search-15",
+   "source": "unbrowse6",
+   "url": "https://www.craigslist.org",
+   "task": "List 5 current apartment-for-rent listings under $2,500/month in the San Francisco Bay Area (sfbay.craigslist.org), with price and location.",
+   "check": "count>=5:listing"
+  },
+  {
+   "id": "u6:r2-hard-singapore-government-wa-21",
+   "source": "unbrowse6",
+   "url": "https://www.judiciary.gov.sg",
+   "task": "Using the Hearing List on judiciary.gov.sg, give the case number, hearing date and courtroom of any one hearing scheduled for {next_business_day}.",
+   "check": "regex:(?i)\\bcourt(room)?\\s*\\d|chambers?\\b|hearing room"
+  },
+  {
+   "id": "u6:r2-hard-singapore-government-wa-22",
+   "source": "unbrowse6",
+   "url": "https://www.bizfile.gov.sg",
+   "task": "Check whether Singapore Airlines Limited (UEN 197200078R) is currently registered on Bizfile and give its entity status.",
+   "check": "regex:(?i)\\blive\\b"
+  },
+  {
+   "id": "u6:r2-hard-singapore-government-wa-26",
+   "source": "unbrowse6",
+   "url": "https://onemotoring.lta.gov.sg",
+   "task": "Get the latest COE bidding results (quota premium) for Category A (cars up to 1,600cc and 97kW) and the month of that bidding exercise.",
+   "check": "regex:\\d{2,3},?\\d{3}"
+  },
+  {
+   "id": "u6:r2-hard-singapore-government-wa-28",
+   "source": "unbrowse6",
+   "url": "https://www.cpf.gov.sg",
+   "task": "Get the current CPF contribution rates (employer and employee) for an employee aged 55 and below earning more than $750 a month.",
+   "check": "regex:\\b(37|20|17)(\\.0+)?\\s?%"
+  },
+  {
+   "id": "u6:r2-finance-analyst-29",
+   "source": "unbrowse6",
+   "url": "https://www.sec.gov/edgar/search/",
+   "task": "Find the filing date of the most recent 10-K for Apple Inc. (AAPL)",
+   "check": "regex:(?i)\\b(20\\d\\d-\\d\\d-\\d\\d|\\d{1,2} (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?,? 20\\d\\d|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.? \\d{1,2},? 20\\d\\d|\\d{1,2}/\\d{1,2}/20\\d\\d)"
+  },
+  {
+   "id": "u6:r2-finance-analyst-30",
+   "source": "unbrowse6",
+   "url": "https://finance.yahoo.com/quote/TSLA",
+   "task": "Get the current trailing P/E ratio and market capitalization for Tesla (TSLA)",
+   "check": "regex:(?i)\\d[\\d.,]*\\s?(k|m|b|bn|t|million|billion|trillion)\\b|\\d{1,3}(,\\d{3}){2,}"
+  },
+  {
+   "id": "u6:r2-crypto-trader-35",
+   "source": "unbrowse6",
+   "url": "https://www.coingecko.com/en/coins/solana",
+   "task": "Get Solana's current USD price and 24-hour trading volume",
+   "check": "regex:(?i)\\d[\\d.,]*\\s?(k|m|b|bn|t|million|billion|trillion)\\b|\\d{1,3}(,\\d{3}){2,}"
+  },
+  {
+   "id": "u6:r2-crypto-trader-36",
+   "source": "unbrowse6",
+   "url": "https://coinmarketcap.com/gainers-losers/",
+   "task": "List the top 10 gaining coins by 24-hour percentage change",
+   "check": "count>=10:coin"
+  },
+  {
+   "id": "u6:r2-crypto-trader-37",
+   "source": "unbrowse6",
+   "url": "https://etherscan.io/",
+   "task": "Get the most recent transaction hash and value for the public Ethereum wallet vitalik.eth (0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045).",
+   "check": "regex:0x[0-9a-fA-F]{64}|0x[0-9a-fA-F]{4,}(\\.\\.\\.|…)"
+  },
+  {
+   "id": "u6:r2-crypto-trader-38",
+   "source": "unbrowse6",
+   "url": "https://defillama.com/protocol/aave",
+   "task": "Get Aave's current total value locked (TVL) across all chains",
+   "check": "regex:(?i)\\d[\\d.,]*\\s?(k|m|b|bn|t|million|billion|trillion)\\b|\\d{1,3}(,\\d{3}){2,}"
+  },
+  {
+   "id": "u6:r2-crypto-trader-39",
+   "source": "unbrowse6",
+   "url": "https://www.binance.com/en/futures/BTCUSDT",
+   "task": "Get the current funding rate for the BTC/USDT perpetual futures contract",
+   "check": "regex:-?\\d+\\.\\d+\\s?%"
+  },
+  {
+   "id": "u6:r2-recruiter-hr-41",
+   "source": "unbrowse6",
+   "url": "https://www.linkedin.com/jobs/",
+   "task": "Find 5 open 'Senior Software Engineer' job postings at fintech companies in Singapore",
+   "check": "count>=5:job"
+  },
+  {
+   "id": "u6:r2-recruiter-hr-42",
+   "source": "unbrowse6",
+   "url": "https://www.mycareersfuture.gov.sg/",
+   "task": "List 5 'Data Analyst' job postings in Singapore that were posted within the last 7 days",
+   "check": "count>=5:job"
+  },
+  {
+   "id": "u6:r2-real-estate-agent-47",
+   "source": "unbrowse6",
+   "url": "https://www.propertyguru.com.sg/property-for-sale",
+   "task": "List 3-bedroom HDB resale flats in Tampines listed under S$700,000",
+   "check": "count>=3:listing"
+  },
+  {
+   "id": "u6:r2-real-estate-agent-50",
+   "source": "unbrowse6",
+   "url": "https://www.ura.gov.sg/Corporate/Property/Property-Data",
+   "task": "Get the private residential property price index for the latest available quarter",
+   "check": "regex:\\b\\d{3}\\.\\d\\b|\\d\\.\\d\\s?%"
+  },
+  {
+   "id": "u6:r2-ecommerce-buyer-56",
+   "source": "unbrowse6",
+   "url": "https://www.carousell.sg/",
+   "task": "List 5 used iPhone 13 listings priced under S$400",
+   "check": "count>=5:listing"
+  },
+  {
+   "id": "u6:r2-ecommerce-buyer-58",
+   "source": "unbrowse6",
+   "url": "https://www.alibaba.com/",
+   "task": "Get the minimum order quantity (MOQ) and unit price for bulk USB-C cables from a top-rated supplier",
+   "check": "regex:(?i)\\bmoq\\b|minimum order|\\d[\\d,]*\\s*(pieces|piece|pcs|pc|units|sets|meters)\\b"
+  },
+  {
+   "id": "u6:r2-travel-planner-63",
+   "source": "unbrowse6",
+   "url": "https://www.changiairport.com/en/fly/flight-information/departures.html",
+   "task": "Get today's departure schedule for flights bound for Tokyo",
+   "check": "regex:\\b(?:[A-Z]{2}|[A-Z]\\d|\\d[A-Z])\\s?\\d{2,4}\\b"
+  },
+  {
+   "id": "u6:r2-travel-planner-64",
+   "source": "unbrowse6",
+   "url": "https://www.tripadvisor.com/",
+   "task": "Get the top 5 highest-rated restaurants in Chinatown, Singapore",
+   "check": "count>=5:restaurant"
+  },
+  {
+   "id": "u6:r2-journalist-researcher-69",
+   "source": "unbrowse6",
+   "url": "https://en.wikipedia.org/",
+   "task": "Get the founding date and founder(s) of Grab Holdings.",
+   "check": "regex:\\b(1[89]|20)\\d\\d\\b"
+  },
+  {
+   "id": "u6:r2-journalist-researcher-70",
+   "source": "unbrowse6",
+   "url": "https://news.google.com/",
+   "task": "Find 3 recent articles discussing Singapore's carbon tax policy",
+   "check": "count>=3:article"
+  },
+  {
+   "id": "u6:r2-academic-scientist-76",
+   "source": "unbrowse6",
+   "url": "https://orcid.org/",
+   "task": "Get the list of publications associated with ORCID iD 0000-0002-1825-0097 (Josiah Carberry).",
+   "check": "count>=3:work"
+  },
+  {
+   "id": "u6:r2-healthcare-pharma-81",
+   "source": "unbrowse6",
+   "url": "https://www.who.int/",
+   "task": "Get the latest global disease outbreak alert published by WHO",
+   "check": "regex:(?i)\\b(20\\d\\d-\\d\\d-\\d\\d|\\d{1,2} (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?,? 20\\d\\d|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.? \\d{1,2},? 20\\d\\d|\\d{1,2}/\\d{1,2}/20\\d\\d)"
+  },
+  {
+   "id": "u6:r2-healthcare-pharma-82",
+   "source": "unbrowse6",
+   "url": "https://www.drugs.com/",
+   "task": "Get the common side effects listed for metformin",
+   "check": "regex:(?i)nausea|diarrh|vomit"
+  },
+  {
+   "id": "u6:r2-procurement-supply-chain-83",
+   "source": "unbrowse6",
+   "url": "https://www.alibaba.com/",
+   "task": "Compare unit prices for stainless steel water bottles across 3 different suppliers",
+   "check": "count>=3:supplier"
+  },
+  {
+   "id": "u6:r2-procurement-supply-chain-84",
+   "source": "unbrowse6",
+   "url": "https://www.gebiz.gov.sg/",
+   "task": "Find open Singapore government tenders for IT services published this month",
+   "check": "count>=1:tender"
+  },
+  {
+   "id": "u6:r2-gov-public-sector-sg-91",
+   "source": "unbrowse6",
+   "url": "https://www.weather.gov.sg/home/",
+   "task": "Get today's 4-day weather outlook for Singapore",
+   "check": "regex:(?i)thunder|shower|rain|cloud|fair|sunny|haz|wind"
+  },
+  {
+   "id": "u6:r2-gov-public-sector-sg-93",
+   "source": "unbrowse6",
+   "url": "https://www.iras.gov.sg/taxes/individual-income-tax/basics-of-individual-income-tax/tax-residency-and-tax-rates/individual-income-tax-rates",
+   "task": "Get the current personal income tax rate brackets for tax residents",
+   "check": "regex:(?i)\\b24\\s?%|\\b183\\b"
+  },
+  {
+   "id": "u6:r2-gov-public-sector-sg-94",
+   "source": "unbrowse6",
+   "url": "https://www.parliament.gov.sg/",
+   "task": "Find the date of the next scheduled Parliament sitting",
+   "check": "regex:(?i)\\b(20\\d\\d-\\d\\d-\\d\\d|\\d{1,2} (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?,? 20\\d\\d|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.? \\d{1,2},? 20\\d\\d|\\d{1,2}/\\d{1,2}/20\\d\\d)"
+  },
+  {
+   "id": "u6:r2-sales-bd-98",
+   "source": "unbrowse6",
+   "url": "https://www.bizfile.gov.sg/",
+   "task": "Get the registered address and UEN for Singapore Telecommunications Limited (Singtel).",
+   "check": "regex:\\b(\\d{9}[A-Z]|[TSR]\\d{2}[A-Z]{2}\\d{4}[A-Z])\\b"
+  },
+  {
+   "id": "u6:r2-student-101",
+   "source": "unbrowse6",
+   "url": "https://www.coursera.org/",
+   "task": "Get the syllabus outline and average rating for the Machine Learning Specialization by Andrew Ng on Coursera.",
+   "check": "regex:\\b[1-5]\\.\\d\\b"
+  },
+  {
+   "id": "u6:r2-student-104",
+   "source": "unbrowse6",
+   "url": "https://www.ratemyprofessors.com/",
+   "task": "Get the average rating and 'would take again' percentage for Andrew Ng (Stanford University).",
+   "check": "regex:\\d{1,3}\\s?%"
+  },
+  {
+   "id": "u6:r2-student-105",
+   "source": "unbrowse6",
+   "url": "https://www.moe.gov.sg/",
+   "task": "Find the current PSLE Achievement Level (AL) scoring bands",
+   "check": "regex:(?i)\\bAL\\s?[1-8]\\b|achievement level|subject[- ]based banding"
+  },
+  {
+   "id": "u6:r2-student-106",
+   "source": "unbrowse6",
+   "url": "https://www.edx.org/",
+   "task": "Find the start date and duration of Harvard's 'CS50's Introduction to Artificial Intelligence with Python' on edX.",
+   "check": "regex:(?i)\\d+\\s*(weeks?|hours?|months?)"
+  },
+  {
+   "id": "u6:r2-investor-vc-108",
+   "source": "unbrowse6",
+   "url": "https://pitchbook.com/",
+   "task": "Get the most recent reported valuation for Stripe.",
+   "check": "regex:(?i)\\d[\\d.,]*\\s?(k|m|b|bn|t|million|billion|trillion)\\b|\\d{1,3}(,\\d{3}){2,}"
+  },
+  {
+   "id": "u6:r2-investor-vc-109",
+   "source": "unbrowse6",
+   "url": "https://wellfound.com/",
+   "task": "Find 5 seed-stage AI startups actively hiring in Singapore",
+   "check": "count>=5:startup"
+  },
+  {
+   "id": "u6:r2-investor-vc-110",
+   "source": "unbrowse6",
+   "url": "https://www.sec.gov/edgar/search/",
+   "task": "Find the most recent Form D filing for Anthropic's private funding and give its filing date.",
+   "check": "regex:(?i)\\b(20\\d\\d-\\d\\d-\\d\\d|\\d{1,2} (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?,? 20\\d\\d|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.? \\d{1,2},? 20\\d\\d|\\d{1,2}/\\d{1,2}/20\\d\\d)"
+  },
+  {
+   "id": "u6:r1-antibot-2",
+   "source": "unbrowse6",
+   "url": "https://www.linkedin.com/jobs/search/?keywords=data%20scientist&location=Singapore",
+   "task": "list 10 data scientist job postings in Singapore with company names",
+   "check": "count>=10:job"
+  },
+  {
+   "id": "u6:r1-antibot-3",
+   "source": "unbrowse6",
+   "url": "https://www.linkedin.com/company/openai/",
+   "task": "get the company description and follower count from OpenAI's LinkedIn company page",
+   "check": "regex:(?i)\\d[\\d,.]*\\s?(k|m|million)?\\s*followers|\\d{1,3}(,\\d{3}){2}"
+  },
+  {
+   "id": "u6:r1-antibot-8",
+   "source": "unbrowse6",
+   "url": "https://www.zillow.com/homes/Austin,-TX_rb/",
+   "task": "list 5 homes for sale in Austin TX with price",
+   "check": "count>=5:home"
+  },
+  {
+   "id": "u6:r1-antibot-11",
+   "source": "unbrowse6",
+   "url": "https://www.walmart.com/search?q=laptop",
+   "task": "list 5 laptop products with prices",
+   "check": "count>=5:laptop"
+  },
+  {
+   "id": "u6:r1-antibot-15",
+   "source": "unbrowse6",
+   "url": "https://x.com/nasa",
+   "task": "get follower count and bio for NASA's X profile",
+   "check": "regex:(?i)\\d[\\d.,]*\\s?(k|m|b|bn|t|million|billion|trillion)\\b|\\d{1,3}(,\\d{3}){2,}"
+  },
+  {
+   "id": "u6:r1-law-ip-27",
+   "source": "unbrowse6",
+   "url": "https://www.legislation.gov.uk/ukpga/1994/26/contents",
+   "task": "list the part and section headings of the UK Trade Marks Act 1994",
+   "check": "count>=5:heading"
+  },
+  {
+   "id": "u6:r1-law-ip-28",
+   "source": "unbrowse6",
+   "url": "https://www.law.cornell.edu/uscode/text/15/1114",
+   "task": "get the text of 15 U.S.C. section 1114 on trademark infringement remedies",
+   "check": "regex:(?i)consent of the registrant|colou?rable imitation"
+  },
+  {
+   "id": "u6:r1-law-litigation-30",
+   "source": "unbrowse6",
+   "url": "https://www.scotusblog.com/case-files/terms/ot2025/",
+   "task": "list the case names currently featured for the OT2025 Supreme Court term",
+   "check": "count>=5:case"
+  },
+  {
+   "id": "u6:r1-marketing-growth-34",
+   "source": "unbrowse6",
+   "url": "https://www.producthunt.com",
+   "task": "find today's top 5 trending products and their taglines",
+   "check": "count>=5:product"
+  },
+  {
+   "id": "u6:r1-marketing-growth-35",
+   "source": "unbrowse6",
+   "url": "https://trends.google.com/trends/trendingsearches/daily?geo=US",
+   "task": "list today's top trending search topics in the US",
+   "check": "count>=5:topic"
+  },
+  {
+   "id": "u6:r1-marketing-growth-38",
+   "source": "unbrowse6",
+   "url": "https://www.semrush.com/blog",
+   "task": "list the 5 most recent blog post titles",
+   "check": "count>=5:post"
+  },
+  {
+   "id": "u6:r1-marketing-seo-40",
+   "source": "unbrowse6",
+   "url": "https://moz.com/blog",
+   "task": "list the 5 most recent blog post titles",
+   "check": "count>=5:post"
+  },
+  {
+   "id": "u6:r1-marketing-seo-43",
+   "source": "unbrowse6",
+   "url": "https://www.hubspot.com/marketing-statistics",
+   "task": "list the section headings of key marketing statistics",
+   "check": "count>=3:heading"
+  },
+  {
+   "id": "u6:r1-tech-devops-50",
+   "source": "unbrowse6",
+   "url": "https://hub.docker.com/_/nginx",
+   "task": "latest tag available for the official nginx docker image",
+   "check": "regex:\\b1\\.\\d{2}\\.\\d+\\b"
+  },
+  {
+   "id": "u6:r1-tech-devops-51",
+   "source": "unbrowse6",
+   "url": "https://crates.io/crates/tokio",
+   "task": "latest published version of the tokio rust crate",
+   "check": "regex:\\b1\\.\\d{2}\\.\\d+\\b"
+  },
+  {
+   "id": "u6:r1-tech-swe-59",
+   "source": "unbrowse6",
+   "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/flatMap",
+   "task": "syntax and browser support for Array.prototype.flatMap",
+   "check": "regex:(?i)flatMap\\(\\s*callback|chrome\\s*69"
+  },
+  {
+   "id": "u6:r1-tech-swe-60",
+   "source": "unbrowse6",
+   "url": "https://www.npmjs.com/package/react",
+   "task": "latest published version of the react npm package",
+   "check": "regex:\\b(19|[2-9]\\d)\\.\\d+\\.\\d+\\b"
+  },
+  {
+   "id": "u6:r1-tech-swe-62",
+   "source": "unbrowse6",
+   "url": "https://pypi.org/project/requests/",
+   "task": "latest published version of the requests python package",
+   "check": "regex:\\b2\\.\\d{2}\\.\\d+\\b"
+  },
+  {
+   "id": "lundy:pypi.org",
+   "source": "lundy",
+   "url": "https://pypi.org/search/?q=geospatial%20raster",
+   "task": "On pypi.org, search PyPI packages for \"geospatial raster\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)raster|geospatial"
+  },
+  {
+   "id": "lundy:ebay.de",
+   "source": "lundy",
+   "url": "https://www.ebay.de/sch/i.html?_nkw=antike%20wanduhr",
+   "task": "On ebay.de, search eBay Germany listings for \"antike wanduhr\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)wanduhr|uhr"
+  },
+  {
+   "id": "lundy:nasa.gov",
+   "source": "lundy",
+   "url": "https://www.nasa.gov/?search=solar%20sail%20propulsion",
+   "task": "On nasa.gov, search NASA site for \"solar sail propulsion\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)solar|sail|propulsion",
+   "check_before_2026_11_18": "items_match>=3:(?i)solar sail|sail"
+  },
+  {
+   "id": "lundy:mayoclinic.org",
+   "source": "lundy",
+   "url": "https://www.mayoclinic.org/search/search-results?q=vitamin%20d%20deficiency",
+   "task": "On mayoclinic.org, search Mayo Clinic health information for \"vitamin d deficiency\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)vitamin d"
+  },
+  {
+   "id": "lundy:pexels.com",
+   "source": "lundy",
+   "url": "https://www.pexels.com/search/old%20typewriter/",
+   "task": "On pexels.com, search Pexels photos for \"old typewriter\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)typewriter"
+  },
+  {
+   "id": "lundy:usatoday.com",
+   "source": "lundy",
+   "url": "https://www.usatoday.com/search/?q=college%20football%20rankings",
+   "task": "On usatoday.com, search USA Today articles for \"college football rankings\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)football|ranking"
+  },
+  {
+   "id": "lundy:canva.com",
+   "source": "lundy",
+   "url": "https://www.canva.com/templates/?query=wedding%20invitation%20floral",
+   "task": "On canva.com, search Canva templates for \"wedding invitation floral\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)wedding|invitation"
+  },
+  {
+   "id": "lundy:substack.com",
+   "source": "lundy",
+   "url": "https://substack.com/search/rural%20broadband%20policy?searching=all_posts",
+   "task": "On substack.com, search Substack posts for \"rural broadband policy\" and list the first 5 results (title of each).",
+   "check": "items_match>=2:(?i)rural|broadband|polic",
+   "check_before_2026_11_18": "items_match>=3:(?i)broadband"
+  },
+  {
+   "id": "lundy:wordpress.com",
+   "source": "lundy",
+   "url": "https://wordpress.com/support/?s=custom%20css%20mobile%20menu",
+   "task": "On wordpress.com, search WordPress.com support for \"custom css mobile menu\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)css|menu"
+  },
+  {
+   "id": "lundy:foodnetwork.com",
+   "source": "lundy",
+   "url": "https://www.foodnetwork.com/search/gluten%20free%20pancakes-",
+   "task": "On foodnetwork.com, search Food Network recipes for \"gluten free pancakes\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)gluten|pancake",
+   "check_before_2026_11_18": "items_match>=3:(?i)pancake"
+  },
+  {
+   "id": "lundy:accuweather.com",
+   "source": "lundy",
+   "url": "https://www.accuweather.com/en/search-locations?query=santa%20cruz%20de%20tenerife",
+   "task": "On accuweather.com, search AccuWeather locations for \"santa cruz de tenerife\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)tenerife"
+  },
+  {
+   "id": "lundy:postgresql.org",
+   "source": "lundy",
+   "url": "https://www.postgresql.org/search/?q=logical%20replication%20slots",
+   "task": "On postgresql.org, search PostgreSQL docs and site for \"logical replication slots\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)logical|replication|slot",
+   "check_before_2026_11_18": "items_match>=3:(?i)replication|slot"
+  },
+  {
+   "id": "lundy:mastodon.social",
+   "source": "lundy",
+   "url": "https://mastodon.social/search?q=open%20source%20gardening",
+   "task": "On mastodon.social, search Mastodon posts and people for \"open source gardening\" and list the first 5 results (title of each).",
+   "check": "items_match>=3:(?i)open ?source|garden",
+   "check_before_2026_11_18": "items_match>=3:(?i)garden"
+  },
+  {
+   "id": "criteria:lazada.sg",
+   "source": "criteria",
+   "url": "https://www.lazada.sg/catalog/?q=air+fryer",
+   "task": "On lazada.sg, search Lazada products for \"air fryer\" and list the first 5 results (name, price and link of each).",
+   "check": "count>=5:air fryer product, each with its name, its price and a link to it"
+  },
+  {
+   "id": "criteria:ticketmaster.com",
+   "source": "criteria",
+   "url": "https://www.ticketmaster.com/search?q=coldplay",
+   "task": "On ticketmaster.com, search Ticketmaster events for \"coldplay\" and list the first 5 results (name, date, venue and link of each).",
+   "check": "count>=5:result of the site's own search for coldplay, in the site's order (a tribute or another act the search returns counts as a result), each with its name, its date, its venue and a link to it"
+  },
+  {
+   "id": "criteria:carousell.sg",
+   "source": "criteria",
+   "url": "https://www.carousell.sg/search/nintendo%20switch",
+   "task": "On carousell.sg, search Carousell listings for \"nintendo switch\" and list the first 5 results (title, price and link of each).",
+   "check": "count>=5:Nintendo Switch listing, each with its title, its price and a link to it"
+  }
+ ],
+ "check_fixes": "18 Nov 2026 (UNB-208, approved by Lewis 18 Nov): six checks failed answers that a hand audit found right (programme 887958 step 7, BASELINE.md section 2). Lundy searches rank by relevance, so a title need not hold the value's distinctive word: those checks now ask for the most titles that name any word of the query that the site's own first 5 results met on audit (substack 2, the rest 3). GeBIZ had one open cleaning tender, so its check asks for at least one. Each task keeps its old check in check_before_2026_11_18. A GeBIZ answer of 'none open' fails this check: re-read it by hand."
+}

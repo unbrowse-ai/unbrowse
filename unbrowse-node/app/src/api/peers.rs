@@ -72,7 +72,7 @@ pub(super) async fn node_proof(State(door): State<super::window::Door>, Query(q)
         return refuse(StatusCode::SERVICE_UNAVAILABLE, crate::WAITING_FOR_KEY);
     };
     let named = q.key.as_deref().map(|k| k.trim().trim_start_matches("0x").to_ascii_lowercase()).unwrap_or_default();
-    let mut answer = proof_for(&named, port, &challenge, owner.address(), &door.owner, agents::list().into_iter().filter(|a| !a.revoked && a.expires > store::now()).map(|a| agents::token_of(&root, &a)));
+    let mut answer = proof_for(&named, port, &challenge, owner.address(), &door.owner, agents::list().into_iter().filter(|a| !a.revoked && a.expires > store::now() && a.gateway.is_none()).map(|a| agents::token_of(&root, &a)));
     if answer.get("address").is_some() {
         let Ok(sig) = owner.sign_hash_sync(&network::endpoint_digest(port, &challenge)) else {
             return refuse(StatusCode::INTERNAL_SERVER_ERROR, "couldn't sign");
@@ -130,5 +130,78 @@ mod proof_tests {
         assert_eq!(a, json!({ "agents": [], "address": format!("{owner:#x}") }), "another node that names the owner");
         let a = proof_for(&hex::encode(unbrowse_core::token_key("owner-tok")), 7788, &challenge, owner, "owner-tok", tokens());
         assert_eq!(a, json!({ "agents": [], "owner": hex::encode(unbrowse_core::node_proof("owner-tok", 7788, challenge.as_slice())) }), "the window, holding the owner's token");
+    }
+
+    /// A node with a key of its own and no chain to read.
+    fn a_node_with_no_chain(keyed: bool) -> Arc<Node> {
+        let keys = unbrowse_core::MemoryStore::default();
+        let identity = keyed.then(|| {
+            let id = unbrowse_core::load_or_create(&keys).unwrap();
+            Ok(crate::IdentityView { address: id.address.to_checksum(), created: true })
+        });
+        Arc::new(Node {
+            keys: Box::new(keys),
+            identity: std::sync::RwLock::new(identity),
+            info: crate::NodeInfo { name: "test".into(), version: "test".into(), api_port: 7788, dev: true },
+            walks: crate::learn::Walks::default(),
+            chain: chain::Chain::default(),
+            chain_error: std::sync::Mutex::new(None),
+            events: Events::default(),
+            net: std::sync::OnceLock::new(),
+            share: crate::share::Share::default(),
+        })
+    }
+
+    /// What other nodes send a node whose chain can't be read is refused in words, and nothing is kept: a receipt and a
+    /// reserve leaf are a 400, no roots are handed out, and a node that asks it to run a route is told that nodes no
+    /// longer do (410).
+    #[tokio::test]
+    async fn what_other_nodes_send_a_node_with_no_chain_is_refused_in_words() {
+        let home = store::scratch_home("peers-no-chain");
+        store::use_home(&home);
+        let node = a_node_with_no_chain(true);
+        let (status, Json(said)) = retired_remote_call().await;
+        assert_eq!((status, said["error"].as_str()), (StatusCode::GONE, Some(NO_REMOTE_CALLS)));
+        let zero = format!("0x{}", "00".repeat(32));
+        let paid: chain::PaidLine = serde_json::from_value(json!({
+            "payer": "0x0000000000000000000000000000000000000001", "agent": "0x0000000000000000000000000000000000000002", "epoch": 1, "cumulative": "0x0",
+            "receipts_root": zero, "signature": "0x00", "index": "0x0", "entry_id": zero, "amount": "0x0", "passed": true, "holders": [], "proof": []
+        }))
+        .unwrap();
+        let (status, Json(said)) = serve_remote_receipt(State(node.clone()), Json(paid)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{said}");
+        assert!(said["error"].as_str().is_some_and(|e| !e.is_empty()), "{said}");
+        let sent: crate::reserve::Sent = serde_json::from_value(json!({ "leaf": zero, "from": "0x0000000000000000000000000000000000000001", "sig": "0x00" })).unwrap();
+        let (status, Json(said)) = reserve_leaf(State(node.clone()), Json(sent)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{said}");
+        let Json(roots) = reserve_roots(State(node), Query(SinceQuery { since: 0 })).await;
+        assert!(roots.is_empty());
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// A node's proof of itself is asked for with a 32-byte challenge, and given only once its key is readable: a
+    /// challenge that isn't one is a 400, a node still waiting for its key is a 503, and a node that has it proves itself
+    /// to the owner's address another node names, signing the challenge and the port, and to no key that isn't its own.
+    #[tokio::test]
+    async fn a_node_proves_itself_only_to_a_challenge_it_can_read_with_its_key() {
+        let home = store::scratch_home("peers-node-proof");
+        store::use_home(&home);
+        let door = |node: &Arc<Node>| crate::api::window::Door { node: node.clone(), owner: Arc::new(String::new()) };
+        let challenge = format!("0x{}", "07".repeat(32));
+        let asked = |challenge: &str, key: Option<String>| ProofQuery { challenge: challenge.to_string(), key };
+        let node = a_node_with_no_chain(true);
+        let (status, Json(said)) = node_proof(State(door(&node)), Query(asked("not hex", None))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{said}");
+        let locked = a_node_with_no_chain(false);
+        let (status, _) = node_proof(State(door(&locked)), Query(asked(&challenge, None))).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        let (status, Json(said)) = node_proof(State(door(&node)), Query(asked(&challenge, None))).await;
+        assert_eq!((status, said), (StatusCode::OK, json!({ "agents": [] })), "a key named by no one is proved to no one");
+        let owner = chain::owner_address(node.keys.as_ref()).unwrap();
+        let (status, Json(said)) = node_proof(State(door(&node)), Query(asked(&challenge, Some(hex::encode(owner.as_slice()))))).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(said["address"], json!(format!("{owner:#x}")), "{said}");
+        assert!(said["signature"].as_str().is_some_and(|s| s.starts_with("0x") && s.len() > 100), "{said}");
+        let _ = std::fs::remove_dir_all(&home);
     }
 }

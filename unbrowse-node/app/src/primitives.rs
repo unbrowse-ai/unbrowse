@@ -1077,7 +1077,7 @@ pub fn run_row(base: &str, row: &Row) -> Result<(), String> {
         store::save_settings(&settings)?;
         a_rows_browser();
         return match learn::learn_goal(&walks, &format!("{base}{}?q={WALKED}", row.page), "search items") {
-            Err(learn::Unlearned::Loading | learn::Unlearned::Hands(_)) => Ok(()),
+            Err(learn::Unlearned::Loading | learn::Unlearned::Hands(_) | learn::Unlearned::Door(..) | learn::Unlearned::SignIn(..) | learn::Unlearned::Check(..)) => Ok(()),
             Err(other) => Err(format!("it was refused for another reason: {other}")),
             Ok((route, _)) => Err(format!("the node kept a route ({} {}) for a page only a person passes", route.method, route.path)),
         };
@@ -1284,6 +1284,262 @@ mod tests {
         let unpacked: String = bytes.iter().map(|b| (b ^ 0x5a) as char).collect();
         let v: Value = serde_json::from_str(&unpacked).expect("the site's own code reads it as JSON");
         assert_eq!(v["results"][0]["title"], "kettle one");
+    }
+
+    /// The site serves each script its pages load, as JavaScript, and answers nothing for a page, a script, a search or an
+    /// ask it has no row for, nor a posted search of a row that is not posted.
+    #[test]
+    fn the_site_serves_its_scripts_and_answers_nothing_it_has_no_row_for() {
+        let (base, http) = (site(), reqwest::blocking::Client::new());
+        for (name, defines) in [("signed-own.js", "window.searchSigned"), ("signed-reads.js", "window.searchReading"), ("cipher.js", "window.searchCipher"), ("worker.js", "onmessage")] {
+            let script = http.get(format!("{base}/s/{name}")).send().unwrap();
+            assert_eq!(script.status(), 200, "{name}");
+            assert_eq!(script.headers()["content-type"], "application/javascript", "{name}");
+            assert!(script.text().unwrap().contains(defines), "{name} is the script that defines {defines}");
+        }
+        for path in ["/s/nothing.js", "/p/nothing", "/api/nothing/search", "/api/nothing/anything"] {
+            assert_eq!(http.get(format!("{base}{path}")).send().unwrap().status(), 404, "{path}");
+        }
+        assert_eq!(http.post(format!("{base}/api/nothing/anything")).send().unwrap().status(), 404);
+        assert_eq!(http.post(format!("{base}/api/plain/search")).body("{}").send().unwrap().status(), 405, "a row that is not posted answers no post");
+    }
+
+    /// The searches the site answers whoever asks, each as its row is about: the value said back in the records, the
+    /// envelope a value it holds nothing for gets, one record and no list, a search read word by word, and the control
+    /// that answers for the walk's value whatever it is asked.
+    #[test]
+    fn the_sites_open_searches_answer_for_the_value_asked() {
+        let (base, http) = (site(), reqwest::blocking::Client::new());
+        let get = |path: &str| -> Value { http.get(format!("{base}{path}")).send().unwrap().json().unwrap() };
+        for id in ["plain", "frame", "worker", "unknown-elsewhere"] {
+            let said = get(&format!("/api/{id}/search?q=teapot"));
+            assert_eq!((said["row"].as_str(), said["query"].as_str(), said["results"][1]["title"].as_str()), (Some(id), Some("teapot"), Some("teapot two")), "{id}");
+        }
+        assert_eq!(get("/api/lies/search?q=teapot")["results"][0]["title"], "kettle one", "the control answers for the walk's value, whatever it is asked");
+        let envelope: Value = http.get(format!("{base}/api/first-unknown-api/search?q=qzxkettle&page_url=http%3A%2F%2Fshop.example%2Fp")).header("user-agent", "probe/1").send().unwrap().json().unwrap();
+        assert_eq!(envelope["session_context"]["client_characterization"]["client_useragent"], "probe/1:sua", "the caller's own user agent said back with a mark");
+        assert_eq!(envelope["request"]["client_request_parameters"]["client_url"], "http://shop.example/p");
+        assert_eq!(envelope["request"]["client_request_parameters"]["user_query"], "qzxkettle");
+        assert_eq!(envelope["response"]["body"]["hits"]["hits"], json!([]), "a value it holds nothing for has no records");
+        let found = get("/api/first-unknown-api/search?q=teapot");
+        assert_eq!((found["results"][1]["title"].as_str(), found.get("response")), (Some("teapot two"), None), "a value it holds something for gets records, not the envelope");
+        let one = get("/api/one-record/search?q=teapot");
+        let digest = hex::encode(Sha256::digest(b"teapot"));
+        assert_eq!((one["code"].as_str(), one.get("results")), (Some("teapot"), None), "one record, no list");
+        assert_eq!(one["owner"]["avatar"], digest[..32]);
+        assert_eq!((one["owner"]["id"].as_str(), one["shelf"]["id"].as_str()), (Some(format!("4{}", &digest[..17]).as_str()), Some(format!("5{}", &digest[17..35]).as_str())));
+        assert_eq!(one["handles"]["teapot two"], 1);
+        let words = get("/api/word-by-word/search?q=red%20teapot");
+        let rows = words["results"].as_array().unwrap();
+        assert_eq!(rows.len(), 9);
+        assert_eq!(rows[0]["title"], "teapot kiln report 0", "the records say the value's last word");
+        assert!(rows[..8].iter().all(|r| !r["title"].as_str().unwrap().contains("red teapot")), "and not the value whole");
+        assert_eq!((rows[8]["title"].as_str(), rows[8]["price"].as_u64()), (Some("red teapot two"), Some(99)), "but one record does");
+    }
+
+    /// A search made as its row's page makes it answers, and one that is not, or is stale, is refused with the reason: a
+    /// form token of this visitor's, a token the site issued, the value inside JSON or inside base64 of it, a place the
+    /// site suggested, a signature of the request, a session the site started, a pass a button gave.
+    #[test]
+    fn the_site_answers_a_search_made_as_its_page_makes_it_and_refuses_the_rest() {
+        let (base, http) = (site(), reqwest::blocking::Client::new());
+        let said = |r: reqwest::blocking::Response| (r.status().as_u16(), r.text().unwrap());
+        let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
+        let cookie_of = |r: &reqwest::blocking::Response, name: &str| r.headers().get("set-cookie").and_then(|v| v.to_str().ok()).and_then(|c| c.split(';').next()).and_then(|c| c.strip_prefix(&format!("{name}="))).map(String::from).expect("the site sets a cookie");
+        let page = http.get(format!("{base}/p/html-token?q=teapot")).send().unwrap();
+        let visitor = cookie_of(&page, "v");
+        let html = page.text().unwrap();
+        let token = html.split("name=\"form-token\" content=\"").nth(1).and_then(|r| r.split('"').next()).expect("the page carries its token").to_string();
+        let form = |v: &str, t: &str| said(http.get(format!("{base}/api/html-token/search?q=teapot")).header("cookie", format!("v={v}")).header("x-form-token", t).send().unwrap());
+        assert!(form(&visitor, &token).1.contains("teapot two"));
+        assert_eq!(form(&visitor, "f_another").0, 403, "not the token the page was given");
+        assert_eq!(form("another-visitor", &token).0, 403, "not this visitor's");
+        let issued: Value = http.post(format!("{base}/api/storage-token/issue")).send().unwrap().json().unwrap();
+        let stored = |t: &str| said(http.get(format!("{base}/api/storage-token/search?q=teapot")).header("x-token", t).send().unwrap());
+        assert!(stored(issued["token"].as_str().unwrap()).1.contains("teapot two"));
+        assert_eq!(stored("t_made-up").0, 403);
+        let packed_in = |id: &str, key: &str, value: &str| said(http.get(format!("{base}/api/{id}/search")).query(&[(key, value)]).send().unwrap());
+        let json_of = |q: &Value| q.to_string();
+        assert!(packed_in("packed-json", "variables", &json_of(&json!({ "query": "teapot", "first": 3 }))).1.contains("teapot two"));
+        assert_eq!(packed_in("packed-json", "variables", &json_of(&json!({ "query": 3 }))).0, 403, "a query that is no text is no search");
+        assert_eq!(packed_in("packed-json", "variables", "not json").0, 403);
+        let encoded = |q: &Value| base64::engine::general_purpose::STANDARD.encode(q.to_string());
+        assert!(packed_in("packed-base64", "v", &encoded(&json!({ "query": "teapot", "first": 3 }))).1.contains("teapot two"));
+        assert_eq!(packed_in("packed-base64", "v", &encoded(&json!({ "query": 3 }))).0, 403);
+        assert_eq!(packed_in("packed-base64", "v", "!!!").0, 403);
+        let suggested: Value = http.get(format!("{base}/api/lookup/suggest?q=Oslo")).send().unwrap().json().unwrap();
+        let place = suggested["places"][0]["id"].as_str().unwrap();
+        assert!(packed_in("lookup", "place", place).1.contains("Oslo two"), "the id the site suggested names the place it suggested");
+        assert_eq!(packed_in("lookup", "place", "pl_nothing").0, 403);
+        let signed = |id: &str, ts: &str, sig: &str| said(http.get(format!("{base}/api/{id}/search?q=teapot")).header("x-ts", ts).header("x-sig", sig).send().unwrap());
+        let own = |ts: &str| format!("{}{}", mix(&format!("{ts}|teapot")), mix(&format!("teapot|{ts}")));
+        assert!(signed("signed-own", &ts, &own(&ts)).1.contains("teapot two"), "signed with the site's own mixing function");
+        assert!(signed("signed-own", "1", &own("1")).1.contains("clock reading"), "a signature of a clock that is not the present");
+        assert!(signed("signed-own", &ts, "0000").1.contains("signature is not of this request"));
+        let stale_standard = hex::encode(Sha256::digest(b"1:teapot:fixture-key"));
+        assert!(signed("signed-standard", "1", &stale_standard).1.contains("clock reading"));
+        let visited = http.get(format!("{base}/p/signed-reads?q=teapot")).send().unwrap();
+        let vid = cookie_of(&visited, "vid");
+        let reads = |cookie: &str, ts: &str| said(http.get(format!("{base}/api/signed-reads/search?q=teapot")).header("cookie", cookie).header("x-ts", ts).header("x-sig", "x").send().unwrap()).1;
+        assert!(reads("vid=nobody", &ts).contains("no visitor the site gave a cookie to"));
+        assert!(reads(&format!("vid={vid}"), "1").contains("clock reading"));
+        assert!(reads(&format!("vid={vid}"), &ts).contains("signature is not of this request"));
+        let started = http.post(format!("{base}/api/session-cookie/start")).send().unwrap();
+        let sid = cookie_of(&started, "sid");
+        let in_session = |sid: &str| said(http.get(format!("{base}/api/session-cookie/search?q=teapot")).header("cookie", format!("sid={sid}")).send().unwrap());
+        assert!(in_session(&sid).1.contains("teapot two"));
+        assert_eq!(in_session("s_made-up").0, 403, "a session the site never started");
+        let pass: Value = http.post(format!("{base}/api/person-check/pass")).send().unwrap().json().unwrap();
+        let passed = |p: Option<&str>| said(p.into_iter().fold(http.get(format!("{base}/api/person-check/search?q=teapot")), |r, p| r.header("x-pass", p)).send().unwrap());
+        assert!(passed(pass["pass"].as_str()).1.contains("teapot two"));
+        assert_eq!(passed(None).0, 403, "nobody pressed the button");
+        assert_eq!(passed(Some("p_made-up")).0, 403);
+    }
+
+    /// The answers a row reads in its own form: server events, base64 of the records, one JSON record to a line; and what
+    /// the pages of the rows about another host's record, and of the front page, ask the site for.
+    #[test]
+    fn the_site_answers_in_the_form_a_row_is_about_and_what_its_pages_ask_for() {
+        let (base, http) = (site(), reqwest::blocking::Client::new());
+        let title_of = |line: &str| serde_json::from_str::<Value>(line).unwrap()["title"].as_str().unwrap().to_string();
+        let events = http.get(format!("{base}/api/events/search?q=teapot")).send().unwrap();
+        assert_eq!(events.headers()["content-type"], "text/event-stream");
+        let body = events.text().unwrap();
+        let sent: Vec<String> = body.split("\n\n").filter(|e| !e.is_empty()).map(|e| title_of(e.strip_prefix("data: ").expect("an event is a data line"))).collect();
+        assert_eq!(sent, ["teapot one", "teapot two", "teapot three"]);
+        let based = http.get(format!("{base}/api/base64-answer/search?q=teapot")).send().unwrap();
+        assert_eq!(based.headers()["content-type"], "text/plain");
+        let decoded = base64::engine::general_purpose::STANDARD.decode(based.text().unwrap()).unwrap();
+        assert_eq!(serde_json::from_slice::<Value>(&decoded).unwrap()["results"][1]["title"], "teapot two");
+        let lines = http.get(format!("{base}/api/json-lines/search?q=teapot")).send().unwrap();
+        assert_eq!(lines.headers()["content-type"], "application/x-ndjson");
+        let lines: Vec<String> = lines.text().unwrap().lines().map(title_of).collect();
+        assert_eq!(lines, ["teapot one", "teapot two", "teapot three"]);
+        let popular: Value = http.get(format!("{base}/api/unknown-home/popular")).send().unwrap().json().unwrap();
+        assert_eq!((popular["popular"].as_array().map(Vec::len), popular["popular"][0]["title"].as_str()), (Some(4), Some("Kettles for every kitchen")));
+        let subject = http.get(format!("{base}/api/foreign-subject/about?name=teapot")).send().unwrap();
+        assert_eq!(subject.headers()["access-control-allow-origin"], "*", "another page's script may read it");
+        let subject: Value = subject.json().unwrap();
+        assert_eq!((subject["full_name"].as_str(), subject["search_url"].as_str(), subject["watchers_count"].as_u64()), (Some("acme/teapot"), Some("http://localhost/api/foreign-subject/teapot/search{?q}"), Some(5100)));
+        let named: Value = http.get(format!("{base}/api/foreign-named/about?name=teapot")).send().unwrap().json().unwrap();
+        assert_eq!((named["name"].as_str(), named["topics"].clone(), named["releases_url"].as_str()), (Some("teapot"), json!(["kitchen", "home"]), Some("http://localhost/api/foreign-named/teapot/releases{/id}")));
+    }
+
+    /// A posted search is read as its page writes it: a long protobuf message by its wire format, and a JSON body only
+    /// when it holds a text to search for.
+    #[test]
+    fn the_site_reads_a_posted_search_only_as_its_page_writes_it() {
+        let (base, http) = (site(), reqwest::blocking::Client::new());
+        let long = |word: &str, note: usize| {
+            let mut m = vec![0x0a, word.len() as u8];
+            m.extend(word.as_bytes());
+            m.extend([0x10, 0xac, 0x02, 0x1a, 0x96, 0x01]);
+            m.extend(std::iter::repeat_n(b'n', note));
+            m
+        };
+        let post = |id: &str, ct: &str, body: Vec<u8>| http.post(format!("{base}/api/{id}/search")).header("content-type", ct).body(body).send().unwrap();
+        let ok = post("protobuf-long", "application/x-protobuf", long("teapot", 150));
+        assert_eq!(ok.status(), 200);
+        assert!(ok.text().unwrap().contains("teapot two"));
+        assert_eq!(post("protobuf-long", "application/x-protobuf", long("teapot", 149)).status(), 403, "another note is another message");
+        assert_eq!(post("post-json", "application/json", br#"{"query":5}"#.to_vec()).status(), 403, "a query that is no text");
+        assert_eq!(post("post-json", "application/json", b"query=teapot".to_vec()).status(), 403, "a body that is no JSON");
+        assert_eq!(post("protobuf-search", "application/x-protobuf", b"teapot".to_vec()).status(), 403);
+    }
+
+    /// The messages the binary rows post read as the wire format writes them, field by field: a message with the wrong
+    /// count, a stranger's field, a word cut short or not text, or no word, is no message the page sends.
+    #[test]
+    fn a_posted_message_is_read_only_as_its_page_writes_it() {
+        let word = |w: &[u8], tail: &[u8]| {
+            let mut m = vec![0x0a, w.len() as u8];
+            m.extend(w);
+            m.extend(tail);
+            m
+        };
+        assert_eq!(searched_for(&word(b"teapot", &[0x10, 0x14])).as_deref(), Some("teapot"));
+        assert_eq!(searched_for(&[0x10, 0x14, 0x0a, 0x01, b'a']).as_deref(), Some("a"), "the fields in either order");
+        assert_eq!(searched_for(&word(b"teapot", &[])), None, "no count");
+        assert_eq!(searched_for(&word(b"teapot", &[0x10, 0x15])), None, "another count");
+        assert_eq!(searched_for(&[0x10, 0x14]), None, "no word");
+        assert_eq!(searched_for(&word(b"teapot", &[0x10, 0x14, 0x18, 0x01])), None, "a field the page does not write");
+        assert_eq!(searched_for(&[0x0a, 0x09, b'a', b'b']), None, "a word cut short");
+        assert_eq!(searched_for(&[0x0a]), None, "a length that is not there");
+        assert_eq!(searched_for(&word(&[0xff, 0xfe], &[0x10, 0x14])), None, "a word that is not text");
+        assert_eq!(searched_for(&[0x80; 11]), None, "a number that never ends");
+        let tail: Vec<u8> = [0x10, 0xac, 0x02, 0x1a, 0x96, 0x01].into_iter().chain(std::iter::repeat_n(b'n', 150)).collect();
+        assert_eq!(searched_for_long(&word(b"teapot", &tail)).as_deref(), Some("teapot"));
+        assert_eq!(searched_for_long(&word(b"teapot", &tail[..tail.len() - 1])), None, "a note one short");
+        let mut other = tail.clone();
+        other[1] = 0xad;
+        assert_eq!(searched_for_long(&word(b"teapot", &other)), None, "a count that is another count");
+        assert_eq!(searched_for_long(&word(&[0xff, 0xfe], &tail)), None, "a word that is not text");
+        assert_eq!(searched_for_long(&[0x0a, 0x09, b'a']), None, "a word cut short");
+        assert_eq!(searched_for_long(&[]), None);
+    }
+
+    /// MessagePack in its narrowest form: a text of 32 bytes or more takes a length byte, a count past 127 a byte of its
+    /// own, a small one is itself, and what the format has no narrow form for is nil.
+    #[test]
+    fn a_search_answer_is_packed_in_the_narrowest_form() {
+        let long = "x".repeat(40);
+        let bytes = packed(&json!([{ "t": long, "n": 200, "s": 5, "z": null }, "ab"]));
+        assert_eq!(bytes[0], 0x92, "a list of two");
+        assert_eq!(bytes[1], 0x84, "a map of four");
+        let has = |part: &[u8]| bytes.windows(part.len()).any(|w| w == part);
+        assert!(has(&[&[0xd9, 40][..], long.as_bytes()].concat()), "a long text by its length");
+        assert!(has(&[0xcc, 200]), "a count past 127 in a byte of its own");
+        assert!(has(&[0xa1, b's', 5]), "a small count is itself");
+        assert!(has(&[0xa1, b'z', 0xc0]), "nil");
+        assert!(bytes.ends_with(&[0xa2, b'a', b'b']), "a short text by its length in the tag");
+    }
+
+    /// A date is read day first, as the page writes it: a real day of its month, in a leap year or not, and nothing
+    /// that is not written two digits, two digits, four.
+    #[test]
+    fn a_date_is_a_real_day_written_day_month_year() {
+        assert_eq!(dated("04/03/2026").as_deref(), Some("2026-03-04"));
+        assert_eq!(dated("29/02/2024").as_deref(), Some("2024-02-29"), "a leap year");
+        assert_eq!(dated("29/02/2000").as_deref(), Some("2000-02-29"), "a leap century");
+        assert_eq!((dated("29/02/2023"), dated("29/02/1900")), (None, None), "not leap");
+        assert_eq!(dated("30/04/2026").as_deref(), Some("2026-04-30"));
+        assert_eq!(dated("31/04/2026"), None, "April has thirty");
+        assert_eq!(dated("31/12/2026").as_deref(), Some("2026-12-31"));
+        assert_eq!((dated("00/01/2026"), dated("01/13/2026"), dated("01/00/2026")), (None, None, None));
+        for odd in ["1/03/2026", "01/3/2026", "01/03/26", "ab/03/2026", "01-03-2026", "01/02/03/2026", ""] {
+            assert_eq!(dated(odd), None, "{odd:?}");
+        }
+    }
+
+    /// A row passes only when the call answered for the value, with the records the site holds for it, no browser ran, and
+    /// it reached no rung above the row's ceiling: each way it did not is said.
+    #[test]
+    fn a_row_passes_only_when_its_call_answered_for_the_value_within_its_ceiling() {
+        let r = Row { ceiling: 1, ..row("plain") };
+        let ran = |change: &dyn Fn(&mut Ran)| {
+            let mut ran = Ran { ok: true, answer: json!({ "results": [{ "title": "teapot one" }, { "title": "teapot two" }] }), error: None, rung: 1, browser: false, steps: vec![1] };
+            change(&mut ran);
+            ran
+        };
+        assert_eq!(ran(&|_| {}).passes(&r, "teapot"), Ok(()), "at its ceiling is within it");
+        assert_eq!(ran(&|r| { r.ok = false; r.error = Some("boom".into()) }).passes(&r, "teapot"), Err("the call failed: boom".into()));
+        assert_eq!(ran(&|r| r.ok = false).passes(&r, "teapot"), Err("the call failed: ".into()));
+        assert_eq!(ran(&|r| r.answer = json!({ "results": [] })).passes(&r, "teapot"), Err("the answer says nothing of teapot".into()));
+        assert_eq!(ran(&|r| r.answer = json!({ "title": "teapot" })).passes(&r, "teapot"), Err("the answer says teapot back but holds none of its records".into()));
+        assert_eq!(ran(&|r| r.browser = true).passes(&r, "teapot"), Err("a browser ran for the call".into()));
+        assert_eq!(ran(&|r| r.rung = 2).passes(&r, "teapot"), Err("the call reached rung 2, above its ceiling 1".into()));
+    }
+
+    /// What a step took is put where the caller asked, and what the step answered is handed back.
+    #[test]
+    fn a_timed_step_notes_how_long_it_took_and_hands_back_its_answer() {
+        let mut ms = None;
+        let out = timed(&mut ms, || {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            7
+        });
+        assert_eq!(out, 7);
+        assert!(ms.is_some_and(|m| m >= 20), "{ms:?}");
     }
 
     /// The plainest row: the caller's value goes straight into the call's address. Learned from one walk of the page,

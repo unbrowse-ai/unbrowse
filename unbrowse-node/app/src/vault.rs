@@ -6,7 +6,9 @@
 //! (`fill @e3 vault:github.com:me`), and the node types the password itself, only into a page of the login's own
 //! site; the walk record says the reference, never the password. A route learned from that typing keeps the
 //! reference as its secret input, so every later call signs in again from the vault. `vault:new:<site>:<account>`
-//! makes a login on the spot with a derived password, for signing up.
+//! makes a login on the spot with a derived password, for signing up. `vault:ask:<site>:<account>` is a login for an
+//! account that already exists: one the vault holds fills as `vault:<site>:<account>`, and one it doesn't is asked of
+//! the owner, who types it into the Unbrowse window, never into the agent's conversation (`vault.ask-owner`).
 //!
 //! A login can keep the key for its site's one-time codes too (two-step sign-in). `vault:code:<site>:<account>` names
 //! the code: the node makes it from the key when it types it, so an agent gets past both steps holding neither the
@@ -74,6 +76,10 @@ enum Slot {
     Password,
     Code,
     Card,
+    /// A site's sign-in as the node sends it with no browser (`setups::natively`): the requests the walk that signed in
+    /// with this login made, the account they name and the page's own words with them. Bound to its login, opened only
+    /// by the node's own call path, never listed, shown or shared.
+    SignIn,
 }
 
 impl Slot {
@@ -82,6 +88,7 @@ impl Slot {
             Slot::Password => "password",
             Slot::Code => "code",
             Slot::Card => "card",
+            Slot::SignIn => "sign-in",
         }
     }
 }
@@ -246,7 +253,33 @@ pub fn remove(keep: &Keep, site: &str, account: &str) -> Result<(), String> {
     store::write_json(&path(), &unbrowse_files::VAULT, &all)?;
     keep.delete(Slot::Password, site, account);
     keep.delete(Slot::Code, site, account);
+    keep.delete(Slot::SignIn, site, account);
     Ok(())
+}
+
+/// Keeps `request`, the sign-in the walk made with the login `r` names (its requests as a graph, written as JSON),
+/// sealed beside the login's password and bound to it: the vault is the one place it is kept. A sign-in names the
+/// account and carries what the site's page handed the walk with it, so it is the owner's as the password is, and like
+/// the password it is opened only where the node sends it itself (`setups::natively`): no agent tool lists, reads or
+/// shares it. Only a login the vault holds keeps one, and removing the login removes it.
+pub fn keep_sign_in(keep: &Keep, r: &Ref, request: &str) -> Result<(), String> {
+    if r.new || r.code || !list().iter().any(|l| l.site == r.site && l.account == r.account) {
+        return Err(format!("{} isn't a login the vault holds, so it keeps no sign-in for it", r.name()));
+    }
+    keep.put(Slot::SignIn, &r.site, &r.account, request)
+}
+
+/// The sign-in kept for the login `r` names ([`keep_sign_in`]), `None` when there is none.
+pub fn sign_in(keep: &Keep, r: &Ref) -> Result<Option<Zeroizing<String>>, String> {
+    if !list().iter().any(|l| l.site == r.site && l.account == r.account) {
+        return Ok(None);
+    }
+    keep.find(Slot::SignIn, &r.site, &r.account)
+}
+
+/// Lets go of the sign-in kept for the login `r` names; the login stays.
+pub fn forget_sign_in(keep: &Keep, r: &Ref) {
+    keep.delete(Slot::SignIn, &r.site, &r.account);
 }
 
 /// Keeps the one-time code key for a login: the `otpauth://` address or the secret the site showed when two-step
@@ -737,7 +770,8 @@ impl Ref {
     /// [`fits_page`](Ref::fits_page) at fill time, where the page's full origin is known.
     pub fn fits(&self, host: &str) -> bool {
         let site = unbrowse_learn::identity::site_of(&self.site);
-        !site.is_empty() && unbrowse_learn::identity::site_of(host) == site
+        let there = unbrowse_learn::identity::site_of(host);
+        !site.is_empty() && (there == site || official_twins(&site, &there))
     }
 
     /// The port a port-scoped reference names (`example.org:2083` -> 2083), if any.
@@ -756,6 +790,28 @@ impl Ref {
     }
 }
 
+/// Sites one owner runs as one, a login of any of which the others take: a company's regional twins and its sign-in
+/// domain. Written by hand from what each publishes, never guessed from a shared name: a domain that only looks like
+/// one of these (`amazon.xyz`) is another site, and so is every site not listed.
+const OFFICIAL_SITES: &[&[&str]] = &[
+    &["amazon.com", "amazon.co.uk", "amazon.de", "amazon.fr", "amazon.it", "amazon.es", "amazon.ca", "amazon.co.jp", "amazon.com.au", "amazon.in", "amazon.sg"],
+    &["google.com", "youtube.com"],
+    &["microsoft.com", "live.com", "office.com", "microsoftonline.com"],
+    &["apple.com", "icloud.com"],
+];
+
+/// Whether sites `a` and `b` (registrable domains) are two of one official set.
+fn official_twins(a: &str, b: &str) -> bool {
+    OFFICIAL_SITES.iter().any(|set| set.contains(&a) && set.contains(&b))
+}
+
+/// The login a `vault:ask:<site>:<account>` reference names: one the agent fills as it would `vault:<site>:<account>`,
+/// and that the owner is asked to add, in their window, when the vault doesn't hold it. Never a new login or a code.
+pub fn ask_ref(s: &str) -> Option<Ref> {
+    let rest = s.trim().strip_prefix("vault:ask:")?;
+    Ref::parse(&format!("vault:{rest}")).filter(|r| !r.new && !r.code)
+}
+
 /// The secret `r` names, for the node to type or send itself: the login's password, or its one-time code as of now.
 /// A `vault:new:` login that isn't in the vault yet gets its derived password here, and is kept by [`keep_new`] once
 /// that password went in.
@@ -767,14 +823,65 @@ pub fn secret_for(keep: &Keep, keys: &dyn KeyStore, r: &Ref) -> Result<Zeroizing
         let key = unbrowse_core::CodeKey::parse(&key).ok_or("the kept one-time code key no longer reads")?;
         return Ok(Zeroizing::new(key.now().to_string()));
     }
-    if list().iter().any(|l| l.site == r.site && l.account == r.account) {
+    if let Some(l) = list().into_iter().find(|l| l.site == r.site && l.account == r.account) {
+        // A stored login whose secret the vault no longer holds (one an older build kept in the system's keystore) is
+        // given its password back from the login keychain when the keychain has it.
+        if l.kind != "derived" && keep.find(Slot::Password, &r.site, &r.account)?.is_none() {
+            if let Some(password) = from_login_keychain(keep, r, true)? {
+                return Ok(password);
+            }
+        }
         return reveal(keep, keys, &r.site, &r.account);
     }
     if !r.new {
-        return Err(format!("{} isn't in the vault: the owner adds it in the Unbrowse app (Vault)", r.name()));
+        return from_login_keychain(keep, r, false)?.ok_or_else(|| missing(r));
     }
     let root = RootKey::load(keys).map_err(|e| e.to_string())?;
     Ok(derived(&root, &r.site, &r.account, next_counter(&list(), &r.site), DERIVATION))
+}
+
+/// A password the vault doesn't hold, from the owner's login keychain (`keychain_logins`, `vault.from-login-keychain`),
+/// kept in the vault as it is used: sealed under the node's key before it goes anywhere, so the keychain is asked for
+/// each login once and every later use is the vault's. `listed`: the vault lists the login already and has lost its
+/// password (an older build kept it in the system's keystore), so only the password is sealed, under the login it has.
+/// `None` when the keychain lists no such login. Its callers have already held the login to its own site
+/// (`Ref::fits_page` for a page, `fill_inputs`' checks for a route).
+fn from_login_keychain(keep: &Keep, r: &Ref, listed: bool) -> Result<Option<Zeroizing<String>>, String> {
+    let Some(saved) = crate::keychain_logins::find(&r.site, &r.account) else { return Ok(None) };
+    let Some(password) = crate::keychain_logins::password(&saved)? else { return Ok(None) };
+    if password.is_empty() {
+        return Ok(None);
+    }
+    if !listed {
+        add(keep, &r.site, &r.account, "stored", Some(&password), "Login keychain")?;
+        return Ok(Some(password));
+    }
+    keep.put(Slot::Password, &r.site, &r.account, &password)?;
+    store::log_activity(&Activity {
+        at: store::now(),
+        who: "Login keychain".into(),
+        site: r.site.clone(),
+        what: "Gave a login back the password it had lost".into(),
+        kind: "vault".into(),
+        result: "done".into(),
+        ms: None,
+        unb: None,
+        tx: None,
+        note: None,
+    });
+    Ok(Some(password))
+}
+
+/// Takes `account` on `site` from the login keychain into the vault now, on the owner's word (`vault keychain take`),
+/// rather than on its first use.
+pub fn take_from_login_keychain(keep: &Keep, site: &str, account: &str) -> Result<Login, String> {
+    let r = Ref::parse(&format!("vault:{site}:{account}")).ok_or("enter the site's address and the account, like github.com me")?;
+    let listed = list().iter().any(|l| l.site == r.site && l.account == r.account);
+    if listed && keep.find(Slot::Password, &r.site, &r.account)?.is_some() {
+        return Err(format!("{} is already in the vault", r.name()));
+    }
+    from_login_keychain(keep, &r, listed)?.ok_or_else(|| format!("the login keychain lists no web login for {} on {}", r.account, r.site))?;
+    list().into_iter().find(|l| l.site == r.site && l.account == r.account).ok_or_else(|| "the login didn't stay in the vault".into())
 }
 
 /// The secret `r` names, when the vault holds one: `None` for a stored login whose secret isn't sealed here (one an
@@ -783,11 +890,25 @@ pub fn secret_for(keep: &Keep, keys: &dyn KeyStore, r: &Ref) -> Result<Zeroizing
 pub fn held_secret(keep: &Keep, keys: &dyn KeyStore, r: &Ref) -> Result<Option<Zeroizing<String>>, String> {
     match list().into_iter().find(|l| l.site == r.site && l.account == r.account) {
         Some(l) if l.kind != "derived" && !r.code => keep.find(Slot::Password, &r.site, &r.account),
-        _ => secret_for(keep, keys, r).map(Some),
+        Some(_) => secret_for(keep, keys, r).map(Some),
+        // Nothing held: never the login keychain, which would ask the owner for a password only to hide it.
+        None => Ok(None),
     }
 }
 
-/// Keeps the login a `vault:new:` reference made, once its password was typed: a fill that failed leaves nothing.
+/// What an agent is told when it names a login the vault doesn't hold: it can make one itself where it is signing up,
+/// and how, or ask the owner for one that already exists (`vault:ask:`), who types it in their window.
+fn missing(r: &Ref) -> String {
+    format!(
+        "{name} isn't in the vault. If the account already exists, fill the password box with vault:ask:{site}:{account} instead: the node asks the owner to type it in the Unbrowse window, keeps it in the vault and types it itself, and you never see it. To make this account new, on its sign-up page fill the password box with vault:new:{site}:{account}: the node makes the password, types it, and keeps the login once the site accepts the sign-up.",
+        name = r.name(),
+        site = r.site,
+        account = r.account
+    )
+}
+
+/// Keeps the login a `vault:new:` reference made, once the site accepted the sign-up (`browse::sign_ups_accepted`):
+/// a fill that failed, or a sign-up the site never accepted, leaves nothing.
 pub fn keep_new(keep: &Keep, r: &Ref, who: &str) -> Result<(), String> {
     if r.new && !list().iter().any(|l| l.site == r.site && l.account == r.account) {
         add(keep, &r.site, &r.account, "derived", None, who)?;
@@ -985,6 +1106,9 @@ pub struct Imported {
     pub codes: usize,
     /// Already in the vault, or in the file twice: the vault's own is kept.
     pub known: usize,
+    /// In the vault with no password it can read (an older build kept it in the system's keystore): the export's
+    /// password now fills it.
+    pub restored: usize,
     pub skipped: Vec<Skipped>,
 }
 
@@ -1260,8 +1384,16 @@ pub fn import(keep: &Keep, text: &str, who: &str, apps: Apps) -> Result<Imported
     let mut all = list();
     let mut done = Imported::default();
     for l in logins {
-        if all.iter().any(|k| k.site == l.site && k.account == l.account) {
-            done.known += 1;
+        if let Some(had) = all.iter().find(|k| k.site == l.site && k.account == l.account) {
+            // A stored login whose password the vault can't read (one an older build kept in the system's keystore,
+            // which `vault.unlock-once` never reads) isn't in the vault in any way that fills a page: the export's
+            // password is sealed for it, under the login it already has.
+            let unreadable = had.kind == "stored" && matches!(keep.find(Slot::Password, &l.site, &l.account), Ok(None));
+            if unreadable && keep.put(Slot::Password, &l.site, &l.account, &l.password).is_ok() {
+                done.restored += 1;
+            } else {
+                done.known += 1;
+            }
             continue;
         }
         if keep.put(Slot::Password, &l.site, &l.account, &l.password).is_err() {
@@ -1285,13 +1417,13 @@ pub fn import(keep: &Keep, text: &str, who: &str, apps: Apps) -> Result<Imported
         at: store::now(),
         who: who.into(),
         site: String::new(),
-        what: format!("Imported {} logins", done.added),
+        what: format!("Imported {} logins", done.added + done.restored),
         kind: "vault".into(),
         result: "done".into(),
         ms: None,
         unb: None,
         tx: None,
-        note: (done.known > 0).then(|| format!("{} already in the vault", done.known)),
+        note: (done.known + done.restored > 0).then(|| format!("{} already in the vault, {} of them given back the password they had lost", done.known + done.restored, done.restored)),
     });
     Ok(done)
 }
@@ -1354,6 +1486,61 @@ mod tests {
         assert!(removed.is_err(), "the index refused it");
         assert!(list().iter().any(|l| l.site == "shop.example"));
         assert_eq!(keep.get(Slot::Password, "shop.example", "me").unwrap().as_str(), "kept");
+    }
+
+    /// A login the vault doesn't hold is not always the owner's to add: the error names the reference that makes it,
+    /// with the site and account the agent asked for, and that reference then works.
+    #[test]
+    fn an_unknown_logins_error_names_the_way_to_create_it() {
+        let keys = with_login();
+        let keep = sealed_apart(&keys);
+        let said = secret_for(&keep, &keys, &Ref::parse("vault:new-shop.example:someone").unwrap()).unwrap_err();
+        assert!(said.contains("vault:new:new-shop.example:someone"), "{said}");
+        assert!(said.contains("sign-up") && said.contains("already exists"), "{said}");
+        assert!(said.contains("vault:ask:new-shop.example:someone"), "an existing account's login is asked of the owner: {said}");
+        let named = Ref::parse("vault:new:new-shop.example:someone").unwrap();
+        assert!(secret_for(&keep, &keys, &named).is_ok(), "the reference the error names makes the login's password");
+    }
+
+    /// A login the vault doesn't hold but the login keychain does is read from the keychain on its first use and kept
+    /// in the vault, so its next use reads the vault: the keychain is asked for it once. One the owner refused is
+    /// missing, and the vault keeps nothing for it; the hiding pass never asks the keychain at all.
+    #[test]
+    fn a_login_keychain_login_is_kept_in_the_vault_on_first_use() {
+        let keys = with_login();
+        let keep = sealed_apart(&keys);
+        crate::keychain_logins::keep_in_test(&[("accounts.keychain-site.example", "me@example.com", Some("from-the-keychain")), ("keychain-site.example", "denied", None)]);
+        let r = Ref::parse("vault:keychain-site.example:me@example.com").unwrap();
+        assert!(held_secret(&keep, &keys, &r).unwrap().is_none(), "hiding never reads the keychain");
+        assert!(!list().iter().any(|l| l.account == "me@example.com"));
+        assert_eq!(secret_for(&keep, &keys, &r).unwrap().as_str(), "from-the-keychain");
+        let kept = list().into_iter().find(|l| l.site == "keychain-site.example" && l.account == "me@example.com").expect("kept in the vault");
+        assert_eq!(kept.kind, "stored");
+        crate::keychain_logins::keep_in_test(&[]);
+        assert_eq!(secret_for(&keep, &keys, &r).unwrap().as_str(), "from-the-keychain", "the second use is the vault's");
+        crate::keychain_logins::keep_in_test(&[("keychain-site.example", "denied", None)]);
+        let refused = secret_for(&keep, &keys, &Ref::parse("vault:keychain-site.example:denied").unwrap()).unwrap_err();
+        assert!(refused.contains("said no"), "{refused}");
+        assert!(!list().iter().any(|l| l.account == "denied"));
+    }
+
+    /// A login the vault lists but lost the password of (an older build kept it in the system's keystore) gets it back
+    /// from the login keychain on its next use, under the same login: no second login, and the next use is the vault's.
+    #[test]
+    fn a_login_that_lost_its_password_gets_it_back_from_the_login_keychain() {
+        let keys = with_login();
+        let keep = sealed_apart(&keys);
+        let lost = Login { site: "lost-pw.example".into(), account: "me".into(), kind: "stored".into(), counter: 0, created: 0, code: false, derivation: DERIVATION };
+        let mut all = list();
+        all.push(lost);
+        store::write_json(&path(), &unbrowse_files::VAULT, &all).unwrap();
+        let r = Ref::parse("vault:lost-pw.example:me").unwrap();
+        assert!(secret_for(&keep, &keys, &r).unwrap_err().contains("import the login again"), "nothing in the keychain: still lost");
+        crate::keychain_logins::keep_in_test(&[("lost-pw.example", "me", Some("found-again"))]);
+        assert_eq!(secret_for(&keep, &keys, &r).unwrap().as_str(), "found-again");
+        assert_eq!(list().iter().filter(|l| l.site == "lost-pw.example").count(), 1, "the same login, not a second");
+        crate::keychain_logins::keep_in_test(&[]);
+        assert_eq!(secret_for(&keep, &keys, &r).unwrap().as_str(), "found-again", "the next use is the vault's");
     }
 
     /// Two accounts on one site are two logins: one found out says nothing of the other, and rotating one moves it past
@@ -1516,6 +1703,29 @@ mod tests {
         assert!(read_export(r#"{"encrypted":true,"encKeyValidation_DO_NOT_EDIT":"x","data":"y"}"#).unwrap_err().contains("encrypted"));
         assert_eq!(read_export(r#"{"credentialId":"x","relyingParty":"a.example","privateKey":"k"}"#).unwrap().0, []);
         assert!(is_json(" {") && is_json("\u{feff}[") && !is_json("url,username,password\n"));
+    }
+
+    /// A login an older build kept in the system's keystore is in the index with no password the vault can read: an
+    /// import used to skip it as "already in the vault", so re-importing the owner's export never repaired it. Now the
+    /// export's password fills it, once; a derived login (its password is made, never stored) is left as it is.
+    #[test]
+    fn an_import_gives_back_a_password_the_vault_could_not_read() {
+        let home = crate::store::scratch_home("vault-import-restores");
+        let keys = unbrowse_core::MemoryStore::default();
+        unbrowse_core::load_or_create(&keys).unwrap();
+        let keep = Keep::sealed(&keys, &home).unwrap();
+        let old = |site: &str, kind: &str| Login { site: site.into(), account: "me".into(), kind: kind.into(), counter: 0, created: 1, code: false, derivation: DERIVATION };
+        store::write_json(&path(), &unbrowse_files::VAULT, &vec![old("lost.example", "stored"), old("made.example", "derived")]).unwrap();
+        assert!(keep.find(Slot::Password, "lost.example", "me").unwrap().is_none(), "the older build's password isn't readable");
+        let csv = "name,url,username,password,note\nLost,https://lost.example/login,me,pw-lost,\nMade,https://made.example/,me,pw-made,\nNew,https://new.example/,me,pw-new,\n";
+        let done = import(&keep, csv, "You", &mut |_: &App| None).unwrap();
+        assert_eq!((done.added, done.restored, done.known), (1, 1, 1), "new added, the lost one restored, the derived one kept");
+        assert_eq!(keep.get(Slot::Password, "lost.example", "me").unwrap().as_str(), "pw-lost");
+        assert!(keep.find(Slot::Password, "made.example", "me").unwrap().is_none(), "a derived login is given no stored password");
+        assert_eq!(list().len(), 3, "the restored login is the one already listed, not a second");
+        let again = import(&keep, csv, "You", &mut |_: &App| None).unwrap();
+        assert_eq!((again.added, again.restored, again.known), (0, 0, 3), "once restored, it is simply in the vault");
+        let _ = std::fs::remove_dir_all(home);
     }
 
     /// External security review round 3, 2026-11-04. Any site can claim an app on its own page, so the owner sees each
@@ -1709,6 +1919,20 @@ mod tests {
         assert_eq!((p.site.as_str(), p.account.as_str(), p.port()), ("example.org:2083", "admin", Some(2083)));
         assert_eq!(p.name(), "vault:example.org:2083:admin");
         assert_eq!(Ref::parse("vault:github.com:me").unwrap().port(), None);
+    }
+
+    /// `vault:ask:` names the same login as `vault:`, for the owner to add when the vault lacks it: it fills as the
+    /// plain reference, and never asks for a new login or a code.
+    #[test]
+    fn an_ask_reference_names_the_login_it_asks_the_owner_for() {
+        let r = ask_ref("vault:ask:Ticketing.example:me@x.com").unwrap();
+        assert_eq!((r.site.as_str(), r.account.as_str(), r.new, r.code), ("ticketing.example", "me@x.com", false, false));
+        assert_eq!(r.name(), "vault:ticketing.example:me@x.com");
+        assert_eq!(ask_ref("vault:ask:example.org:2083:admin").map(|r| r.name()), Some("vault:example.org:2083:admin".into()));
+        assert_eq!(ask_ref("vault:ask:new:shop.example:me"), None, "a new login is the node's to make, not the owner's");
+        assert_eq!(ask_ref("vault:ask:code:shop.example:me"), None, "a code is filled from its key");
+        assert_eq!(ask_ref("vault:shop.example:me"), None);
+        assert_eq!(ask_ref("vault:ask:shop.example:"), None);
     }
 
     /// A route whose steps are at `urls`, each taking the secret input `pw` (the last is the target).
@@ -1998,6 +2222,31 @@ mod tests {
         // A plain login fills any page on its site, any port.
         let g = Ref::parse("vault:github.com:me").unwrap();
         assert!(g.fits_page("https://github.com/") && g.fits_page("https://api.github.com:8443/"));
+    }
+
+    /// A login saved for one of a site's official domains (a regional twin: amazon.com and amazon.co.uk) fills on the
+    /// site's other official domains, over https, at the fill and on a route's requests; a look-alike of either, or a
+    /// site that merely shares a word with it, still gets nothing.
+    #[test]
+    fn a_login_saved_for_one_official_domain_fills_on_the_sites_other_official_domains() {
+        let com = Ref::parse("vault:amazon.com:me").unwrap();
+        for twin in ["amazon.co.uk", "www.amazon.de", "smile.amazon.co.jp", "amazon.com.au"] {
+            assert!(com.fits(twin), "{twin} is an official Amazon domain");
+        }
+        assert!(com.fits_page("https://www.amazon.co.uk/ap/signin") && !com.fits_page("http://www.amazon.co.uk/ap/signin"), "https only, as on its own site");
+        let uk = Ref::parse("vault:amazon.co.uk:me").unwrap();
+        assert!(uk.fits("amazon.com") && uk.fits("amazon.de"), "the other way round too");
+        for fake in ["amazon.co.uk.evil.example", "amazon.xyz", "amazon-co-uk.com", "amazoon.com", "notamazon.de", "amazon.evil.example", "co.uk"] {
+            assert!(!com.fits(fake) && !uk.fits(fake), "{fake} is no official Amazon domain");
+        }
+        let google = Ref::parse("vault:google.com:me").unwrap();
+        assert!(google.fits("accounts.youtube.com") && !google.fits("youtube.com.evil.example"));
+        let github = Ref::parse("vault:github.com:me").unwrap();
+        assert!(!github.fits("amazon.com") && !com.fits("github.com"), "a family stays its own");
+        assert!(!github.fits("githubusercontent.com"), "a site outside every family has only its own site");
+
+        assert!(may_carry(&com, "https://www.amazon.co.uk/ap/signin") && may_carry(&com, "wss://smile.amazon.de/socket"), "a route's request to a twin");
+        assert!(!may_carry(&com, "https://www.amazon.co.uk.evil.example/ap/signin") && !may_carry(&com, "http://www.amazon.co.uk/"), "a look-alike's request, or one in the clear");
     }
 
     #[test]

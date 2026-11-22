@@ -134,6 +134,15 @@ function toCall<T>(r: W.CallResult): CallResult<T> {
 
 const inputStrings = (inputs: Record<string, string | number | boolean>) => Object.fromEntries(Object.entries(inputs).map(([k, v]) => [k, String(v)]));
 
+/** The browse command a reply's `next` names (`{tool: "unbrowse_browse", args: {do: [...]}}`); a node from before `next`
+ * was a call sent the command bare. */
+function browseCommand(next: unknown): string[] | null {
+  const call = next as { tool?: unknown; args?: { do?: unknown } } | null | undefined;
+  const command = Array.isArray(next) ? next : call?.tool === "unbrowse_browse" ? call.args?.do : null;
+  const words = Array.isArray(command) ? command.filter((x: unknown): x is string => typeof x === "string") : [];
+  return words.length ? words : null;
+}
+
 function toLearned(r: W.LearnedRoute): LearnedRoute {
   return { routeId: r.route_id, what: r.what ?? "", inputs: r.inputs ?? [], write: r.write === true };
 }
@@ -264,6 +273,7 @@ export class UnbrowseNode {
       node: r.node,
       ...(r.browser !== undefined && { browser: r.browser }),
       ...(typeof r.browser_fetch === "boolean" && { browserFetch: r.browser_fetch }),
+      ...(r.owner !== undefined && { owner: r.owner }),
     };
   }
 
@@ -299,10 +309,12 @@ export class UnbrowseNode {
    * A page that asks for a person, met with your own eyes: `look` shows it as a picture (`image`, at `w` x `h` CSS
    * pixels) with its text and `asks` (whether it still asks), and `click`, `drag`, `type`, `press`, `wait` or `done`
    * take one step. Every reply is the page again, so you see what your step did; `asks` is the page's own answer.
+   * For a short challenge timer, `quick: true` lands a hand step with no picture after it, and `steps` lands a batch of
+   * hand steps (`{action, x, y, ...}`) over one browser attachment (it overrides `action`); `look` afterwards.
    */
   async challenge(
     action: "look" | "click" | "drag" | "type" | "press" | "wait" | "done",
-    opts: { url?: string; site?: string; session?: string; x?: number; y?: number; toX?: number; toY?: number; text?: string; key?: "Enter" | "Tab" | "Escape" | "Backspace"; ms?: number } = {},
+    opts: { url?: string; site?: string; session?: string; x?: number; y?: number; toX?: number; toY?: number; text?: string; key?: "Enter" | "Tab" | "Escape" | "Backspace"; ms?: number; quick?: boolean; steps?: Array<Record<string, unknown>> } = {},
   ) {
     return this.primitive("unbrowse_challenge", {
       action,
@@ -316,6 +328,8 @@ export class UnbrowseNode {
       text: opts.text,
       key: opts.key,
       ms: opts.ms,
+      quick: opts.quick,
+      steps: opts.steps,
     });
   }
 
@@ -366,11 +380,21 @@ export class UnbrowseNode {
         throw errorFor("this node is from before do's browser option, so it can't keep a call off its browser: update the node, or leave browser unset", 0, "unsupported");
       }
     }
-    const r = await this.primitive(
-      "unbrowse_do",
-      { goal, url: opts.url ?? "", inputs: inputStrings(opts.inputs ?? {}), session: this.session, ...(opts.browser && opts.browser !== "auto" && { browser: opts.browser }), ...(opts.fields?.length && { fields: opts.fields }) },
-      opts.signal,
-    );
+    const waitMs = opts.waitMs === undefined ? {} : { wait_ms: Math.trunc(opts.waitMs) };
+    let r = opts.ask
+      ? await this.primitive("unbrowse_do", { ask: opts.ask, session: this.session, ...waitMs }, opts.signal)
+      : await this.primitive(
+          "unbrowse_do",
+          { goal, url: opts.url ?? "", inputs: inputStrings(opts.inputs ?? {}), session: this.session, ...(opts.browser && opts.browser !== "auto" && { browser: opts.browser }), ...(opts.fields?.length && { fields: opts.fields }), ...waitMs },
+          opts.signal,
+        );
+    // A caller that said no wait is answered as before: the ask is collected while the node still works on it, within
+    // the client's own wait.
+    const until = Date.now() + this.line.timeoutMs;
+    while (opts.waitMs === undefined && r.how === "working" && r.ask && Date.now() < until) {
+      r = await this.primitive("unbrowse_do", { ask: r.ask, session: this.session }, opts.signal);
+    }
+    if (r.how === "working") return { how: "working", ask: r.ask ?? "", phase: r.phase ?? "" };
     // One url asked is never answered as several pages.
     if (r.how === "pages") throw errorFor("the node answered several pages to one", 0, "unsupported");
     const routeFailed = toFailure(r.route_failed);
@@ -388,14 +412,22 @@ export class UnbrowseNode {
    * first, so a route learned there answers the site's other pages (another coin's, item's or user's) in one call
    * each. Each answer is cut to how it went, its time and its data; a page that needs clicks or typing says so
    * (`how: "browse"`) and isn't opened: ask `do` for it alone. At most 100 pages.
+   *
+   * The batch is one ask (`ask`) and each page an ask of its own (each page's `ask`). Answered within `waitMs` (the
+   * node's 40 s unsaid) while pages are still being learned, it says `stillWorking`, with the pages answered so far and
+   * the rest `how: "working"`, listed in `pending`: `doPages("", [], { ask })` collects the whole batch, and
+   * `do("", { ask: page.ask })` that page alone.
    */
   async doPages<T = Json>(goal: string, pages: PageAsk[], opts: DoPagesOptions = {}): Promise<PagesResult<T>> {
     const asked = pages.map((p) => (typeof p === "string" ? { url: p } : { url: p.url, ...(p.goal && { goal: p.goal }), ...(p.inputs && { inputs: inputStrings(p.inputs) }) }));
-    const r = await this.primitive(
-      "unbrowse_do",
-      { goal, pages: asked, inputs: inputStrings(opts.inputs ?? {}), session: this.session, ...(opts.browser && opts.browser !== "auto" && { browser: opts.browser }), ...(opts.fields?.length && { fields: opts.fields }) },
-      opts.signal,
-    );
+    const waitMs = opts.waitMs === undefined ? {} : { wait_ms: Math.trunc(opts.waitMs) };
+    const r = opts.ask
+      ? await this.primitive("unbrowse_do", { ask: opts.ask, session: this.session, ...waitMs }, opts.signal)
+      : await this.primitive(
+          "unbrowse_do",
+          { goal, pages: asked, inputs: inputStrings(opts.inputs ?? {}), session: this.session, ...(opts.browser && opts.browser !== "auto" && { browser: opts.browser }), ...(opts.fields?.length && { fields: opts.fields }), ...waitMs },
+          opts.signal,
+        );
     if (r.how !== "pages") throw errorFor("this node is from before do's pages: update it, or ask for each page with do", 0, "unsupported");
     return {
       ms: r.ms,
@@ -410,9 +442,12 @@ export class UnbrowseNode {
         error: p.error ?? null,
         why: p.why ?? null,
         routeFailed: toFailure(p.route_failed),
+        ask: p.ask ?? null,
       })),
       fields: Object.fromEntries(Object.entries(r.fields).map(([id, f]) => [id, f.map((x) => ({ path: x.path, kind: x.kind, ...(x.example !== undefined && { example: x.example }) }))])),
       pending: r.pending ?? [],
+      ask: r.ask ?? null,
+      stillWorking: r.outcome === "still_working",
     };
   }
 
@@ -549,7 +584,7 @@ export class UnbrowseNode {
       owner: r.owner === "done" || r.owner === "declined" || r.owner === "no_answer" ? r.owner : null,
       url: str(r.url),
       needsOwner: r.needs_owner === true,
-      next: Array.isArray(r.next) ? r.next.filter((x: unknown): x is string => typeof x === "string") : null,
+      next: browseCommand(r.next),
     };
   }
 

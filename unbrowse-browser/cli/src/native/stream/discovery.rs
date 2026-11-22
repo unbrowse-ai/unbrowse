@@ -1,6 +1,8 @@
 use serde_json::{json, Value};
+use std::path::Path;
 
 use crate::connection::get_socket_dir;
+use crate::session_files::SessionFile;
 
 pub(super) fn discover_sessions() -> String {
     let dir = get_socket_dir();
@@ -13,15 +15,15 @@ pub(super) fn discover_sessions() -> String {
             if let Some(session) = name_str.strip_suffix(".stream") {
                 if let Ok(port_str) = std::fs::read_to_string(entry.path()) {
                     if let Ok(port) = port_str.trim().parse::<u16>() {
-                        // A pid alone can be any process by now; a session answers on its socket.
-                        if crate::connection::daemon_ready(session) {
-                            let engine_path = dir.join(format!("{}.engine", session));
+                        let pid_path = SessionFile::Pid.path_in(&dir, session);
+                        if is_process_alive(&pid_path) {
+                            let engine_path = SessionFile::Engine.path_in(&dir, session);
                             let engine = std::fs::read_to_string(&engine_path)
                                 .ok()
                                 .filter(|s| !s.trim().is_empty())
                                 .unwrap_or_else(|| "chrome".to_string());
 
-                            let provider_path = dir.join(format!("{}.provider", session));
+                            let provider_path = SessionFile::Provider.path_in(&dir, session);
                             let provider = std::fs::read_to_string(&provider_path)
                                 .ok()
                                 .filter(|s| !s.trim().is_empty());
@@ -53,7 +55,7 @@ pub(super) fn discover_sessions() -> String {
 }
 
 fn read_extensions_metadata(dir: &std::path::Path, session: &str) -> Vec<Value> {
-    let ext_path = dir.join(format!("{}.extensions", session));
+    let ext_path = SessionFile::Extensions.path_in(dir, session);
     let ext_str = match std::fs::read_to_string(&ext_path) {
         Ok(s) => s,
         Err(_) => return Vec::new(),
@@ -94,4 +96,24 @@ fn read_extensions_metadata(dir: &std::path::Path, session: &str) -> Vec<Value> 
             Some(ext)
         })
         .collect()
+}
+
+fn is_process_alive(pid_path: &Path) -> bool {
+    let pid_str = match std::fs::read_to_string(pid_path) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let pid: u32 = match pid_str.trim().parse() {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+    #[cfg(unix)]
+    {
+        unsafe { libc::kill(pid as i32, 0) == 0 }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = pid;
+        true
+    }
 }

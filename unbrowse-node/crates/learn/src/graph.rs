@@ -83,6 +83,21 @@ pub enum Class {
     Fresh { value: String, id: String, clock: crate::fresh::Clock },
     /// A fact about the file the caller passes as input `name` (its size, its file name), read from that file.
     File { name: String, of: crate::upload::FileFact },
+    /// A longer value the page's code wrote a session cookie into (a visitor id inside a JSON parameter): `template` is
+    /// the value with [`COOKIE_IN`] where the cookie's value stood. Every call writes the caller's own cookie `name`
+    /// there, and nothing where its jar holds none, as a page's code with no id yet does. The walker's own id never
+    /// rides in the route.
+    CookieIn { template: String, name: String },
+}
+
+/// Where a session cookie's value stands in a [`Class::CookieIn`] template.
+pub const COOKIE_IN: &str = "{cookie}";
+
+impl Class {
+    /// A `CookieIn` template written for a call: the cookie's value where it stood, nothing where none is held.
+    pub fn cookie_in(template: &str, value: Option<&str>) -> String {
+        template.replace(COOKIE_IN, value.unwrap_or_default())
+    }
 }
 
 impl Step {
@@ -163,6 +178,21 @@ pub struct Step {
     /// site's menu, its settings). That shape still says a later page is this page, but the script is never the answer.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub reads_page: bool,
+    /// What the walk read for a value this step takes from an earlier reply, by the place the value fills: the value
+    /// a call sends where a fresh answer does not hold the place (`Step::fallback`). A page's own load is what a
+    /// browser would have had too, so a value of that load the site leaves out of a later answer (an experiment's
+    /// code, a visitor's id, a piece of the state a page renders) is not the call failing. Only a value the walk
+    /// really read, never one made up, and only one that holds no word the page was asked: a caller's word is never
+    /// sent as the walk's.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fallbacks: Vec<(Loc, String)>,
+}
+
+impl Step {
+    /// What the walk read for the value this step sends at `loc`, where a fresh answer does not hold its place.
+    pub fn fallback(&self, loc: &Loc) -> Option<&str> {
+        self.fallbacks.iter().find(|(at, _)| at == loc).map(|(_, value)| value.as_str())
+    }
 }
 
 /// A caller's value sitting inside a longer value of a request: where, whose, and as what text.
@@ -470,6 +500,51 @@ pub struct Graph {
     /// (`body::to_graph`), for a step the body asks for as a page.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub visited: Vec<usize>,
+    /// Where `scripts`, `api` and `page_html` were left when this graph was read without them (`set_apart`): the
+    /// route file they are still in. Never written: a graph that runs or is saved takes them back first (`rejoined`).
+    #[serde(skip)]
+    pub apart: Option<std::sync::Arc<std::path::PathBuf>>,
+}
+
+/// What a graph read without its page's code is given back from: the route file at the path, read whole. The node
+/// sets it once (`set_rejoin`); with none set a graph read apart stays without them.
+pub type Rejoin = fn(&std::path::Path) -> Option<Graph>;
+static REJOIN: std::sync::OnceLock<Rejoin> = std::sync::OnceLock::new();
+
+/// Sets how a graph read apart is given its page's code back (`Graph::rejoined`). The first setting holds.
+pub fn set_rejoin(f: Rejoin) {
+    let _ = REJOIN.set(f);
+}
+
+impl Graph {
+    /// Leaves out the page's code a route carries for its signing bridge (`scripts`, the answers the page read and the
+    /// page itself), noting that they are still in the route file at `at`. They are most of a route's bytes (megabytes
+    /// on a site that signs its calls), and nothing that lists, ranks or shows routes reads them: only running the
+    /// graph does. Whether anything was left out.
+    pub fn set_apart(&mut self, at: &std::path::Path) -> bool {
+        if self.scripts.is_empty() && self.api.is_empty() && self.page_html.is_none() {
+            return false;
+        }
+        self.scripts = Vec::new();
+        self.api = Vec::new();
+        self.page_html = None;
+        self.apart = Some(std::sync::Arc::new(at.to_path_buf()));
+        true
+    }
+
+    /// The page's code back on a graph read without it (`set_apart`), from its route file: what running the graph, or
+    /// keeping it again, needs. A graph read whole is left as it is. Whether the graph is whole after.
+    pub fn rejoined(&mut self) -> bool {
+        let Some(at) = self.apart.take() else { return true };
+        let Some(whole) = REJOIN.get().and_then(|f| f(&at)) else {
+            self.apart = Some(at);
+            return false;
+        };
+        self.scripts = whole.scripts;
+        self.api = whole.api;
+        self.page_html = whole.page_html;
+        true
+    }
 }
 
 /// The origin (scheme and host, and a port that isn't the scheme's) of `page`, if it is a web address.
@@ -488,6 +563,8 @@ pub enum DoorKind {
     Radware,
     DataDome,
     PerimeterX,
+    /// Vercel's Security Checkpoint: a 429 with a JS challenge that issues `_vcrcs` once a browser runs it.
+    Vercel,
     /// The site's own scripts check the caller, with a value this engine produces (`Class::Script`): no vendor's
     /// wall. A 403 from one of these is diagnosed by the replay's value provenance, not by a door's cookie.
     OwnSigning,
@@ -503,6 +580,7 @@ impl DoorKind {
             DoorKind::Radware => Some("reese84"),
             DoorKind::DataDome => Some("datadome"),
             DoorKind::PerimeterX => Some("_px3"),
+            DoorKind::Vercel => Some("_vcrcs"),
             DoorKind::OwnSigning | DoorKind::Unknown => None,
         }
     }
@@ -544,6 +622,11 @@ pub struct Door {
     pub ttl: Option<u64>,
     /// What earns a fresh one.
     pub earn: Earn,
+    /// Where the wall stood in the walk: the address whose answer was the door. The route never asks it over its own
+    /// wire (a door is passed by a page's code, not by a request), and it is kept as the step the node's engine runs
+    /// again when the pass must be earned again: the page at this address, let run, earns it as the walk's did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at: Option<String>,
 }
 
 fn refused() -> Vec<u16> {
@@ -561,7 +644,7 @@ impl Door {
             (refused || challenge) && Door::kind_of(e).is_some()
         })?;
         let kind = Door::kind_of(gated).or_else(|| trace.exchanges.iter().find_map(Door::kind_of))?;
-        Some(Door::classified(trace, kind))
+        Some(Door { at: Some(gated.url.to_string()), ..Door::classified(trace, kind) })
     }
 
     /// The wall one answer a call just got belongs to: the same classification, over the response alone. None when
@@ -591,7 +674,7 @@ impl Door {
             k if k.device_bound() => Earn::BrowserOrOwner,
             _ => Earn::Recompute,
         };
-        Door { kind, statuses: refused(), credential, ttl, earn }
+        Door { kind, statuses: refused(), credential, ttl, earn, at: None }
     }
 
     /// The door in a sentence, for a person or an agent reading why a call or a walk stopped: what the wall is, the
@@ -628,7 +711,7 @@ impl Door {
     }
 
     fn names_a_wall_cookie(name: &str) -> bool {
-        matches!(name, "cf_clearance" | "_abck" | "bm_sz" | "reese84" | "datadome" | "_px3" | "_px2")
+        matches!(name, "cf_clearance" | "_abck" | "bm_sz" | "reese84" | "datadome" | "_px3" | "_px2" | "_vcrcs")
     }
 
     /// The class of wall `ex` shows: its headers, its cookies, or the page it served. None when nothing marks a vendor.
@@ -653,6 +736,8 @@ impl Door {
             DoorKind::DataDome
         } else if named("_px3") || named("_px2") || says("px-captcha") {
             DoorKind::PerimeterX
+        } else if named("_vcrcs") || says("vercel security checkpoint") {
+            DoorKind::Vercel
         } else {
             return None;
         })
@@ -851,6 +936,7 @@ pub fn build(traces: &[Trace], is_target: impl Fn(&Exchange) -> bool) -> Result<
                     slots(ex).iter().filter(|s| !bound(&s.loc)).flat_map(|s| held_in(s, &a.inputs)).collect()
                 },
                 fields,
+                fallbacks: Vec::new(),
             }
         })
         .collect();
@@ -981,12 +1067,18 @@ fn is_document(e: &Exchange) -> bool {
 }
 
 /// The pages the goal reads a value from: an identifier it sends that no API response before it carries, only a
-/// page's data on the goal's own site (an item's internal id, embedded in the item's page). Such a page is the
-/// route's to fetch; every other page stays the browser's.
+/// page's data on the goal's own site (an item's internal id, embedded in the item's page), or one a page's redirect
+/// hands over in the address it sends the browser to (a sign-in service's one-time flow id). The goal's own site, not
+/// its host: a sign-in's page on `auth.` hands over what the call to `services.` sends. Such a page is the route's to
+/// fetch; every other page stays the browser's.
 fn pages_read(t: &Trace, goal: usize) -> BTreeSet<usize> {
     let target = &t.exchanges[goal];
     let host = target.url.host_str();
-    let pages: Vec<usize> = (0..goal).filter(|&i| is_document(&t.exchanges[i]) && t.exchanges[i].url.host_str() == host).collect();
+    let on_site = |e: &Exchange| match (e.url.host_str(), host) {
+        (Some(h), Some(g)) => crate::identity::same_site(h, g),
+        _ => false,
+    };
+    let pages: Vec<usize> = (0..goal).filter(|&i| is_document(&t.exchanges[i]) && on_site(&t.exchanges[i])).collect();
     if pages.is_empty() {
         return BTreeSet::new();
     }
@@ -1003,7 +1095,7 @@ fn pages_read(t: &Trace, goal: usize) -> BTreeSet<usize> {
         .filter(|s| find_origin_on(&apis, apis.exchanges.len(), &s.value, host).is_none())
         .filter_map(|s| {
             each.iter()
-                .find(|(_, one)| find_origin_on(one, 1, &s.value, host).is_some_and(|o| matches!(o.at, At::Json { .. } | At::Text { .. })))
+                .find(|(_, one)| find_origin_on(one, 1, &s.value, host).is_some_and(|o| matches!(o.at, At::Json { .. } | At::Text { .. } | At::HeaderQuery { .. })))
                 .map(|(i, _)| *i)
         })
         .collect()
@@ -1569,8 +1661,13 @@ pub fn session_headers(graph: &mut Graph, trace: &Trace) -> Vec<(String, String)
     for step in graph.steps.iter_mut() {
         let mut made = false;
         for f in step.fields.iter_mut() {
-            if let (Loc::Header(_), Class::Unconfirmed { value }) = (&f.loc, &f.class) {
-                if issued(value) {
+            if let (Loc::Header(name), Class::Unconfirmed { value }) = (&f.loc, &f.class) {
+                // A header that only describes the body or the answer wanted (a media type, a coding, a language list)
+                // is the call's own, the same on every call: neither a value the page made (a script may spell the same
+                // type) nor one its session holds. A second walk would find it fixed; one walk is enough to say so.
+                if crate::signing::says_what_the_body_is(name, value) {
+                    f.class = Class::Constant { value: value.clone(), origin: None };
+                } else if issued(value) {
                     f.class = Class::Computed;
                     made = true;
                 }
@@ -1677,6 +1774,39 @@ mod session_header_tests {
         unconfirmed(&mut g);
         assert_eq!(session_headers(&mut g, &kept).len(), 1, "no call issued it: the session's");
         assert!(matches!(field(&g), Some(Class::Minted { .. })));
+    }
+
+    /// A header that only says what the body is, spelled also in a script the page loaded, was not issued for the visit
+    /// and is not the session's: a media type is the same for every call, sent as the call sent it, and the step stays a
+    /// plain one.
+    #[test]
+    fn a_media_type_a_script_also_spells_was_not_issued_for_the_visit() {
+        let mime = "application/x-www-form-urlencoded";
+        let bundle = Exchange {
+            method: "GET".into(),
+            url: "https://cdn.example/app.js".parse().unwrap(),
+            request_headers: vec![],
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(format!(r#"function send(x){{x.setRequestHeader("content-type","{mime}")}}"#)),
+            response_mime: "application/javascript".into(),
+            resource_type: Some("Script".into()),
+            main_frame: None,
+        };
+        let call = Exchange { url: "https://api.example/h5/find/1.0/?q=lamps".parse().unwrap(), request_headers: vec![("content-type".into(), mime.into())], response_body: Some(r#"{"ret":["SUCCESS"]}"#.into()), response_mime: "application/json".into(), resource_type: Some("XHR".into()), ..bundle.clone() };
+        let trace = Trace { exchanges: vec![bundle, call], inputs: vec![] };
+        let mut g = build(std::slice::from_ref(&trace), |e| e.url.path() == "/h5/find/1.0/").expect("a graph");
+        for f in g.steps.iter_mut().flat_map(|s| s.fields.iter_mut()) {
+            if matches!(&f.loc, Loc::Header(h) if h == "content-type") {
+                f.class = Class::Unconfirmed { value: mime.into() };
+            }
+        }
+        session_headers(&mut g, &trace);
+        let step = g.steps.last().unwrap();
+        let class = step.fields.iter().find(|f| matches!(&f.loc, Loc::Header(h) if h == "content-type")).map(|f| f.class.clone());
+        assert_eq!(class, Some(Class::Constant { value: mime.into(), origin: None }), "the call's own, as sent");
+        assert!(!step.needs_browser, "a plain call");
     }
 
     /// A value the page kept in its storage under the same name a request sends is the session's too: the page read
@@ -2019,15 +2149,31 @@ impl Graph {
     /// A later step the page signs takes its whole request from the page, so it needs nothing from an earlier answer
     /// except a value in its address — that is how its call is found among the page's. When every later step that reads
     /// from `n` is one the page signs that way, `n`'s answer is not needed at all.
+    ///
+    /// A value the graph keeps what the walk read for (`Step::fallback`) is sent as the walk read it when a fresh
+    /// answer leaves it out, so a later step that holds one does not need `n`'s answer for it: the walk already said
+    /// what to send.
+    ///
+    /// A step the page signs takes its whole request from the page only where the page makes it. Where the page's code
+    /// makes no call and the step is a plain read (a GET or a HEAD, nothing written), the replay sends it as the route
+    /// builds it, and then every value the route puts in it — its query and its headers as much as its address — is one
+    /// the route has to source: a step the page makes whole is the one that takes nothing but an address value.
     pub fn feeds_later(&self, n: usize) -> bool {
         let Some(ex) = self.steps.get(n).map(|s| s.exchange) else { return false };
+        // A value read from an earlier answer (`Class::Derived`) is one the route must source wherever it sits — a
+        // header or a query as much as a path — unless the page makes the whole request (a page-signed step that is
+        // not a plain read) or the walk kept what to send (`Step::fallback`).
         let signed_by_page = |s: &Step| {
             self.page.is_some() && s.is_page_signed()
         };
+        let sent_as_built = |s: &Step| {
+            let method = s.method.to_ascii_uppercase();
+            (method == "GET" || method == "HEAD") && !crate::ledger::writes(s)
+        };
         self.steps.iter().skip(n + 1).any(|s| {
-            let reads = |f: &Field| matches!(&f.class, Class::Derived { origin } if origin.exchange == ex);
+            let reads = |f: &Field| matches!(&f.class, Class::Derived { origin } if origin.exchange == ex) && s.fallback(&f.loc).is_none();
             let reads_address = |f: &Field| reads(f) && matches!(f.loc, Loc::Path(_));
-            if signed_by_page(s) {
+            if signed_by_page(s) && !sent_as_built(s) {
                 s.fields.iter().any(reads_address)
             } else {
                 s.fields.iter().any(reads)
@@ -2056,6 +2202,7 @@ impl Graph {
                         let at = match &origin.at {
                             At::Json { pointer } => format!("JSON {pointer}"),
                             At::Header { name } => format!("header {name}"),
+                            At::HeaderQuery { name, key } => format!("{key} of the address header {name} hands over"),
                             At::SetCookie { name } => format!("Set-Cookie {name}"),
                             At::Text { before, .. } => format!("text after `{}`", before.trim()),
                         };
@@ -2065,6 +2212,7 @@ impl Graph {
                     Class::Computed => "computed by the page".into(),
                     Class::Script { producer } => format!("made by the page's code ({} @ {})", producer.script, producer.at),
                     Class::Recipe { recipe } => format!("made by a recipe ({:?} over {} parts, {})", recipe.algo, recipe.parts.len(), recipe.separator),
+                    Class::CookieIn { name, .. } => format!("the caller's cookie `{name}` written into the page's value"),
                     Class::Generated { evidence, .. } => format!("made by a generated program ({} sightings, proposed by {})", evidence.sightings, evidence.proposed_by),
                     Class::Minted { name } => format!("browser-minted `{name}` (from the node's session)"),
                     Class::Unconfirmed { value } => format!("provisional constant {value}: needs a second sighting"),
@@ -2087,6 +2235,40 @@ impl Graph {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The door is kept as a step of the route: the address the wall stood at in the walk, which need not be the
+    /// page the walk began on. It is what the node's engine runs again to earn the pass; the route's own wire never
+    /// asks it, so it is no step of the chain.
+    #[test]
+    fn a_door_is_a_step_the_route_can_run_again() {
+        let answer = |url: &str, status: u16, headers: Vec<(&str, &str)>| Exchange {
+            method: "GET".into(),
+            url: url.parse().unwrap(),
+            request_headers: vec![],
+            request_body: None,
+            status,
+            response_headers: headers.into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            response_body: Some("<html></html>".into()),
+            response_mime: "text/html".into(),
+            resource_type: Some("Document".into()),
+            main_frame: Some(true),
+        };
+        let walk = Trace {
+            exchanges: vec![
+                answer("https://shop.example/", 200, vec![]),
+                answer("https://shop.example/gate?to=%2Fsearch", 403, vec![("set-cookie", "_abck=abc; Path=/; Max-Age=3600")]),
+                answer("https://shop.example/search?q=lamp", 200, vec![]),
+            ],
+            inputs: vec![],
+        };
+        let door = Door::met(&walk, "shop.example").expect("a wall");
+        assert_eq!(door.at.as_deref(), Some("https://shop.example/gate?to=%2Fsearch"), "the address the wall stood at, not the walk's first page");
+        // It survives being written and read back, and a door kept before this was recorded reads with none.
+        let kept: Door = serde_json::from_value(serde_json::to_value(&door).unwrap()).unwrap();
+        assert_eq!(kept.at, door.at);
+        let old: Door = serde_json::from_value(serde_json::json!({"kind": "akamai", "earn": "browser_or_owner"})).unwrap();
+        assert_eq!(old.at, None);
+    }
 
     /// A wall is read from what it answered with, never from its host: the vendor's cookie, header or page names the
     /// class; the credential it issued is kept with the life its line gave; and a device-bound one is a browser's to
@@ -2123,6 +2305,8 @@ mod tests {
         let door = Door::met(&cloudflare, "shop.example").expect("a wall");
         assert_eq!(door.kind, DoorKind::Cloudflare);
 
+        assert_eq!(door.at.as_deref(), Some("https://shop.example/search?q=lamp"), "where the wall stood");
+
         // A refusal with no vendor's mark is the site's own rule: no door is claimed, and the values are what the
         // replay has to diagnose.
         let own = Trace { exchanges: vec![answer(403, vec![], "{\"error\":\"forbidden\"}")], inputs: vec![] };
@@ -2132,6 +2316,29 @@ mod tests {
         let answered = Door::answered(&answer(403, vec![("set-cookie", "reese84=t; Max-Age=60")], "")).expect("a wall");
         assert_eq!(answered.kind, DoorKind::Radware);
         assert_eq!(answered.ttl, Some(60));
+    }
+
+    /// Vercel's Security Checkpoint is a door: a 429 whose page says "Vercel Security Checkpoint" and whose line issues
+    /// `_vcrcs`, a device-bound credential a browser earns by running the challenge. Without it the replay's 429 is
+    /// read as the site's own rule and no door-pass runs.
+    #[test]
+    fn a_vercel_security_checkpoint_is_a_door() {
+        let ex = Exchange {
+            method: "GET".into(),
+            url: url::Url::parse("https://shop.example/").unwrap(),
+            request_headers: vec![],
+            request_body: None,
+            status: 429,
+            response_headers: vec![("set-cookie".into(), "_vcrcs=abc; Path=/; Max-Age=1800".into())],
+            response_body: Some("<html><title>Vercel Security Checkpoint</title>We're verifying your browser</html>".into()),
+            response_mime: "text/html".into(),
+            resource_type: Some("Document".into()),
+            main_frame: Some(true),
+        };
+        let door = Door::answered(&ex).expect("the Vercel checkpoint is a wall");
+        assert_eq!(door.kind, DoorKind::Vercel);
+        assert_eq!(door.credential.as_deref(), Some("_vcrcs"));
+        assert_eq!(door.earn, Earn::BrowserOrOwner, "a device-bound credential is a browser's");
     }
 
     /// A call is the page's own only when no step after it reads its answer: one a later step takes a value from is
@@ -2152,6 +2359,80 @@ mod tests {
         assert!(graph.feeds_later(0), "b reads its answer");
         assert!(!graph.feeds_later(1), "nothing after b reads it");
         assert!(!graph.feeds_later(2), "the target feeds nothing");
+    }
+
+    /// A value a later step reads from an earlier answer needs that answer wherever the value sits — a header as much
+    /// as a path — even when the later step is the page's own signed call. The signing bridge re-makes the page's
+    /// *computed* values, but a value read from the site's response (a tenant id, a business unit) comes from a call
+    /// the route must make: skip its source and the signed call has nothing to read.
+    #[test]
+    fn a_page_signed_step_that_reads_a_header_from_an_earlier_answer_still_needs_its_source() {
+        let graph: Graph = serde_json::from_value(serde_json::json!({
+            "page": "https://shop.example/search?q={q}",
+            "steps": [
+                { "exchange": 4, "method": "GET", "status": 200, "url": "https://shop.example/api/bootstrap", "needs_browser": false, "fields": [] },
+                { "exchange": 5, "method": "GET", "status": 200, "url": "https://shop.example/api/search", "needs_browser": false, "page_signed": true,
+                  "fields": [{ "loc": { "in": "header", "key": "x-o-bu" }, "class": "derived",
+                               "origin": { "exchange": 4, "url": "https://shop.example/api/bootstrap", "at": { "from": "json", "pointer": "/bu" } } }] }
+            ],
+            "provisional": false
+        }))
+        .unwrap();
+        assert!(graph.feeds_later(0), "the signed search reads bootstrap's answer into a header; its source is not optional");
+        // A page-signed step that reads nothing from the source still leaves it the page's own.
+        let alone: Graph = serde_json::from_value(serde_json::json!({
+            "page": "https://shop.example/search?q={q}",
+            "steps": [
+                { "exchange": 4, "method": "GET", "status": 200, "url": "https://shop.example/api/bootstrap", "needs_browser": false, "fields": [] },
+                { "exchange": 5, "method": "GET", "status": 200, "url": "https://shop.example/api/search", "needs_browser": false, "page_signed": true, "fields": [] }
+            ],
+            "provisional": false
+        }))
+        .unwrap();
+        assert!(!alone.feeds_later(0), "nothing reads bootstrap's answer");
+    }
+
+    /// A step the page signs takes its whole request from the page only where the page makes it. A plain read (a GET,
+    /// nothing written) the page's code makes no call for is sent as the route builds it, so every value the route
+    /// puts in it — its query and its headers as much as its address — is one it has to source. A POST is the page's
+    /// whole, and only an address value keeps the earlier answer. Measured on a site whose search call is signed by
+    /// the page and sent plain: skipping the page left `source_url` out and the site answered "Invalid Resource
+    /// Request".
+    #[test]
+    fn a_page_signed_step_sent_as_built_needs_the_values_its_route_puts_in_it() {
+        let mut graph: Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "page": "https://shop.example/search",
+            "steps": [
+                { "exchange": 4, "method": "GET", "status": 200, "url": "https://shop.example/search?q=lamp", "needs_browser": false, "fields": [] },
+                { "exchange": 5, "method": "GET", "status": 200, "url": "https://shop.example/api/find?src={src}", "page_signed": true, "needs_browser": true,
+                  "fields": [{ "loc": { "in": "query", "key": "src" }, "class": "derived",
+                               "origin": { "exchange": 4, "url": "https://shop.example/search?q=lamp", "at": { "from": "text", "before": "pinterest:/", "after": "\"", "nth": 0 } } }] }
+            ]
+        }))
+        .unwrap();
+        assert!(graph.feeds_later(0), "a page-signed GET sent as built needs what its route puts in it");
+        graph.steps[1].method = "POST".into();
+        assert!(!graph.feeds_later(0), "a page-signed POST takes its whole request from the page");
+    }
+
+    /// A later step that holds what the walk read for a value (`Step::fallback`) sends that value when a fresh answer
+    /// leaves the place out: it does not need the earlier answer, and the step that gave it is the page's own.
+    #[test]
+    fn a_value_the_walk_read_does_not_make_an_earlier_answer_needed() {
+        let mut graph: Graph = serde_json::from_value(serde_json::json!({
+            "steps": [
+                { "exchange": 4, "method": "GET", "status": 200, "url": "https://shop.example/search?q=lamp", "needs_browser": false, "fields": [] },
+                { "exchange": 5, "method": "POST", "status": 200, "url": "https://shop.example/api/b", "needs_browser": false,
+                  "fields": [{ "loc": { "in": "header", "key": "x-app" }, "class": "derived",
+                               "origin": { "exchange": 4, "url": "https://shop.example/search?q=lamp", "at": { "from": "text", "before": "<meta name=\"app-name\" content=\"", "after": "\"", "nth": 0 } } }] }
+            ],
+            "provisional": false
+        }))
+        .unwrap();
+        assert!(graph.feeds_later(0), "b reads the page's answer");
+        graph.steps[1].fallbacks = vec![(Loc::Header("x-app".into()), "seo_landing_page".into())];
+        assert!(!graph.feeds_later(0), "b holds what the walk read, so the page's answer is not needed");
     }
 
     /// A date and a time the call sends are pieces of the date-time the page was asked for: a call for another day
@@ -2389,6 +2670,42 @@ mod tests {
         assert_eq!(order[0], "/api/config", "a write that set no cookie keeps its place");
         let order = order_of(read, ("GET", "https://shop.example/api/guest-count", cookie));
         assert_eq!(order[0], "/api/config", "a read that hands out a cookie keeps its place");
+    }
+
+    /// A sign-up and a token renewal make the session as a sign-in does, read from what each did: the sign-up sent the
+    /// password the owner typed, and set no cookie; the renewal handed back the bearer token the route's call signs
+    /// with. Each runs before the calls that stand on it, and the call it signs names it as the token's source: the
+    /// edge a route keeps to the call that makes its session.
+    #[test]
+    fn a_sign_up_and_a_token_renewal_make_the_session_the_route_stands_on() {
+        let (a, b) = ("tok_a8f3c91d7e42", "tok_b5d2e70a1c33");
+        let json = [("content-type", "application/json")];
+        let config = walked("GET", "https://shop.example/api/config", &[], None, &format!(r#"{{"a":"{a}"}}"#));
+        let mut sign_up = walked("POST", "https://shop.example/api/accounts", &json, None, &format!(r#"{{"b":"{b}"}}"#));
+        sign_up.request_body = Some(r#"{"email":"ann@mail.example","password":"hunter2x-Q7"}"#.into());
+        let items = walked("GET", "https://shop.example/api/items", &[("x-a", a), ("x-b", b)], None, r#"{"items":[1]}"#);
+        let walk = Trace { exchanges: vec![config.clone(), sign_up, items], inputs: vec![crate::trace::Input::secret("password", "hunter2x-Q7")] };
+        let g = build(&[walk], |e| e.url.path() == "/api/items").unwrap();
+        let paths: Vec<&str> = g.steps.iter().map(|s| s.url.split("example").nth(1).unwrap_or_default()).collect();
+        assert_eq!(paths.first(), Some(&"/api/accounts"), "the sign-up goes first: {paths:?}");
+        let sign_up = &g.steps[0];
+        assert!(!sign_up.sets_cookie, "it set no cookie: the secret it sent is what made the session");
+        assert!(sign_up.fields.iter().any(|f| matches!(&f.class, Class::Input { secret: true, .. })), "the password stays the vault's to fill");
+
+        let token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0MiIsImV4cCI6MTc5NDM5ODQwMH0.c2lnbmVkLWJ5LXRoZS1zaXRl";
+        let renew = walked("POST", "https://shop.example/oauth/token", &json, None, &format!(r#"{{"access_token":"{token}","expires_in":3600}}"#));
+        let bearer = format!("Bearer {token}");
+        let items = walked("GET", "https://shop.example/api/items", &[("x-a", a), ("authorization", bearer.as_str())], None, r#"{"items":[1]}"#);
+        let walk = Trace { exchanges: vec![config, renew, items], inputs: Vec::new() };
+        let g = build(&[walk], |e| e.url.path() == "/api/items").unwrap();
+        let paths: Vec<&str> = g.steps.iter().map(|s| s.url.split("example").nth(1).unwrap_or_default()).collect();
+        assert_eq!(paths.first(), Some(&"/oauth/token"), "the renewal goes first: {paths:?}");
+        let target = g.steps.last().unwrap();
+        let auth = target.fields.iter().find(|f| matches!(&f.loc, Loc::Header(h) if h.eq_ignore_ascii_case("authorization"))).expect("the call's token is a field");
+        match &auth.class {
+            Class::Derived { origin } => assert_eq!(origin.exchange, g.steps[0].exchange, "the token comes from the renewal"),
+            other => panic!("the token is taken from the renewal's answer, not {other:?}"),
+        }
     }
 
 
@@ -2992,6 +3309,7 @@ mod held_tests {
             foreign: false,
             held: Vec::new(),
             reads_page: false,
+            fallbacks: Vec::new(),
         }
     }
 

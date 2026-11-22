@@ -1,162 +1,138 @@
-# Unbrowse browser
+# agent-browser
 
-The browser the Unbrowse node learns from. It records everything a site does while an agent uses it, so the node can do the same thing again later without a browser.
+Browser automation for AI agents: open pages, read them as an accessibility tree, and act on elements from the shell.
 
-It's a fork of [agent-browser](https://github.com/vercel-labs/agent-browser) (Apache-2.0), kept as a thin patch so upstream updates rebase cleanly. [FORK.md](FORK.md) lists every change. Upstream's full command reference is in [README.upstream.md](README.upstream.md).
+<p>
+  <a href="https://vercel.com/labs#labs-products"><img alt="Vercel Labs Product" src="https://img.shields.io/badge/LABS-PRODUCT-0a0a0a.svg?style=for-the-badge&amp;logo=Vercel&amp;labelColor=000000" height="28"></a>
+  <a href="https://www.npmjs.com/package/agent-browser"><img alt="npm version: agent-browser" src="https://img.shields.io/npm/v/agent-browser.svg?style=for-the-badge&amp;labelColor=000000" height="28"></a>
+  <a href="https://github.com/vercel-labs/agent-browser/blob/main/LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/github/license/vercel-labs/agent-browser.svg?style=for-the-badge&amp;labelColor=000000" height="28"></a>
+  <a href="https://www.npmjs.com/package/agent-browser"><img alt="npm downloads per month: agent-browser" src="https://img.shields.io/npm/dm/agent-browser.svg?style=for-the-badge&amp;labelColor=000000&amp;label=npm%20downloads" height="28"></a>
+  <a href="https://skills.sh/vercel-labs/agent-browser"><img alt="skills.sh" src="https://skills.sh/b/vercel-labs/agent-browser?style=for-the-badge" height="28"></a>
+</p>
 
-## Where it sits
+agent-browser is a native Rust CLI that gives an AI agent a browser it can drive one command at a time. `snapshot` returns the page as compact text with a ref such as `@e1` for each element. The agent acts on a ref, reads the page again to check the result, and repeats. The browser stays open between commands, so each step is one short shell call.
 
-```
-agent-browser-core (core/)    the engine, as a library: CDP transport, Chrome launch, capture, mint
-├── cli/                      the agent-browser CLI, a thin front end over the engine
-└── unbrowse-node             links the engine for walks; runs the CLI for browsing by hand
-```
-
-Two ways the node uses it:
-
-- **Walks.** To learn a route from a page, the node calls `agent_browser_core::session::mint()` in process: launch Chrome, open the page, let it settle, keep every request and response. No daemon, no socket.
-- **Browsing by hand.** When an agent drives a page through the node (`unbrowse_browse` over MCP, `POST /v1/browse`, or `browser()` in the [node SDKs](../unbrowse-sdk)), the node runs this CLI with capture on, one session and one profile per site. The node learns routes from that log as the agent goes.
-
-Agents use it through the node. A browser run directly, outside the node, records nothing the node can learn from.
-
-## Build
-
-Requires Rust and Chrome (or `agent-browser install` for Chrome for Testing).
+## Install
 
 ```bash
-cargo build --release --manifest-path cli/Cargo.toml   # cli/target/release/agent-browser
-cargo test --manifest-path core/Cargo.toml             # the engine
-cargo test --manifest-path cli/Cargo.toml              # the CLI (see "Tests" below)
+npm install -g agent-browser
+agent-browser install           # download Chrome for Testing (first time only)
 ```
 
-The node finds the binary in this order, and never uses one on `PATH` (a build without capture would teach it nothing):
+- **Homebrew:** `brew install agent-browser`, then `agent-browser install`.
+- **Linux:** `agent-browser install --with-deps` also installs the browser's system libraries.
+- **No install:** `npx agent-browser open example.com`.
 
-1. `UNBROWSE_BROWSER`
-2. `agent-browser` beside the node's own executable
-3. `cli/target/release/agent-browser`, then `cli/target/debug/agent-browser`
+Project installs, building from source, `upgrade`, and `doctor` are covered in [Installation](https://agent-browser.dev/installation).
 
-The node links `core/` directly (`unbrowse-node/crates/learn` depends on it by path), so building the node builds the engine.
-
-## Capture
-
-Set `UNBROWSE_CAPTURE_DIR` and every session appends to `<dir>/<session>.jsonl`, one JSON object per line. The node sets it for every browse; nothing needs a recording command.
-
-```jsonc
-// A finished request: a HAR 1.2 entry with the headers actually sent and received, cookies included, and text bodies.
-{ "type": "exchange", "t": 1730000000.12, "resourceType": "XHR", "entry": { "request": { … }, "response": { … } } }
-
-// A page-driving action, with what was typed and the field's own name for it.
-{ "type": "action", "t": 1730000001.40, "action": "fill", "selector": "@e4", "field": "email", "value": "me@example.com", "secret": false }
-
-// A WebSocket: open, handshake, accepted, each frame sent or received, closed.
-{ "type": "socket", "t": 1730000002.03, "id": "1234.5", "event": "open", "url": "wss://chat.example.com/socket" }
-```
-
-What the fork adds to make the log enough to learn from:
-
-- **Cookies.** Headers come from Chrome's `Network.*ExtraInfo` events, so `Cookie` and `Set-Cookie` are in the entry. The main network events leave them out.
-- **POST bodies.** Bodies Chrome holds back are fetched with `Network.getRequestPostData`, so a POST-heavy flow (a checkout) keeps them.
-- **Field names.** A typed field records its `name`, `id`, `aria-label`, label text or placeholder (first non-empty), so routes name inputs the way the page does, not by CSS selector.
-- **Secrets marked.** A value typed into a password, one-time-code or card field carries `"secret": true`.
-- **One clock.** Each request is stamped with the daemon's own clock when first seen, the same clock actions use. A request is written about 0.75 s after it finishes, because Chrome can report the cookies it sent after the response.
-
-The log holds live cookies and tokens. Keep it on the machine; the repo ignores `*.jsonl` and `*.har`.
-
-## The engine as a library
-
-```rust
-use agent_browser_core::session::{mint, walk_har, MintOptions};
-
-let dir = std::path::PathBuf::from("/tmp/walks");
-let session = mint(MintOptions {
-    url: "https://example.com/search?q=rust".into(),
-    session: "example".into(),
-    capture_dir: Some(dir.clone()),
-    profile: Some("/path/to/profiles/example.com".into()), // later walks open easier
-    settle_ms: 3000,
-    browse: true, // scroll and press "more" so a server-rendered page calls its data API
-    ..Default::default()
-})
-.await?;
-
-session.cookies; // what the walk earned, for plain HTTP to carry
-let har = walk_har(&dir, "example"); // the walk as HAR 1.2
-```
-
-`mint()` returns an error, never a partial jar, when the walk didn't get past a check. Set `cdp_endpoint` to attach to a browser that's already open instead of launching one.
-
-| Module | What it holds |
-|---|---|
-| `session` | `mint()`, `MintOptions`, `MintedSession`, `walk_har()`, `walk_page()`, `read_capture()` |
-| `capture` | `CaptureLog`, the JSON-lines writer |
-| `fingerprint` | the browser's identity: user agent and client hints, read from Chrome itself |
-| `cdp` | transport, Chrome launch and discovery, protocol types |
-| `intercept` | optional request interception that pins public addresses (off by default) |
-| `screencast` | pictures of a walk while it runs, for the node's window |
-| `connection`, `paths`, `ca_bundle` | timeouts, browser cache, TLS roots |
-
-## Identity
-
-The browser says what it is: Chrome, at the version it is.
-
-- **Headless by default.** Chrome's headless build calls itself `HeadlessChrome`. The fork reports the same product and version without the launch mode, with client hints that agree, so a headless walk and a headed one present as the same browser. Nothing names a site, and nothing claims to be a different browser.
-- **A window when a person is needed.** When a walk meets a check it can't pass, the headless browser closes and a headed one opens in the same profile. The person sees the check, and whatever the headless walk earned carries over. Sites the headless browser gets through never open a window.
-- **One identity end to end.** The browser mints under the same user agent the node's plain-HTTP client presents.
-
-## What it refuses
-
-The fork leaves upstream's code in place and refuses these where they would take effect (`cli/src/unbrowse_policy.rs`):
-
-| Feature | Why |
-|---|---|
-| The Obscura engine | Disguises itself as Chrome on Windows and fakes its fingerprint |
-| Remote browser providers (Browserbase, Browserless, Browser Use, Kernel, AgentCore, plugin providers) | The user's sessions and traffic would leave their machine |
-| `launch.mutate` plugins | How stealth and captcha plugins attach |
-| `human` input mode | Moves the pointer along eased curves to look like a person |
-
-Engines allowed: Chrome (default) and Lightpanda, which always launches with telemetry off.
-
-## Runtime dir and reattach
-
-A launch without `--profile` uses a fixed runtime dir, `~/.agent-browser/chrome-runtime-{headless,headed}`, not a random temp dir. Another daemon finds the browser a live one launched through the `DevToolsActivePort` file there (owner-only: it carries the debugger's secret).
-
-- The browser's debugger is on a pipe only its launcher holds, served to other clients only at a secret address (FORK.md), so the runtime Chrome lives as long as the daemon that launched it. That daemon, leaving while another daemon uses the browser, stays to serve it and closes it once the last of them has gone; a crashed launcher takes it with it. `agent-browser close --all` shuts it down.
-- Launch flags apply when the runtime Chrome first starts; a later daemon inherits them.
-- Profile launches (`--profile`) copy the profile to a temp dir, as upstream does.
-
-## Environment
-
-| Variable | Read by | Effect |
-|---|---|---|
-| `UNBROWSE_CAPTURE_DIR` | CLI | Where each session's capture log goes. Unset: no capture. |
-| `AGENT_BROWSER_RUNTIME_DIR` | CLI | Overrides the fixed runtime dir, to isolate a Chrome. |
-| `UNBROWSE_BROWSER` | node | The `agent-browser` binary the node runs. |
-
-Upstream's own variables are in [README.upstream.md](README.upstream.md).
-
-## Commands
-
-Through the node, an agent gets the page-driving commands: `open`, `snapshot`, `click`, `dblclick`, `fill`, `type`, `press`, `select`, `check`, `uncheck`, `hover`, `focus`, `scroll`, `scrollintoview`, `upload`, `get`, `is`, `find`, `wait`, `back`, `forward`, `reload`, `eval`, `screenshot`, `close`. The node refuses flags that would pick another browser, profile or session.
+## Quick start
 
 ```bash
-agent-browser open https://example.com
-agent-browser snapshot -i            # interactive elements, each with a ref
-agent-browser fill @e3 "me@example.com"
-agent-browser click @e4
-agent-browser get text @e1
+agent-browser open example.com
+agent-browser snapshot -i       # interactive elements, each with a ref
+agent-browser click @e1         # act on a ref from that snapshot
+agent-browser get url           # check the result
 agent-browser close
 ```
 
-Every command, flag and option is in [README.upstream.md](README.upstream.md#commands).
+The snapshot for `example.com`:
 
-## Tests
+```
+- link "Learn more" [ref=e1]
+```
 
-16 upstream tests fail by design: they exercise features the fork refuses, and the policy refuses them first. [FORK.md](FORK.md#upstream-tests-that-fail-by-design) lists them. Everything else passes; most ignored tests need a live browser.
+- Refs describe the page at the time of the snapshot. After navigation or a DOM change, take a new snapshot before using refs again.
+- CSS selectors, text, XPath, and semantic locators also work, for example `agent-browser find role button click --name "Submit"`. See [Selectors](https://agent-browser.dev/selectors).
+- A click fails, instead of reporting success, when the target is hidden, disabled, outside the viewport, or covered by another element such as a consent banner. Dismiss the covering element, take a new snapshot, and retry.
 
-## Updating from upstream
+The full walkthrough is in the [quick start](https://agent-browser.dev/quick-start).
 
-Upstream is the `upstream` remote, forked at `dac13bb` (0.39.1). Rebase onto it; when upstream changes its README, carry the change into `README.upstream.md`.
+## How it works
 
-## Licence
+The CLI sends each command to a background daemon that starts on the first command and controls the browser over the Chrome DevTools Protocol. Each `--session` gets its own daemon and browser. By default, the daemon closes a headless browser and exits after one hour without commands, saving state first when [session persistence](https://agent-browser.dev/sessions) is configured.
 
-Apache-2.0, as upstream. Lightpanda is AGPL-3.0: ship its unmodified binary as a separate process with its licence and source offer, and never link it into the node.
+Chrome for Testing is the default browser. You can also attach to a running Chrome with `--cdp` or `--auto-connect` ([CDP mode](https://agent-browser.dev/cdp-mode)), select the [Lightpanda](https://agent-browser.dev/engines/lightpanda) or [Obscura](https://agent-browser.dev/engines/obscura) engine with `--engine`, drive Mobile Safari in the [iOS Simulator](https://agent-browser.dev/ios), or use a cloud browser provider such as [Browserbase](https://agent-browser.dev/providers/browserbase), [Browserless](https://agent-browser.dev/providers/browserless), [Browser Use](https://agent-browser.dev/providers/browser-use), [Kernel](https://agent-browser.dev/providers/kernel), or [AgentCore](https://agent-browser.dev/providers/agentcore).
+
+## For AI agents
+
+The CLI ships skills that match its version:
+
+```bash
+agent-browser skills get core                 # the core loop, refs, waiting, and common workflows
+agent-browser skills get core --ref commands  # one reference, such as the full command list
+agent-browser skills get core --full          # adds the full command reference and templates
+agent-browser skills list                     # specialized skills: electron, slack, dogfood, and more
+```
+
+Install the discovery skill into an agent harness from [skills.sh](https://skills.sh/vercel-labs/agent-browser):
+
+```bash
+npx skills add vercel-labs/agent-browser
+```
+
+The installed skill is a thin stub that tells the agent to load `agent-browser skills get core`, so its instructions always match the installed CLI. Or add this to your `AGENTS.md`:
+
+```markdown
+Use `agent-browser` for browser automation. Before the first use, run
+`agent-browser skills get core` and follow it.
+```
+
+For MCP clients, `agent-browser mcp` starts an MCP server over stdio. See [MCP server](https://agent-browser.dev/commands#mcp-server).
+
+## Commands
+
+Run `agent-browser --help` for the full list, or `agent-browser <command> --help` for one command.
+
+| Group | Commands | Docs |
+|---|---|---|
+| Navigate and read | `open`, `back`, `forward`, `reload`, `read`, `snapshot`, `get`, `is` | [Core](https://agent-browser.dev/commands#core), [Snapshots](https://agent-browser.dev/snapshots) |
+| Interact | `click`, `dblclick`, `fill`, `type`, `press`, `keyboard`, `hover`, `focus`, `select`, `check`, `uncheck`, `scroll`, `drag`, `upload`, `mouse`, `find` | [Core](https://agent-browser.dev/commands#core), [Find elements](https://agent-browser.dev/commands#find-elements) |
+| Wait | `wait` | [Wait](https://agent-browser.dev/commands#wait) |
+| Capture | `screenshot`, `pdf`, `record`, `download`, `diff` | [Recording](https://agent-browser.dev/recording), [Diffing](https://agent-browser.dev/diffing), [Files](https://agent-browser.dev/files) |
+| Page and network state | `cookies`, `storage`, `network`, `set`, `clipboard`, `eval`, `pushstate` | [Network](https://agent-browser.dev/network), [Settings](https://agent-browser.dev/commands#settings) |
+| Tabs, frames, and dialogs | `tab`, `frame`, `dialog` | [Tabs and frames](https://agent-browser.dev/commands#tabs-frames) |
+| Debug and performance | `console`, `errors`, `highlight`, `inspect`, `trace`, `profiler`, `vitals`, `react`, `a11y` | [Debugging](https://agent-browser.dev/debugging), [Profiler](https://agent-browser.dev/profiler), [React](https://agent-browser.dev/react) |
+| Sessions and auth | `session`, `state`, `auth`, `profiles`, `confirm`, `deny` | [Sessions](https://agent-browser.dev/sessions), [Security](https://agent-browser.dev/security) |
+| Agents and integrations | `skills`, `mcp`, `webmcp`, `flow`, `chat`, `batch`, `plugin` | [Skills](https://agent-browser.dev/skills), [WebMCP](https://agent-browser.dev/webmcp), [Plugins](https://agent-browser.dev/plugins) |
+| Observe | `stream`, `dashboard` | [Streaming](https://agent-browser.dev/streaming), [Dashboard](https://agent-browser.dev/dashboard) |
+| Setup | `install`, `upgrade`, `doctor`, `connect`, `close` | [Installation](https://agent-browser.dev/installation) |
+
+Flags, environment variables, and `agent-browser.json` are documented in [Configuration](https://agent-browser.dev/configuration).
+
+## Platforms
+
+Native binaries ship for macOS (ARM64, x64), Linux (ARM64, x64, glibc and musl), and Windows (x64). The npm package picks the right binary for the host.
+
+## Development
+
+Building from source requires Node.js 24 or later, pnpm 11 or later, and Rust:
+
+```bash
+pnpm install
+pnpm build:source               # builds the dashboard and the native CLI
+pnpm link --global
+agent-browser install
+```
+
+Run the Rust checks from `cli/`:
+
+```bash
+cargo fmt -- --check
+cargo clippy
+cargo test
+cargo test e2e -- --ignored --test-threads=1   # launches real headless Chrome
+```
+
+[AGENTS.md](AGENTS.md) lists the files to update with each change, the docs checks, and the release process.
+
+## Documentation
+
+- [agent-browser.dev](https://agent-browser.dev): introduction, guides, and reference
+- [Commands](https://agent-browser.dev/commands) and [Configuration](https://agent-browser.dev/configuration)
+- [Security](https://agent-browser.dev/security): the auth vault, domain allowlists, action policies, and content boundaries
+- [Next.js and Vercel](https://agent-browser.dev/next) and [eve](https://agent-browser.dev/eve): running agent-browser in Vercel Sandbox and eve agents
+- [Changelog](CHANGELOG.md)
+
+## License
+
+Apache-2.0

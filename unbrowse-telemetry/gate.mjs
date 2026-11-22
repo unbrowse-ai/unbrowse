@@ -46,6 +46,8 @@ check((await call("/")).status === 404, "/ answers 404");
 check((await call("/v1/events")).status === 405, "GET /v1/events answers 405");
 const bad = await post("/v1/events", { events: [{ event: "tool_call", version: "1.0.0", os: "linux", install_id: GATE, outcome: "ok", url: "https://example.com" }] });
 check(bad.status === 400, `a field off the list is refused (got ${bad.status})`);
+const tagOnCall = await post("/v1/events", { events: [{ event: "tool_call", version: "1.0.0", os: "linux", install_id: GATE, outcome: "ok", from: "internal" }] });
+check(tagOnCall.status === 400, `a source tag on a tool call is refused (got ${tagOnCall.status})`);
 const badReport = await post("/v1/reports", { kind: "nonsense" });
 // Unsigned, so refused before its shape is read (401); nothing is filed either way.
 check(badReport.status === 401, `an unsigned report is refused (got ${badReport.status})`);
@@ -55,13 +57,27 @@ check((await stat("installs", "not-the-admin-token")).status === 404, "the stats
 const before = await stat("gate");
 check(before.status === 200, `the stats door answers the token (got ${before.status})`);
 const sent = await post("/v1/events", {
-  events: [{ event: "tool_call", version: "0.0.0", os: "linux", install_id: GATE, tool: "unbrowse_do", outcome: "ok", duration_ms: 1 }],
+  events: [
+    { event: "tool_call", version: "0.0.0", os: "linux", install_id: GATE, tool: "unbrowse_do", outcome: "ok", duration_ms: 1 },
+    // A start with its source tag, as `unbrowse start --from internal` sends it.
+    { event: "node_start", version: "0.0.0", os: "linux", install_id: GATE, outcome: "ok", from: "internal" },
+  ],
 });
 check(sent.status === 204, `a valid batch is taken (got ${sent.status})`);
 const after = await stat("gate");
 const n0 = before.body.rows?.[0]?.events ?? -1;
 const n1 = after.body.rows?.[0]?.events ?? -1;
-check(n1 === n0 + 1, `the event sent was kept (gate count ${n0} -> ${n1})`);
+check(n1 === n0 + 2, `the events sent were kept, the tagged start among them (gate count ${n0} -> ${n1})`);
+for (const name of ["funnel", "funnel_by_from", "arms"]) {
+  const q = await stat(name);
+  check(q.status === 200 && Array.isArray(q.body.rows), `the ${name} question answers (got ${q.status})`);
+}
+
+// One install by its id, as the site's /admin Journey asks it: the gate's own, which just made a good call.
+const one = await stat(`install?id=${GATE}`);
+const row = one.body.rows?.[0];
+check(one.status === 200 && row?.install_id === GATE && row.first_good_call !== null && row.from_tag === "internal", `the install question answers the gate's install with its tag and first good call (got ${one.status} ${JSON.stringify(row ?? null)})`);
+check((await stat("install?id=not-an-install")).status === 400, "the install question refuses an id off its shape");
 
 let installs = 0;
 const inst = await stat("installs");
@@ -73,4 +89,4 @@ if (fails.length) {
   for (const f of fails) console.log(`FAIL ${f}`);
   process.exit(1);
 }
-console.log(`TELEMETRY_GATE_OK url=${base} kept=+1 installs=${installs}${real ? " real=yes" : ""}`);
+console.log(`TELEMETRY_GATE_OK url=${base} kept=+2 from=ok install=ok installs=${installs}${real ? " real=yes" : ""}`);

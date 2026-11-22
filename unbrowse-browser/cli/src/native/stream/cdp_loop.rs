@@ -1,6 +1,5 @@
 use serde_json::{json, Value};
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use futures_util::FutureExt;
@@ -129,7 +128,6 @@ pub(super) async fn cdp_event_loop(
     client_slot: Arc<RwLock<Option<Arc<CdpClient>>>>,
     client_notify: Arc<tokio::sync::Notify>,
     screencasting: Arc<Mutex<bool>>,
-    screencast_held: Arc<AtomicBool>,
     client_count: Arc<Mutex<usize>>,
     cdp_session_id: Arc<RwLock<Option<String>>>,
     viewport_width: Arc<Mutex<u32>>,
@@ -148,7 +146,7 @@ pub(super) async fn cdp_event_loop(
             changed = shutdown_rx.changed() => {
                 if changed.is_err() || *shutdown_rx.borrow() {
                     let session_id = cdp_session_id.read().await.clone();
-                    if *screencasting.lock().await && !screencast_held.load(Ordering::Relaxed) {
+                    if *screencasting.lock().await {
                         if let Some(ref client) = *client_slot.read().await {
                             let _ = client
                                 .send_command_no_params("Page.stopScreencast", session_id.as_deref())
@@ -271,15 +269,14 @@ pub(super) async fn cdp_event_loop(
                         }
                         changed = shutdown_rx.changed() => {
                             if changed.is_err() || *shutdown_rx.borrow() {
-                                let held = screencast_held.load(Ordering::Relaxed);
-                                if supports_screencast && !held {
+                                if supports_screencast {
                                     let session_id = cdp_session_id.read().await.clone();
                                     let _ = client_arc
                                         .send_command_no_params("Page.stopScreencast", session_id.as_deref())
                                         .await;
                                 }
                                 let mut sc = screencasting.lock().await;
-                                *sc = held;
+                                *sc = false;
                                 return;
                             }
                         }
@@ -287,14 +284,13 @@ pub(super) async fn cdp_event_loop(
                             let count = *client_count.lock().await;
                             let new_session_id = cdp_session_id.read().await.clone();
                             if count == 0 {
-                                let held = screencast_held.load(Ordering::Relaxed);
-                                if supports_screencast && !held {
+                                if supports_screencast {
                                     let _ = client_arc
                                         .send_command_no_params("Page.stopScreencast", session_id.as_deref())
                                         .await;
                                 }
                                 let mut sc = screencasting.lock().await;
-                                *sc = held;
+                                *sc = false;
                                 break;
                             }
                             let client_changed = {
@@ -550,7 +546,7 @@ pub(super) async fn cdp_event_loop(
         } else {
             carried_events = None;
             let was_screencasting = *screencasting.lock().await;
-            if was_screencasting && !screencast_held.load(Ordering::Relaxed) {
+            if was_screencasting {
                 if let Some(ref client) = *guard {
                     let session_id = cdp_session_id.read().await.clone();
                     let _ = client
@@ -830,9 +826,6 @@ mod tests {
         shutdown: watch::Sender<bool>,
         task: tokio::task::JoinHandle<()>,
         methods: Arc<Mutex<Vec<String>>>,
-        viewers: Arc<Mutex<usize>>,
-        screencasting: Arc<Mutex<bool>>,
-        screencast_held: Arc<AtomicBool>,
     }
 
     async fn start_loop_with_seed_delay(
@@ -865,8 +858,6 @@ mod tests {
         let client_slot = Arc::new(RwLock::new(Some(client)));
         let client_notify = Arc::new(tokio::sync::Notify::new());
         let client_count = Arc::new(Mutex::new(1));
-        let screencasting = Arc::new(Mutex::new(false));
-        let screencast_held = Arc::new(AtomicBool::new(false));
         let cdp_session_id = Arc::new(RwLock::new(active_session.map(String::from)));
         let viewport_width = Arc::new(Mutex::new(1280));
         let last_tabs = Arc::new(RwLock::new(vec![
@@ -880,9 +871,8 @@ mod tests {
             Arc::new(super::super::ScreencastConfig::default()),
             client_slot,
             client_notify.clone(),
-            screencasting.clone(),
-            screencast_held.clone(),
-            client_count.clone(),
+            Arc::new(Mutex::new(false)),
+            client_count,
             cdp_session_id.clone(),
             viewport_width.clone(),
             Arc::new(Mutex::new(720)),
@@ -904,9 +894,6 @@ mod tests {
             shutdown,
             task,
             methods,
-            viewers: client_count,
-            screencasting,
-            screencast_held,
         }
     }
 
@@ -1003,56 +990,6 @@ mod tests {
         assert_eq!(frame_timestamp_ms(Some(&json!({}))), 0);
         assert_eq!(frame_timestamp_ms(Some(&json!({ "timestamp": 0 }))), 0);
         assert_eq!(frame_timestamp_ms(Some(&json!({ "timestamp": "nope" }))), 0);
-    }
-
-    /// Run the last viewer's leaving through the loop, and report whether it stopped the cast.
-    async fn last_viewer_leaves(harness: &LoopHarness) -> bool {
-        wait_for_method(&harness.methods, "Page.startScreencast").await;
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        *harness.viewers.lock().await = 0;
-        harness.client_notify.notify_one();
-        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-        harness.methods.lock().await.iter().any(|method| method == "Page.stopScreencast")
-    }
-
-    /// One cast serves the `screencast start` command and the stream's viewers. The last viewer leaving ends only what the
-    /// viewers wanted: stopping a cast the command holds left the daemon saying it was running.
-    #[tokio::test]
-    async fn the_last_viewer_leaving_keeps_a_cast_a_command_holds() {
-        let harness = start_loop(Some("S"), "main").await;
-        harness.screencast_held.store(true, Ordering::Relaxed);
-
-        let stopped = last_viewer_leaves(&harness).await;
-
-        assert!(!stopped, "the command still holds the cast");
-        assert!(*harness.screencasting.lock().await);
-        stop_loop(harness).await;
-    }
-
-    #[tokio::test]
-    async fn the_last_viewer_leaving_stops_a_cast_nobody_holds() {
-        let harness = start_loop(Some("S"), "main").await;
-
-        let stopped = last_viewer_leaves(&harness).await;
-
-        assert!(stopped);
-        assert!(!*harness.screencasting.lock().await);
-        stop_loop(harness).await;
-    }
-
-    /// Turning the stream off leaves a cast the command holds; `stream disable` was always meant not to touch it.
-    #[tokio::test]
-    async fn the_stream_shutting_down_keeps_a_cast_a_command_holds() {
-        let harness = start_loop(Some("S"), "main").await;
-        wait_for_method(&harness.methods, "Page.startScreencast").await;
-        harness.screencast_held.store(true, Ordering::Relaxed);
-        let methods = harness.methods.clone();
-        let screencasting = harness.screencasting.clone();
-
-        stop_loop(harness).await;
-
-        assert!(!methods.lock().await.iter().any(|method| method == "Page.stopScreencast"));
-        assert!(*screencasting.lock().await);
     }
 
     #[tokio::test]
@@ -1526,7 +1463,6 @@ mod tests {
             Arc::new(RwLock::new(Some(client.clone()))),
             client_notify.clone(),
             Arc::new(Mutex::new(false)),
-            Arc::new(AtomicBool::new(false)),
             Arc::new(Mutex::new(1)),
             Arc::new(RwLock::new(Some("S-ACTIVE".to_string()))),
             Arc::new(Mutex::new(1280)),

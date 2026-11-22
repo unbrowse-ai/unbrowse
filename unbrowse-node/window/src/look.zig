@@ -300,27 +300,43 @@ pub const per_page = 25;
 
 /// How many pages `n` rows take: none for none.
 pub fn pages(n: usize) usize {
-    return (n + per_page - 1) / per_page;
+    return pagesBy(n, per_page);
+}
+
+/// How many pages `n` rows take at `per` to a page: none for none.
+pub fn pagesBy(n: usize, per: usize) usize {
+    return (n + per - 1) / per;
 }
 
 pub const Rows = struct { from: usize, to: usize };
 
 /// The rows of `n` that page `page` shows. A page past the end (a delete, a narrower search) becomes the last one there is.
 pub fn pageRows(page: *usize, n: usize) Rows {
-    page.* = @min(page.*, pages(n) -| 1);
-    const from = page.* * per_page;
-    return .{ .from = from, .to = @min(from + per_page, n) };
+    return pageRowsBy(page, n, per_page);
+}
+
+/// The rows of `n` that page `page` shows at `per` to a page, for a list whose rows are shorter or taller than a
+/// table's (a log's lines, a row of tabs).
+pub fn pageRowsBy(page: *usize, n: usize, per: usize) Rows {
+    page.* = @min(page.*, pagesBy(n, per) -| 1);
+    const from = page.* * per;
+    return .{ .from = from, .to = @min(from + per, n) };
 }
 
 /// Under a table of `n` rows: which this page shows, of how many, and the pages to move to. Nothing for one page.
 pub fn pager(c: *ui.Context, key: []const u8, page: *usize, rows: Rows, n: usize) void {
-    if (pages(n) < 2) return;
+    pagerBy(c, key, page, rows, n, per_page);
+}
+
+/// `pager` for a list of `per` to a page.
+pub fn pagerBy(c: *ui.Context, key: []const u8, page: *usize, rows: Rows, n: usize, per: usize) void {
+    if (pagesBy(n, per) < 2) return;
     const r = ui.div(c).row().wFull().gap(12).itemsCenter();
     defer r.end();
     small(c, c.print("Showing {s}\u{2013}{s} of {s}", .{ count(c, rows.from + 1), count(c, rows.to), count(c, n) }));
     ui.spacer(c);
     ui.key(c, key);
-    _ = kit.pagination(c, page, pages(n));
+    _ = kit.pagination(c, page, pagesBy(n, per));
 }
 
 fn count(c: *ui.Context, n: usize) []const u8 {
@@ -434,6 +450,12 @@ pub const Table = struct {
         t.box.end();
     }
 };
+
+/// The width a table on the sheet has: the window's, less the sidebar and the sheet's padding. A table with more
+/// columns than fit picks a narrower set by it, so nothing is pushed past the window's edge.
+pub fn tableWidth(c: *ui.Context) f32 {
+    return c.size.w - 216 - 92;
+}
 
 /// A table's frame and header row; rows go in with `cell`.
 pub fn tableHead(c: *ui.Context, t: []const u8, n: []const u8, cols: []const Col) Table {

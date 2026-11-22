@@ -1,4 +1,9 @@
-# The programs for every machine (the Mac app on Apple silicon and Intel, Linux on x64 and arm64, Windows on x64) and
+# Every job here runs on a fresh machine, never on the local runner pool (UNB-166): the pool runs pull-request code
+# and shares a cargo cache across jobs, so nothing built or signed for users runs there. Blacksmith gives each job a
+# fresh VM (UNB-224). Only the npm jobs run on GitHub's own machines, because npm's trusted publishing works from
+# cloud-hosted runners only. There is no Intel Mac build (UNB-224, 22 Nov 2026): Apple silicon only.
+#
+# The programs for every machine (the Mac app on Apple silicon, Linux on x64 and arm64, Windows on x64) and
 # `unbrowse` for npm and PyPI, for each of the three places a commit goes (CONTRIBUTING.md, "Branches and releases"); the
 # version is the ref's (.github/scripts/release-version.sh):
 #
@@ -11,8 +16,8 @@
 # `unbrowse` and each machine's `@unbrowse/<platform>` go to npm, then (but for staging) `@unbrowse/updates`, the signed
 # metadata nodes update from (.github/scripts/updates.mjs); updates.yml promotes, halts and refreshes it. Run it by hand
 # on staging, a release branch or a tag to release that ref again under a new run. No pull request runs it: this
-# workflow holds the signing keys, so it runs only for those refs, in the `release` environment (release-check.yml tests a
-# pull request's changes to the release scripts, with no secret in reach).
+# workflow holds the signing keys, so it runs only for those refs, in the `release` environment (ci.yml's `papers` job
+# tests a pull request's changes to the release scripts, with no secret in reach).
 name: Release
 
 on:
@@ -31,6 +36,12 @@ on:
         description: Build and sign, publish nothing
         type: boolean
         default: false
+      # Moves npm's next tag up to a release already shipped, and does nothing else: no build, no key, no publish
+      # (unbrowse-core#629). The version must be npm's latest.
+      next_to:
+        description: Only move npm's next tag up to this shipped version (e.g. 13.0.0)
+        type: string
+        default: ""
 
 # One release at a time, each reading the tags the last one made.
 concurrency:
@@ -43,11 +54,13 @@ jobs:
   version:
     permissions:
       contents: read
+      # The promotion gate reads the coverage and task-bank artifacts CI kept for the tree it ships.
+      actions: read
     name: Version
     # A CI run that passed for a push to staging or a release branch (not one for a pull request from a branch of that
     # name, nor a push from a fork), a release tag pushed, or a run by hand; release-version.sh refuses any other ref.
     if: >-
-      github.event_name == 'workflow_dispatch' || github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' && inputs.next_to == '' || github.event_name == 'push' ||
       github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: blacksmith-2vcpu-ubuntu-2404
@@ -91,6 +104,26 @@ jobs:
           else
             node .github/scripts/npm-preflight.mjs "$VERSION"
           fi
+      # Public only with the bar met (UNB-208, AGENTS.md "Tests, requirements and the merge scorecard"): 90% line
+      # coverage in every gated part, and the whole task bank on this tree with no task lost from the last promotion,
+      # no confident wrong answer and no fewer passes than the floor. A tag stops here when it isn't met, each rule
+      # named. A dry run reads the gate and goes on; staging and release branches don't reach public, so they skip it.
+      - name: The promotion gate
+        if: steps.next.outputs.version != '' && (steps.next.outputs.channel == 'production' || inputs.dry_run == true)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: ${{ steps.next.outputs.channel }}
+          DRY_RUN: ${{ inputs.dry_run == true }}
+        run: |
+          status=0
+          sh .github/scripts/promotion-gate.sh "$(git rev-parse 'HEAD^{tree}')" "$RUNNER_TEMP/promotion" || status=$?
+          cat "$RUNNER_TEMP/promotion/verdict.md" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          if [ "$status" != 0 ]; then
+            if [ "$CHANNEL" = production ] && [ "$DRY_RUN" != true ]; then
+              echo "::error::the promotion gate refuses this release (above)"; exit 1
+            fi
+            echo "::warning::the promotion gate would refuse this ref (a dry run, or not a public release)"
+          fi
 
   # The programs for each machine, built on it: the node, `unb`, the browser and the window. A Mac's are Unbrowse.app;
   # Linux's and Windows' the four programs in one folder.
@@ -104,10 +137,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-latest }
-          # Blacksmith has no Intel Macs, so the x64 Mac build stays on GitHub's (billed); moving it means cross-building
-          # on Apple silicon (cargo --target x86_64-apple-darwin, the window's Zig target, package-macos.sh's arch).
-          - { platform: darwin-x64, runner: macos-15-intel }
+          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-15 }
           # Ubuntu 22.04's glibc (2.35) is the oldest a Linux machine needs; the wheels are tagged for it.
           - { platform: linux-x64, runner: blacksmith-4vcpu-ubuntu-2204 }
           - { platform: linux-arm64, runner: blacksmith-4vcpu-ubuntu-2204-arm }
@@ -173,7 +203,7 @@ jobs:
         name: Build Unbrowse.app
         working-directory: unbrowse-node/window
         # A bundle's version is numbers alone (CFBundleShortVersionString): a prerelease's is its X.Y.Z.
-        run: zig build app -Doptimize=ReleaseSafe -Dversion="${VERSION%%-*}"
+        run: zig build app -Doptimize=ReleaseSafe -Dcpu=baseline -Dversion="${VERSION%%-*}"
       - if: startsWith(matrix.platform, 'darwin')
         name: Archive unsigned Mac build inputs
         run: tar -czf mac-inputs.tar.gz unbrowse-node/target/release/unbrowse-node unbrowse-node/target/release/unb unbrowse-browser/cli/target/release/agent-browser unbrowse-node/window/zig-out/Unbrowse.app && shasum -a 256 mac-inputs.tar.gz > mac-inputs.tar.gz.sha256
@@ -186,7 +216,9 @@ jobs:
       - if: ${{ !startsWith(matrix.platform, 'darwin') }}
         name: Build the window
         working-directory: unbrowse-node/window
-        run: zig build -Doptimize=ReleaseSafe
+        # -Dcpu=baseline: Zig builds for the build machine's own processor unless told, and a window built for a newer
+        # one dies on start with an illegal instruction on an older one (0xc000001d on Windows runners, Nov 2026).
+        run: zig build -Doptimize=ReleaseSafe -Dcpu=baseline
       - if: ${{ !startsWith(matrix.platform, 'darwin') }}
         name: Pack the programs
         run: sh .github/scripts/package-programs.sh "$VERSION" "${{ matrix.platform }}" dist
@@ -222,8 +254,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-latest }
-          - { platform: darwin-x64, runner: macos-15-intel }
+          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-15 }
     runs-on: ${{ matrix.runner }}
     environment: release
     steps:
@@ -268,12 +299,25 @@ jobs:
       - name: Load Developer ID and package
         env:
           VERSION: ${{ needs.version.outputs.version }}
+          CHANNEL: ${{ needs.version.outputs.channel }}
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          MACOS_ALLOW_UNNOTARIZED: ${{ vars.MACOS_ALLOW_UNNOTARIZED }}
         run: |
+          # A production release is never signed ad hoc: an ad hoc build is quarantined on every machine that downloads it,
+          # and its programs' code identity changes every build, which the Keychain rule for the node's key checks
+          # (unbrowse-core#630).
+          if [ -z "$MACOS_CERTIFICATE" ] && [ "$CHANNEL" = production ]; then
+            echo "::error::MACOS_CERTIFICATE isn't set in the release environment, and a production release isn't signed ad hoc. Add the Developer ID Application certificate (.p12, base64) as MACOS_CERTIFICATE and its password as MACOS_CERTIFICATE_PASSWORD, with APPLE_API_KEY, APPLE_API_KEY_ID and APPLE_API_ISSUER (an App Store Connect team key) to notarize, then rerun"
+            exit 1
+          fi
+          [ -n "$MACOS_CERTIFICATE" ] || echo "::warning::MACOS_CERTIFICATE isn't set: this $CHANNEL build is signed ad hoc"
           if [ -n "$MACOS_CERTIFICATE" ]; then
             keychain=$RUNNER_TEMP/signing.keychain-db
             pass=$(openssl rand -hex 16)
@@ -297,6 +341,36 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  # The disk image as an owner gets it (UNB-266): mounted, the app copied out, its node started, the window's Connect
+  # sent, and every client's entry answering with the node's tools. Prints MAC_INSTALL_E2E_OK. It runs the programs
+  # just built and a script of the repository's, so it has a runner of its own with no signing key on it
+  # (check_signing_jobs.py); the packages below wait for it, so an image that doesn't install is never released.
+  mac-install:
+    permissions:
+      contents: read
+    name: Mac install, end to end (${{ matrix.platform }})
+    needs: [version, mac-sign]
+    if: needs.version.outputs.version != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-15 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: programs-${{ matrix.platform }}
+          path: dist
+      - run: sh unbrowse-node/scripts/install-e2e.sh --dmg dist/Unbrowse-"$VERSION"-macos-*.dmg
+
   # Each machine's package and the manifest of their hashes. No secret: what runs here (setup-node, the packing
   # scripts) never shares a runner with a signing key. It also records the hash of every program archive and browser
   # program the GitHub release will publish, as a job output: this job runs nothing from a package registry, and it runs
@@ -308,7 +382,7 @@ jobs:
     outputs:
       hashes: ${{ steps.hashes.outputs.hashes }}
       programs: ${{ steps.programs.outputs.programs }}
-    needs: [version, programs, mac-sign]
+    needs: [version, programs, mac-sign, mac-install]
     if: needs.version.outputs.version != ''
     runs-on: blacksmith-2vcpu-ubuntu-2404
     env:
@@ -335,7 +409,7 @@ jobs:
         run: |
           sh .github/scripts/pack-platforms.sh "$VERSION" programs dist
           # Every machine made it into the packages, and each has its browser add-on apart from them.
-          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+          for p in darwin-arm64 linux-x64 linux-arm64 win32-x64; do
             test -f "dist/unbrowse-$p-$VERSION.tgz"
             test -f "dist/unbrowse-browser-$p-$VERSION.tgz"
             if tar -tzf "dist/unbrowse-$p-$VERSION.tgz" | grep -q 'agent-browser'; then echo "::error::@unbrowse/$p carries the browser"; exit 1; fi
@@ -351,7 +425,7 @@ jobs:
 
   # The release key signs the manifest here and nowhere else. The job installs nothing and runs nothing a package
   # registry gave it: the checkout of the signing script and the node's trusted key, the manifest, and the runner's own
-  # Node with its built-in crypto. Its runner is GitHub's, fresh for this job, so no earlier step of another job can
+  # Node with its built-in crypto. Its runner is a fresh Blacksmith VM for this job, so no earlier step of another job can
   # be waiting on it to read the key. The key is a secret of the `release` environment, and the job refuses any ref but
   # the three that release.
   sign-manifest:
@@ -360,7 +434,7 @@ jobs:
     name: Sign the manifest
     needs: [version, platforms]
     if: needs.version.outputs.version != ''
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -457,7 +531,7 @@ jobs:
     name: Sign package hashes
     needs: [version, sdks]
     if: needs.version.outputs.version != ''
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -491,7 +565,7 @@ jobs:
     needs: [version, sdks, sign-artifacts, platforms]
     # A staging build goes to npm's `staging` tag alone: no node updates to it.
     if: needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: release
     outputs:
       targets_changed: ${{ steps.sign.outputs.targets_changed }}
@@ -565,7 +639,7 @@ jobs:
     name: Co-sign changed targets
     needs: [version, sign-updates, sdks, sign-artifacts]
     if: needs.sign-updates.outputs.cosign_required == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: targets-cosign
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -609,7 +683,7 @@ jobs:
     outputs:
       updates: ${{ steps.updates.outputs.updates }}
     if: always() && needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging' && needs.sdks.result == 'success' && needs.sign-updates.result == 'success' && needs.sign-updates.outputs.published == 'true' && (needs.cosign-updates.result == 'success' || needs.cosign-updates.result == 'skipped')
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -701,9 +775,12 @@ jobs:
       - name: Tag and publish
         env:
           NOTARIZED: ${{ vars.MACOS_NOTARIZED }}
+          CHANNEL: ${{ needs.version.outputs.channel }}
+          ALLOW_UNNOTARIZED: ${{ vars.MACOS_ALLOW_UNNOTARIZED }}
         run: |
-          # The Mac app is notarized when the repository's MACOS_NOTARIZED variable says so (set it with the Developer ID
-          # and notary secrets); until then macOS asks its owner to open it once by hand.
+          # A production Mac app is notarized, or package-macos.sh stopped the release (unless MACOS_ALLOW_UNNOTARIZED
+          # let it through); another channel's is when the repository's MACOS_NOTARIZED variable says so.
+          if [ "$CHANNEL" = production ] && [ "$ALLOW_UNNOTARIZED" != true ]; then NOTARIZED=true; fi
           if [ "$NOTARIZED" = true ]; then
             MAC_TRUST="It is signed with Unbrowse's Developer ID and notarized by Apple, so it opens like any app."
           else
@@ -711,26 +788,25 @@ jobs:
           the app for malware. Open it once by hand: in Applications, right-click (or Control-click) Unbrowse and choose
           Open, then Open again. On macOS 15 (Sequoia) or later that no longer offers Open: after the warning, go to
           System Settings > Privacy & Security, scroll to Security, click Open Anyway beside \"Unbrowse was blocked\",
-          and confirm. From a terminal, \`xattr -dr com.apple.quarantine /Applications/Unbrowse.app\` does the same."
+          and confirm."
           fi
           cd dist
           # The newest Mac app at a name that stays: releases/latest/download/Unbrowse-macos-<arch>.dmg.
-          for arch in arm64 x64; do cp "Unbrowse-$VERSION-macos-$arch.dmg" "Unbrowse-macos-$arch.dmg"; done
+          cp "Unbrowse-$VERSION-macos-arm64.dmg" "Unbrowse-macos-arm64.dmg"
           sha256sum -- * > SHA256SUMS
           # The browser's npm postinstall installs a machine's browser only when its hash is listed here.
-          for p in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64.exe; do
+          for p in darwin-arm64 linux-x64 linux-arm64 win32-x64.exe; do
             grep -q "  agent-browser-$p\$" SHA256SUMS || { echo "::error::SHA256SUMS lists no agent-browser-$p"; exit 1; }
           done
           cat > "$RUNNER_TEMP/notes.md" <<EOF
           **On a Mac, download the disk image:** [\`Unbrowse-macos-arm64.dmg\`](https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/Unbrowse-macos-arm64.dmg)
-          for Apple silicon, [\`Unbrowse-macos-x64.dmg\`](https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/Unbrowse-macos-x64.dmg)
-          for Intel. Open it and drag Unbrowse onto Applications: the app holds the window, the node, \`unb\` and the
+          for Apple silicon (there is no Intel Mac build). Open it and drag Unbrowse onto Applications: the app holds the window, the node, \`unb\` and the
           browser program the node fetches when a goal first needs it. $MAC_TRUST
 
           **\`unbrowse\`**, the app, the node, the agent skill and the client in one package:
           \`npm install -g unbrowse\` (or \`pip install unbrowse-$VERSION-py3-none-<your machine>.whl\` from below), then
           \`unbrowse app\` opens the window and \`unbrowse start\` runs the node without it. npm fetches the programs for
-          the machine it installs on: macOS (Apple silicon and Intel), Linux (x64 and arm64, glibc 2.35 or later) and
+          the machine it installs on: macOS (Apple silicon), Linux (x64 and arm64, glibc 2.35 or later) and
           Windows (x64). \`unbrowse-$VERSION-py3-none-any.whl\` is the client alone, for any other machine. No install
           brings a browser or downloads Chrome: the node runs without one, and fetches its browser program
           (\`@unbrowse/browser-<machine>\`, checked against this release's signature) and, when there's no Chromium,
@@ -837,3 +913,42 @@ jobs:
           set -- ./dist/unbrowse-*-"$VERSION".tgz "./dist/unbrowse-$VERSION.tgz"
           [ "$WITH_UPDATES" != true ] || set -- "$@" ./updates/*.tgz
           sh .github/scripts/npm-publish.sh "$VERSION" release.yml "$@"
+
+  # npm install unbrowse@next must never get a candidate the shipped release has passed: after a production release, or
+  # by hand (`next_to`), unbrowse's next tag and its platform packages' move up to the release when they are behind
+  # (unbrowse-core#629). npm authenticates dist-tags by trusted publishing, this workflow's own identity in the release
+  # environment: no token, and no secret in this job. Each package's trusted publisher needs "Allow npm dist-tag" on.
+  # By hand (`next_to`) it skips the version job, so the ref is named here: only a run on main moves the tag, as only a
+  # release merged into main ships.
+  npm-next:
+    name: Move npm's next tag up to the release
+    needs: [version, npm]
+    if: >-
+      ${{ !cancelled() && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.next_to != '' ||
+      needs.npm.result == 'success' && needs.version.outputs.channel == 'production' && inputs.dry_run != true) }}
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts
+            .github/tools/npm
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.2
+      # npm 12.2.0 or later takes dist-tags by trusted publishing; the lockfile pins 12.2.2.
+      - name: Install lockfile-pinned npm without lifecycle scripts
+        run: npm ci --ignore-scripts --prefix .github/tools/npm
+      - name: Move next up to the release
+        env:
+          VERSION: ${{ inputs.next_to || needs.version.outputs.version }}
+        run: |
+          export PATH="$GITHUB_WORKSPACE/.github/tools/npm/node_modules/.bin:$PATH"
+          latest=$(npm view unbrowse dist-tags.latest)
+          if [ "$VERSION" != "$latest" ]; then echo "::error::$VERSION isn't npm's latest ($latest): next only moves up to a shipped release"; exit 1; fi
+          sh .github/scripts/npm-next-follows.sh "$VERSION" unbrowse

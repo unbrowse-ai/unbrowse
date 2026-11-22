@@ -15,7 +15,6 @@ import {
   addTabAtom,
   switchTabAtom,
   newSessionDialogAtom,
-  sessionErrorAtom,
 } from "@/store/sessions";
 import { tabsForPortAtom, engineForPortAtom } from "@/store/tabs";
 import { ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
@@ -349,8 +348,6 @@ function SessionNode({
 
 export function SessionTree() {
   const sessions = useAtomValue(sessionsAtom);
-  const closable = sessions.filter((s) => !s.pending && !s.closing).length;
-  const sessionError = useAtomValue(sessionErrorAtom);
   const activePort = useAtomValue(activePortAtom);
   const setActivePort = useSetAtom(activePortAtom);
   const getTabsForSession = useAtomValue(tabsForPortAtom);
@@ -416,7 +413,7 @@ export function SessionTree() {
         <span className="text-xs text-muted-foreground">Sessions</span>
         <div className="ml-auto flex items-center gap-0.5">
           <ThemeToggle />
-          {closable > 0 && (
+          {sessions.some((s) => !s.pending) && (
             <button
               type="button"
               onClick={() => setCloseAllOpen(true)}
@@ -443,9 +440,6 @@ export function SessionTree() {
         </div>
       </div>
       <Separator />
-      {sessionError && (
-        <p className="bg-destructive/10 px-3 py-1.5 text-xs text-destructive">{sessionError}</p>
-      )}
       <ScrollArea className="flex-1">
         <div className="w-full py-1">
           {sessions.length === 0 ? (
@@ -489,7 +483,7 @@ export function SessionTree() {
             value={newSessionName}
             onChange={(e) => setNewSessionName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                 e.preventDefault();
                 handleCreateSubmit();
               }
@@ -553,7 +547,7 @@ export function SessionTree() {
             <DialogTitle>Close all sessions</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            This will close {closable} active {closable === 1 ? "session" : "sessions"} and their browsers. This action cannot be undone.
+            This will close {sessions.filter((s) => !s.pending).length} active {sessions.filter((s) => !s.pending).length === 1 ? "session" : "sessions"} and their browsers. This action cannot be undone.
           </p>
           <DialogFooter>
             <Button

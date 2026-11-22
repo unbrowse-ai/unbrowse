@@ -1,0 +1,10 @@
+// The source config the Vite build reads (local dev and the build). Deploys use wrangler.staging.jsonc / wrangler.jsonc,
+// which point at the build's output.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "unbrowse-dashboard-dev",
+  "main": "src/server.ts",
+  "compatibility_date": "2026-10-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [{ "binding": "DB", "database_name": "unbrowse-dashboard-dev", "database_id": "local", "migrations_dir": "migrations" }]
+}

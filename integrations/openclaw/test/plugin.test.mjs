@@ -43,6 +43,7 @@ function answer(req, body) {
     case "GET /v1/routes":
       return [200, { routes: [HN] }];
     case "POST /v1/do":
+      if (body.ask === "ask_0f9b3e4a5e46facc" && body.goal === undefined) return [200, { how: "called", route: HN, result: { ok: true, ms: 5, data: { hits: [{ title: "collected" }] }, retry: "as_is" }, outcome: "answered", ask: body.ask }];
       if (body.goal === "search HN stories") return [200, { how: "called", route: HN, result: { ok: true, ms: 212, data: { hits: [{ title: body.inputs?.q ?? "rust" }] }, retry: "as_is" } }];
       return [404, { error: "no route does that yet: give url, a page that does it, and the node learns it" }];
     case "POST /v1/routes/hn-search/call":
@@ -146,6 +147,14 @@ test("a missing argument and a node refusal come back as the reply, in the node'
   assert.match(missing.details.error, /give url/);
   const paused = await tools.get("unbrowse_call").tool.execute("1", { route_id: "paused" });
   assert.match(paused.details.error, /paused by its owner/);
+});
+
+test("an ask alone is sent to the node to collect its answer", async () => {
+  const r = await load().get("unbrowse_do").tool.execute("1", { ask: "ask_0f9b3e4a5e46facc" });
+  assert.equal(last().url, "/v1/do");
+  assert.equal(last().body.ask, "ask_0f9b3e4a5e46facc");
+  assert.equal(last().body.goal, undefined);
+  assert.deepEqual([r.details.outcome, r.details.ask], ["answered", "ask_0f9b3e4a5e46facc"]);
 });
 
 test("browse steps share one session, so the next step acts on the page the last one opened", async () => {

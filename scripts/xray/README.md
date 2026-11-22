@@ -149,6 +149,40 @@ only when its file, its calls, its learn or its walk moved. On `~/.unbrowse` (28
    `UNBROWSE_SENT_LOG=$UB_DIR/home/node/sent.jsonl` and the call's column fills in with its cookies, protocol and
    statuses.
 
+## The graph across routes
+
+No route names another, so `route_graph.py` derives one from what each route records, every time it is read:
+
+```sh
+scripts/xray/xray.sh graph [--site S]      # nodes, edges, kinds, same-step and same-script groups, cycles, findings, costs (JSON)
+scripts/xray/xray.sh dependents <route>    # what breaks if this route changes, transitively (id, file or id prefix)
+scripts/xray/xray.sh needs <route>         # what must hold before it can be called: givers, what comes from outside, the caller's slots
+```
+
+- **Gives**: cookies a step's reply set, by name (only where a later step of the route reads one: a step keeps just
+  `sets_cookie`); the site's session, by the engine's rule (`graph.rs` `establishes_session`); a door's credential,
+  given by the door as a node of its own; a sign-in or a choice the node keeps for the site (`setups/<site>.json`: a
+  sign-in gives the session, a choice the cookies it `earns`), each a node of its own; storage keys the walk's page held (from its capture, where in hand); the
+  answer's reply keys.
+- **Takes**: jar cookies (less those the route's own earlier step sets), a bearer `authorization` it does not make,
+  stored keys, the caller's slots, script SHAs (`over_scripts`, a graph's kept scripts), the mint's headers, a door.
+- **Edges** `A -> B` where B takes what A gives on the same site: `cookie`, `session`, `door`, `setup`, `stored` (dependencies),
+  and `feeds` (an answer key named as a slot: a proposal by name, never required). Each says whether both routes share
+  a jar (`client.rs` `jar_name`: a jar is the route's target host). A site is the registrable domain, read with a public
+  suffix list given by `--suffixes`, else by a stated rule of shape.
+- **Groups**, never all pairs: one call (method, site, path shape, the same address and body places) several routes
+  carry; one script SHA several routes name.
+- **Findings**, counted at the top of the page: `session-ungiven`, `giver-failing` (every giver failing or
+  provisional), `cycle` (reported, never dropped), `step-duplicated`, `script-shared`.
+- **Costs**: for each shared step and each giver with two or more takers, the sends today (once per carrier per
+  call, from `stats.calls`) against once per lifetime (exact from `made.jsonl` times and a recorded lifetime; else a
+  range). A step that writes saves nothing; nor does one that sends the caller's value, whose kept reply serves only
+  the same values.
+
+The live view's *Across routes* lists a line a site; a site's graph is fetched from `/graph?site=` only when opened.
+Click an edge for the giver's step and the taker's hole, a route for what it gives and takes. Building is one index of
+gives by key and one pass over takes: O(routes + gives + takes + edges).
+
 ## What the text and static modes read
 
 1. **The route as the node kept it** (`<node>/routes/*.json`). Every value a step sends is a *hole*. Its *string* is
@@ -191,7 +225,7 @@ python3 -I -m unittest discover -s scripts/xray -p 'test_*.py' -v
 
 They use made-up routes, logs and walk captures on `shop.example`. `test_xray.py` covers the catalogue and the log,
 `test_wiring.py` the drawing and its flags, and `test_transport.py` the route-to-transport columns, their kinds, flags, the engine's functions, the
-diff and the state, and `test_harness.py` the one harness: findings on their holes, the engine
+diff and the state, `test_route_graph.py` the graph across routes, and `test_harness.py` the one harness: findings on their holes, the engine
 in one click, the pick (a learn that kept nothing, no candidate, a walk that ended early), the call log, the evidence
 that a fixed value moves, counts that agree with what is drawn, the person layer and the folds, the diff, the state
 as JSON and the front door. Every function of the running engine that `WHY` names must be in the source: rename one

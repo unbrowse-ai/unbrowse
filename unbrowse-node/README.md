@@ -158,7 +158,7 @@ picture cannot settle — a password, a one-time code — is the owner's, below.
 
 - Only the owner's window drives the page: the commands are `/owner/hands*`, behind the owner's token. An agent can
   only ask.
-- The owner's first click or key takes the page: agents' commands on that site wait until it's given back.
+- The owner's first click or key takes the page: agents still read it (snapshot, screenshot, its address, title and text), and every command that would change it waits until it's given back.
 - What the owner types into a password or one-time-code field (or a frame from another site that the page can't
   see into) leaves the walk record before the form can send it, and anything the browser returns to an agent says
   `[typed by the owner]` instead. No agent script runs on that page while it may hold it. Nothing typed is logged.
@@ -300,6 +300,8 @@ node that only earns needs a few cents once, for its identity.
 ```bash
 unbrowse-node wallet                     # the node's address, the linked owner wallet, the network and its gas
 unbrowse-node wallet address --copy      # the address alone, and on the clipboard
+unbrowse-node onboard                    # new here: start the node, passphrase, terms and sign-in, on this terminal
+unbrowse-node onboard status             # whether the node runs and is signed in (exit 0 only when both)
 unbrowse-node sign-in                    # sign in to the network (Privy on the site, or --wallet <address>)
 unbrowse-node share                      # what the node lists by itself, and why each route waits
 unbrowse-node network [on|off|light|full]
@@ -320,7 +322,7 @@ code is `app/src/telemetry.rs`; the worker that takes the events is [`unbrowse-t
 
 A failed call is never reported on the chain. A route call or paid fetch that ran and failed is counted here instead
 (`route_failed`, or `fetch_failed` for a paid fetch of another identity's entry), by its kind of failure alone. With
-bug reports on (`unbrowse-node reports on`), a failed call of a route made from another contributor's body is also
+bug reports on (the default; `unbrowse-node reports off` stops them), a failed call of a route made from another contributor's body is also
 filed by the node as an issue on unbrowse-ai/unbrowse: its kind of failure, step and status and the route's shape,
 never what the site said, at most once a day for one problem.
 

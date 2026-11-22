@@ -1,0 +1,15 @@
+{
+  "_what": "Trigger evals for the skills in skills/ (skill_trigger.py; skill-creator's method). Queries are what a person types, with detail, none naming a skill. `none` rows are near misses: close to a skill's words, but no skill is for them. Each runs `trials` times; the verdict needs `passes_at` on both kinds.",
+  "trials": 2,
+  "passes_at": 0.75,
+  "tasks": [
+    { "id": "reddit-front-page", "wants": "unbrowse", "prompt": "Get me the titles of the top 5 posts on the r/rust subreddit front page right now." },
+    { "id": "crate-version", "wants": "unbrowse", "prompt": "what's the newest version of the tokio crate on crates.io today? i need the exact number for my Cargo.toml" },
+    { "id": "find-the-api", "wants": "unbrowse-map", "prompt": "There's a search page at https://www.carousell.sg/search/iphone and I want the API call behind it, so I can run the same search later without opening a browser." },
+    { "id": "replay-a-flow", "wants": "unbrowse-map", "prompt": "Can you map the search flow on https://www.ikea.com/sg/en/ while browsing it, and tell me whether it replays browserless?" },
+    { "id": "prove-a-node-change", "wants": "verify-unbrowse", "prompt": "I changed how the unbrowse-core learner picks a page's call. Prove it works on a node built from this checkout before I open the PR, and show me the node's log." },
+    { "id": "near-miss-explain-api", "wants": "none", "prompt": "In two sentences, what's the difference between a REST API and a GraphQL API?" },
+    { "id": "near-miss-parse-url", "wants": "none", "prompt": "Write a Python function that takes a URL and returns its query string as a dict. No network calls." },
+    { "id": "near-miss-review-rust", "wants": "none", "prompt": "Review this Rust for bugs: fn add(a: i32, b: i32) -> i32 { a - b }" }
+  ]
+}

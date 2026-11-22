@@ -1370,4 +1370,58 @@ mod tests {
         let two = standings(&shuffled, 31, &NoProofYet);
         assert_eq!(one.routes, two.routes);
     }
+
+    /// Anyone may list an entry for a route: contributors who are not the route's first builder are shown beside it in
+    /// the route's standings and stay candidates in a pick, the first builder's entry ahead only as the earlier listing
+    /// (R5.17), and none of them is left out for being someone else's.
+    #[test]
+    fn entries_of_unrelated_contributors_for_one_route_all_stay_candidates_in_a_pick() {
+        let mut s = Script::default();
+        let first = s.list(1, 1, "shop.example", "search items", 1);
+        let (second, third) = (s.list(2, 2, "shop.example", "search items", 2), s.list(3, 3, "shop.example", "search items", 3));
+        let st = s.at(4);
+        let route = st.route_of(second).expect("the second contributor's entry is on the route");
+        assert_eq!(route.entries.iter().map(|e| e.entry).collect::<Vec<_>>(), vec![first, second, third], "one route, three contributors");
+        assert_eq!(st.route_of(third).map(|r| r.entries.len()), Some(3));
+        let of = |t: &(B256, Address)| Candidate { entry: t.0, contributor: t.1, site: "shop.example".into(), fee: FEE };
+        let found = vec![(third, wallet(3)), (second, wallet(2)), (first, wallet(1))];
+        let p = order(&st, found.clone(), of, false, (1.0, 0.0), |_| false);
+        assert_eq!(p.order.iter().map(|t| t.0).collect::<Vec<_>>(), vec![first, second, third], "all three, by the earliest listing");
+        // The first builder's entry failing here hands the pick to the others, in their order: a fallback has somewhere to go.
+        let p = order(&st, found, of, false, (1.0, 0.0), |e| e == first);
+        assert_eq!(p.order.iter().map(|t| t.0).collect::<Vec<_>>(), vec![second, third, first]);
+    }
+
+    /// A pick's two draws are numbers in [0, 1) and are two draws: not one number twice.
+    #[test]
+    fn a_picks_two_draws_are_numbers_below_one_and_not_the_same_number() {
+        let mut apart = 0;
+        for _ in 0..32 {
+            let (explore, which) = draws();
+            assert!((0.0..1.0).contains(&explore) && (0.0..1.0).contains(&which), "{explore} {which}");
+            apart += usize::from(explore != which);
+        }
+        assert!(apart > 0, "the second draw is not the first");
+    }
+
+    /// A failure kept on disk survives a restart for two hours, and what has run out is dropped from the file when the
+    /// next failure is kept.
+    #[test]
+    fn a_demotion_kept_on_disk_survives_a_restart_and_the_expired_are_dropped() {
+        let dir = std::env::temp_dir().join(format!("share-demoted-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("demoted.json");
+        let (a, b) = (id(4242), id(4343));
+        let t0 = 1_000_000u64;
+        let mut kept = Demoted::open(path.clone());
+        kept.demote(a, t0);
+        let reopened = Demoted::open(path.clone());
+        assert!(reopened.demoted(a, t0 + 60), "a restart inside the two hours still has it");
+        assert!(!reopened.demoted(a, t0 + LOCAL_DEMOTION.as_secs()), "and not after them");
+        kept.demote(b, t0 + LOCAL_DEMOTION.as_secs() + 1);
+        let later = Demoted::open(path);
+        assert_eq!(later.entries.len(), 1, "the one that ran out went from the file");
+        assert!(later.demoted(b, t0 + LOCAL_DEMOTION.as_secs() + 2) && !later.demoted(a, t0 + LOCAL_DEMOTION.as_secs() + 2));
+        std::fs::remove_dir_all(dir).ok();
+    }
 }

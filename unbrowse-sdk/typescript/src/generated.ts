@@ -21,7 +21,7 @@ export const ERRORS = [
   { code: "not_found", status: 404, class: "NotFoundError", means: "no such route, owner command or walk picture; or nothing does the goal yet and no url was given" },
   { code: "conflict", status: 409, class: "ConflictError", means: "routes on more than one site do the goal: give url to say which" },
   { code: "unprocessable", status: 422, class: "UnprocessableEntityError", means: "the browser or the learner couldn't do it; the message says why" },
-  { code: "browser_missing", status: 422, class: "BrowserMissingError", means: "the goal needs the node's browser and the node has none (or the call said browser=\"never\"); the error says what's missing and how to get it" },
+  { code: "browser_missing", status: 422, class: "BrowserMissingError", means: "the goal needs the node's browser and the node has none, and the error says what's missing and how to get it; or the call said browser=\"never\", and the error says it was declined (declined: true, outcome browser_declined), with nothing to install" },
   { code: "bad_gateway", status: 502, class: "", means: "the site, or the network a call went through, failed" },
   { code: "unavailable", status: 503, class: "NodeUnavailableError", means: "the node is paused by its owner, waiting for Keychain access, or unable to read the sessions it holds to keep them out of an answer" },
   { code: "unreachable", status: 0, class: "NodeConnectionError", means: "the node isn't running, or nothing answers at its address" },
@@ -59,6 +59,8 @@ export type Agent = {
   auto?: boolean;
   cap_set?: boolean;
   payers?: unknown[][];
+  /** The gateway a remote key opens the node through (its host); none for a key of the node's own door. */
+  gateway?: string | null;
 };
 export type AgentSpend = { index: number; spent: number; cap: number };
 export type AnswerField = {
@@ -101,7 +103,10 @@ export type BrowseReply = {
   url?: string;
   waited_s?: number;
   needs_owner?: boolean;
-  next?: string[];
+  outcome?: Outcome;
+  outcome_from?: string;
+  next?: Next;
+  ask?: string;
 };
 export type BrowserFound = { name: string; path: string; downloaded: boolean };
 export type BrowserState = "present" | "missing" | "installing";
@@ -136,6 +141,10 @@ export type CallResult = {
   records?: number | null;
   bounties?: BountyAsks;
   browser?: boolean;
+  outcome?: Outcome;
+  outcome_from?: string;
+  next?: Next;
+  ask?: string;
   network?: {
     entry_id: string;
     content_id: string;
@@ -182,6 +191,10 @@ export type ChallengeReply = {
   mime?: string;
   said: string[];
   note?: string;
+  outcome?: Outcome;
+  outcome_from?: string;
+  next?: Next;
+  ask?: string;
 };
 export type CoinDone = { tx: string; coin: string; entry: string; amount: number | null };
 export type CoinLot = { delay: number; earning: number; pending: number; unstaking: number; ready_at: number };
@@ -213,6 +226,11 @@ export type DoResult =
       route: Route;
       result: CallResult;
       picked_by?: string;
+      outcome?: Outcome;
+      outcome_from?: string;
+      next?: Next;
+      ask?: string;
+      notes?: string[];
       route_failed?: RouteFailure;
       network_skipped?: NetworkSkipped;
       network_offers?: NetworkOffers;
@@ -224,17 +242,34 @@ export type DoResult =
       result: CallResult;
       route_failed?: RouteFailure;
       explored?: boolean;
+      outcome?: Outcome;
+      outcome_from?: string;
+      next?: Next;
+      ask?: string;
     }
   | {
       how: "browse";
       site: string;
       page: string;
       why: string;
-      next: string;
+      note?: string;
+      outcome?: Outcome;
+      outcome_from?: string;
+      next: Next;
+      ask?: string;
       route_failed?: RouteFailure;
       network_skipped?: NetworkSkipped;
       network_offers?: NetworkOffers;
       payment_refused?: PaymentRefused;
+    }
+  | {
+      how: "working";
+      ask: string;
+      phase: string;
+      note?: string;
+      outcome: Outcome;
+      outcome_from: string;
+      next: Next;
     }
   | {
       how: "pages";
@@ -243,7 +278,11 @@ export type DoResult =
       pages: PageAnswer[];
       fields: Record<string, AnswerField[]>;
       pending?: string[];
-      next?: string;
+      note?: string;
+      outcome?: Outcome;
+      outcome_from?: string;
+      next?: Next;
+      ask?: string;
     };
 export type DomainStatus = {
   domain: string;
@@ -273,7 +312,14 @@ export type FetchedFrom = {
   listed_as: string;
   fetched_at: number;
 };
-export type Fields = { returned: string[]; more: AnswerField[]; more_total: number; whole: boolean; add?: string };
+export type Fields = {
+  returned: string[];
+  more: AnswerField[];
+  more_total: number;
+  whole: boolean;
+  add?: string;
+  copies?: string[];
+};
 export type FirstBuy = {
   entry: string;
   coin: string;
@@ -314,6 +360,7 @@ export type HandsAsk = {
     amount?: number;
     over?: string;
   };
+  login?: { site: string; account: string };
 };
 export type HandsBrowser = { site: string; url: string; held: boolean; walk: string };
 export type HandsInput =
@@ -412,7 +459,8 @@ export type ListingToSign = {
   what: string;
   typed_data: Record<string, unknown>;
 };
-export type Login = { ref: string; site: string; code?: string };
+export type ListingsSign = { url: string | null; opened: boolean; asked: number };
+export type Login = { ref: string; site: string; code?: string; from?: string };
 export type Money = {
   balance: string;
   available_to_spend: string;
@@ -451,7 +499,13 @@ export type NetworkSkipped = {
   why: string;
 };
 export type NewAgent = { agent: Agent; setup: string; token: string };
+export type NewRemoteKey = { agent: Agent; token: string; url: string; claude: string };
+export type Next = {
+  tool: "unbrowse_do" | "unbrowse_call" | "unbrowse_browse" | "unbrowse_challenge" | "unbrowse_search";
+  args: Record<string, unknown>;
+};
 export type NodeInfo = { name: string; version: string; api_port: number; dev: boolean; terms_version: string };
+export type Outcome = "answered" | "answered_empty" | "answered_cut" | "still_working" | "needs_hands" | "needs_person" | "challenge" | "refused" | "gone" | "not_allowed" | "no_route" | "call_failed" | "browser_declined" | "browser_missing" | "owner_unavailable" | "budget_spent" | "paused" | "bad_request" | "stopped";
 export type OwnerCallResult = {
   ok: boolean;
   ms: number;
@@ -475,9 +529,10 @@ export type OwnerNodes = {
     name: string | null;
   }[];
 };
+export type OwnerReach = "watching" | "can_open" | "off";
 export type PageAnswer = {
   url: string;
-  how: "called" | "learned" | "network" | "browse" | "error";
+  how: "called" | "learned" | "network" | "browse" | "error" | "working";
   ms: number;
   ok: boolean;
   route_id?: string;
@@ -486,8 +541,11 @@ export type PageAnswer = {
   truncated?: Truncated | null;
   fields?: AnswerField[];
   why?: string;
-  next?: string;
+  outcome?: Outcome;
+  outcome_from?: string;
+  next?: Next;
   route_failed?: RouteFailure;
+  ask?: string;
 };
 export type Passkey = {
   id: string;
@@ -495,13 +553,23 @@ export type Passkey = {
   account: string;
   created: number;
   used: number | null;
-  how: "auto" | "manual";
+  how: "auto" | "manual" | "phone";
+  approve: boolean;
 };
 export type PasskeyArmed = { site: string; until: number; how: string };
 export type Passkeys = { on: boolean; never: string[]; passkeys: Passkey[] };
 export type PaymentApprover = { approver: "dialog" | "sdk"; since?: number };
 export type PaymentRefused = { entry_id: string; error: string; why: string };
 export type Pricing = { auto: boolean; floor: number; ceiling: number; epoch: number; block: number; lines: number };
+export type Remote = {
+  on: boolean;
+  public: boolean;
+  gateway: string;
+  url: string | null;
+  account_link: string | null;
+  peer: string | null;
+  keys: Agent[];
+};
 export type ReportContents = {
   kind: "wrong_data" | "false_success" | "failed" | "slow" | "confusing" | "other";
   summary?: string;
@@ -559,6 +627,9 @@ export type Route =
       inputs: RouteInput[];
       link?: string;
       also_sends?: RouteStep[];
+      verdict?: "agreed" | "differed" | "failed" | "cannot-tell";
+      why?: string | null;
+      was?: string;
     }
   | {
       id: string;
@@ -642,7 +713,7 @@ export type ShareBlocked =
 export type ShareMode = "used" | "all" | "off";
 export type ShareRoute = { id: string; site: string; what: string; share: boolean | null; passed: number; days: number } & ShareStanding;
 export type ShareStanding =
-  | { why: "listed" | "off" | "opted_out" | "not_run_yet" | "queued" | "preview" }
+  | { why: "listed" | "off" | "opted_out" | "not_run_yet" | "queued" | "preview" | "unsigned" }
   | { why: "local"; signed_in: boolean }
   | { why: "unspread"; poster: boolean }
   | { why: "excluded"; host: string }
@@ -661,7 +732,15 @@ export type ShareStatus = {
 export type Site = { host: string; walked: number | null };
 export type Split = { contributor: number; site: number; platform: number; serving: number; burn: number };
 export type TermsText = { version: string; terms: string; privacy: string };
-export type Truncated = { kept_bytes: number; total_bytes: number; cuts: Cut[]; whole: string | null; note: string };
+export type Truncated = {
+  kept_bytes: number;
+  total_bytes: number;
+  cuts: Cut[];
+  whole: string | null;
+  left_out?: string[];
+  next_page?: Record<string, string> | null;
+  note: string;
+};
 export type UpdateStatus = {
   running: string;
   enabled: boolean;
@@ -676,7 +755,13 @@ export type UpdateStatus = {
   update_root_warning: string | null;
 };
 export type VaultCard = { label: string; last4: string; created: number; code: boolean };
-export type VaultImport = { added: number; codes: number; known: number; skipped: { why: string; count: number }[] };
+export type VaultImport = {
+  added: number;
+  codes: number;
+  known: number;
+  restored: number;
+  skipped: { why: string; count: number }[];
+};
 export type VaultLogin = {
   site: string;
   account: string;
@@ -713,7 +798,14 @@ export type WalletGrant = {
   calls: { to: string; data: string; what: string }[];
 };
 export type WalletRenew = { url: string | null; opened: boolean; calls: { to: string; data: string; what: string }[] };
-export type Whoami = { agent: string; address: string; node: string; browser?: BrowserState; browser_fetch?: boolean };
+export type Whoami = {
+  agent: string;
+  address: string;
+  node: string;
+  browser?: BrowserState;
+  browser_fetch?: boolean;
+  owner?: OwnerReach;
+};
 export type WrongPage = { page: string; why: string };
 
 // ---- the agent API ----
@@ -726,36 +818,34 @@ export interface AgentPrimitives {
   };
   unbrowse_do: {
     args: {
-      /** What you want, in plain words, e.g. 'search Hacker News stories' or 'send a chat message'. The same words find the same route next time. */
-      goal: string;
-      /** A page that does it, e.g. https://hn.algolia.com/?q=rust. Needed only when no route does it yet; its query values become inputs. */
+      /** Plain words; the same ones find the same route. Needed unless ask. */
+      goal?: string;
+      /** ms; default 45000, max 300000. Then, still working (learning, waiting for the site's browser): outcome still_working with ask and next; work goes on. */
+      wait_ms?: number;
+      /** From a still_working reply: collects the answer, waiting up to wait_ms again. Kept 5 min after the work ends. Alone: it holds the rest. */
+      ask?: string;
       url?: string;
-      /** Values by the route's input names (route.inputs in a reply); they win over the url's. A name the route doesn't take comes back in the result's ignored_inputs and isn't sent. */
+      /** By route.inputs names; win over the url's. */
       inputs?: Record<string, string>;
-      /** The browsing session a page this opens for you belongs to (see unbrowse_browse): carry on in it with unbrowse_browse and the same session. */
       session?: string;
-      /** Fields of the answer to get besides the ones a call hands back by default, by the paths in the result's fields.more (e.g. ["items[].rating"]; a path ending in a list or an object brings all of it), or ["*"] for the whole answer. By default a call hands back the fields its goal names and each record's name, and lists the rest in fields.more: ask only for what you need. */
+      /** Extra paths from result.fields.more (items[].rating; a list or object brings all of it), or ["*"]. Default: the goal's fields and each record's name. Ask only for what you need. */
       fields?: string[];
-      /** Several pages at once, in place of url, e.g. [{"url": "https://example.com/prices/bitcoin"}, {"url": "https://example.com/prices/ether"}] (a url alone, as a string, is fine too): the node does each as it does one url, all side by side, and answers how: pages, with each page's how, ms and data (or error), in the order given; fields lists the fields each route can add, once per route. A page's own goal and inputs win over the call's. Within a site its first page goes first, so a route learned there answers the site's other pages in one call each. A page that needs clicks or typing says so (how: browse) and isn't opened: ask for it alone. The reply comes within 40 seconds: pages still being learned then are listed in pending and go on learning, so ask again for them and they come back at once. At most 100. */
+      /** Instead of url, max 100 (objects or url strings), side by side; a page's goal and inputs win. Reply how: pages, each page's how, ms, data or error, in order. A site's first page goes first; its route answers the rest. A how: browse page isn't opened: ask it alone. Past wait_ms (40 s unsaid), pages still learning are in pending (how: working); the batch's ask (in next) collects all, a page's own ask that page. */
       pages?: { url: string; goal?: string; inputs?: Record<string, string> }[];
-      /** Whether this may use the node's browser. auto (the default): when the goal needs it, fetched first if the node lacks it and its owner lets it. if_present: only a browser the node has already. never: only a route, another contributor's route or a plain request. When the goal needs a browser this rules out, or the node lacks, the answer is the error browser_missing, saying what's missing and how to get it. */
+      /** auto (default): when needed, fetched if missing and the owner allows; if_present: only one present; never: routes, network routes, plain requests only. Missing: outcome browser_missing, saying how to get it; ruled out: outcome browser_declined, declined: true, next: the call with browser auto. */
       browser?: "auto" | "if_present" | "never";
-      /** The most this task pays to fetch one route another contributor lists, in USDC, e.g. 0.01. A route whose fee is over it is passed over, as one over the owner's per-fetch maximum is, and network_skipped says so. It only lowers the owner's maximum: leave it out to pay up to that. */
+      /** USDC this task pays at most to fetch one network route (e.g. 0.01); a fee over it is passed over (network_skipped). Only lowers the owner's max. */
       budget_usdc?: number;
     };
     result: DoResult;
   };
   unbrowse_walk: {
     args: {
-      /** The page to walk, e.g. https://example.com/search?q=rust. */
       url: string;
-      /** What you want from the page, in plain words: with pick and no what, it names the route. */
       goal?: string;
-      /** The candidate's index, as the reply names it: keep that candidate as a route. */
       pick?: number;
-      /** Your words for what the picked call is (e.g. 'the flight list'); defaults to goal. */
+      /** Your name for the picked call; default goal. */
       what?: string;
-      /** The walk's session, to read a walk you already made in this session rather than walking again. */
       session?: string;
     };
     result: {
@@ -782,53 +872,39 @@ export interface AgentPrimitives {
   };
   unbrowse_browse: {
     args: {
-      /** The command and its arguments, e.g. ["open", "https://example.com"], ["snapshot", "-i"], ["fill", "@e4", "hello"] */
       do: string[];
-      /** Which site's browser, when you have several open; defaults to the last one used. */
       site?: string;
-      /** What you're doing here, e.g. 'post a listing': the node names what it learns from this browsing after it. */
       goal?: string;
-      /** Which of your browsing sessions this is: each session has its own tab in a site's browser, so agents browsing the same site at once each read and drive their own page. Over MCP your client's session is used already; name one to keep several pages apart, or (over HTTP) to keep your page apart from other agents on your key. The SDKs send one per client. */
+      /** One tab each; MCP uses your client's. Name one to keep pages apart (over HTTP, from other agents on your key). The SDKs send one per client. */
       session?: string;
+      /** ask_owner: ms before still_working; 45000 unsaid. */
+      wait_ms?: number;
     };
     result: BrowseReply;
   };
   unbrowse_challenge: {
     args: {
-      /** The step: look (show the page), click, drag, type, press, wait, or done (the page should have stopped asking). */
-      action: "look" | "click" | "drag" | "type" | "press" | "wait" | "done";
-      /** A page to open in the session before looking, e.g. https://example.com/verify. Leave it out to meet the page already open. */
+      action: "look" | "click" | "drag" | "hold" | "type" | "press" | "wait" | "done";
+      /** Opened first; omit for the open page. */
       url?: string;
-      /** Which site's browser, when several are open; defaults to the last one used. */
       site?: string;
-      /** Which of your browsing sessions this is (as for unbrowse_browse). */
       session?: string;
-      /** The click's, or the drag's start, x in CSS pixels of the picture. */
       x?: number;
-      /** The click's, or the drag's start, y. */
       y?: number;
-      /** The drag's end x. */
       to_x?: number;
-      /** The drag's end y. */
       to_y?: number;
-      /** What to type into the focused field. */
       text?: string;
-      /** The key to press. */
       key?: "Enter" | "Tab" | "Escape" | "Backspace";
-      /** How long a wait is, up to 20000. 1000 by default. */
       ms?: number;
+      /** A hand step (click/drag/type/press) with no picture or read after it, to beat a short timer when you hold the grid already; look afterwards. */
+      quick?: boolean;
+      /** Hand steps ({action,x,y,...}) landed in one go, no picture between: a grid's clicks and Confirm inside a short timer. Overrides action. */
+      steps?: Record<string, unknown>[];
     };
     result: ChallengeReply;
   };
   unbrowse_observe: {
-    args: {
-      /** Which site's browser, when several are open; defaults to the last one used. */
-      site?: string;
-      /** Which of your browsing sessions this is (as for unbrowse_browse). */
-      session?: string;
-      /** What you're doing here, in plain words, so the node can name what the browsing learns. */
-      goal?: string;
-    };
+    args: { site?: string; session?: string; goal?: string };
     result: {
       site: string;
       elements: {
@@ -844,27 +920,19 @@ export interface AgentPrimitives {
   };
   unbrowse_logins: {
     args: Record<string, never>;
-    result: { logins: Login[]; cards: Card[] };
+    result: { logins: Login[]; cards: Card[]; sign_up: string };
   };
   unbrowse_open: {
-    args: {
-      /** unbrowse://<site>, or unbrowse://<site>/<entry id> */
-      link: string;
-    };
+    args: { link: string };
     result: LinkPreview;
   };
   unbrowse_call: {
-    args: {
-      route_id: string;
-      inputs?: Record<string, string>;
-      /** Fields of the answer to get besides the ones a call hands back by default, by the paths in the result's fields.more (e.g. ["items[].rating"]; a path ending in a list or an object brings all of it), or ["*"] for the whole answer. By default a call hands back the fields its goal names and each record's name, and lists the rest in fields.more: ask only for what you need. */
-      fields?: string[];
-    };
+    args: { route_id: string; inputs?: Record<string, string>; fields?: string[] };
     result: CallResult;
   };
   unbrowse_inspect: {
     args: {
-      /** The route, by the id unbrowse_do, unbrowse_call or unbrowse_walk named. */
+      /** From unbrowse_do, unbrowse_call or unbrowse_walk. */
       route_id: string;
     };
     result: {
@@ -877,34 +945,26 @@ export interface AgentPrimitives {
   };
   unbrowse_judge: {
     args: {
-      /** The route, by the id the unbrowse_do or unbrowse_call reply named (route.id, or route_failed.route_id). */
+      /** route.id or route_failed.route_id from a reply. */
       route_id: string;
-      /** wrong: its answer doesn't do the page (url) or isn't what it's named for (what). right: it does; keep fields as its defaults, or take back a wrong for url. */
       verdict: "right" | "wrong";
-      /** The page you asked for, as you gave it to unbrowse_do. */
       url?: string;
-      /** What you saw, in a line, for the owner to read: e.g. 'no listings: the page opened on the Certified tab'. Needed with verdict wrong and url. */
       why?: string;
-      /** What the route's answer really is, in plain words, when its name says something else. */
       what?: string;
-      /** The paths in the answer that are what you asked for (e.g. ["items[].title", "items[].price"]): kept as the route's default fields. */
       fields?: string[];
-      /** How the route's values are wired, as you read it from unbrowse_inspect and the answers: say of each value you would change what it is. fixed: send what the walk sent (a setting, a version, a name). drop: a header the site does not need (tracing, telemetry). session: a header whose value the page keeps in its storage. input:<name>: the value is the caller's, an input the route already takes. from:<step>:<json pointer>: it is read from that earlier step's JSON answer at that pointer (an id for a name, a region for a city), so it is read afresh on every call. keep: leave it. It is a proposal: the node applies it, checks it against the walk the route was learned from, and asks the site, as walked and for a second value (word). Kept only when both answer and the second answer is its own; otherwise nothing changes and the error says why. In a call of its own, with verdict right. Never for a route that writes. */
+      /** Rewire values unbrowse_inspect shows. is: fixed (the walk's value), drop (an unneeded header), session (a header from page storage), input:<name> (the caller's input), from:<step>:<json pointer> (read each call from that step's answer), keep. Kept only if the walk and the site both answer, with word too, and word gets its own answer; else unchanged, the error says why. Alone, with verdict right; never on a write. */
       links?: {
-        /** The step, as unbrowse_inspect numbers it (from 1). */
+        /** From 1, as unbrowse_inspect numbers it. */
         step: number;
-        /** The value's place in that step's request, as unbrowse_inspect names it (at): e.g. header:x-request-id, json:/variables/id, query:token, path:2. */
+        /** unbrowse_inspect's at (header:x-request-id, json:/variables/id). */
         at: string;
-        /** What the value is: fixed, drop, session, keep, input:<name> or from:<step>:<json pointer>. */
         is: string;
       }[];
-      /** With links: a second value for the route's searched input, of the kind the site takes there (a code where it takes codes), that the site certainly answers. Left out, the one the node already asked is used. */
+      /** With links: another value the site surely answers there; default the one already asked. */
       word?: string;
-      /** true when calling the route changes something on the site whatever its method says (a GET that unsubscribes, adds to a cart or sends): it is a write from then on, held to the write rules and never called for a goal that only reads. false takes back an earlier true. */
+      /** true: calling changes the site whatever its method (even a GET): a write from then on, held to write rules, never called to read. false undoes it. */
       writes?: boolean;
-      /** Your owner's bounty, from result.bounties.confirm, with entry: verdict right says that entry's answer does it, wrong that it doesn't; the node confirms only on your owner's yes. */
       bounty?: number;
-      /** The entry that bounty ask named, with bounty. */
       entry?: string;
     };
     result: JudgeResult | BountyAnswer;
@@ -915,23 +975,19 @@ export interface AgentPrimitives {
   };
   unbrowse_report: {
     args: {
-      /** wrong_data: a result for another thing than asked. false_success: ok: true with a block, captcha, error page or no data. failed: a call failed or needed a workaround. slow, confusing, other. */
       kind: "wrong_data" | "false_success" | "failed" | "slow" | "confusing" | "other";
-      /** One line: what went wrong, e.g. 'unbrowse_do for github.com/superdesigndev/treg returned firecrawl/firecrawl'. */
+      /** One line. */
       summary: string;
-      /** What you asked for or expected. */
       expected: string;
-      /** What came back instead, trimmed. No personal data. */
+      /** Trimmed. */
       got: string;
-      /** The route the problem is with, when you have its id. */
       route_id?: string;
-      /** The goal you gave unbrowse_do, if it's part of the problem. */
+      /** Your unbrowse_do goal, if part of it. */
       goal?: string;
-      /** The page you gave; only its scheme, host and path are kept. */
+      /** Scheme, host and path kept. */
       url?: string;
-      /** The tool whose answer was wrong. */
+      /** Whose answer was wrong. */
       tool?: "unbrowse_search" | "unbrowse_do" | "unbrowse_browse" | "unbrowse_logins" | "unbrowse_call" | "unbrowse_whoami";
-      /** The error the node gave, if there was one. */
       error?: string;
     };
     result: ReportResult;
@@ -955,10 +1011,10 @@ export type PrimitiveSpec = {
 
 export const PRIMITIVES = {
   unbrowse_search: { tool: "unbrowse_search", method: "GET", path: "/v1/routes", renamed: [{ http: "q", tool: "query" }], args: ["query"], required: [], sdk: ["search"], cli: "search" },
-  unbrowse_do: { tool: "unbrowse_do", method: "POST", path: "/v1/do", renamed: [], args: ["browser", "budget_usdc", "fields", "goal", "inputs", "pages", "session", "url"], required: ["goal"], sdk: ["do"], cli: "do" },
+  unbrowse_do: { tool: "unbrowse_do", method: "POST", path: "/v1/do", renamed: [], args: ["ask", "browser", "budget_usdc", "fields", "goal", "inputs", "pages", "session", "url", "wait_ms"], required: [], sdk: ["do"], cli: "do" },
   unbrowse_walk: { tool: "unbrowse_walk", method: "POST", path: "/v1/walk", renamed: [], args: ["goal", "pick", "session", "url", "what"], required: ["url"], sdk: ["walk"], cli: "walk" },
-  unbrowse_browse: { tool: "unbrowse_browse", method: "POST", path: "/v1/browse", renamed: [], args: ["do", "goal", "session", "site"], required: ["do"], sdk: ["browser", "browse"], cli: "browse" },
-  unbrowse_challenge: { tool: "unbrowse_challenge", method: "POST", path: "/v1/challenge", renamed: [], args: ["action", "key", "ms", "session", "site", "text", "to_x", "to_y", "url", "x", "y"], required: ["action"], sdk: ["challenge"], cli: "challenge" },
+  unbrowse_browse: { tool: "unbrowse_browse", method: "POST", path: "/v1/browse", renamed: [], args: ["do", "goal", "session", "site", "wait_ms"], required: ["do"], sdk: ["browser", "browse"], cli: "browse" },
+  unbrowse_challenge: { tool: "unbrowse_challenge", method: "POST", path: "/v1/challenge", renamed: [], args: ["action", "key", "ms", "quick", "session", "site", "steps", "text", "to_x", "to_y", "url", "x", "y"], required: ["action"], sdk: ["challenge"], cli: "challenge" },
   unbrowse_observe: { tool: "unbrowse_observe", method: "POST", path: "/v1/observe", renamed: [], args: ["goal", "session", "site"], required: [], sdk: ["observe"], cli: "observe" },
   unbrowse_logins: { tool: "unbrowse_logins", method: "GET", path: "/v1/logins", renamed: [], args: [], required: [], sdk: ["logins", "cards"], cli: "logins" },
   unbrowse_open: { tool: "unbrowse_open", method: "GET", path: "/v1/open", renamed: [{ http: "q", tool: "link" }], args: ["link"], required: ["link"], sdk: ["open"], cli: "open" },
@@ -1011,6 +1067,30 @@ export interface OwnerCommandTypes {
   advance_day: {
     args: Record<string, never>;
     result: null;
+  };
+  agent_clients: {
+    args: Record<string, never>;
+    result: {
+      clients: {
+        id: string;
+        name: string;
+        found: boolean;
+        connected: boolean;
+        path: string;
+        note?: string;
+        manual?: boolean;
+      }[];
+    };
+  };
+  agent_connect: {
+    args: { clients: ("claude_code" | "claude_desktop" | "cursor" | "codex")[] };
+    result: {
+      results: { id: string; name: string; ok: boolean; restart_needed: boolean; error: string | null }[];
+    };
+  };
+  agent_connect_undo: {
+    args: Record<string, never>;
+    result: { restored: { id: string; name: string; path: string }[] };
   };
   agent_create: {
     args: {
@@ -1229,6 +1309,10 @@ export interface OwnerCommandTypes {
     args: Record<string, never>;
     result: Hands;
   };
+  hands_answer: {
+    args: { site: string; ask: string; text: string; submit?: boolean | null; via?: string | null };
+    result: { site: string; answered: number; field: string };
+  };
   hands_give_back: {
     args: { site: string; done?: boolean | null; ask?: string | null; via?: string | null };
     result: { site: string; answered: number };
@@ -1281,6 +1365,10 @@ export interface OwnerCommandTypes {
     args: { id: string; signature: string };
     result: ListingSigned;
   };
+  listings_sign: {
+    args: Record<string, never>;
+    result: ListingsSign;
+  };
   listings_to_sign: {
     args: Record<string, never>;
     result: ListingToSign[];
@@ -1324,6 +1412,26 @@ export interface OwnerCommandTypes {
   payment_approver: {
     args: { approver?: "dialog" | "sdk" | null };
     result: PaymentApprover;
+  };
+  remote_answers: {
+    args: { on?: boolean | null; via?: string | null };
+    result: { on: boolean; since?: number };
+  };
+  remote_key_create: {
+    args: { name?: string };
+    result: NewRemoteKey;
+  };
+  remote_revoke: {
+    args: Record<string, never>;
+    result: Remote;
+  };
+  remote_set: {
+    args: { on: boolean; gateway?: string };
+    result: Remote;
+  };
+  remote_status: {
+    args: Record<string, never>;
+    result: Remote;
   };
   report_discard: {
     args: { fingerprint: string };
@@ -1549,6 +1657,33 @@ export abstract class OwnerCommands {
   /** Moves the devnet's clock one epoch forward. */
   advanceDay(): Promise<null> {
     return this.command<OwnerResult<"advance_day">>("advance_day");
+  }
+
+  /** The MCP clients this machine has (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI, opencode and the others Unbrowse connects): whether each is found and connected to this node, and its config file. */
+  agentClients(): Promise<{
+    clients: {
+      id: string;
+      name: string;
+      found: boolean;
+      connected: boolean;
+      path: string;
+      note?: string;
+      manual?: boolean;
+    }[];
+  }> {
+    return this.command<OwnerResult<"agent_clients">>("agent_clients");
+  }
+
+  /** Connects the named MCP clients to this node as its first agent: each gets `unb mcp --agent first` in its own config, checked to answer first, its file kept as it was beside it, and no token in it. */
+  connectAgents(clients: ("claude_code" | "claude_desktop" | "cursor" | "codex")[]): Promise<{
+    results: { id: string; name: string; ok: boolean; restart_needed: boolean; error: string | null }[];
+  }> {
+    return this.command<OwnerResult<"agent_connect">>("agent_connect", { clients });
+  }
+
+  /** Puts back every MCP client config the last agent_connect changed, and answers the files it restored. */
+  undoConnectAgents(): Promise<{ restored: { id: string; name: string; path: string }[] }> {
+    return this.command<OwnerResult<"agent_connect_undo">>("agent_connect_undo");
   }
 
   /** Makes an agent key with its cap an epoch in USDC and its lifetime in days, authorises it on the chain, and answers its setup once. */
@@ -1813,6 +1948,11 @@ export abstract class OwnerCommands {
     return this.command<OwnerResult<"hands">>("hands");
   }
 
+  /** Answers an agent's ask with what the owner sent from another device (`remote_answers` on): `text`, a two-step code, is typed into the page's code field as the owner's own typing, said as [typed by the owner] in anything the browser returns to an agent and kept out of the walk record, then Enter is pressed (`submit` false skips it) and the page is given back with done. `ask` names the ask (`hands` lists them); one that no longer waits, or is a card payment, is refused and nothing is typed. The code is never logged or answered. */
+  handsAnswer(site: string, ask: string, text: string, submit?: boolean | null, via?: string | null): Promise<{ site: string; answered: number; field: string }> {
+    return this.command<OwnerResult<"hands_answer">>("hands_answer", { site, ask, text, submit, via });
+  }
+
   /** Gives a page back to the agents, telling the one that asked whether the owner did what it needed. `ask` names the ask answered (`hands` lists them): refused when that ask no longer waits, and, with `payment_approver` set to sdk, what lets done approve that ask's card payment without the node's dialog. `via` says where the owner answered ("Telegram"), for the activity they read. */
   handsGiveBack(site: string, done?: boolean | null, ask?: string | null, via?: string | null): Promise<{ site: string; answered: number }> {
     return this.command<OwnerResult<"hands_give_back">>("hands_give_back", { site, done, ask, via });
@@ -1878,6 +2018,11 @@ export abstract class OwnerCommands {
     return this.command<OwnerResult<"listing_sign">>("listing_sign", { id, signature });
   }
 
+  /** Has the owner's wallet sign the listings listings_to_sign names, as it sends its grants: opens the sign-in page in the owner's browser in its signing mode, where the wallet's provider signs each one, and takes each signature back through the site's relay. The node keeps only the wallet's own signature. Up to 8 a page; answers the page's url and how many it asks. */
+  listingsSign(): Promise<ListingsSign> {
+    return this.command<OwnerResult<"listings_sign">>("listings_sign");
+  }
+
   /** The listings this node keeps for the owner's wallet to sign. A node linked to the owner's wallet lists under the wallet's one identity, and only the wallet's own key signs a listing, never an agent key (issue #184), so a node that doesn't hold that key asks the owner to sign each one. Each is said in plain words and given as the EIP-712 typed data the wallet signs (eth_signTypedData_v4). Empty when the node lists under its own wallet. */
   listingsToSign(): Promise<ListingToSign[]> {
     return this.command<OwnerResult<"listings_to_sign">>("listings_to_sign");
@@ -1931,6 +2076,31 @@ export abstract class OwnerCommands {
   /** Who approves a card payment an agent waits on: `dialog` (the default: the owner's yes in the node's dialog, or by passphrase) or `sdk` (`hands_give_back` naming the ask approves it with no dialog, for an owner who answers on another device, such as the daemon hub's Telegram bot). Card payments only: the recovery phrase, vault passwords, spend caps and wallets still wait on the dialog. Turning `sdk` on asks the owner first, in the dialog; `dialog` asks nothing. `approver` sets it; null only reads it. */
   paymentApprover(approver?: "dialog" | "sdk" | null): Promise<PaymentApprover> {
     return this.command<OwnerResult<"payment_approver">>("payment_approver", { approver });
+  }
+
+  /** Whether an agent's ask for the owner (a sign-in, a two-step code) may be answered from another device through the owner SDK, such as the daemon hub's Telegram bot: off by default. With it on, an ask reaches the owner while such a device keeps calling this command with `via` (within 30 s), though no window is open on the machine, and `hands_answer` types the code they send into the page. Turning it on asks the owner first, in the node's dialog; off asks nothing. `on` sets it; null only reads it. `via` names the device that is there ("Telegram"). */
+  remoteAnswers(on?: boolean | null, via?: string | null): Promise<{ on: boolean; since?: number }> {
+    return this.command<OwnerResult<"remote_answers">>("remote_answers", { on, via });
+  }
+
+  /** Makes a remote key for the gateway, which opens this node only through it, and answers its token once with how an MCP client uses it. */
+  createRemoteKey(name?: string): Promise<NewRemoteKey> {
+    return this.command<OwnerResult<"remote_key_create">>("remote_key_create", { name });
+  }
+
+  /** Revokes every remote key for the gateway. */
+  revokeRemoteKeys(): Promise<Remote> {
+    return this.command<OwnerResult<"remote_revoke">>("remote_revoke");
+  }
+
+  /** Turns this node's own remote MCP address on or off, at the gateway named or the one it had (https://unbrowse.ai by default). The running node attaches or leaves within a few seconds. */
+  setRemote(on: boolean, gateway?: string): Promise<Remote> {
+    return this.command<OwnerResult<"remote_set">>("remote_set", { on, gateway });
+  }
+
+  /** This node's own remote MCP address at a gateway: on or off, the URL, and the live remote keys for it. */
+  remoteStatus(): Promise<Remote> {
+    return this.command<OwnerResult<"remote_status">>("remote_status");
   }
 
   /** Drops an agent's waiting bug report unsent. */

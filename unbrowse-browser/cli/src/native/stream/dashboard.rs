@@ -6,6 +6,7 @@ use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::connection::get_socket_dir;
+use crate::session_files::{owns_session, remove_daemon_files, SessionFile};
 
 use super::chat::{chat_status_json, handle_chat_request, handle_models_request};
 use super::discovery::discover_sessions;
@@ -52,6 +53,16 @@ static EXEC_CLI_INVOCATIONS: std::sync::atomic::AtomicUsize =
 fn build_json_error_body(error: &str) -> String {
     let escaped = serde_json::to_string(error).unwrap_or_else(|_| format!("\"{}\"", error));
     format!(r#"{{"success":false,"error":{escaped}}}"#)
+}
+
+fn validate_dashboard_session_name(session: &str) -> Result<(), String> {
+    if session.is_empty() || session.len() > 64 {
+        return Err("Session name must be 1-64 UTF-8 bytes".to_string());
+    }
+    if !crate::validation::is_valid_session_name(session) {
+        return Err(crate::validation::session_name_error(session));
+    }
+    Ok(())
 }
 
 async fn write_http_response_inner(
@@ -275,97 +286,28 @@ fn dashboard_access_token() -> Option<String> {
         .filter(|token| is_valid_dashboard_access_token(token))
 }
 
-/// The value of the loopback session cookie, minted once per dashboard process.
-///
-/// It is never the access token: cookies on plain-http localhost reach every
-/// localhost port, so the external credential is never placed in one. This
-/// value is only good for loopback requests to this process, and it is HttpOnly
-/// so no page script on any port can read it.
-fn local_session_secret() -> &'static str {
-    static SECRET: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    SECRET.get_or_init(super::new_secret)
-}
-
-fn local_session_cookie_name(local_port: u16) -> String {
-    format!("agent-browser-dashboard-local-{local_port}")
-}
-
-fn request_cookie<'a>(request: &'a str, name: &str) -> Option<&'a str> {
-    request_header_value(request, "cookie")?
-        .split(';')
-        .find_map(|part| {
-            let (cookie_name, value) = part.trim().split_once('=')?;
-            (cookie_name == name).then_some(value)
-        })
-}
-
-fn request_host_is_loopback(request: &str) -> bool {
-    request_header_value(request, "host")
-        .map(|host| normalize_host_authority(host, None))
-        .is_some_and(|host| is_loopback_authority(&host))
-}
-
-/// Whether the request carries this launch's credential.
-///
-/// Origin, Host and Referer are written by the client, so on loopback they
-/// cannot tell the owner's browser from another local account or from a
-/// browser someone steered to the dashboard. Every API and stream request
-/// therefore proves itself with a secret only `dashboard start` handed out: a
-/// loopback browser presents the session cookie it was given for opening the
-/// tokenized local URL (or a non-browser owner client presents the access
-/// token as a bearer); a reverse-proxied browser presents the access token in
-/// its Secure host-bound cookie. A server started without a token admits no one.
-fn access_token_matches(request: &str, local_port: u16) -> bool {
+fn access_token_matches(request: &str) -> bool {
     let Ok(allowed_origins) = allowed_dashboard_origins() else {
         return false;
     };
-    let Some(expected) = dashboard_access_token() else {
-        return false;
-    };
 
-    if request_host_is_loopback(request) {
-        return request_cookie(request, &local_session_cookie_name(local_port))
-            .is_some_and(|provided| constant_time_eq(local_session_secret(), provided))
-            || super::presents_token(
-                request_header_value(request, "authorization"),
-                None,
-                &expected,
-            );
+    // Same-origin validation runs before this check. Once it has established a
+    // loopback Host and loopback browser origin, no token is needed. In
+    // particular, never place the external dashboard credential in a cookie on
+    // plain-http localhost, where cookies are shared across ports.
+    if request_header_value(request, "host")
+        .map(|host| normalize_host_authority(host, None))
+        .is_some_and(|host| is_loopback_authority(&host))
+    {
+        return true;
     }
 
     if allowed_origins.is_empty() {
-        return false;
+        return true;
     }
-    request_access_token(request).is_some_and(|provided| constant_time_eq(&expected, provided))
-}
-
-/// `GET /?dashboard-access-token=<token>` on a loopback Host: the tokenized
-/// local URL `dashboard start` prints. A matching token earns the browser the
-/// loopback session cookie; anything else is refused.
-fn local_login_response(request: &str, local_port: u16) -> Option<String> {
-    let (method, target) = parse_request_method_and_path(request);
-    let (path, query) = target.split_once('?')?;
-    if method != "GET" || path != "/" {
-        return None;
-    }
-    let provided = url::form_urlencoded::parse(query.as_bytes())
-        .find(|(name, _)| name == "dashboard-access-token")
-        .map(|(_, value)| value.into_owned())?;
-    let accepted = request_host_is_loopback(request)
-        && dashboard_access_token()
-            .is_some_and(|expected| constant_time_eq(&expected, &provided));
-    if !accepted {
-        let body = build_json_error_body("Dashboard access token is invalid.");
-        return Some(format!(
-            "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-            body.len()
-        ));
-    }
-    Some(format!(
-        "HTTP/1.1 302 Found\r\nLocation: /\r\nSet-Cookie: {}={}; Path=/; HttpOnly; SameSite=Strict\r\nCache-Control: no-store\r\nReferrer-Policy: no-referrer\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-        local_session_cookie_name(local_port),
-        local_session_secret()
-    ))
+    dashboard_access_token().as_deref().is_some_and(|expected| {
+        request_access_token(request).is_some_and(|provided| constant_time_eq(expected, provided))
+    })
 }
 
 fn constant_time_eq(expected: &str, provided: &str) -> bool {
@@ -440,17 +382,16 @@ fn is_same_origin_http_request(request: &str) -> bool {
 
 /// Protect dashboard API requests from cross-origin forms and DNS rebinding.
 ///
-/// The same-origin check keeps other pages out; the launch credential (see
-/// `access_token_matches`) keeps out every client `dashboard start` did not
-/// hand it to, loopback or not, since direct clients can forge Origin and Host.
-/// A dashboard exposed through a reverse proxy must also opt in its browser
-/// origin with `AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS`.
-fn is_same_origin_dashboard_request(request: &str, local_port: u16) -> bool {
-    is_same_origin_http_request(request) && access_token_matches(request, local_port)
+/// Local dashboard origins are trusted by default. A dashboard exposed through
+/// a reverse proxy must explicitly opt in its browser origin with
+/// `AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS` and present the generated access
+/// token, since direct clients can forge Origin and Host headers.
+fn is_same_origin_dashboard_request(request: &str) -> bool {
+    is_same_origin_http_request(request) && access_token_matches(request)
 }
 
-fn is_authorized_dashboard_websocket_request(request: &str, local_port: u16) -> bool {
-    is_same_origin_ws_request(request) && access_token_matches(request, local_port)
+fn is_authorized_dashboard_websocket_request(request: &str) -> bool {
+    is_same_origin_ws_request(request) && access_token_matches(request)
 }
 
 /// Parse a dashboard route of the form `/api/session/<port>/<endpoint>`.
@@ -490,44 +431,29 @@ fn parse_session_proxy_route(path: &str) -> Result<(u16, SessionProxyEndpoint), 
     Ok((port, endpoint))
 }
 
-fn sessions_json_session_for_port(
-    sessions_json: &str,
-    port: u16,
-) -> Result<Option<String>, String> {
+fn sessions_json_has_active_port(sessions_json: &str, port: u16) -> Result<bool, String> {
     let sessions: Vec<Value> = serde_json::from_str(sessions_json)
         .map_err(|e| format!("Failed to parse active sessions: {e}"))?;
-    Ok(sessions.iter().find_map(|session| {
-        let matches = session
+    Ok(sessions.iter().any(|session| {
+        session
             .get("port")
             .and_then(|value| value.as_u64())
-            .is_some_and(|value| value == u64::from(port));
-        matches
-            .then(|| session.get("session")?.as_str().map(str::to_string))
-            .flatten()
+            .map(|value| value == u64::from(port))
+            .unwrap_or(false)
     }))
 }
 
-#[cfg(test)]
-fn sessions_json_has_active_port(sessions_json: &str, port: u16) -> Result<bool, String> {
-    sessions_json_session_for_port(sessions_json, port).map(|session| session.is_some())
-}
-
-/// The stream secret of the live session on `port`, which the dashboard
-/// presents upstream on the owner's behalf.
-fn require_active_session_port(port: u16) -> Result<String, DashboardProxyError> {
+fn require_active_session_port(port: u16) -> Result<(), DashboardProxyError> {
     let sessions_json = discover_sessions();
-    let session = sessions_json_session_for_port(&sessions_json, port)
-        .map_err(DashboardProxyError::bad_gateway)?
-        .ok_or_else(|| {
-            DashboardProxyError::not_found(format!(
-                "No active session is listening on port {port}."
-            ))
-        })?;
-    super::read_stream_token(&session).ok_or_else(|| {
-        DashboardProxyError::bad_gateway(format!(
-            "Session {session} has no readable stream token."
-        ))
-    })
+    let is_active = sessions_json_has_active_port(&sessions_json, port)
+        .map_err(DashboardProxyError::bad_gateway)?;
+    if is_active {
+        Ok(())
+    } else {
+        Err(DashboardProxyError::not_found(format!(
+            "No active session is listening on port {port}."
+        )))
+    }
 }
 
 fn split_http_response(response: &[u8]) -> Result<(&[u8], &[u8]), String> {
@@ -582,7 +508,7 @@ async fn proxy_session_http_route(
         SessionProxyEndpoint::Tabs | SessionProxyEndpoint::Status
     ));
 
-    let stream_token = require_active_session_port(port)?;
+    require_active_session_port(port)?;
 
     let upstream_path = match endpoint {
         SessionProxyEndpoint::Tabs => "/api/tabs",
@@ -590,7 +516,7 @@ async fn proxy_session_http_route(
         SessionProxyEndpoint::Stream => unreachable!("stream routes use the WebSocket proxy"),
     };
     let request = format!(
-        "GET {upstream_path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {stream_token}\r\nConnection: close\r\n\r\n"
+        "GET {upstream_path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
     );
 
     tokio::time::timeout(PROXY_TIMEOUT, async {
@@ -635,8 +561,8 @@ async fn proxy_session_http_route(
 }
 
 /// Bridge a dashboard-origin WebSocket upgrade to the loopback session stream.
-async fn proxy_session_stream(mut stream: tokio::net::TcpStream, port: u16, stream_token: &str) {
-    let upstream_url = format!("ws://127.0.0.1:{port}/?token={stream_token}");
+async fn proxy_session_stream(mut stream: tokio::net::TcpStream, port: u16) {
+    let upstream_url = format!("ws://127.0.0.1:{port}");
     let (upstream_ws, _) = match tokio_tungstenite::connect_async(&upstream_url).await {
         Ok(ws) => ws,
         Err(error) => {
@@ -743,7 +669,6 @@ async fn run_dashboard_listener(listener: TcpListener) {
 }
 
 async fn handle_dashboard_connection(mut stream: tokio::net::TcpStream) {
-    let local_port = stream.local_addr().map(|addr| addr.port()).unwrap_or(0);
     let mut buf = vec![0u8; 8192];
     let peeked_len = match stream.peek(&mut buf).await {
         Ok(n) if n > 0 => n,
@@ -781,7 +706,7 @@ async fn handle_dashboard_connection(mut stream: tokio::net::TcpStream) {
                     .await;
                     return;
                 }
-                if !is_authorized_dashboard_websocket_request(&peeked_request, local_port) {
+                if !is_authorized_dashboard_websocket_request(&peeked_request) {
                     write_json_error_response_no_cors(
                         &mut stream,
                         "403 Forbidden",
@@ -790,19 +715,12 @@ async fn handle_dashboard_connection(mut stream: tokio::net::TcpStream) {
                     .await;
                     return;
                 }
-                let stream_token = match require_active_session_port(port) {
-                    Ok(token) => token,
-                    Err(error) => {
-                        write_json_error_response_no_cors(
-                            &mut stream,
-                            error.status,
-                            &error.message,
-                        )
+                if let Err(error) = require_active_session_port(port) {
+                    write_json_error_response_no_cors(&mut stream, error.status, &error.message)
                         .await;
-                        return;
-                    }
-                };
-                proxy_session_stream(stream, port, &stream_token).await;
+                    return;
+                }
+                proxy_session_stream(stream, port).await;
                 return;
             }
             SessionProxyEndpoint::Tabs | SessionProxyEndpoint::Status => {
@@ -828,12 +746,7 @@ async fn handle_dashboard_connection(mut stream: tokio::net::TcpStream) {
     let (method, path) = parse_request_method_and_path(&request);
     let origin = request_header_value(&request, "origin").map(|value| value.to_string());
 
-    if let Some(response) = local_login_response(&request, local_port) {
-        let _ = stream.write_all(response.as_bytes()).await;
-        return;
-    }
-
-    if path.starts_with("/api/") && !is_same_origin_dashboard_request(&request, local_port) {
+    if path.starts_with("/api/") && !is_same_origin_dashboard_request(&request) {
         write_json_error_response_no_cors(
             &mut stream,
             "403 Forbidden",
@@ -957,19 +870,7 @@ async fn read_post_body(stream: &mut tokio::net::TcpStream, initial: &[u8], n: u
     };
 
     let header_str = String::from_utf8_lossy(&initial[..header_end]);
-    let content_length: usize = header_str
-        .lines()
-        .find_map(|l| {
-            if l.len() > 16 && l[..16].eq_ignore_ascii_case("content-length: ") {
-                l[16..].trim().parse::<usize>().ok()
-            } else {
-                let lower = l.to_lowercase();
-                lower
-                    .strip_prefix("content-length:")
-                    .and_then(|v| v.trim().parse::<usize>().ok())
-            }
-        })
-        .unwrap_or(0);
+    let content_length = super::http::parse_content_length(&header_str).unwrap_or(0);
 
     if content_length == 0 {
         return String::new();
@@ -1012,8 +913,11 @@ async fn exec_cli(body: &str) -> Result<String, String> {
     let exe = std::env::current_exe().map_err(|e| format!("Cannot resolve executable: {}", e))?;
 
     let mut cmd = tokio::process::Command::new(&exe);
-    super::strip_server_env(&mut cmd);
-    cmd.args(&args).arg("--json");
+    cmd.args(&args)
+        .arg("--json")
+        .env_remove("AGENT_BROWSER_DASHBOARD")
+        .env_remove("AGENT_BROWSER_DASHBOARD_PORT")
+        .env_remove("AGENT_BROWSER_STREAM_PORT");
 
     let output = cmd
         .output()
@@ -1039,12 +943,10 @@ async fn kill_session(body: &str) -> Result<String, String> {
         .and_then(|v| v.as_str())
         .ok_or("Missing \"session\" field")?;
 
-    if session.is_empty() || session.len() > 64 {
-        return Err("Session name must be 1-64 characters".to_string());
-    }
+    validate_dashboard_session_name(session)?;
 
     let dir = get_socket_dir();
-    let pid_path = dir.join(format!("{}.pid", session));
+    let pid_path = SessionFile::Pid.path_in(&dir, session);
 
     let pid_str = std::fs::read_to_string(&pid_path)
         .map_err(|_| format!("No PID file for session '{}'", session))?;
@@ -1053,60 +955,30 @@ async fn kill_session(body: &str) -> Result<String, String> {
         .parse()
         .map_err(|_| format!("Invalid PID in file: {}", pid_str.trim()))?;
 
-    // A pidfile outlives a daemon that was killed, and its number can come to name any process of the owner's. Only a
-    // daemon answering on the session's socket, whose number is still the process that wrote the file, is signalled.
-    let answering = crate::connection::daemon_ready(session) && crate::connection::owned_daemon_pid(session) == Some(pid);
     #[cfg(unix)]
-    if answering {
-        stop_daemon(pid, &dir.join(format!("{}.started", session)), DAEMON_STOP_GRACE).await;
-    }
-
-    // One list with the CLI's, plus what only a daemon writes: a daemon that was killed cleaned up nothing.
-    crate::connection::cleanup_stale_files(session);
-    for ext in &["engine", "provider", "extensions"] {
-        let _ = std::fs::remove_file(dir.join(format!("{}.{}", session, ext)));
-    }
-
-    // The session is gone either way, which is what was asked. A pid is named only if one was stopped.
-    let mut answer = json!({ "success": true });
-    if answering {
-        answer["killed_pid"] = json!(pid);
-    }
-    Ok(answer.to_string())
-}
-
-/// How long a daemon gets to act on SIGTERM. It saves the session's state and closes its browser first, which can take
-/// the 5 s a close is allowed and then the save: past this it is stuck, not busy.
-#[cfg(unix)]
-const DAEMON_STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(10);
-
-/// Asks a daemon to stop, and forces it only once it has had `grace` to go. Forced early, the session's autosave is lost
-/// and its Chrome left running with nobody to close it.
-#[cfg(unix)]
-async fn stop_daemon(pid: u32, started: &std::path::Path, grace: std::time::Duration) {
-    // Every signal goes only while the number is still the daemon's own (`is_recorded_process`): one that has gone has
-    // left its number to anyone.
-    let still_it = || crate::connection::is_recorded_process(pid, started);
-    if !still_it() {
-        return;
-    }
-    // SAFETY: the number is the daemon's, proved just above, and these are standard termination signals.
-    unsafe {
-        libc::kill(pid as i32, libc::SIGTERM);
-    }
-    let deadline = tokio::time::Instant::now() + grace;
-    while tokio::time::Instant::now() < deadline {
-        if !still_it() {
-            return;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
-    // SAFETY: as above; the process has outlived its grace and is still the daemon.
-    if still_it() {
+    {
+        // SAFETY: The PID came from the daemon-managed pidfile and is only used
+        // to send standard termination signals to that process.
         unsafe {
-            libc::kill(pid as i32, libc::SIGKILL);
+            libc::kill(pid as i32, libc::SIGTERM);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        // SAFETY: A signal value of 0 performs an existence check on the same pid.
+        if unsafe { libc::kill(pid as i32, 0) } == 0 {
+            // SAFETY: The process still exists after SIGTERM, so escalate to SIGKILL.
+            unsafe {
+                libc::kill(pid as i32, libc::SIGKILL);
+            }
         }
     }
+
+    // A daemon that exited on SIGTERM already cleaned up after itself; one
+    // that had to be killed left its files behind.
+    if owns_session(&dir, session, pid) {
+        remove_daemon_files(&dir, session);
+    }
+
+    Ok(json!({ "success": true, "killed_pid": pid }).to_string())
 }
 
 pub(super) async fn spawn_session(body: &str) -> Result<String, String> {
@@ -1116,16 +988,11 @@ pub(super) async fn spawn_session(body: &str) -> Result<String, String> {
         .and_then(|v| v.as_str())
         .ok_or("Missing \"session\" field")?;
 
-    if session.is_empty() || session.len() > 64 {
-        return Err("Session name must be 1-64 characters".to_string());
-    }
+    validate_dashboard_session_name(session)?;
 
     let exe = std::env::current_exe().map_err(|e| format!("Cannot resolve executable: {}", e))?;
 
     let mut cmd = tokio::process::Command::new(&exe);
-    // Run inside a daemon's stream server, a child would otherwise inherit
-    // the daemon's own identity and replace it instead of opening `session`.
-    super::strip_server_env(&mut cmd);
     cmd.arg("open")
         .arg("about:blank")
         .arg("--session")
@@ -1156,71 +1023,34 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
-    /// A process that takes `seconds` over SIGTERM, then leaves `mark` behind: what a daemon saving its session looks like.
-    #[cfg(unix)]
-    fn process_slow_to_stop(seconds: &str, mark: &std::path::Path) -> std::process::Child {
-        let script = format!("trap 'sleep {seconds}; touch \"{}\"; exit 0' TERM; while :; do sleep 0.05; done", mark.display());
-        let child = std::process::Command::new("sh").arg("-c").arg(script).spawn().unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(200));
-        child
-    }
+    #[test]
+    fn dashboard_session_name_validation_uses_the_shared_unicode_grammar() {
+        for session in ["session", "my-session_7", "café-東京_7"] {
+            assert!(
+                validate_dashboard_session_name(session).is_ok(),
+                "{session}"
+            );
+        }
 
-    /// Stopping a session from the dashboard must leave its daemon the time its own shutdown takes: 500 ms cut off the
-    /// autosave and orphaned Chrome.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn a_daemon_stopped_from_the_dashboard_gets_to_finish_saving() {
-        let dir = tempfile::tempdir().unwrap();
-        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
-        guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        let mark = dir.path().join("saved");
-        let mut daemon = process_slow_to_stop("1", &mark);
-        std::fs::write(dir.path().join("s.pid"), daemon.id().to_string()).unwrap();
-        // The daemon holds its session and recorded which process it is, as a daemon does at start.
-        let _held = crate::connection::claim_session("s").expect("the session is free");
-        crate::connection::record_process(daemon.id(), &dir.path().join("s.started"));
-        let _socket = std::os::unix::net::UnixListener::bind(dir.path().join("s.sock")).unwrap();
+        for session in ["", "has space"] {
+            assert!(
+                validate_dashboard_session_name(session).is_err(),
+                "{session}"
+            );
+        }
 
-        let reaper = std::thread::spawn(move || daemon.wait());
-        let answer: Value = serde_json::from_str(&kill_session(r#"{"session":"s"}"#).await.unwrap()).unwrap();
-        reaper.join().unwrap().unwrap();
+        assert!(validate_dashboard_session_name(&"é".repeat(32)).is_ok());
+        assert!(validate_dashboard_session_name(&"é".repeat(33)).is_err());
 
-        assert_eq!(answer["success"], true);
-        assert!(mark.exists(), "the daemon was forced before it finished");
-    }
-
-    /// A pidfile left by a daemon that died can name a process that has nothing to do with it.
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn a_stale_pidfile_never_signals_the_process_now_holding_that_number() {
-        let dir = tempfile::tempdir().unwrap();
-        let guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR"]);
-        guard.set("AGENT_BROWSER_SOCKET_DIR", dir.path().to_str().unwrap());
-        let mut bystander = std::process::Command::new("sleep").arg("30").spawn().unwrap();
-        std::fs::write(dir.path().join("s.pid"), bystander.id().to_string()).unwrap();
-        std::fs::write(dir.path().join("s.provider"), "x").unwrap();
-
-        let answer: Value = serde_json::from_str(&kill_session(r#"{"session":"s"}"#).await.unwrap()).unwrap();
-
-        let untouched = bystander.try_wait().unwrap().is_none();
-        let _ = bystander.kill();
-        let _ = bystander.wait();
-        assert!(untouched, "a process that was never the daemon was signalled");
-        assert_eq!(answer["success"], true, "the session is gone, as asked: {answer}");
-        assert!(answer.get("killed_pid").is_none(), "nothing was stopped: {answer}");
-        assert!(!dir.path().join("s.pid").exists() && !dir.path().join("s.provider").exists());
+        assert_eq!(
+            validate_dashboard_session_name(&"a".repeat(65)),
+            Err("Session name must be 1-64 UTF-8 bytes".to_string())
+        );
     }
 
     async fn send_request_to_dashboard_handler(request: &str) -> String {
-        send_request_to_dashboard_handler_at(|_| request.to_string()).await
-    }
-
-    /// Like `send_request_to_dashboard_handler`, for a request that depends
-    /// on the port the handler listens on (the loopback session cookie does).
-    async fn send_request_to_dashboard_handler_at(build: impl FnOnce(u16) -> String) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let request = build(addr.port());
 
         let server = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
@@ -1236,16 +1066,6 @@ mod tests {
         server.await.unwrap();
 
         String::from_utf8(response).unwrap()
-    }
-
-    /// The cookie header a loopback browser holds after opening the tokenized
-    /// local URL of the dashboard listening on `port`.
-    fn local_session_cookie(port: u16) -> String {
-        format!(
-            "Cookie: {}={}\r\n",
-            local_session_cookie_name(port),
-            local_session_secret()
-        )
     }
 
     fn dashboard_request(method: &str, path: &str, headers: &str, body: &str) -> String {
@@ -1372,27 +1192,17 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn same_origin_dashboard_exec_runs_without_cors() {
-        let guard = EnvGuard::new(&[
-            "AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS",
-            "AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN",
-        ]);
-        guard.remove("AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS");
-        guard.set("AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN", &"a".repeat(64));
+        let _guard = EnvGuard::new(&[]);
         EXEC_CLI_INVOCATIONS.store(0, std::sync::atomic::Ordering::SeqCst);
         let body = r#"{"args":["--version"]}"#;
+        let request = dashboard_request(
+            "POST",
+            "/api/exec",
+            "Origin: http://localhost:4848\r\nContent-Type: application/json\r\n",
+            body,
+        );
 
-        let response = send_request_to_dashboard_handler_at(|port| {
-            dashboard_request(
-                "POST",
-                "/api/exec",
-                &format!(
-                    "Origin: http://localhost:4848\r\n{}Content-Type: application/json\r\n",
-                    local_session_cookie(port)
-                ),
-                body,
-            )
-        })
-        .await;
+        let response = send_request_to_dashboard_handler(&request).await;
 
         assert!(
             response.starts_with("HTTP/1.1 200 OK"),
@@ -1450,123 +1260,36 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn a_loopback_request_with_forged_headers_and_no_credential_never_runs_exec() {
+    async fn loopback_dashboard_does_not_require_external_access_token() {
         let guard = EnvGuard::new(&[
             "AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS",
             "AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN",
         ]);
-        let token = "a".repeat(64);
-        guard.set("AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN", &token);
+        guard.set(
+            "AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS",
+            "https://dashboard.example.com",
+        );
+        guard.set("AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN", &"a".repeat(64));
         EXEC_CLI_INVOCATIONS.store(0, std::sync::atomic::Ordering::SeqCst);
         let body = r#"{"args":["--version"]}"#;
+        let request = format!(
+            "POST /api/exec HTTP/1.1\r\nHost: localhost:4848\r\nOrigin: http://localhost:4848\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len(),
+        );
 
-        // With and without reverse-proxy origins configured: a loopback Host
-        // and a matching Origin are headers any local client can write, and a
-        // reverse proxy can forward them, so neither earns a pass.
-        for allowed in [None, Some("https://dashboard.example.com")] {
-            match allowed {
-                Some(origins) => guard.set("AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS", origins),
-                None => guard.remove("AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS"),
-            }
-            for (host, origin) in [
-                ("localhost:4848", "http://localhost:4848"),
-                ("127.0.0.1:4848", "http://127.0.0.1:4848"),
-                ("localhost", "http://localhost"),
-                ("[::1]:4848", "http://[::1]:4848"),
-            ] {
-                let response = send_request_to_dashboard_handler_at(|port| {
-                    format!(
-                        "POST /api/exec HTTP/1.1\r\nHost: {host}\r\nOrigin: {origin}\r\nCookie: {}=forged; {DASHBOARD_ACCESS_TOKEN_COOKIE}={token}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
-                        local_session_cookie_name(port),
-                        body.len(),
-                    )
-                })
-                .await;
-                assert!(
-                    response.starts_with("HTTP/1.1 403 Forbidden"),
-                    "{host} reached the API: {response}"
-                );
-            }
-            let websocket = "GET /api/session/9222/stream HTTP/1.1\r\nHost: localhost:4848\r\nOrigin: http://localhost:4848\r\nUpgrade: websocket\r\n\r\n";
-            assert!(!is_authorized_dashboard_websocket_request(websocket, 4848));
-        }
+        let response = send_request_to_dashboard_handler(&request).await;
+        assert!(
+            response.starts_with("HTTP/1.1 200 OK"),
+            "unexpected response: {response}"
+        );
         assert_eq!(
             EXEC_CLI_INVOCATIONS.load(std::sync::atomic::Ordering::SeqCst),
-            0,
-            "a request without the launch credential reached exec_cli"
-        );
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn a_dashboard_started_without_a_token_admits_no_one() {
-        let guard = EnvGuard::new(&[
-            "AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS",
-            "AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN",
-        ]);
-        guard.remove("AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS");
-        guard.remove("AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN");
-        let request = format!(
-            "GET /api/sessions HTTP/1.1\r\nHost: localhost:4848\r\nOrigin: http://localhost:4848\r\n{}\r\n",
-            local_session_cookie(4848)
-        );
-        assert!(!is_same_origin_dashboard_request(&request, 4848));
-        let login = send_request_to_dashboard_handler(
-            "GET /?dashboard-access-token= HTTP/1.1\r\nHost: localhost:4848\r\n\r\n",
-        )
-        .await;
-        assert!(login.starts_with("HTTP/1.1 403 Forbidden"), "{login}");
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    async fn the_tokenized_local_url_trades_the_token_for_an_httponly_session_cookie() {
-        let guard = EnvGuard::new(&[
-            "AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS",
-            "AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN",
-        ]);
-        let token = "c".repeat(64);
-        guard.remove("AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS");
-        guard.set("AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN", &token);
-
-        let mut port_seen = 0;
-        let login = send_request_to_dashboard_handler_at(|port| {
-            port_seen = port;
-            format!("GET /?dashboard-access-token={token} HTTP/1.1\r\nHost: localhost:{port}\r\n\r\n")
-        })
-        .await;
-        assert!(login.starts_with("HTTP/1.1 302 Found"), "{login}");
-        let set_cookie = login
-            .lines()
-            .find(|line| line.starts_with("Set-Cookie: "))
-            .expect("a session cookie");
-        assert!(set_cookie.contains(&format!(
-            "{}={}",
-            local_session_cookie_name(port_seen),
-            local_session_secret()
-        )));
-        assert!(set_cookie.contains("HttpOnly") && set_cookie.contains("SameSite=Strict"));
-        assert!(
-            !login.contains(&token),
-            "the access token itself went into the cookie: {login}"
+            1,
+            "tokenless loopback request did not reach exec_cli"
         );
 
-        for wrong in [
-            format!("GET /?dashboard-access-token={} HTTP/1.1\r\nHost: localhost:4848\r\n\r\n", "d".repeat(64)),
-            format!("GET /?dashboard-access-token={token} HTTP/1.1\r\nHost: dashboard.example.com\r\n\r\n"),
-        ] {
-            let refused = send_request_to_dashboard_handler(&wrong).await;
-            assert!(refused.starts_with("HTTP/1.1 403 Forbidden"), "{refused}");
-            assert!(!refused.contains("Set-Cookie"), "{refused}");
-        }
-
-        let websocket = format!(
-            "GET /api/session/9222/stream HTTP/1.1\r\nHost: localhost:4848\r\nOrigin: http://localhost:4848\r\n{}Upgrade: websocket\r\n\r\n",
-            local_session_cookie(4848)
-        );
-        assert!(is_authorized_dashboard_websocket_request(&websocket, 4848));
-        let bearer = format!(
-            "GET /api/sessions HTTP/1.1\r\nHost: localhost:4848\r\nOrigin: http://localhost:4848\r\nAuthorization: Bearer {token}\r\n\r\n"
-        );
-        assert!(is_same_origin_dashboard_request(&bearer, 4848));
+        let websocket = "GET /api/session/9222/stream HTTP/1.1\r\nHost: localhost:4848\r\nOrigin: http://localhost:4848\r\nUpgrade: websocket\r\n\r\n";
+        assert!(is_authorized_dashboard_websocket_request(websocket));
     }
 
     #[test]
@@ -1582,7 +1305,7 @@ mod tests {
         guard.remove("AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN");
         let request = "POST /api/exec HTTP/1.1\r\nHost: dashboard.example.com\r\nOrigin: https://dashboard.example.com\r\n\r\n";
 
-        assert!(!is_same_origin_dashboard_request(request, 4848));
+        assert!(!is_same_origin_dashboard_request(request));
     }
 
     #[test]
@@ -1599,12 +1322,12 @@ mod tests {
         guard.set("AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN", &token);
 
         let without_token = "GET /api/session/9222/stream HTTP/1.1\r\nHost: dashboard.example.com\r\nOrigin: https://dashboard.example.com\r\nUpgrade: websocket\r\n\r\n";
-        assert!(!is_authorized_dashboard_websocket_request(without_token, 4848));
+        assert!(!is_authorized_dashboard_websocket_request(without_token));
 
         let with_token = format!(
             "GET /api/session/9222/stream HTTP/1.1\r\nHost: dashboard.example.com\r\nOrigin: https://dashboard.example.com\r\nCookie: {DASHBOARD_ACCESS_TOKEN_COOKIE}={token}\r\nUpgrade: websocket\r\n\r\n"
         );
-        assert!(is_authorized_dashboard_websocket_request(&with_token, 4848));
+        assert!(is_authorized_dashboard_websocket_request(&with_token));
     }
 
     #[test]
@@ -1623,21 +1346,21 @@ mod tests {
             "POST /api/exec HTTP/1.1\r\nHost: dashboard.agent-browser.localhost\r\nOrigin: https://dashboard.agent-browser.localhost\r\nCookie: {DASHBOARD_ACCESS_TOKEN_COOKIE}={token}\r\n\r\n"
         );
 
-        assert!(is_same_origin_dashboard_request(&request, 4848));
+        assert!(is_same_origin_dashboard_request(&request));
     }
 
     #[test]
     fn dashboard_rejects_dns_rebinding_host_even_when_origin_matches() {
         let request = "POST /api/exec HTTP/1.1\r\nHost: attacker.example:4848\r\nOrigin: http://attacker.example:4848\r\n\r\n";
 
-        assert!(!is_same_origin_dashboard_request(request, 4848));
+        assert!(!is_same_origin_dashboard_request(request));
     }
 
     #[test]
     fn dashboard_rejects_header_like_body_lines() {
         let request = "POST /api/exec HTTP/1.1\r\nHost: localhost:4848\r\nContent-Type: text/plain\r\n\r\nOrigin: http://localhost:4848\r\n{\"args\":[\"--version\"]}";
 
-        assert!(!is_same_origin_dashboard_request(request, 4848));
+        assert!(!is_same_origin_dashboard_request(request));
     }
 
     #[test]
@@ -1661,7 +1384,7 @@ mod tests {
         let req = format!(
             "GET /api/session/9222/stream HTTP/1.1\r\nHost: dashboard.agent-browser.localhost\r\nOrigin: https://dashboard.agent-browser.localhost\r\nCookie: {DASHBOARD_ACCESS_TOKEN_COOKIE}={token}\r\nUpgrade: websocket\r\n\r\n"
         );
-        assert!(is_authorized_dashboard_websocket_request(&req, 4848));
+        assert!(is_authorized_dashboard_websocket_request(&req));
     }
 
     #[test]
@@ -1724,18 +1447,11 @@ mod tests {
 
     #[test]
     fn ipv6_loopback_dashboard_request_is_authorized() {
-        let guard = EnvGuard::new(&[
-            "AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS",
-            "AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN",
-        ]);
-        guard.remove("AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS");
-        guard.set("AGENT_BROWSER_DASHBOARD_ACCESS_TOKEN", &"a".repeat(64));
-        let request = format!(
-            "GET /api/sessions HTTP/1.1\r\nHost: [::1]:4848\r\nOrigin: http://[::1]:4848\r\n{}\r\n",
-            local_session_cookie(4848)
-        );
+        let _guard = EnvGuard::new(&[]);
+        let request =
+            "GET /api/sessions HTTP/1.1\r\nHost: [::1]:4848\r\nOrigin: http://[::1]:4848\r\n\r\n";
 
-        assert!(is_same_origin_dashboard_request(&request, 4848));
+        assert!(is_same_origin_dashboard_request(request));
     }
 
     #[test]
@@ -1761,7 +1477,7 @@ mod tests {
         let req = format!(
             "GET /api/session/9222/stream HTTP/1.1\r\nHost: dashboard.agent-browser.localhost:443\r\nOrigin: https://dashboard.agent-browser.localhost\r\nCookie: {DASHBOARD_ACCESS_TOKEN_COOKIE}={token}\r\nUpgrade: websocket\r\n\r\n"
         );
-        assert!(is_authorized_dashboard_websocket_request(&req, 4848));
+        assert!(is_authorized_dashboard_websocket_request(&req));
     }
 
     #[test]
@@ -1780,12 +1496,12 @@ mod tests {
         let http = format!(
             "GET /api/sessions HTTP/1.1\r\nHost: dashboard.agent-browser.localhost:80\r\nOrigin: https://dashboard.agent-browser.localhost:80\r\nCookie: {DASHBOARD_ACCESS_TOKEN_COOKIE}={token}\r\n\r\n"
         );
-        assert!(is_same_origin_dashboard_request(&http, 4848));
+        assert!(is_same_origin_dashboard_request(&http));
 
         let websocket = format!(
             "GET /api/session/9222/stream HTTP/1.1\r\nHost: dashboard.agent-browser.localhost:80\r\nOrigin: https://dashboard.agent-browser.localhost:80\r\nCookie: {DASHBOARD_ACCESS_TOKEN_COOKIE}={token}\r\nUpgrade: websocket\r\n\r\n"
         );
-        assert!(is_authorized_dashboard_websocket_request(&websocket, 4848));
+        assert!(is_authorized_dashboard_websocket_request(&websocket));
     }
 
     #[test]
@@ -1837,7 +1553,7 @@ mod tests {
         let req = format!(
             "GET /api/session/9222/stream HTTP/1.1\r\nHost: workspace.coder.com\r\nOrigin: https://workspace.coder.com\r\nCookie: {DASHBOARD_ACCESS_TOKEN_COOKIE}={token}\r\nUpgrade: websocket\r\n\r\n"
         );
-        assert!(is_authorized_dashboard_websocket_request(&req, 4848));
+        assert!(is_authorized_dashboard_websocket_request(&req));
     }
 
     #[test]

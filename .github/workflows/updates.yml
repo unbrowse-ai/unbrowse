@@ -1,3 +1,8 @@
+# Every job here runs on a fresh machine, never on the local runner pool (UNB-166): the pool runs pull-request code
+# and shares a cargo cache across jobs, so nothing built or signed for users runs there. Blacksmith gives each job a
+# fresh VM (UNB-224). Only `updates`, which publishes to npm by trusted publishing, runs on GitHub's own machines:
+# npm's trusted publishing works from cloud-hosted runners only.
+#
 # The update metadata between releases (.github/scripts/updates.mjs): a fresh timestamp every day, so nodes can tell
 # metadata a mirror keeps serving from what is current (a timestamp lasts a week), and canary's release promoted to
 # stable once it has run two days unhalted. Run it by hand to promote a release now, set the canary share, or halt and
@@ -38,7 +43,7 @@ jobs:
     # The default branch (staging) only, where the schedule runs: its updates.mjs is the one that knows a release candidate
     # never reaches stable, which main has only once a release that carries it ships.
     if: github.ref == 'refs/heads/staging'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: release
     outputs:
       targets_changed: ${{ steps.sign.outputs.targets_changed }}
@@ -88,7 +93,7 @@ jobs:
     name: Co-sign changed targets
     needs: sign
     if: needs.sign.outputs.cosign_required == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     environment: targets-cosign
     permissions:
       contents: read
@@ -125,7 +130,7 @@ jobs:
   root:
     name: The root isn't about to expire
     if: github.event_name == 'schedule' && github.ref == 'refs/heads/staging'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
     steps:
@@ -153,7 +158,7 @@ jobs:
     name: Package signed update metadata
     needs: [sign, cosign]
     if: always() && needs.sign.result == 'success' && (needs.cosign.result == 'success' || needs.cosign.result == 'skipped') && github.ref == 'refs/heads/staging'
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
     steps:

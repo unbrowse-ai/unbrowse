@@ -2,6 +2,11 @@
 //! says — and the agent says what to do, one step at a time. The model is the agent's; nothing here calls one. The
 //! page's own answer decides whether it passed, so a step never claims more than the page gave.
 
+/// How long a hold presses when the agent names no time, and the longest it may: a pressed-and-held button fills in a
+/// few seconds, and a hold is one step, its picture after it.
+pub const HOLD: u64 = 10_000;
+pub const HOLD_MOST: u64 = 20_000;
+
 /// What the node may do to a page, as the agent asks it to.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Act {
@@ -9,6 +14,9 @@ pub enum Act {
     Click(f64, f64),
     /// A drag from one point to another: a slider, a puzzle piece.
     Drag((f64, f64), (f64, f64)),
+    /// A press at a point, held for a while before it is let go: a button that asks to be pressed and held until it
+    /// fills. A click lets go at once, so such a button never fills under one.
+    Hold(f64, f64, u64),
     /// Type into whatever has the focus.
     Type(String),
     /// Press a key by name: `Enter`, `Tab`, `Escape`, `Backspace`.
@@ -21,7 +29,7 @@ pub enum Act {
 
 impl Act {
     /// The act an `action` name and its arguments describe, as the agent API takes them: `click` {x,y}, `drag`
-    /// {x,y,to_x,to_y}, `type` {text}, `press` {key}, `wait` {ms} or `done`.
+    /// {x,y,to_x,to_y}, `hold` {x,y,ms}, `type` {text}, `press` {key}, `wait` {ms} or `done`.
     #[allow(clippy::too_many_arguments)]
     pub fn of(action: &str, x: Option<f64>, y: Option<f64>, to_x: Option<f64>, to_y: Option<f64>, text: Option<&str>, key: Option<&str>, ms: Option<u64>) -> Result<Self, String> {
         Ok(match action {
@@ -30,11 +38,12 @@ impl Act {
                 (x.ok_or("a drag names x and y")?, y.ok_or("a drag names x and y")?),
                 (to_x.ok_or("a drag names to_x and to_y")?, to_y.ok_or("a drag names to_x and to_y")?),
             ),
+            "hold" => Self::Hold(x.ok_or("a hold names x and y, in CSS pixels of the picture")?, y.ok_or("a hold names x and y")?, ms.unwrap_or(HOLD).clamp(500, HOLD_MOST)),
             "type" => Self::Type(text.ok_or("a type names text")?.to_string()),
             "press" => Self::Press(key.ok_or("a press names key")?.to_string()),
             "wait" => Self::Wait(ms.unwrap_or(1000).min(20_000)),
             "done" => Self::Done,
-            other => return Err(format!("the challenge takes look, click, drag, type, press, wait or done, not {other:?}")),
+            other => return Err(format!("the challenge takes look, click, drag, hold, type, press, wait or done, not {other:?}")),
         })
     }
 
@@ -43,7 +52,7 @@ impl Act {
     /// it as. `done` and `wait` only read the page, as a picture does.
     pub fn command(&self) -> &'static str {
         match self {
-            Act::Click(..) => "click",
+            Act::Click(..) | Act::Hold(..) => "click",
             Act::Drag(..) => "drag",
             Act::Type(_) => "type",
             Act::Press(_) => "press",
@@ -55,6 +64,7 @@ impl Act {
         match self {
             Self::Click(x, y) => format!("clicked ({x:.0},{y:.0})"),
             Self::Drag((x, y), (tx, ty)) => format!("dragged ({x:.0},{y:.0}) to ({tx:.0},{ty:.0})"),
+            Self::Hold(x, y, ms) => format!("held ({x:.0},{y:.0}) for {ms}ms"),
             Self::Type(t) => format!("typed {:?}", t.chars().take(60).collect::<String>()),
             Self::Press(k) => format!("pressed {k}"),
             Self::Wait(ms) => format!("waited {ms}ms"),
@@ -69,6 +79,8 @@ pub trait Page {
     fn shot(&mut self) -> Result<Shot, String>;
     fn click(&mut self, x: f64, y: f64) -> Result<(), String>;
     fn drag(&mut self, from: (f64, f64), to: (f64, f64)) -> Result<(), String>;
+    /// Presses at a point and lets go `ms` later.
+    fn hold(&mut self, x: f64, y: f64, ms: u64) -> Result<(), String>;
     fn type_text(&mut self, text: &str) -> Result<(), String>;
     fn press(&mut self, key: &str) -> Result<(), String>;
     /// What the page is, and whether it still asks for a person.
@@ -108,18 +120,10 @@ pub fn page_or_body<'a>(html: &'a str, body: &'a str, cut: bool) -> &'a str {
 /// path says what it is (`verify::challenge_response`), or a container carrying the widget's public key
 /// (`data-sitekey`, the attribute every widget mounts on, whatever its frame does). A property of the page, not a
 /// vendor's name.
-pub fn asks_a_person(html: &str, at: &url::Url) -> bool {
-    if crate::page::a_door(200, html, at) {
-        return true;
-    }
-    let doc = scraper::Html::parse_document(html);
-    if scraper::Selector::parse("[data-sitekey]").is_ok_and(|s| doc.select(&s).next().is_some()) {
-        return true;
-    }
-    // Another site's frame is a check's widget on a page that is nothing else. A page that links around its own
-    // site is a page of the site, and the frames other sites fill on it are its adverts: read as widgets, every
-    // page that carries an advert asked for a person, and a walk that had got through was given up.
-    let links_around = scraper::Selector::parse("a[href]").is_ok_and(|a| {
+/// Whether a page links to five or more other pages of its own site: a page of the site, not one that stands in
+/// front of it.
+fn links_around(doc: &scraper::Html, at: &url::Url) -> bool {
+    scraper::Selector::parse("a[href]").is_ok_and(|a| {
         doc.select(&a)
             .filter_map(|l| l.value().attr("href"))
             .filter(|h| !h.starts_with('#'))
@@ -129,7 +133,38 @@ pub fn asks_a_person(html: &str, at: &url::Url) -> bool {
             .collect::<std::collections::BTreeSet<_>>()
             .len()
             >= 5
-    });
+    })
+}
+
+/// Whether a page is a page of its site that carries a check's widget among its own content (a sign-up form with a
+/// person check before its submit): it shows a widget (`shows_a_widget`), is no door (`page::a_door`), and asks for
+/// something a person types or links around its own site. Such a page is the page asked for, with a check on it; a
+/// page that is only the check stands in front of the page.
+pub fn a_page_with_a_check(html: &str, at: &url::Url) -> bool {
+    if crate::page::a_door(200, html, at) || !shows_a_widget(html, at) {
+        return false;
+    }
+    let doc = scraper::Html::parse_document(html);
+    let asks = scraper::Selector::parse("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select").is_ok_and(|s| doc.select(&s).next().is_some());
+    asks || links_around(&doc, at)
+}
+
+pub fn asks_a_person(html: &str, at: &url::Url) -> bool {
+    crate::page::a_door(200, html, at) || shows_a_widget(html, at)
+}
+
+/// Whether a page shows a check's widget (the second half of `asks_a_person`): a container carrying the widget's
+/// public key, the site's own frame at an address whose path says what it is, or another site's frame on a page that
+/// is nothing else. A door that only waits on its own code shows none: it moves on by itself.
+pub fn shows_a_widget(html: &str, at: &url::Url) -> bool {
+    let doc = scraper::Html::parse_document(html);
+    if scraper::Selector::parse("[data-sitekey]").is_ok_and(|s| doc.select(&s).next().is_some()) {
+        return true;
+    }
+    // Another site's frame is a check's widget on a page that is nothing else. A page that links around its own
+    // site is a page of the site, and the frames other sites fill on it are its adverts: read as widgets, every
+    // page that carries an advert asked for a person, and a walk that had got through was given up.
+    let links_around = links_around(&doc, at);
     let Ok(sel) = scraper::Selector::parse("iframe[src], frame[src]") else { return false };
     doc.select(&sel)
         .filter_map(|f| f.value().attr("src"))
@@ -167,8 +202,56 @@ mod tests {
         assert!(Act::of("teleport", None, None, None, None, None, None, None).is_err());
     }
 
+    /// A button that asks to be pressed and held is met with a hold: a press at a point, let go only after the time
+    /// named (ten seconds unsaid, within half a second and twenty), read as the click it amounts to.
+    #[test]
+    fn a_hold_presses_at_a_point_for_the_time_named() {
+        assert_eq!(Act::of("hold", Some(664.0), Some(494.0), None, None, None, None, None).unwrap(), Act::Hold(664.0, 494.0, HOLD));
+        assert_eq!(Act::of("hold", Some(1.0), Some(2.0), None, None, None, None, Some(6_000)).unwrap(), Act::Hold(1.0, 2.0, 6_000));
+        assert_eq!(Act::of("hold", Some(1.0), Some(2.0), None, None, None, None, Some(999_999)).unwrap(), Act::Hold(1.0, 2.0, HOLD_MOST));
+        assert_eq!(Act::of("hold", Some(1.0), Some(2.0), None, None, None, None, Some(1)).unwrap(), Act::Hold(1.0, 2.0, 500));
+        assert!(Act::of("hold", Some(1.0), None, None, None, None, None, None).is_err(), "a hold names a point");
+        let held = Act::Hold(664.0, 494.0, 8_000);
+        assert_eq!((held.command(), held.said().as_str()), ("click", "held (664,494) for 8000ms"));
+    }
+
     /// A page that is only a script and a check asks for a person; so does one that frames another site; a page with a
     /// form and links does not.
+    /// Each step reads as the browse command it amounts to, which the rules an agent's commands cross are written
+    /// for, and says what it did in a line: waiting and saying done only look at the page, as a picture does.
+    #[test]
+    fn each_step_is_the_command_it_amounts_to_and_says_what_it_did() {
+        let long = "x".repeat(80);
+        let steps = [
+            (Act::Click(12.4, 33.6), "click", "clicked (12,34)".to_string()),
+            (Act::Drag((1.0, 2.0), (310.2, 2.0)), "drag", "dragged (1,2) to (310,2)".to_string()),
+            (Act::Type(long.clone()), "type", format!("typed {:?}", &long[..60])),
+            (Act::Press("Enter".into()), "press", "pressed Enter".to_string()),
+            (Act::Wait(500), "screenshot", "waited 500ms".to_string()),
+            (Act::Done, "screenshot", "done".to_string()),
+        ];
+        for (act, command, said) in steps {
+            assert_eq!((act.command(), act.said()), (command, said), "{act:?}");
+        }
+    }
+
+    /// A page of the site with a check's widget among its own content (a sign-up form with a person check before its
+    /// submit) is the page asked for, with a check on it: it asks for something typed, or links around its own site.
+    /// A widget alone, or a form with no widget, is not such a page.
+    #[test]
+    fn a_form_with_a_check_on_it_is_the_page_asked_for() {
+        let at = url::Url::parse("https://site.example/signup").unwrap();
+        let widget = "<div class=\"cf-turnstile\" data-sitekey=\"1x000\"></div>";
+        let form = format!("<html><body><h1>Create your account</h1><form><input type=email name=email><input type=password name=pw>{widget}<button>Sign up</button></form></body></html>");
+        assert!(a_page_with_a_check(&form, &at));
+        let links: String = (0..8).map(|n| format!("<a href=\"/topic/{n}\">Topic {n}</a>")).collect();
+        assert!(a_page_with_a_check(&format!("<html><body><nav>{links}</nav><p>Vote below</p>{widget}</body></html>"), &at), "a page that links around its site");
+        assert!(!a_page_with_a_check(&format!("<html><body>{widget}</body></html>"), &at), "the widget alone stands in front of the page");
+        assert!(!a_page_with_a_check("<html><body><form><input type=email name=email><button>Go</button></form></body></html>", &at), "no widget, no check");
+        let hidden = format!("<html><body><form><input type=hidden name=t value=1><input type=checkbox name=c>{widget}</form></body></html>");
+        assert!(!a_page_with_a_check(&hidden, &at), "a hidden field or a box is nothing a person types");
+    }
+
     #[test]
     fn a_page_that_asks_for_a_person_is_read_from_the_page() {
         let at = url::Url::parse("https://site.example/").unwrap();
