@@ -32,8 +32,9 @@ Download the app for your computer:
 Every file with its SHA-256 is on [the release](https://github.com/unbrowse-ai/unbrowse/releases/tag/v13.21.0-installers.3); the step-by-step guide is at [unbrowse.ai/#install](https://unbrowse.ai/#install).
 
 Open the app. The Unbrowse window starts the node on your computer (its MCP server is `http://127.0.0.1:7788/mcp`),
-then its Connect screen adds Unbrowse to the agents it finds (Claude Code, Claude Desktop, Cursor, Codex) and gives you
-a remote MCP address for an agent on another machine. No terminal, Node or npm.
+then its Agents screen, the one it opens on, adds Unbrowse to the agents it finds (Claude Code, Claude Desktop, Cursor,
+Codex, VS Code, Gemini CLI, opencode, Hermes, OpenClaw and 15 more, whichever are installed: [the list](docs/guides/connect-your-agent.md#agents-the-app-connects))
+and gives ChatGPT and Claude on the web an address for this node, with the steps to add it. No terminal, Node or npm.
 
 - **Mac:** open the disk image and drag Unbrowse onto Applications. It is signed ad hoc, not notarized, so open it the
   first time by hand: right-click it and choose Open, or on macOS 15 and later, after the warning, System Settings >
@@ -89,7 +90,7 @@ Your sign-ins stay on your computer, in your system's own keystore.
 
 | Goal | Start here |
 |---|---|
-| Use it | [Download the app](#install) for Mac, Windows or Linux; or `npm install -g unbrowse` |
+| Use it | [Install](#install) |
 | Connect an agent (Claude Code, Cursor, …) | [Install the Unbrowse MCP](docs/install-mcp.md), or [Connect an agent](#connect-an-agent) |
 | Move from the hosted version | [docs/upgrade.md](docs/upgrade.md) |
 | Build from this repo | [Run from source](#run-from-source) |
@@ -101,59 +102,6 @@ Your sign-ins stay on your computer, in your system's own keystore.
 | Start as a new owner, from install to first earnings | [docs/ONBOARDING.md](docs/ONBOARDING.md); every command in [docs/CLI.md](docs/CLI.md); all the docs, and the order to read them, in [docs/README.md](docs/README.md) |
 | Fix something that broke | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): symptom, cause, fix |
 | Contribute | [CONTRIBUTING.md](CONTRIBUTING.md); report vulnerabilities privately per [SECURITY.md](SECURITY.md) |
-
-## Install
-
-Download the app for your computer:
-
-| Your computer | Download |
-|---|---|
-| Mac with Apple silicon | [Unbrowse-13.21.0-installers.3-macos-arm64.dmg](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-macos-arm64.dmg) |
-| Windows (x64) | [Unbrowse-13.21.0-installers.3-windows-x64-setup.exe](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-windows-x64-setup.exe) |
-| Linux, Debian or Ubuntu (x64) | [unbrowse_13.21.0-installers.3_amd64.deb](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_amd64.deb) |
-| Linux, Debian or Ubuntu (ARM) | [unbrowse_13.21.0-installers.3_arm64.deb](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_arm64.deb) |
-
-Every file with its SHA-256 is on [the release](https://github.com/unbrowse-ai/unbrowse/releases/tag/v13.21.0-installers.3); the step-by-step guide is at [unbrowse.ai/#install](https://unbrowse.ai/#install).
-
-Open the app. The Unbrowse window starts the node on your computer (its MCP server is `http://127.0.0.1:7788/mcp`),
-then its Agents screen, the one it opens on, adds Unbrowse to the agents it finds (Claude Code, Claude Desktop, Cursor,
-Codex, VS Code, Gemini CLI, opencode, Hermes, OpenClaw and 15 more, whichever are installed: [the list](docs/guides/connect-your-agent.md#agents-the-app-connects))
-and gives ChatGPT and Claude on the web an address for this node, with the steps to add it. No terminal, Node or npm.
-
-- **Mac:** open the disk image and drag Unbrowse onto Applications. It is signed ad hoc, not notarized, so open it the
-  first time by hand: right-click it and choose Open, or on macOS 15 and later, after the warning, System Settings >
-  Privacy & Security > Open Anyway.
-- **Windows:** run the setup. It installs for your user alone, with no administrator prompt, and opens Unbrowse when it
-  finishes. It is not code-signed, so SmartScreen asks once: More info, then Run anyway.
-- **Linux:** `sudo apt install ./unbrowse_13.21.0-installers.3_amd64.deb`, then open Unbrowse from your apps menu. The window needs GTK 4.
-
-These installers do not update themselves yet: download the newer one when it ships.
-
-### Or from a release, with npm or archives
-
-Install the latest [release](https://github.com/unbrowse-ai/unbrowse-core/releases). A release build keeps itself up to
-date and runs on Arc testnet. Foundry's Anvil (`foundryup`) is needed only for test mode, the local devnet: the
-default of a build from source, or a node whose `chain` setting is `devnet`.
-
-- **Any machine with Node 20.3+:** `npm install -g unbrowse`, then `unbrowse app` opens the window (or `unbrowse start`
-  runs the node without it). npm fetches the programs for the machine it installs on: macOS (Apple silicon and Intel),
-  Linux (x64 and arm64, glibc 2.35 or later) and Windows (x64). That brings the app, the node, `unb`, the agent skill
-  and the client, and no browser: the node fetches its browser the first time a goal needs one (or `unbrowse browser
-  install` fetches it now; [docs/guides/the-browser.md](docs/guides/the-browser.md)). `pip install` with the release's
-  wheel for your machine does the same.
-- **macOS, without npm:** download the disk image,
-  [Apple silicon](https://github.com/unbrowse-ai/unbrowse-core/releases/latest/download/Unbrowse-macos-arm64.dmg) (there is
-  no Intel Mac build), open it and
-  drag Unbrowse onto Applications, then open it. After the terms, its "Connect your agents" screen lists the MCP
-  clients on the Mac (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI and the rest connect.rs knows)
-  and Connect adds the node's server to each, then offers ChatGPT and Claude on the web: no
-  terminal, Node or npm. Opened from the disk image itself, the app first offers to move itself to Applications. A
-  build that isn't notarized is stopped by macOS on its first launch: right-click it and choose Open, or on macOS 15
-  and later, after the warning, System Settings > Privacy & Security > Open Anyway (production releases are notarized).
-  `Unbrowse-<version>-macos-<arch>.zip` is the same app in a zip.
-- **Linux or Windows, without npm:** `unbrowse-<version>-linux-<arch>.tar.gz` or `unbrowse-<version>-windows-x64.zip`
-  holds the node, `unb`, the browser and the window in one folder, with a README that says how to start them. Check the
-  download against the release's `SHA256SUMS`.
 
 ## Run from source
 
