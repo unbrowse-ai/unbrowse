@@ -27,7 +27,18 @@ for name in "coverage-summary-$tree" "gate-bank-full-$tree"; do
   echo "read artifact $name ($id)"
 done
 
-python3 -I .github/scripts/promotion_gate.py check \
+# A coverage waiver names one version and why, in .github/promotion-waivers (`<version> coverage <reason>`): that
+# release is gated on the task bank alone, and the waiver is printed. Any other version still needs 90%.
+only=""
+if [ -n "${VERSION:-}" ] && [ -f .github/promotion-waivers ]; then
+  waiver=$(awk -v v="$VERSION" '$1 == v && $2 == "coverage" { $1 = ""; $2 = ""; sub(/^ +/, ""); print; exit }' .github/promotion-waivers)
+  if [ -n "$waiver" ]; then
+    echo "::warning::code coverage waived for $VERSION: $waiver"
+    only="--tasks-only"
+  fi
+fi
+
+python3 -I .github/scripts/promotion_gate.py check $only \
   --coverage "$dir/coverage-summary-$tree/coverage-summary.json" \
   --bank-results "$dir/gate-bank-full-$tree/results.jsonl" \
   --md "$dir/verdict.md"
