@@ -84,7 +84,12 @@ class Exclusions(unittest.TestCase):
 
     def test_every_approved_row_matches_a_file_that_exists(self):
         tracked = [p.relative_to(ROOT).as_posix() for p in ROOT.glob("unbrowse-s*/**/*") if p.is_file()]
+        # A folder the public tree leaves out (.github/public-tree-exclude) is checked in unbrowse-core, where it is.
+        exclude = ROOT / ".github/public-tree-exclude"
+        private = [l.strip() for l in exclude.read_text().splitlines() if l.strip() and not l.startswith("#")]
         for glob in self.APPROVED:
+            if any(glob.startswith(d) and not (ROOT / d).is_dir() for d in private):
+                continue
             self.assertTrue(any(gate.fnmatch.fnmatch(t, glob) for t in tracked), glob)
 
     def test_hand_written_code_named_generated_is_counted(self):
