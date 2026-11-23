@@ -42,6 +42,11 @@ on:
         description: Only move npm's next tag up to this shipped version (e.g. 13.0.0)
         type: string
         default: ""
+      # The commit CI passed, when the hand-over job below starts this run: it is released, though the branch moved on.
+      sha:
+        description: Release only this commit (set by the hand-over from CI)
+        type: string
+        default: ""
 
 # One release at a time, each reading the tags the last one made.
 concurrency:
@@ -51,18 +56,34 @@ concurrency:
 permissions: {}
 
 jobs:
+  # A CI run that passed for a push to staging or a release branch hands the release to that branch, as a run by hand
+  # on it. A workflow_run run always runs on main's ref, and the `release` environment admits only tags, release
+  # branches and staging, so every signing job of such a run was refused ("Branch main is not allowed to deploy to
+  # release", runs 45103689530 and 45174816274, 23 Nov 2026) and no staging or rc build reached npm. A run that
+  # GITHUB_TOKEN dispatches is one of the two kinds it may start. Not for a pull request's CI, nor a fork's push.
+  hand-over:
+    permissions:
+      actions: write
+    name: Hand the release to its branch
+    if: >-
+      github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: gh workflow run release.yml -R "$GITHUB_REPOSITORY" --ref "$BRANCH" -f sha="$SHA"
+
   version:
     permissions:
       contents: read
       # The promotion gate reads the coverage and task-bank artifacts CI kept for the tree it ships.
       actions: read
     name: Version
-    # A CI run that passed for a push to staging or a release branch (not one for a pull request from a branch of that
-    # name, nor a push from a fork), a release tag pushed, or a run by hand; release-version.sh refuses any other ref.
-    if: >-
-      github.event_name == 'workflow_dispatch' && inputs.next_to == '' || github.event_name == 'push' ||
-      github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+    # A release tag pushed, or a run by hand (the hand-over above is one); release-version.sh refuses any other ref.
+    if: github.event_name == 'workflow_dispatch' && inputs.next_to == '' || github.event_name == 'push'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       version: ${{ steps.free.outputs.version }}
@@ -72,10 +93,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.sha || github.sha }}
           # Every branch and tag: the version counts from them, and a tag is checked against main and its release branch.
           fetch-depth: 0
           persist-credentials: false
+      # Handed over from CI: the commit CI passed is released even when the branch has moved on, but only a commit of
+      # the branch this run is on. The environment admits the branch, so a commit from anywhere else is refused.
+      - name: The commit is the branch's
+        if: inputs.sha != ''
+        env:
+          WANT: ${{ inputs.sha }}
+        run: |
+          git merge-base --is-ancestor "$WANT" "$GITHUB_SHA" || { echo "::error::$WANT is not on $GITHUB_REF: nothing is released"; exit 1; }
       - id: next
         env:
           REF: ${{ github.event_name == 'workflow_run' && format('refs/heads/{0}', github.event.workflow_run.head_branch) || github.ref }}

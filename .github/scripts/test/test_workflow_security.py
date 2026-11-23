@@ -802,5 +802,47 @@ class WorkflowSecurityTest(unittest.TestCase):
             self.assertEqual(doc["jobs"]["dashboard"]["permissions"], {"actions": "read", "contents": "read"}, name)
 
 
+class ReleaseRunsOnItsBranch(unittest.TestCase):
+    """A CI run that passes on staging or a release branch hands the release to that branch (UNB-224). A workflow_run run
+    runs on main's ref, which the `release` environment refuses: runs 45103689530 and 45174816274 (23 Nov 2026) failed
+    "Branch main is not allowed to deploy to release" at the Mac signing job, and no staging or rc build reached npm."""
+
+    def setUp(self):
+        self.doc = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
+        self.jobs = self.doc["jobs"]
+
+    def needs(self, name):
+        n = self.jobs[name].get("needs", [])
+        return [n] if isinstance(n, str) else n
+
+    def reaches_version(self, name, seen=()):
+        return name == "version" or any(self.reaches_version(n, seen + (name,)) for n in self.needs(name) if n not in seen)
+
+    def test_no_job_with_an_environment_runs_on_a_workflow_run(self):
+        self.assertNotIn("workflow_run", self.jobs["version"]["if"])
+        for name, job in self.jobs.items():
+            if "environment" in job:
+                self.assertTrue(self.reaches_version(name), f"{name} holds an environment and does not wait on version")
+                self.assertNotIn("workflow_run", str(job.get("if", "")), name)
+
+    def test_ci_passing_on_a_branch_dispatches_the_release_on_that_branch_and_commit(self):
+        hand = self.jobs["hand-over"]
+        self.assertNotIn("environment", hand)
+        self.assertEqual(hand["permissions"], {"actions": "write"})
+        for part in ("github.event.workflow_run.conclusion == 'success'", "github.event.workflow_run.event == 'push'",
+                     "github.event.workflow_run.head_repository.full_name == github.repository"):
+            self.assertIn(part, hand["if"])
+        step = hand["steps"][0]
+        self.assertEqual(step["env"]["BRANCH"], "${{ github.event.workflow_run.head_branch }}")
+        self.assertEqual(step["env"]["SHA"], "${{ github.event.workflow_run.head_sha }}")
+        self.assertIn('--ref "$BRANCH" -f sha="$SHA"', step["run"])
+
+    def test_the_handed_over_commit_is_released_only_from_its_own_branch(self):
+        steps = self.jobs["version"]["steps"]
+        self.assertEqual(steps[0]["with"]["ref"], "${{ inputs.sha || github.sha }}")
+        guard = next(s for s in steps if s.get("name") == "The commit is the branch's")
+        self.assertIn('merge-base --is-ancestor "$WANT" "$GITHUB_SHA"', guard["run"])
+
+
 if __name__ == "__main__":
     unittest.main()
