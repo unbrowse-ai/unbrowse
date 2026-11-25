@@ -175,11 +175,10 @@ test("what a node can do is asked again after a failed ask, so one bad moment do
   assert.equal(posts[posts.length - 1].body.browser, "never");
 });
 
-// UNB-181, open. Fails on the current src: the stream's reader turns each CR into a line end before it looks for the
-// CRLF, so a CRLF cut between its CR and its LF reads as two line ends, and the event after it loses its name. Marked
-// `todo` (it runs and reports, and fails nothing) until src/owner.ts reads such a stream; then the mark goes.
+// UNB-181: a CRLF cut between its CR and its LF across two chunks is one line end, not two; read any other way the
+// cut reads as two line ends, and the event after it loses its name.
 // A plain server, not the signing fake: a signed stream's events are signed whole, which hides the cut.
-test("a CRLF stream cut between its CR and its LF is read event by event (UNB-181)", { todo: "UNB-181: the cut CRLF reads as two line ends" }, async () => {
+test("a CRLF stream cut between its CR and its LF is read event by event (UNB-181)", async () => {
   const server = http.createServer((req, res) => {
     res.writeHead(200, { "content-type": "text/event-stream" });
     res.flushHeaders();
