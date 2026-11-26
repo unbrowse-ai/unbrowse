@@ -32,7 +32,10 @@ mod frames;
 mod gateway;
 mod hands;
 mod health;
+mod heard;
 mod import;
+// What an install leaves on the machine besides the programs: the agent skill and the commands on the PATH.
+mod install;
 mod keychain_logins;
 mod inflight;
 mod leak;
@@ -65,6 +68,7 @@ mod proof;
 mod rpc;
 mod run;
 mod setups;
+mod setup;
 mod share;
 mod session_held;
 mod socket;
@@ -74,6 +78,8 @@ mod outcome;
 mod store;
 mod telemetry;
 mod terms;
+#[cfg(test)]
+mod said_to_agents;
 #[cfg(test)]
 mod testchain;
 #[cfg(test)]
@@ -185,8 +191,8 @@ fn root_store() -> Result<Box<dyn KeyStore + Send + Sync>, String> {
         };
         return Ok(Box::new(FileStore::new(file, migrate)));
     }
-    // A folder of the node's own can't always reach the keystore: say what else it can do.
-    let hint = if takes_keychain_key(&store::home(), &account_home()) { "" } else { " (a node in a folder of its own can keep its key in a file instead: UNBROWSE_ROOT_KEY_FILE=1)" };
+    // A node can't always reach the keystore: say what else it can do.
+    let hint = keystore_hint(takes_keychain_key(&store::home(), &account_home()));
     // Read once a run and held (`vault.unlock-once`): the system's keystore asks the owner at most once, not on every
     // signature, seal or open. One store a process, so the read that opened the node is the one every later reader
     // has, whichever of them asked for the store.
@@ -199,6 +205,17 @@ fn root_store() -> Result<Box<dyn KeyStore + Send + Sync>, String> {
     let store = Arc::new(unbrowse_core::Remembered::new(KeychainStore::new(KEYCHAIN_SERVICE, &account).map_err(|e| format!("{e}{hint}"))?));
     held.insert(account, store.clone());
     Ok(Box::new(store))
+}
+
+/// What a node that can't reach the system's keystore can do instead. A folder of its own may keep its key in a file
+/// when asked. The owner's own folder never does off Linux (a file there could be anyone's), so on a machine with no
+/// desktop session (a Windows service, SSH, a hub: Windows 11, 22 Nov 2026) the way is a folder of its own.
+fn keystore_hint(the_owners: bool) -> &'static str {
+    if the_owners {
+        " (on a machine with no desktop session the system's keystore may be out of reach: run the node in a folder of its own with its key in a file, UNBROWSE_HOME=<folder> UNBROWSE_ROOT_KEY_FILE=1)"
+    } else {
+        " (a node in a folder of its own can keep its key in a file instead: UNBROWSE_ROOT_KEY_FILE=1)"
+    }
 }
 
 /// This node's keystore account (`keychain_account`), its folder made first: a folder is named as the system resolves
@@ -499,6 +516,8 @@ fn save_settings(mut settings: store::Settings) -> Result<store::Settings, Strin
     // Keeping card security codes changes only through `keep_card_codes`, which asks the owner before it goes on and
     // forgets every code as it goes off: a save from a stale read turns it neither way.
     settings.keep_card_codes = kept.keep_card_codes;
+    // A chain the window moves is the owner's pick; a save from a window that doesn't know the field keeps the choice.
+    settings.chain_chosen = kept.chain_chosen || settings.chain != kept.chain;
     store::check_max_fetch(settings.max_fetch_usdc)?;
     if settings.coin_dev_buy_bps > 10_000 {
         return Err("the listing's first buy is a share of the wallet's UNB, in basis points: 0 (none) to 10,000 (all of it)".into());
@@ -1849,7 +1868,9 @@ fn connect_records() -> std::path::PathBuf {
 
 fn agent_clients(node: St<'_>) -> serde_json::Value {
     let (base, entry) = client_entry(node);
-    serde_json::json!({ "clients": connect::clients(&legacy::Machine::here(&base), &entry) })
+    let mut clients = connect::clients(&legacy::Machine::here(&base), &entry);
+    heard::stamp(&mut clients);
+    serde_json::json!({ "clients": clients })
 }
 
 /// The agent `unb mcp --agent first` speaks for, as `hand_out_token` picks it: the key the node made itself, else the
@@ -1942,7 +1963,7 @@ fn hand_out_token(keys: &dyn unbrowse_core::KeyStore, key_in_file: bool, index: 
         None => live.iter().find(|a| a.auto).or_else(|| live.first()),
     }) else {
         return Err(Handout::NoKey(match index {
-            Some(i) => format!("no live agent key {i}: add an agent in the Unbrowse app (Money, Agents) or with `unbrowse agent new <name>`"),
+            Some(i) => format!("no live agent key {i}: add an agent in the Unbrowse app (Agents, Add agent)"),
             None => "no live agent key yet: the node makes its first one once it has started".into(),
         }));
     };
@@ -2705,8 +2726,9 @@ fn agent_user_run(program: &[String]) -> i32 {
                 return 1;
             }
         };
+        let payload = agent_user::run_windows_payload(program);
         let child = std::process::Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-Command", &agent_user::run_windows_script(program)])
+            .args(["-NoProfile", "-NonInteractive", "-Command", &agent_user::run_windows_script()])
             .stdin(std::process::Stdio::piped())
             .spawn();
         child.and_then(|mut c| {
@@ -2714,6 +2736,7 @@ fn agent_user_run(program: &[String]) -> i32 {
             if let Some(mut pipe) = c.stdin.take() {
                 pipe.write_all(&password)?;
                 pipe.write_all(b"\n")?;
+                writeln!(pipe, "{payload}")?;
             }
             c.wait()
         })
@@ -3180,10 +3203,7 @@ fn chain_cli(args: &[String]) -> i32 {
             _ => Err("unbrowse-node chain kept [release <key>]".into()),
         },
         Some(name) if args.len() == 1 && chain::names().contains(&name) => {
-            let _held = store::settings_held();
-            let mut s = store::load_settings();
-            s.chain = name.into();
-            store::save_settings(&s).map(|_| {
+            chain::pick(name).map(|_| {
                 println!("{name}: the node runs on it from its next start (`unbrowse restart` now)");
                 if let Some(env) = std::env::var("UNBROWSE_CHAIN").ok().filter(|e| !e.trim().is_empty() && e != name) {
                     println!("UNBROWSE_CHAIN={env} is set in this shell, and a node started from it runs on {env} instead");
@@ -4201,6 +4221,44 @@ fn few_heaps() {
     }
 }
 
+/// Whether the agent skill and the commands still have to be put in place: the terms are accepted (the owner's yes to
+/// Unbrowse running on this computer), and the skill this build carries isn't the one last installed here.
+fn install_due() -> bool {
+    let s = store::load_settings();
+    s.terms_accepted.as_deref() == Some(terms::TERMS_VERSION) && s.tools_skill.as_deref() != Some(install::skill_hash().as_str())
+}
+
+/// Puts the skill and the commands in place, says what it did in the node's output, and keeps the skill it installed in
+/// the settings so the next start doesn't do it again. A run that left something undone keeps no record: the next start
+/// tries again once the reason is gone (an app opened from the disk image, a folder only the owner can make).
+fn install_now() {
+    // The programs as they really are: started through a link (`~/.local/bin/unbrowse-node`), the folder beside this
+    // process is the folder the links go in, and the links would point at themselves.
+    let programs = std::env::current_exe()
+        .ok()
+        .and_then(|p| std::fs::canonicalize(&p).ok())
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .unwrap_or_default();
+    install_on(&legacy::Machine::here(""), &programs);
+}
+
+/// `install_now` on machine `m`, with the programs in `programs`.
+fn install_on(m: &legacy::Machine, programs: &std::path::Path) {
+    let done = install::run(m, programs, install::Parts::ALL, false);
+    eprintln!("unbrowse-node: {}", done.said());
+    if done.skipped.is_some() {
+        return;
+    }
+    if let Ok(_held) = store::settings_held() {
+        let mut s = store::load_settings();
+        s.tools_skill = Some(install::skill_hash());
+        s.tools_at = Some(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0));
+        if let Err(e) = store::save_settings(&s) {
+            eprintln!("unbrowse-node: the skill and the commands are in place, and the record of it didn't save: {e}");
+        }
+    }
+}
+
 fn main() {
     // Registers the harness's assertion catalog before anything can reach an assertion.
     #[cfg(feature = "antithesis")]
@@ -4362,6 +4420,12 @@ fn main() {
     passkey::announce();
     autolist::announce();
     terms::announce();
+    // The rest of an install: dragging the app into Applications runs no code of its own, so the agent skill and the
+    // commands on the PATH are put in place here, as the owner, once the terms are accepted and again when a newer
+    // version carries a different skill. Nothing the node serves waits on it.
+    if install_due() {
+        std::thread::spawn(install_now);
+    }
     // The browsers a node of this home launched itself (walks, tries, a bridge's visit) close with it. A node that died
     // never closed those it had open, and nothing else will: they go before this one launches any.
     let reaped = agent_browser_core::cdp::launched::keep_records_in(&store::home().join("browsers-launched"));
@@ -4445,6 +4509,14 @@ fn main() {
                     link::note_joined(&me.address);
                 }
                 link::tell(&n, "node_started");
+                // A node on a network nobody picked is offered this build's, on the owner's yes alone (UNB-99). Its
+                // own task: the dialog waits on the owner.
+                let offer = n.clone();
+                tokio::spawn(async move {
+                    if chain::offer_on_start(build_config::default_chain(), std::env::var("UNBROWSE_CHAIN").ok(), offer.key().ok()).await {
+                        let _ = update::restart(&offer);
+                    }
+                });
                 // The first agent key, made by the node itself so agents connect with no key for the owner to make
                 // (`unb connect`); local, no chain write. Then its grants kept current, hourly.
                 if let Ok(keys) = n.key() {
@@ -5021,6 +5093,17 @@ mod tests {
         }
     }
 
+    /// A node that can't reach the keystore is told what works instead. In the owner's own folder, where asking for a
+    /// file is not enough, that is a folder of its own with its key in a file: before, it was told nothing, and a
+    /// Windows machine with no desktop session had no way to an agent token (22 Nov 2026).
+    #[test]
+    fn a_node_that_cant_reach_the_keystore_is_told_what_works_instead() {
+        let owners = keystore_hint(true);
+        assert!(owners.contains("UNBROWSE_HOME=") && owners.contains("UNBROWSE_ROOT_KEY_FILE=1"), "{owners}");
+        assert!(root_goes_in_a_file(false, false, true, false, false, || false), "what the hint names keeps the key in a file");
+        assert!(keystore_hint(false).contains("UNBROWSE_ROOT_KEY_FILE=1"));
+    }
+
     /// In the owner's own folder the keystore keeps the key, and a `root.key` lying there does not take its place: any
     /// program of this user can write that file, with no prompt, and a node that read it would run as whoever wrote
     /// it. The file is passed over out loud, by its path, so a key an earlier build left there is not lost quietly.
@@ -5380,3 +5463,10 @@ mod tests {
         store::delete_route(&route.id).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "main_cov_a_tests.rs"]
+mod main_cov_a_tests;
+#[cfg(test)]
+#[path = "main_cov_b_tests.rs"]
+mod main_cov_b_tests;

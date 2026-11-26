@@ -39,7 +39,7 @@ pub(crate) struct SignedBy {
 }
 
 /// What a client that sends its token as a bearer token hears while the owner hasn't allowed it.
-pub(crate) const BEARER_OFF: &str = "this node takes signed requests only, never a bearer token, which whatever answers at its address could keep. An MCP client set up with an Authorization header (Claude Code from an earlier setup): run `unbrowse connect` on this machine to set it up again, or give it `unb mcp` to start, with UNBROWSE_AGENT_TOKEN in its environment. A script: use the Unbrowse SDK or `unb`, which sign each request. Only if a client can't be changed, the owner can let bearer tokens in with `unbrowse agent bearer on` (asked first).";
+pub(crate) const BEARER_OFF: &str = "this node takes signed requests only, never a bearer token, which whatever answers at its address could keep. An MCP client set up with an Authorization header (Claude Code from an earlier setup): its person connects it again from the Unbrowse app (Agents, Connect), which sets it up to sign each request. A script: use the Unbrowse SDK or the unb program, which sign each request. Only if a client can't be changed can the owner let bearer tokens in, and the node asks them first.";
 
 /// The nonces a node's home has taken, each with when it may be forgotten, how many lines its journal holds, and its
 /// horizon: the latest its clock has read while taking or forgetting nonces.
@@ -522,7 +522,7 @@ mod tests {
         let refused = send(port, reqwest::Method::GET, "/v1/whoami", &bearer(), vec![]).await;
         assert_eq!(refused.status(), 401);
         let said = refused.text().await.unwrap();
-        assert!(said.contains("signed requests only") && said.contains("unbrowse connect") && said.contains("unb mcp"), "an old client hears what to do: {said}");
+        assert!(said.contains("signed requests only") && said.contains("Agents, Connect") && said.contains("the unb program"), "an old client hears what to do, in the app's words: {said}");
         store::save_settings(&store::Settings { accept_bearer: true, ..store::load_settings() }).unwrap();
         assert_eq!(send(port, reqwest::Method::GET, "/v1/whoami", &bearer(), vec![]).await.status(), 200);
         // The owner's command, signed with the owner's token.

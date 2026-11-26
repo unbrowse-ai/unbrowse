@@ -236,7 +236,7 @@ fn allowed_in(dir: &Path, site: &str) -> Result<(), String> {
         return Err(OFF.into());
     }
     if settings_in(dir).passkeys_never.iter().any(|s| fits(s, site)) {
-        return Err(format!("passkeys are off for {}: the owner said never (`unbrowse-node passkey allow {}` undoes it)", site_of(site), site_of(site)));
+        return Err(format!("passkeys are off for {}: the owner said never, and only they can undo it", site_of(site)));
     }
     Ok(())
 }
@@ -452,7 +452,7 @@ fn import_in(dir: &Path, sealer: &Sealer, text: &str, who: &str) -> Result<Impor
             continue;
         }
         if allowed_in(dir, &s.rp_id).is_err() {
-            let why = "a site you said never to passkeys on (`unbrowse-node passkey allow <site>` undoes it)";
+            let why = "a site you said never to passkeys on (allowing it again undoes that)";
             match done.skipped.iter_mut().find(|(w, _)| w == why) {
                 Some((_, n)) => *n += 1,
                 None => done.skipped.push((why.into(), 1)),

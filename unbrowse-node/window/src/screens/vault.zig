@@ -6,6 +6,7 @@
 //! digits come back, and each card carries its own limits.
 const std = @import("std");
 const nanoui = @import("nanoui");
+const handoff = @import("../handoff.zig");
 const ui = nanoui.ui;
 const kit = nanoui.kit;
 const look = @import("../look.zig");
@@ -577,7 +578,7 @@ fn importLogins(a: *App, c: *ui.Context) void {
             if (look.primary(c, "Done", .{ .size = .md })) a.close();
         } else {
             if (look.secondary(c, "Cancel", .{ .size = .md })) a.close();
-            if (look.primary(c, "Choose export file", .{ .size = .md, .loading = a.store.isBusy("import") })) nanoui.App.onMain(a, pickExportLater);
+            if (look.primary(c, "Choose export file", .{ .size = .md, .loading = a.store.isBusy("import") })) handoff.toMain(a, pickExportLater);
         }
     }
     _ = d.end();
@@ -593,7 +594,7 @@ fn importSession(a: *App, c: *ui.Context) void {
         .cancel = "",
     }) orelse return;
     {
-        const f = look.field(c, "Site", .{ .hint = "The browser the node uses (change it in Settings) is the one read." });
+        const f = look.field(c, "Site", .{ .hint = "Read from your browsers on this computer: Chrome and the other Chromium browsers first, then Firefox and Safari." });
         _ = ui.textField(c, &a.fields[0], .{ .width = .fill, .placeholder = "github.com" });
         f.end();
     }

@@ -109,7 +109,8 @@ fn a_node_without_its_browser_says_so() {
     assert_eq!(r["browser"], "missing", "{r}");
     assert!(r["missing"].as_array().unwrap().contains(&json!("program")), "{r}");
     assert_eq!((r["install"].clone(), r["fetch"].clone()), (json!("unbrowse browser install"), json!(false)), "{r}");
-    assert!(r["error"].as_str().unwrap().contains("unbrowse browser install"), "{r}");
+    // The words name the app's way to get it; `install` still names the command, for a script that runs it itself.
+    assert!(r["error"].as_str().unwrap().contains("Download Chrome for Testing") && !r["error"].as_str().unwrap().contains("unbrowse browser install"), "{r}");
 
     let (n, h) = (node.clone(), headers.clone());
     let (_, Json(m)) = rt.block_on(async move {
@@ -124,6 +125,7 @@ fn a_node_without_its_browser_says_so() {
     let (status, Json(w)) = rt.block_on(async move { answer_http(prim("unbrowse_whoami"), n, h, HashMap::new(), HashMap::new(), b"").await });
     assert_eq!(status, StatusCode::OK);
     assert_eq!((w["browser"].clone(), w["browser_fetch"].clone()), (json!("missing"), json!(false)), "{w}");
+    assert_eq!(w["call_browser"], true, "the node advertises replay-only calls separately from goal calls");
     crate::apischema::check(&(prim("unbrowse_whoami").returns)(), &w, &crate::apischema::types()).unwrap_or_else(|e| panic!("whoami answered {w}: {e}"));
 
     let (n, h) = (node.clone(), headers.clone());
@@ -781,6 +783,41 @@ fn a_signed_in_page_never_hands_its_cookies_to_an_agent_through_the_browser() {
     let _ = std::fs::remove_dir_all(&home);
 }
 
+/// The walk that exposed it (a video site's search): the search sends the typed word as its own `query`, and again
+/// inside the address of the results page it opens (`context.client.originalUrl`, written with `+`), which the graph
+/// holds the input inside (`held`). At call time the caller's word goes where the owner's stood, so the owner's word
+/// is not what the call sends there: the agent's call is not refused for it, the owner's word is out of the route the
+/// agent runs, and the caller's word lands where it stood. A value that carries the owner's word with no input held
+/// inside it is still refused.
+#[test]
+fn a_value_the_graph_holds_the_input_inside_carries_the_callers_word_not_the_owners() {
+    let _home = store::scratch_home("owners-own-held");
+    let private = "folding desk lamp 4471";
+    let plus = "folding+desk+lamp+4471";
+    let address = format!("https://shop.example/results?search_query={plus}");
+    let input = json!({ "loc": { "in": "json", "key": "/query" }, "class": "input", "name": "q", "secret": false, "default": private });
+    let fixed = json!({ "loc": { "in": "json", "key": "/context/originalUrl" }, "class": "constant", "value": address });
+    let mut step = step_of("POST", "https://shop.example/api/v1/search", json!([input, fixed]));
+    step["held"] = json!([{ "loc": { "in": "json", "key": "/context/originalUrl" }, "input": "q", "sits": plus, "written": "plus" }]);
+    step["body"] = json!({ "kind": "json", "template": { "context": { "originalUrl": address }, "query": null }, "types": { "/query": "string" } });
+    let mut r = owners_route("held-address", 1, private, json!([step]));
+    r.root = "https://shop.example/results".into();
+    r.read_by = Some(store::ReadBy::current());
+    r.walk_without_fragment = true;
+    r.page_made = Some(Vec::new());
+    let runs = r.callable_by_an_agent().expect("the caller's word goes where the owner's stood");
+    let sent = serde_json::to_string(&runs.graph).unwrap();
+    assert!(!sent.contains(plus) && !sent.contains(private), "the owner's word is out of what the agent runs: {sent}");
+    let s = &runs.graph.steps[0];
+    let at = s.fields.iter().find_map(|f| match &f.class { unbrowse_learn::graph::Class::Constant { value, .. } => Some(value.clone()), _ => None }).unwrap();
+    let now = s.held[0].written.write("pallet racking");
+    assert_eq!(unbrowse_learn::graph::swapped(&at, &s.held[0].sits, &now), "https://shop.example/results?search_query=pallet+racking", "the caller's word lands where the owner's stood");
+    // The owner's word in a value nothing holds an input inside is still theirs, and still refused.
+    let mut bare = r.clone();
+    bare.graph.steps[0].held.clear();
+    assert!(bare.callable_by_an_agent().expect_err("no input held there").contains("still carries what they typed"));
+}
+
 /// What the owner's session gave a page is found however the route keeps it, by the one reader of "carries"
 /// (`trace::carries_written`): base64 in a fixed body value is refused to an agent's call and isn't listed for sharing;
 /// and a value inside what the signing sandbox runs with (the route's kept page, its scripts, the answers it replays)
@@ -1136,6 +1173,93 @@ fn a_page_finds_its_route_whatever_the_goal_is_called() {
 }
 
 #[test]
+fn a_release_read_finds_the_saved_document_without_a_read_verb() {
+    let page = "https://registry.example/images/widget";
+    let mut document = route("document", "registry.example", "Read widget on registry.example", &[]);
+    document.root = page.into();
+    let mut step = step_of("GET", page, json!([]));
+    step["reads_page"] = json!(true);
+    document.graph.steps = vec![serde_json::from_value(step).unwrap()];
+
+    let mut settings = route("settings", "registry.example", "latest image tag settings", &[]);
+    settings.root = page.into();
+    settings.graph.steps = vec![serde_json::from_value(step_of("GET", "https://registry.example/api/settings", json!([]))).unwrap()];
+    let routes = [settings, document];
+    let ask = "latest available tag of the official image";
+    let found = page_routes(&routes, ask, page);
+    assert_eq!(found.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["document"]);
+    assert!(page_routes(&routes, ask, "https://registry.example/images/other").is_empty());
+    assert!(page_routes(&routes, "latest image tag settings", "https://other.example/images/widget").is_empty());
+    assert!(page_routes(&routes, "Please update Widget to the latest version", page).is_empty());
+}
+
+#[test]
+fn a_release_read_keeps_the_requested_channel() {
+    let page = "https://registry.example/images/widget";
+    let beta = format!("{page}?channel=beta");
+    let mut document = route("document", "registry.example", "Read widget on registry.example", &[]);
+    document.root = beta.clone();
+    let mut step = step_of("GET", &beta, json!([]));
+    step["reads_page"] = json!(true);
+    document.graph.steps = vec![serde_json::from_value(step).unwrap()];
+    let ask = "latest published version of Widget";
+    assert!(page_routes(std::slice::from_ref(&document), ask, page).is_empty());
+    assert_eq!(page_routes(std::slice::from_ref(&document), ask, &beta).len(), 1);
+    assert!(route_can_reuse_for_url(&document, &beta));
+    assert!(!route_can_reuse_for_url(&document, &format!("{page}?channel=stable")));
+
+    let mut parameterized = route("with-input", "registry.example", "Read widget on registry.example", &["channel"]);
+    parameterized.root = beta.clone();
+    let mut step = step_of("GET", &format!("{page}?channel={{channel}}"), json!([
+        {"loc":{"in":"query","key":"channel"},"class":"input","name":"channel","default":"beta","secret":false}
+    ]));
+    step["reads_page"] = json!(true);
+    parameterized.graph.steps = vec![serde_json::from_value(step).unwrap()];
+    assert_eq!(page_routes(std::slice::from_ref(&parameterized), ask, &beta).len(), 1);
+    assert!(page_routes(&[parameterized], ask, page).is_empty());
+}
+
+#[test]
+fn a_document_release_cannot_ignore_fragment_selected_input() {
+    let page = "https://registry.example/images/widget";
+    let selected = format!("{page}#channel=beta");
+    let mut document = route("document", "registry.example", "Read widget on registry.example", &[]);
+    document.root = selected.clone();
+    let mut step = step_of("GET", page, json!([]));
+    step["reads_page"] = json!(true);
+    document.graph.steps = vec![serde_json::from_value(step).unwrap()];
+
+    assert!(!route_can_reuse_for_url(&document, &selected));
+    assert!(page_routes(&[document], "latest published version of Widget", &selected).is_empty());
+}
+
+#[test]
+fn a_reworded_release_read_still_finds_its_api_route() {
+    let page = "https://registry.example/releases/widget";
+    let mut saved = route("release-api", "registry.example", "get the latest published version of widget", &[]);
+    saved.root = page.into();
+    saved.graph.steps = vec![serde_json::from_value(step_of("GET", "https://registry.example/api/releases/latest", json!([]))).unwrap()];
+    let routes = [saved];
+    let found = page_routes(&routes, "read the latest published version of widget", page);
+    assert_eq!(found.iter().map(|route| route.id.as_str()).collect::<Vec<_>>(), ["release-api"]);
+}
+
+#[test]
+fn a_release_read_does_not_answer_a_publish_request() {
+    let page = "https://registry.example/images/widget";
+    let mut document = route("document", "registry.example", "Read widget on registry.example", &[]);
+    document.root = page.into();
+    let mut step = step_of("GET", page, json!([]));
+    step["reads_page"] = json!(true);
+    document.graph.steps = vec![serde_json::from_value(step).unwrap()];
+    let routes = [document];
+    for goal in ["Publish the latest version of Widget", "Deploy the latest version of Widget", "Please publish the latest version of Widget and show me the result"] {
+        assert!(page_routes(&routes, goal, page).is_empty(), "{goal}");
+    }
+    assert!(!unbrowse_learn::goal::asks_a_change("Show the publish settings"));
+}
+
+#[test]
 fn a_fixed_route_is_not_reused_for_a_new_query_value() {
     // A search route learned from ?search=planet with no input for it can only fetch planet; a new value relearns (#23).
     let mut fixed = route("w", "en.wikipedia.org", "search wikipedia", &[]);
@@ -1367,9 +1491,10 @@ fn an_agents_learn_never_retires_a_listed_or_the_owners_own_route() {
     // Nor a page an agent said it doesn't do: retired, the verdict would go with it and the page learn it back.
     let mut wrong = route("wrong", "shop.example", "list items", &[]);
     wrong.judged.wrong.push(store::WrongPage { page: "https://shop.example".into(), why: "empty".into(), by: "agent".into(), at: 1 });
-    let routes = [listed, mine, plain, judged, wrong];
+    let opening = route("opening", "shop.example", "list items", &[]);
+    let routes = [listed, mine, plain, judged, wrong, opening];
     let new = route("new", "shop.example", "list items", &[]);
-    let gone: Vec<_> = superseded(&routes, "list items", "https://shop.example/", &new).iter().map(|r| r.id.clone()).collect();
+    let gone: Vec<_> = superseded(&routes, "list items", "https://shop.example/", &new, &["opening".into()]).iter().map(|r| r.id.clone()).collect();
     assert_eq!(gone, ["plain"]);
 }
 
@@ -1786,6 +1911,56 @@ fn an_input_the_route_does_not_take_is_said_never_silently_dropped() {
     let other = route("net", "algolia.net", "search Hacker News stories", &["filters"]);
     let found = takes_all(vec![&hn, &other], &HashMap::from([("query".to_string(), "rust".to_string())]));
     assert_eq!(found.iter().map(|r| r.id.as_str()).collect::<Vec<_>>(), ["hn"]);
+}
+
+#[test]
+fn concurrent_aliased_calls_keep_their_own_unprojected_answers() {
+    let (_home, rt, node, headers) = node_with_a_token("answer-input-alias");
+    let body = json!({ "items": [{"title": "desk lamp"}] });
+    let empty = json!({ "items": [], "diagnostic": "d".repeat(10_000) });
+    let page = |state: &Value| format!(r#"<html><body><main><a href="/desk">Desk</a></main><script type="application/json">{state}</script></body></html>"#);
+    let port = crate::run::test_site(vec![
+        ("/items", 200, "text/html", page(&body)),
+        ("/empty", 200, "text/html", page(&empty)),
+    ]);
+    let route = |id: &str, path: &str| {
+        let root = format!("http://127.0.0.1:{port}/{path}?query=table");
+        let graph = serde_json::from_value(json!({ "provisional": true, "steps": [{
+            "exchange": 0, "method": "GET", "status": 200,
+            "url": format!("http://127.0.0.1:{port}/{path}?query={{query}}"),
+            "fields": [{ "loc": { "in": "query", "key": "query" }, "class": "input", "name": "q", "secret": false, "default": "table" }],
+            "response_shape": unbrowse_learn::graph::shape(&body),
+            "needs_browser": false
+        }] })).unwrap();
+        let mut route = store::Route::from_graph(id.into(), "find items with links".into(), root, graph).unwrap();
+        assert_eq!(route.inputs[0].name, "q");
+        route.fields = vec!["items".into()];
+        route.judged.fields = true;
+        store::save_route(&route).unwrap();
+        route
+    };
+    let given = HashMap::from([("query".to_string(), "lamp".to_string())]);
+    let found = route("answer-input-alias", "items");
+    let none = route("answer-empty-with-link", "empty");
+    let call = |id, route: &store::Route| text_over_mcp(&rt, &node, &headers, id, "unbrowse_call",
+        json!({ "route_id": route.id, "inputs": given, "fields": ["links"] })).1;
+    let answer = call(1, &found);
+    assert_eq!(answer["browser"], false, "{answer}");
+    assert_eq!(answer["data"]["items"], body["items"]);
+    assert_eq!(answer["data"]["links"][0]["url"], format!("http://127.0.0.1:{port}/desk"));
+    let answer = call(2, &none);
+    assert_eq!(answer["outcome"], "answered_empty", "{answer}");
+    assert_eq!(answer["data"], json!({ "items": [] }));
+
+    let caller = agent(&node, &headers).expect("the caller is authenticated");
+    let (found, none) = rt.block_on(async {
+        tokio::join!(
+            call::do_call_with_whole(&node, &caller, found.id.clone(), given.clone()),
+            call::do_call_with_whole(&node, &caller, none.id.clone(), given.clone())
+        )
+    });
+    assert_eq!(found.unwrap().1.expect("the found call's whole answer").data, body);
+    assert_eq!(none.unwrap().1.expect("the empty call's whole answer").data, empty);
 }
 
 #[test]
@@ -2545,7 +2720,7 @@ fn every_primitive_answers_alike_over_http_and_mcp() {
     let (status, Json(said)) = rt.block_on(answer_http(&PRIMITIVES[0], node.clone(), stale, HashMap::new(), HashMap::new(), b""));
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     let said = said["error"].as_str().unwrap();
-    assert!(said.starts_with("unknown, revoked or expired agent key") && said.contains("unbrowse connect") && said.contains("Agent access"), "{said}");
+    assert!(said.starts_with("unknown, revoked or expired agent key") && said.contains("Agents, Connect") && said.contains("Agents, Add agent"), "{said}");
 }
 
 /// Each MCP client gets its own session at initialize, and its tools run in it: two clients on one key browse in
@@ -2616,9 +2791,11 @@ fn an_evals_reply_says_its_own_requests_are_never_learned() {
 /// argument away: each tool keeps every property it takes, each with its type, and the same required list.
 /// 21 Nov 2026: the list was 20 932 bytes against 18 000, red on staging; cut to 20 209 (the checkout's hold is told in
 /// the card fill's reply and each refusal, not here) and the ceiling set just above it, so it can only shrink again.
+/// 22 Nov 2026: raised to 20 900 for one new tool, unbrowse_setup (an agent sets the node up without a terminal), in
+/// the fewest words it takes; a loosened gate, so its PR asks the owner to countersign it.
 #[test]
 fn the_tool_list_stays_small_and_keeps_every_argument() {
-    const TOOLS_LIST_MAX: usize = 20_500;
+    const TOOLS_LIST_MAX: usize = 20_900;
     let reply = json!({ "jsonrpc": "2.0", "id": 1, "result": { "tools": tools() } });
     let bytes = serde_json::to_string(&reply).unwrap().len();
     assert!(bytes <= TOOLS_LIST_MAX, "tools/list is {bytes} bytes, over {TOOLS_LIST_MAX}: say the same in fewer words");
@@ -2631,10 +2808,11 @@ fn the_tool_list_stays_small_and_keeps_every_argument() {
         ("unbrowse_observe", &["goal", "session", "site"], &[]),
         ("unbrowse_logins", &[], &[]),
         ("unbrowse_open", &["link"], &["link"]),
-        ("unbrowse_call", &["fields", "inputs", "route_id"], &["route_id"]),
+        ("unbrowse_call", &["browser", "fields", "inputs", "route_id"], &["route_id"]),
         ("unbrowse_inspect", &["route_id"], &["route_id"]),
         ("unbrowse_judge", &["bounty", "entry", "fields", "links", "route_id", "url", "verdict", "what", "why", "word", "writes"], &["route_id", "verdict"]),
         ("unbrowse_whoami", &[], &[]),
+        ("unbrowse_setup", &["do", "host"], &[]),
         ("unbrowse_report", &["error", "expected", "goal", "got", "kind", "route_id", "summary", "tool", "url"], &["kind", "summary", "expected", "got"]),
     ];
     let listed = tools();
@@ -2993,6 +3171,73 @@ fn a_route_that_needs_a_value_the_ask_lacks_gives_way_to_the_page() {
     let _ = std::fs::remove_dir_all(&home);
 }
 
+/// Lewis, 22 Nov 2026: "another node should be able to login via the login route to get the same experience with their
+/// own sessions", and "another agent from a different node's account cannot login as others". An agent asks this node
+/// (B) for a route node A listed, whose body carries the site's sign-in, with no session on the site. With no login of
+/// the site in B's vault the reply says how to add one and nothing is asked or kept. With B's own login the owner is
+/// asked, and on yes B takes the sign-in as its own, filled from B's login (never A's), and sends it as B: here the site
+/// isn't there, so the reply says the sign-in sent as B's account wasn't taken, and the sign-in is let go so the next
+/// call asks again.
+#[test]
+fn a_route_another_node_listed_signs_in_only_as_this_nodes_own_owner() {
+    let home = store::scratch_home("shared-sign-in-goal");
+    let route = crate::setups::tests::a_fetched_route_with_its_sites_sign_in(&home);
+    let site = crate::setups::tests::SHARED_SITE;
+    store::save_settings(&store::Settings { fetch_browser: false, ..store::Settings::default() }).unwrap();
+    store::save_route(&route).unwrap();
+    let h = home.clone();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .on_thread_start(move || {
+            store::use_home(&h);
+            crate::owner_dialog::answer_in_test(Some(true));
+        })
+        .build()
+        .unwrap();
+    let node_with = |login: Option<&str>| {
+        let keys = unbrowse_core::MemoryStore::default();
+        let id = unbrowse_core::load_or_create(&keys).unwrap();
+        if let Some(account) = login {
+            crate::vault::add(&crate::vault_keep(Ok(&keys)).unwrap(), site, account, "stored", Some("bobs-own-pass"), "You").unwrap();
+        }
+        let (a, _) = agents::create(&keys, "agent", 1.0, 30, 7790).unwrap();
+        let node = Arc::new(Node {
+            keys: Box::new(keys),
+            identity: std::sync::RwLock::new(Some(Ok(crate::IdentityView { address: id.address.to_checksum(), created: true }))),
+            info: crate::NodeInfo { name: "test".into(), version: "test".into(), api_port: 0, dev: true },
+            walks: crate::learn::Walks::default(),
+            chain: chain::Chain::default(),
+            chain_error: std::sync::Mutex::new(None),
+            events: Events::default(),
+            net: std::sync::OnceLock::new(),
+            share: crate::share::Share::default(),
+        });
+        (node, a)
+    };
+    let ask = |node: &Arc<Node>, a: &agents::Agent| {
+        let (n, a) = (node.clone(), a.clone());
+        let body = DoBody { goal: "the orders on my account".into(), url: format!("https://{site}/orders"), inputs: HashMap::new(), session: String::new(), browser: "never".into(), fields: Vec::new(), many: true, budget_usdc: None };
+        rt.block_on(async move { tokio::time::timeout(std::time::Duration::from_secs(60), do_goal(&n, &a, body)).await.expect("answered") })
+    };
+    let kept = || crate::setups::load(&unbrowse_learn::identity::site_of(site));
+    // No login of the site in this node's vault: told how to add one, nothing kept.
+    let (node, a) = node_with(None);
+    let (_, said) = ask(&node, &a).unwrap_err();
+    assert!(said.contains("holds no login") && said.contains(&format!("vault:new:{}", unbrowse_learn::identity::site_of(site))), "{said}");
+    assert!(kept().is_empty(), "nothing kept");
+    // This node's own login: the owner says yes, and the sign-in is taken as this node's own, under its own login.
+    let (node, a) = node_with(Some("bob@mail.example"));
+    let (_, said) = ask(&node, &a).unwrap_err();
+    assert!(said.contains("the sign-in was sent as bob@mail.example") && !said.contains("me@mail.example"), "{said}");
+    // The site didn't take it (it isn't there): the sign-in taken for it is let go whole, so the next call asks again,
+    // and nothing of it is left in the vault.
+    assert!(kept().is_empty(), "{:?}", kept());
+    let keep = crate::vault_keep(Ok(node.keys.as_ref())).unwrap();
+    assert!(crate::vault::sign_in(&keep, &crate::vault::Ref::parse(&format!("vault:{site}:bob@mail.example")).unwrap()).unwrap().is_none());
+    let _ = std::fs::remove_dir_all(&home);
+}
+
 /// A node with an agent, for a goal run straight through `do_goal`, and a site on this machine that answers each
 /// request with the next of `answers` (status and body), the last one from then on.
 fn node_and_site(name: &str, answers: Vec<(u16, &'static str)>) -> (std::path::PathBuf, tokio::runtime::Runtime, Arc<Node>, agents::Agent, u16) {
@@ -3101,6 +3346,62 @@ fn an_answer_is_read_the_same_way_whichever_route_gave_it() {
     assert_eq!(unanswered(&page, &route, &ask(&subject)), None, "and is never tried another way for what it answered");
 }
 
+#[test]
+fn a_goal_can_validate_links_in_markup_before_projecting_the_reply() {
+    let cards = (1..=8).map(|id| format!("<li><a href=\"/articles/{id}\">Article {id} {}</a></li>", "related reading ".repeat(20))).collect::<String>();
+    let encoded: &'static str = Box::leak(json!({"searchResults":format!("<ul>{cards}</ul>")}).to_string().into_boxed_str());
+    let (home, rt, node, agent, port) = node_and_site("drawn-links", vec![(200, encoded)]);
+    let goal = "list the links";
+    let url = format!("http://127.0.0.1:{port}/articles?q=lamps");
+    let mut route = a_lamps_route_on("drawn-links", port);
+    route.what = goal.into();
+    route.root = url.clone();
+    store::save_route(&route).unwrap();
+    let ask = DoBody { goal: goal.into(), url, inputs: HashMap::new(), session: String::new(), browser: "never".into(), fields: Vec::new(), many: true, budget_usdc: None };
+    let reply = rt.block_on(do_goal(&node, &agent, ask)).expect("the stored call returned links");
+    assert_eq!(reply["how"], "called", "{reply}");
+    assert_eq!(reply["result"]["browser"], false, "{reply}");
+    assert_eq!(reply["result"]["data"]["searchResults"]["links"].as_array().map(Vec::len), Some(8), "{reply}");
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn a_reworded_goal_keeps_the_links_read_from_markup() {
+    let mut saved = route("markup-links", "shop.example", "list article titles", &[]);
+    saved.root = "https://shop.example/articles".into();
+    let goal = "list article titles and links";
+    let inputs = HashMap::new();
+    let ask = Asked { url: &saved.root, goal, subject: &[], reworded: true, sibling: false, given: &inputs };
+    let cards = (1..=5).map(|id| format!("<li><a href='/articles/{id}'>Article {id} {}</a></li>", "related reading ".repeat(55))).collect::<String>();
+    let whole = crate::run::WholeAnswer::from(json!({"homeLink":"/home","searchResults":format!("<ul>{cards}</ul>")}));
+    let reply = goal::records_for_ask(json!({"ok":true,"ms":22,"browser":false}), &saved, &ask, &[], Some(&whole));
+    let links = reply["data"]["searchResults"]["links"].as_array().expect("the markup was read before projection");
+    assert_eq!(links.len(), 5);
+    assert_eq!(links[0]["url"], "https://shop.example/articles/1");
+    assert_eq!(reply["ms"], 22);
+    assert_eq!(reply["browser"], false);
+}
+
+#[test]
+fn help_links_do_not_replace_the_structured_records_of_a_reworded_goal() {
+    let mut saved = route("articles-with-help", "shop.example", "list article titles", &[]);
+    saved.root = "https://shop.example/articles".into();
+    let goal = "list articles with the title, price and link of each result";
+    let inputs = HashMap::new();
+    let ask = Asked { url: &saved.root, goal, subject: &[], reworded: true, sibling: false, given: &inputs };
+    let results: Vec<_> = (1..=5).map(|id| json!({"title":format!("Article {id}"),"price":"$5.00","url":format!("https://shop.example/articles/{id}")})).collect();
+    let help = (1..=5).map(|id| format!("<li><a href='/help/{id}'>Help topic {id} {}</a></li>", "help text ".repeat(65))).collect::<String>();
+    let whole = crate::run::WholeAnswer::from(json!({"results":results,"support":format!("<ul>{help}</ul>")}));
+    let reply = goal::records_for_ask(json!({"ok":true,"ms":22,"browser":false}), &saved, &ask, &[], Some(&whole));
+    assert_eq!(reply["data"]["results"].as_array().map(Vec::len), Some(5));
+    assert_eq!(reply["data"]["results"][0]["url"], "https://shop.example/articles/1");
+
+    saved.what = "list articles with the title and price of each result".into();
+    let no_links = crate::run::as_a_reply(&saved, &inputs, &[], whole, 22, false);
+    assert_eq!(no_links["data"]["results"].as_array().map(Vec::len), Some(5));
+    assert_eq!(no_links["data"]["results"][0]["price"], "$5.00");
+}
+
 /// A call whose answer says the walk's search and nothing of the one asked answered the walk, whatever its status: some
 /// value of the walk's rode along where no input reaches it (a next-page cursor that carries the old search).
 #[test]
@@ -3110,10 +3411,10 @@ fn an_answer_that_says_only_the_walks_search_answered_the_walk() {
     let asked = HashMap::from([("q".to_string(), "ipad mini".to_string())]);
     let stale = json!({"results": [{"title": "MacBook Air M2 13"}, {"title": "macbook air 2020"}]});
     let fresh = json!({"results": [{"title": "iPad Mini 6"}, {"title": "MacBook Air sleeve for iPad"}]});
-    assert!(goal::answers_the_walk(&r, &asked, &stale));
-    assert!(!goal::answers_the_walk(&r, &asked, &fresh));
+    assert!(goal::answers_the_walk(&r, &asked, &stale, None));
+    assert!(!goal::answers_the_walk(&r, &asked, &fresh, None));
     let same = HashMap::from([("q".to_string(), "macbook air".to_string())]);
-    assert!(!goal::answers_the_walk(&r, &same, &stale), "the walk's own value is no new ask");
+    assert!(!goal::answers_the_walk(&r, &same, &stale, None), "the walk's own value is no new ask");
 }
 
 /// A list that says no word of what the page asks for (a strip of featured cards, every one priced and none named)
@@ -3309,6 +3610,39 @@ fn an_answer_without_a_price_for_another_value_is_a_search_that_found_nothing() 
     assert!(!super::goal::found_nothing_of_the_goal(&deaf, &said("zqxv"), goal, &mut never, &mut unread));
     route.write = true;
     assert!(!super::goal::found_nothing_of_the_goal(&route, &said("zqxv"), goal, &mut never, &mut unread));
+}
+
+#[test]
+fn a_browserless_page_replay_preserves_its_explicit_empty_search_evidence() {
+    let graph = serde_json::from_value(serde_json::json!({"provisional":false,"steps":[{"exchange":0,"method":"GET","status":200,
+        "needs_browser":false,"url":"https://shop.example/s?k={k}",
+        "fields":[{"loc":{"in":"query","key":"k"},"class":"input","name":"k","default":"lamps","secret":false}]}]})).unwrap();
+    let goal = "search products with names and prices";
+    let route = crate::store::Route::from_graph("r".into(), goal.into(), "https://shop.example/s?k=lamps".into(), graph).unwrap();
+    let given = std::collections::HashMap::from([("k".into(), "zqxv".into())]);
+    let ask = super::goal::Asked { url: "https://shop.example/s?k=zqxv", goal, subject: &[], reworded: false, sibling: false, given: &given };
+    let search = serde_json::json!({"context":{"query":"zqxv"},"listingCards":[],"numberOfResults":0,"pending":false,"error":null});
+    let data = serde_json::json!({"search":search,"chrome":{"theme":"light","script":"y".repeat(64_000)}});
+    let reply = serde_json::json!({"ok":true,"browser":false,"ms":4250,"data":{"chrome":{"theme":"light"}}});
+    let reason = Some(super::goal::LACKS_THE_GOAL);
+    let fields = ["chrome.theme".into()];
+    let answered = super::goal::empty_page_reply(&reply, &route, &ask, Some(&data.clone().into()), &fields, reason).expect("the page completed an empty search");
+    assert_eq!(answered["outcome"], "answered_empty");
+    assert_eq!(answered["how"], "called");
+    assert_eq!(answered["result"]["browser"], false);
+    assert_eq!(answered["result"]["records"], 0);
+    assert_eq!(answered["result"]["ms"], 4250);
+    assert_eq!(answered["result"]["data"]["search"], search);
+    assert_eq!(answered["result"]["data"]["chrome"]["theme"], "light");
+
+    let mut side_call = route.clone();
+    side_call.graph.steps[0].url = "https://shop.example/api/featured?k={k}".into();
+    assert!(super::goal::empty_page_reply(&reply, &side_call, &ask, Some(&data.clone().into()), &fields, reason).is_none());
+    let mut browsed = reply.clone();
+    browsed["browser"] = serde_json::json!(true);
+    let completed = super::goal::empty_page_reply(&browsed, &route, &ask, Some(&data.clone().into()), &fields, reason).unwrap();
+    assert_eq!(completed["result"]["browser"], true);
+    assert_eq!(completed["result"]["records"], 0);
 }
 
 /// UNB-165. Carousell's search page lists dozens of MacBook Airs, and beside them calls its strip of certified
@@ -4119,6 +4453,63 @@ fn a_call_that_forbade_the_browser_says_it_was_declined_not_missing() {
     let _ = std::fs::remove_dir_all(&home);
 }
 
+#[test]
+fn a_rejected_plain_learn_does_not_rewalk_when_the_browser_is_forbidden() {
+    let listings = |link: &str| Box::leak(json!({"results": (0..5).map(|n| json!({
+        "title": format!("Desk lamp {n}"), "price": "$30", "url": format!("{link}{n}")
+    })).collect::<Vec<_>>()}).to_string().into_boxed_str());
+    let (home, rt, node, agent, port) = node_and_site("plain-replay-only", vec![(200, listings("/item/")), (200, listings("unavailable "))]);
+    let ask = DoBody { goal: "list the results with title, price and link of each".into(), url: format!("http://127.0.0.1:{port}/search"),
+        browser: "never".into(), inputs: HashMap::new(), session: String::new(), fields: Vec::new(), many: false, budget_usdc: None };
+    let failure = rt.block_on(goal::do_goal_said(&node, &agent, ask)).expect_err("the replay lacked the requested links");
+    let (_, body) = answer_of(&failure);
+    assert_eq!(body["outcome_from"], "goal.replay_only", "{body}");
+    assert!(body["error"].as_str().unwrap().contains(goal::LACKS_THE_GOAL), "{body}");
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn a_direct_call_rejects_a_malformed_browser_policy() {
+    let (home, rt, node, agent, _) = node_and_site("invalid-browser-policy", vec![(200, "{}")]);
+    let p = PRIMITIVES.iter().find(|p| p.tool == "unbrowse_call").unwrap();
+    for value in [json!(null), json!(false), json!(""), json!("other")] {
+        let args = json!({ "route_id": "not-present", "browser": value });
+        let failure = rt.block_on(run_primitive(p, &node, &agent, args, "unbrowse_call")).unwrap_err();
+        assert_eq!(answer_of(&failure).0, StatusCode::BAD_REQUEST);
+        assert_eq!(answer_of(&failure).1["error"], "browser must be auto or never");
+    }
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn a_direct_route_call_can_decline_browser_fallback() {
+    let (home, rt, node, agent, port) = node_and_site("direct-never", vec![(403, r#"{"error":"access refused"}"#)]);
+    let mut route = a_lamps_route_on("direct-never", port);
+    route.graph.steps[0].fields.push(unbrowse_learn::graph::Field {
+        loc: unbrowse_learn::Loc::Cookie("branch".into()),
+        class: unbrowse_learn::graph::Class::Minted { name: "branch".into() },
+    });
+    store::save_route(&route).unwrap();
+    let choice: unbrowse_learn::setup::Setup = serde_json::from_value(json!({
+        "kind":"choice","page":"not a URL","earns":["branch"],"steps":[]
+    })).unwrap();
+    let setups = home.join("setups");
+    std::fs::create_dir_all(&setups).unwrap();
+    std::fs::write(setups.join("127.0.0.1.json"), unbrowse_files::SETUPS.to_vec_pretty(&vec![choice]).unwrap()).unwrap();
+    assert_eq!(crate::setups::load("127.0.0.1").len(), 1);
+    let primitive = PRIMITIVES.iter().find(|p| p.tool == "unbrowse_call").unwrap();
+    let args = json!({"route_id":route.id,"browser":"never"});
+    let reply = rt.block_on(run_primitive(primitive, &node, &agent, args, "unbrowse_call")).unwrap();
+    assert_eq!(reply["browser"], false, "{reply}");
+    assert_eq!(reply["ok"], false, "{reply}");
+    assert!(reply["error"].as_str().is_some_and(|error| error.contains("403")), "{reply}");
+    assert!(!home.join("setup-rests.json").exists(), "the call never attempted to make the site's choice in a browser");
+    let invalid = json!({"route_id":route.id,"browser":"always"});
+    let failure = rt.block_on(run_primitive(primitive, &node, &agent, invalid, "unbrowse_call")).unwrap_err();
+    assert_eq!(failure.plain().0, StatusCode::BAD_REQUEST);
+    let _ = std::fs::remove_dir_all(&home);
+}
+
 /// Whether ask_owner can run is known before it is called: whoami says it (`owner`), and a step that needs the owner
 /// where none can be asked names no ask_owner to make. It says `owner_unavailable` and to tell the user, and an
 /// ask_owner no window can show says the same.
@@ -4269,6 +4660,16 @@ fn a_second_ask_of_the_same_page_joins_the_walk_in_flight() {
     assert_ne!(again["ask"], first["ask"]);
     let (other, _) = do_over_mcp(&rt, &node, &headers, 4, json!({ "goal": "count the items", "url": page, "wait_ms": 3000 }));
     assert_eq!((other["outcome"].as_str(), slow.started.load(std::sync::atomic::Ordering::SeqCst)), (Some("answered"), 3), "another goal is work of its own");
+    let (auto, never) = rt.block_on(async {
+        let auto = tokio::spawn(call(5, args.clone()));
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let mut strict = args.clone();
+        strict["browser"] = json!("never");
+        let never = call(6, strict).await;
+        (auto.await.unwrap(), never)
+    });
+    assert_ne!(auto["ask"], never["ask"], "a replay-only request cannot collect an auto request's work");
+    assert_eq!(slow.started.load(std::sync::atomic::Ordering::SeqCst), 5);
     let _ = std::fs::remove_dir_all(&home);
 }
 
@@ -4429,6 +4830,25 @@ fn a_reply_is_never_over_the_ceiling() {
     let (n, h, args) = (node.clone(), headers.clone(), json!({ "route_id": listed.id, "fields": ["*"] }).to_string());
     let (_, Json(v)) = rt.block_on(async move { answer_http(p, n, h, HashMap::new(), HashMap::new(), args.as_bytes()).await });
     assert!(serde_json::to_vec(&v).unwrap().len() <= ceiling && v["outcome"] == "answered_cut", "{}", v["truncated"]);
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+/// A reply whose bulk is no answer's data is held to the ceiling too, through the agent's own door: here the goal the
+/// route carries back is the long text and the answer is small, as a browse reply's page snapshot is (PR 926's slice,
+/// 25 Nov 2026: Carousell's page after a Turnstile came back as 61 KB the client refused). The longest text keeps its
+/// start, and `texts_cut` says so.
+#[test]
+fn a_reply_with_no_answer_to_cut_is_held_to_the_ceiling_too() {
+    let (home, rt, node, headers) = node_with_a_token("ceiling-no-answer");
+    let site = crate::run::test_site(vec![("/api/one", 200, "application/json", json!({ "name": "one item" }).to_string())]);
+    let url = format!("http://127.0.0.1:{site}/api/one");
+    let goal = format!("read the item {}", "and say its name ".repeat(3_000));
+    let (bytes, r) = text_over_mcp(&rt, &node, &headers, 1, "unbrowse_do", json!({ "goal": goal, "url": url, "browser": "never" }));
+    assert!(bytes <= crate::run::REPLY_BUDGET, "{bytes} bytes");
+    let cut = &r["texts_cut"]["cuts"][0];
+    assert!(cut["total"].as_u64().is_some_and(|n| n > crate::run::REPLY_BUDGET as u64) && cut["unit"] == "chars", "{r}");
+    assert_eq!(r["result"]["ok"], true, "the answer itself is whole: {r}");
+    assert!(r.to_string().contains("one item"), "{r}");
     let _ = std::fs::remove_dir_all(&home);
 }
 
@@ -4635,7 +5055,8 @@ fn after_a_first_reply_from_the_walk_the_next_value_is_served_by_the_routes_own_
     let inputs = goal::inputs_for(&route, &url, HashMap::new());
     let subject = crate::learn::subject_of(&url, "details of this item");
     let ask = Asked { url: &url, goal: "details of this item", subject: &subject, reworded: false, sibling: false, given: &inputs };
-    let first = goal::take_the_walks_answer(&route, &inputs, &[], &serde_json::from_str(item("7731", "brass desk lamp", 40)).unwrap(), &ask, 1234).expect("the walk's answer answers");
+    let whole = serde_json::from_str::<Value>(item("7731", "brass desk lamp", 40)).unwrap().into();
+    let first = goal::take_the_walks_answer(&route, &inputs, &[], &whole, &ask, 1234).expect("the walk's answer answers");
     assert!(first["data"].to_string().contains("brass desk lamp"), "{first}");
     // The walk's reply is a whole CallResult, as agent-api.json publishes it: every learned unbrowse_do broke its schema
     // when it said `answered_by` and left out ms, paid_usdc, paid_unb, possible_commit and retry (QA run 44691479204).
@@ -4650,6 +5071,140 @@ fn after_a_first_reply_from_the_walk_the_next_value_is_served_by_the_routes_own_
     crate::apischema::check(&(PRIMITIVES.iter().find(|p| p.tool == "unbrowse_do").unwrap().returns)(), &r, &crate::apischema::types()).unwrap_or_else(|e| panic!("the warm call's reply {r}: {e}"));
     assert_eq!(r["result"]["browser"], json!(false), "the route's own call answered, no browser: {r}");
     let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn a_warm_reply_is_judged_before_its_fields_are_projected() {
+    let goal_text = "list the products with price";
+    let data = json!({ "items": (0..8).map(|i| json!({
+        "title": format!("Desk lamp {i}"),
+        "price": 25 + i,
+        "about": "A desk lamp with an adjustable shade. ".repeat(20)
+    })).collect::<Vec<_>>() });
+    let body: &'static str = Box::leak(data.to_string().into_boxed_str());
+    let (home, rt, node, a, port) = node_and_site("warm-whole-answer", vec![(200, body), (200, body)]);
+    let url = format!("http://127.0.0.1:{port}/api/products");
+    let crate::learn::Plain::Route(mut route) = crate::learn::learn_plain(&url, goal_text, "You") else { panic!("the JSON page teaches a route") };
+    route.fields = vec!["items[].title".into()];
+    route.stats.fields_rule = unbrowse_learn::fields::DEFAULTS_RULE;
+    store::save_route(&route).unwrap();
+    let ask = DoBody { goal: goal_text.into(), url, inputs: HashMap::new(), session: String::new(), browser: "never".into(), fields: Vec::new(), many: true, budget_usdc: None };
+    let reply = rt.block_on(async move { do_goal(&node, &a, ask).await }).expect("the whole reply has prices");
+    assert_eq!(reply["how"], "called");
+    assert_eq!(reply["result"]["browser"], false);
+    let item = &reply["result"]["data"]["items"][0];
+    assert_eq!(item["title"], "Desk lamp 0");
+    assert!(item.get("price").is_none(), "{item}");
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn a_walk_and_its_replay_return_the_same_saved_records() {
+    let first = r#"{"items":[{"title":"Lamp","url":"/item/1"},{"title":"Desk","url":"/item/2"},{"title":"Chair","url":"/item/3"}]}"#;
+    let second = r#"{"items":[{"title":"Clock","url":"/item/4"},{"title":"Shelf","url":"/item/5"},{"title":"Rug","url":"/item/6"}]}"#;
+    let goal_text = "list saved items: each item's title and link";
+    let (home, rt, node, agent, port) = node_and_site("walked-saved-records", vec![(200, first)]);
+    let root = format!("http://127.0.0.1:{port}/saved");
+    let initial = format!("{root}?params=%7B%22count%22%3A3%7D");
+    let later = format!("{root}?params=%7B%22count%22%3A3%2C%22cursor%22%3A%22more%22%7D");
+    let graph = serde_json::from_value(json!({ "provisional": false, "steps": [{
+        "exchange": 0, "method": "GET", "status": 200, "url": initial, "fields": [], "needs_browser": false
+    }] })).unwrap();
+    let route = store::Route::from_graph("once".into(), goal_text.into(), root.clone(), graph).unwrap();
+    store::save_route(&route).unwrap();
+    let exchange = |url: &str, body: &str| unbrowse_learn::Exchange {
+        method: "GET".into(), url: url.parse().unwrap(), request_headers: Vec::new(), request_body: None,
+        status: 200, response_headers: Vec::new(), response_body: Some(body.into()), response_mime: "application/json".into(),
+        resource_type: Some("Fetch".into()), main_frame: Some(true),
+    };
+    let trace = unbrowse_learn::Trace { exchanges: vec![exchange(&initial, first), exchange(&later, second)], inputs: Vec::new() };
+    let given = HashMap::new();
+    let walked = crate::learn::confirm::walks_answer(&route, &trace, &given).unwrap();
+    let ask = Asked { url: &root, goal: goal_text, subject: &[], reworded: false, sibling: false, given: &given };
+    let cold = goal::take_the_walks_answer(&route, &given, &[], &walked, &ask, 42).unwrap();
+    assert_eq!(cold["browser"], true);
+    let next = DoBody { goal: goal_text.into(), url: root, inputs: given, session: String::new(), browser: "never".into(), fields: Vec::new(), many: true, budget_usdc: None };
+    let warm = rt.block_on(do_goal(&node, &agent, next)).unwrap();
+    assert_eq!(warm["result"]["browser"], false);
+    assert_eq!(cold["data"], warm["result"]["data"]);
+    assert_eq!(cold["data"]["items"][0]["title"], "Lamp");
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn a_document_walk_and_its_replay_keep_the_links_to_their_structured_records() {
+    let goal_text = "List the first five results: each title, price and link";
+    let items: Vec<_> = (0..5).map(|i| json!({
+        "title": format!("Brass Desk Lamp {i}"), "price": "$25", "photo": format!("/photos/{i}.jpg")
+    })).collect();
+    let page = |related| {
+        let anchors = (0..5).map(|i| {
+            let label = if related { format!("Brass Desk Lamp {i}<span>$25</span>") } else { format!("Shop information {i}") };
+            format!("<a href='/item/{i}'>{label}</a><a href='/item/{i}?map=1'>Show on map</a>")
+        }).collect::<String>();
+        let titles = (0..5).map(|i| format!("<p>Brass Desk Lamp {i}</p>")).collect::<String>();
+        let promotions: Vec<_> = (0..5).map(|i| {
+            let mut row = json!({"title": format!("Shop information {i}"), "price": "$25"});
+            if !related {
+                row["url"] = format!("/promotion/{i}").into();
+            }
+            row
+        }).collect();
+        format!("<html><head><title>Desk lamps</title><script type='application/json'>{}</script></head><body><main>{titles}{anchors}</main></body></html>",
+            json!({"searchResults": {"listings": items}, "promotions": promotions, "labels": {"map": "Show on map"}}))
+    };
+    let body = page(true);
+    let (home, rt, node, agent, port) = node_and_site("walked-rendered-links", vec![(200, Box::leak(body.clone().into_boxed_str()))]);
+    let url = format!("http://127.0.0.1:{port}/search");
+    let graph = serde_json::from_value(json!({ "provisional": false, "steps": [{
+        "exchange": 0, "method": "GET", "status": 200, "url": url, "fields": [], "needs_browser": false
+    }] })).unwrap();
+    let mut route = store::Route::from_graph("once".into(), goal_text.into(), url.clone(), graph).unwrap();
+    route.heard.records_at = Some("searchResults/listings".into());
+    route.heard.document_records = true;
+    store::save_route(&route).unwrap();
+    let trace = |body: String| unbrowse_learn::Trace { inputs: Vec::new(), exchanges: vec![unbrowse_learn::Exchange {
+        method: "GET".into(), url: url.parse().unwrap(), request_headers: Vec::new(), request_body: None,
+        status: 200, response_headers: Vec::new(), response_body: Some(body), response_mime: "text/html".into(),
+        resource_type: Some("Document".into()), main_frame: Some(true),
+    }] };
+    let given = HashMap::new();
+    let ask = Asked { url: &url, goal: goal_text, subject: &[], reworded: false, sibling: false, given: &given };
+    let walked = crate::learn::confirm::walks_answer(&route, &trace(body), &given).unwrap();
+    assert_eq!(walked.data["searchResults"]["listings"].as_array().unwrap().len(), 5);
+    let cold = goal::take_the_walks_answer(&route, &given, &[], &walked, &ask, 42).expect("the document names and links its five rows");
+    assert_eq!(cold["browser"], true);
+    assert!(cold["data"].get("promotions").is_none());
+    let first_links = cold["data"]["links"].as_array().unwrap();
+    assert_eq!(first_links[..5].iter().map(|link| link["url"].as_str().unwrap()).collect::<Vec<_>>(),
+        (0..5).map(|i| format!("http://127.0.0.1:{port}/item/{i}")).collect::<Vec<_>>());
+    assert_eq!(first_links[5]["text"], "Show on map");
+    let mut title_route = route.clone();
+    title_route.what = "list the results with the title and price".into();
+    let priced = crate::run::as_a_reply(&title_route, &given, &[], walked.clone(), 42, false);
+    let linked = goal::records_for_ask(priced, &title_route, &ask, &[], Some(&walked));
+    assert_eq!(linked["data"]["links"], cold["data"]["links"]);
+
+    let unrelated = crate::learn::confirm::walks_answer(&route, &trace(page(false)), &given).unwrap();
+    assert_eq!(unrelated.data["promotions"].as_array().unwrap().len(), 5);
+    assert!(goal::take_the_walks_answer(&route, &given, &[], &unrelated, &ask, 42).is_none());
+    let next = DoBody { goal: goal_text.into(), url, inputs: given, session: String::new(), browser: "never".into(), fields: Vec::new(), many: true, budget_usdc: None };
+    let warm = rt.block_on(do_goal(&node, &agent, next)).unwrap();
+    assert_eq!(warm["result"]["browser"], false);
+    assert_eq!(warm["result"]["data"]["links"], cold["data"]["links"]);
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn an_ask_for_each_record_uses_the_list_over_fields_in_the_response_wrapper() {
+    let goal = "search results for lamps: each product's name, price and link";
+    let data = json!({
+        "productInfo": {"name": "Catalog", "price": "$0.00", "url": "/catalog"},
+        "mods": {"listItems": (0..8).map(|i| json!({
+            "name": format!("Lamp {i}"), "priceShow": "$23.00", "itemUrl": format!("https://shop.example/product/{i}")
+        })).collect::<Vec<_>>()}
+    });
+    assert!(goal::holds_goal(&data, goal));
 }
 
 
@@ -4673,6 +5228,410 @@ fn a_new_value_is_served_by_the_routes_own_call_when_its_answer_stands() {
     assert!(r["result"]["data"].to_string().contains("teapot item number 2"), "{r}");
     let stood = store::load_route(&route.id).expect("the route stands");
     assert!(!stood.provisional && stood.heard.said_back.as_deref() == Some("teapot") && stood.heard.records_at.as_deref() == Some("results"), "{:?}", stood.heard);
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn a_completed_search_serves_its_changed_results_without_browser_confirmation() {
+    let (home, rt, node, agent, _) = node_and_site("completed-search-records", vec![(200, "{}")]);
+    let body = |query: &str, title: &str| {
+        let args = json!({"keyword": query, "page": 0});
+        let key = format!("search({args})");
+        let events: Vec<_> = (1..=5).map(|i| json!({
+            "name": format!("{title} {i}"), "date": "2026-12-03",
+            "url": format!("https://shop.example/events/{}-{i}", title.replace(' ', "-"))
+        })).collect();
+        json!({
+            "queries": {(key): {"status": "fulfilled", "originalArgs": args, "data": {"events": events}}},
+            "navigation": (0..800).map(|i| json!({"title": format!("Navigation label {i}")})).collect::<Vec<_>>()
+        })
+    };
+    let port = a_site_answering_by_its_request(move |target| {
+        let (query, title) = if target.contains("q=chairs") { ("chairs", "New show") } else { ("mirrors", "Lamp concert") };
+        (200, body(query, title).to_string())
+    });
+    let mut page = a_lamps_route_on("bound-search", port);
+    page.what = "search events and list their name, date and link".into();
+    page.root = format!("http://127.0.0.1:{port}/find?q=lamps");
+    store::save_route(&page).unwrap();
+    crate::learn::sighted::called(&page, &HashMap::new(), Some(&body("lamps", "Lamp concert")), true, 1, 0);
+    let ask = |query| DoBody {
+        goal: page.what.clone(), url: format!("http://127.0.0.1:{port}/find?q={query}"), browser: "never".into(),
+        inputs: HashMap::new(), session: String::new(), fields: Vec::new(), many: true, budget_usdc: None,
+    };
+    let stale = rt.block_on(do_goal(&node, &agent, ask("mirrors"))).expect_err("the cache key changed but the records stayed the same");
+    assert_eq!(stale.0, StatusCode::PRECONDITION_FAILED);
+    let reply = rt.block_on(do_goal(&node, &agent, ask("chairs"))).expect("the completed result list changed");
+    assert_eq!(reply["route"]["id"], "bound-search", "{reply}");
+    assert_eq!(reply["route"]["verdict"], "agreed", "{reply}");
+    assert_eq!(reply["result"]["browser"], false, "{reply}");
+    assert!(reply["result"]["data"].to_string().contains("New show 2"), "{reply}");
+    assert_eq!(store::load_route(&page.id).unwrap().heard.records_at.as_deref(), Some("queries/search/data/events"));
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn another_stored_read_is_called_before_browser_confirmation() {
+    let (home, rt, node, agent, _) = node_and_site("other-stored-read", vec![(200, "{}")]);
+    let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let heard = calls.clone();
+    let port = a_site_answering_by_its_request(move |target| {
+        heard.lock().unwrap().push(target.to_string());
+        let word = if target.starts_with("/find?") { "chairs" } else { "lamps" };
+        let items: Vec<_> = (0..6).map(|n| json!({"title": format!("{word} model {n}")})).collect();
+        (200, json!({"results": items}).to_string())
+    });
+    let root = format!("http://127.0.0.1:{port}/find?q=lamps");
+    let goal = "search the listings";
+    let mut stale = a_lamps_route_on("stale-call", port);
+    stale.what = goal.into();
+    stale.root = root.clone();
+    store::save_route(&stale).unwrap();
+    let mut page = a_lamps_route_on("opening-page", port);
+    page.what = goal.into();
+    page.root = root;
+    page.path = "/find?q={q}".into();
+    page.graph.steps[0].url = format!("http://127.0.0.1:{port}/find?q={{q}}");
+    page.graph.provisional = true;
+    store::save_route(&page).unwrap();
+    let ask = DoBody {
+        goal: goal.into(), url: format!("http://127.0.0.1:{port}/find?q=chairs"), browser: "never".into(),
+        inputs: HashMap::new(), session: String::new(), fields: Vec::new(), many: true, budget_usdc: None,
+    };
+    let reply = rt.block_on(do_goal(&node, &agent, ask)).expect("the next stored route can answer");
+    assert_eq!(reply["route"]["id"], "opening-page", "{reply}");
+    assert_eq!(reply["result"]["browser"], false, "{reply}");
+    assert!(reply["result"]["data"].to_string().contains("chairs model 2"), "{reply}");
+    assert_eq!(*calls.lock().unwrap(), ["/api/items?q=chairs", "/find?q=chairs"]);
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn a_skipped_alternative_leaves_the_first_routes_browser_confirmation_queued() {
+    let (home, rt, node, agent, _) = node_and_site("deferred-confirmation", vec![(200, "{}")]);
+    let port = a_site_answering_by_its_request(|target| {
+        let word = if target.starts_with("/find?") { "chairs" } else { "lamps" };
+        let results: Vec<_> = (0..5).map(|id| json!({"title":format!("{word} {id}")})).collect();
+        (200, json!({"query":word,"results":results}).to_string())
+    });
+    let goal = "show my order history";
+    assert!(!unbrowse_learn::goal::only_reads(goal));
+    for (i, id) in ["old-orders", "new-orders"].into_iter().enumerate() {
+        let mut route = a_lamps_route_on(id, port);
+        route.what = goal.into();
+        route.root = format!("http://127.0.0.1:{port}/find?q=lamps");
+        route.learned_at = i as u64 + 1;
+        store::save_route(&route).unwrap();
+    }
+    let ask = DoBody { goal: goal.into(), url: format!("http://127.0.0.1:{port}/find?q=chairs"), inputs: HashMap::new(), session: String::new(), browser: "never".into(), fields: Vec::new(), many: true, budget_usdc: None };
+    let (status, why) = rt.block_on(do_goal(&node, &agent, ask)).expect_err("the first route still needs browser confirmation");
+    assert_eq!(status, StatusCode::PRECONDITION_FAILED, "{why}");
+    assert!(why.contains("served by the node's browser"), "{why}");
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn a_browserless_search_serves_the_opening_pages_completed_empty_results() {
+    let (home, rt, node, agent, _) = node_and_site("completed-empty-search", vec![(200, "{}")]);
+    let state = json!({"context":{"query":"zqxv"},"listingCards":[],"numberOfResults":0,"pending":false,"error":null});
+    let (port, heard) = hearing_site(json!({"search":state,"chrome":{"theme":"light","script":"y".repeat(64_000)}}).to_string());
+    let goal = "search product listings with names and prices";
+    let mut page = a_lamps_route_on("opening-page", port);
+    page.what = goal.into();
+    page.root = format!("http://127.0.0.1:{port}/find?q=lamps");
+    page.path = "/find?q={q}".into();
+    page.graph.steps[0].url = format!("http://127.0.0.1:{port}/find?q={{q}}");
+
+    for confirmed in [false, true] {
+        if confirmed {
+            page.heard.said_back = Some("chairs".into());
+            page.heard.records_at = Some("search/listingCards".into());
+            page.heard.document_records = true;
+        }
+        store::save_route(&page).unwrap();
+        let ask = DoBody {
+            goal: goal.into(), url: format!("http://127.0.0.1:{port}/find?q=zqxv"), browser: "never".into(),
+            inputs: HashMap::new(), session: String::new(), fields: vec!["chrome.theme".into()], many: true, budget_usdc: None,
+        };
+        let reply = rt.block_on(do_goal(&node, &agent, ask)).expect("the completed empty result answers the ask");
+        assert_eq!(reply["outcome"], "answered_empty", "{reply}");
+        assert_eq!(reply["outcome_from"], "goal.empty_page_search", "{reply}");
+        assert_eq!(reply["result"]["browser"], false, "{reply}");
+        assert_eq!(reply["result"]["records"], 0, "{reply}");
+        assert_eq!(reply["result"]["data"]["search"], state, "{reply}");
+        assert_eq!(reply["result"]["data"]["chrome"]["theme"], "light", "{reply}");
+    }
+    assert_eq!(*heard.lock().unwrap(), ["/find?q=zqxv", "/find?q=zqxv"]);
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn an_empty_document_reply_uses_the_exact_page_and_keeps_owner_values_private() {
+    let private = "owner's private lookup";
+    let (port, _) = hearing_site("{}".into());
+    let root = format!("http://127.0.0.1:{port}/find?q=desk");
+    let mut route = a_lamps_route_on("private-empty", port);
+    route.root = root.clone();
+    route.graph.steps[0].url = format!("http://127.0.0.1:{port}/find?q={{q}}");
+    route.inputs[0].default = Some(private.into());
+    route.session_gave = true;
+    route.given = vec!["q".into()];
+    route.heard.records_at = Some("search/listingCards".into());
+    route.heard.document_records = true;
+    let given = HashMap::from([("q".into(), "desk".into())]);
+    let ask = Asked { url: &root, goal: "search listings", subject: &[], reworded: false, sibling: false, given: &given };
+    let r = json!({"ok":true,"browser":false,"records":0,"data":{"recent":"{q}"}});
+    let data = json!({"search":{"query":"desk","listingCards":[],"resultCount":0,"pending":false},"recent":private});
+    let fields = vec!["recent".into()];
+    let reply = goal::empty_page_reply(&r, &route, &ask, Some(&data.clone().into()), &fields, Some(goal::MISSING_RECORDS)).unwrap();
+    assert_eq!(reply["result"]["data"]["recent"], "{q}");
+    route.heard.document_records = false;
+    let partial = json!({"search":{"query":"desk","pending":true},
+        "catalog":{"query":"desk","listingCards":[],"resultCount":0,"pending":false}});
+    assert!(goal::empty_page_reply(&r, &route, &ask, Some(&partial.into()), &fields, Some(goal::MISSING_RECORDS)).is_none(),
+        "a legacy recorded list still has to supply its own evidence");
+    route.heard.document_records = true;
+    route.graph.steps[0].url = format!("http://127.0.0.1:{port}/Find?q={{q}}");
+    assert!(goal::empty_page_reply(&r, &route, &ask, Some(&data.clone().into()), &fields, Some(goal::MISSING_RECORDS)).is_none());
+    route.graph.steps[0].url = format!("http://127.0.0.1:{port}/%66ind?q={{q}}");
+    assert!(goal::calls_the_page_itself(&route, &root));
+    route.graph.steps[0].url = format!("http://127.0.0.1:{port}/find//items?q={{q}}");
+    assert!(!goal::calls_the_page_itself(&route, &format!("http://127.0.0.1:{port}/find/items?q=desk")));
+    route.root = format!("http://127.0.0.1:{port}/find/lamps");
+    route.graph.steps[0].url = format!("http://127.0.0.1:{port}/find/{{q}}/");
+    assert!(goal::calls_the_page_itself(&route, &format!("http://127.0.0.1:{port}/find/desk")));
+    assert!(!goal::calls_the_page_itself(&route, &format!("http://127.0.0.1:{port}/find//desk")));
+    route.heard.document_records = false;
+    assert!(goal::calls_the_page_itself(&route, &format!("http://127.0.0.1:{port}/find/desk")));
+    route.root.push('/');
+    assert!(!goal::calls_the_page_itself(&route, &format!("http://127.0.0.1:{port}/find/desk")));
+}
+
+#[test]
+fn a_direct_document_call_preserves_the_learned_querys_completed_empty_result() {
+    let (home, rt, node, agent, _) = node_and_site("direct-empty-learned-query", vec![(200, "{}")]);
+    let state = json!({"query":"lamps","listingCards":[],"resultCount":0,"loading":false});
+    let (port, _) = hearing_site(json!({"search":state}).to_string());
+    let mut route = a_lamps_route_on("same-query-empty", port);
+    route.root = format!("http://127.0.0.1:{port}/find?q=lamps");
+    route.graph.steps[0].url = format!("http://127.0.0.1:{port}/find?q={{q}}");
+    route.heard.records_at = Some("search/listingCards".into());
+    route.heard.document_records = true;
+    store::save_route(&route).unwrap();
+    let reply = rt.block_on(call::with_the_browser_shut(true, call::do_call_when_settled(
+        &node, &agent, route.id, Default::default(), vec![]))).unwrap();
+    assert_eq!(reply["ok"], true, "{reply}");
+    assert_eq!(reply["browser"], false);
+    assert_eq!(reply["records"], 0);
+    assert_eq!(reply["outcome"], "answered_empty");
+    assert_eq!(reply["data"]["search"], state);
+
+    let (port, _) = hearing_site(json!({"results":[]}).to_string());
+    let mut saved = a_lamps_route_on("saved-items-empty", port);
+    saved.what = "read my saved items".into();
+    saved.root = format!("http://127.0.0.1:{port}/list");
+    saved.path = "/list".into();
+    saved.graph.steps[0].url = saved.root.clone();
+    saved.graph.steps[0].fields.clear();
+    saved.inputs.clear();
+    saved.heard.records_at = Some("results".into());
+    store::save_route(&saved).unwrap();
+    let empty = rt.block_on(call::with_the_browser_shut(true, call::do_call_when_settled(
+        &node, &agent, saved.id.clone(), Default::default(), vec![]))).unwrap();
+    assert_eq!(empty["ok"], true, "{empty}");
+    assert_eq!(empty["browser"], false);
+    assert_eq!(empty["records"], 0);
+    assert_eq!(empty["outcome"], "answered_empty");
+    assert_eq!(empty["data"]["results"], json!([]));
+    let ask = DoBody { goal: saved.what, url: saved.root, browser: "never".into(), inputs: HashMap::new(),
+        session: String::new(), fields: Vec::new(), many: false, budget_usdc: None };
+    let empty = rt.block_on(goal::do_goal_said(&node, &agent, ask)).unwrap();
+    assert_eq!(empty["outcome"], "answered_empty", "{empty}");
+    assert_eq!(empty["result"]["browser"], false);
+
+    let mut search = a_lamps_route_on("empty-search-shell", port);
+    search.root = format!("http://127.0.0.1:{port}/find?q=lamps");
+    search.graph.steps[0].url = format!("http://127.0.0.1:{port}/find?q={{q}}");
+    search.heard.records_at = Some("results".into());
+    store::save_route(&search).unwrap();
+    let empty_api = rt.block_on(call::with_the_browser_shut(true, call::do_call_when_settled(
+        &node, &agent, search.id.clone(), HashMap::from([("q".into(), "chairs".into())]), vec![]))).unwrap();
+    assert_eq!(empty_api["ok"], true, "an API can return an empty list: {empty_api}");
+    assert_eq!(empty_api["records"], 0);
+    assert_eq!(empty_api["data"]["results"], json!([]));
+    let empty_api_goal = rt.block_on(goal::do_goal_said(&node, &agent, DoBody {
+        goal: search.what.clone(), url: format!("http://127.0.0.1:{port}/find?q=chairs"), browser: "never".into(),
+        inputs: HashMap::new(), session: String::new(), fields: Vec::new(), many: false, budget_usdc: None,
+    })).unwrap();
+    assert_eq!(empty_api_goal["outcome"], "answered_empty", "{empty_api_goal}");
+    assert_eq!(empty_api_goal["result"]["browser"], false);
+    assert_eq!(empty_api_goal["result"]["data"]["results"], json!([]));
+
+    let (missing_port, _) = hearing_site(json!({"metadata":"request received"}).to_string());
+    let mut missing = search.clone();
+    missing.root = format!("http://127.0.0.1:{missing_port}/find?q=lamps");
+    missing.graph.steps[0].url = format!("http://127.0.0.1:{missing_port}/find?q={{q}}");
+    store::save_route(&missing).unwrap();
+    let missing_api = rt.block_on(call::with_the_browser_shut(true, call::do_call_when_settled(
+        &node, &agent, missing.id, HashMap::from([("q".into(), "chairs".into())]), vec![]))).unwrap();
+    assert_eq!(missing_api["ok"], false, "the witnessed API result list is missing: {missing_api}");
+    assert_eq!(missing_api["error"], goal::MISSING_RECORDS);
+
+    search.heard.document_records = true;
+    store::save_route(&search).unwrap();
+    let shell = rt.block_on(call::with_the_browser_shut(true, call::do_call_when_settled(
+        &node, &agent, search.id, Default::default(), vec![]))).unwrap();
+    assert_eq!(shell["ok"], false, "a bound search must show that the query completed: {shell}");
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn recent_searches_do_not_make_the_observed_result_list_stale() {
+    let (home, rt, node, agent, _) = node_and_site("previous-search-in-chrome", vec![(200, "{}")]);
+    let data = json!({
+        "results": [{"name":"Chaise Longue", "price":"$20.00", "link":"https://shop.example/chaise"}],
+        "recent_searches":[{"value":"lamps"}]
+    });
+    let (port, _) = hearing_site(data.to_string());
+    let what = "search items and list the name, price and link of each result";
+    let mut route = a_lamps_route_on("previous-search", port);
+    route.what = what.into();
+    route.root = format!("http://127.0.0.1:{port}/find?q=lamps");
+    route.graph.steps[0].url = format!("http://127.0.0.1:{port}/find?q={{q}}");
+    route.heard.records_at = Some("results".into());
+    route.heard.document_records = true;
+    route.judged.fields = true;
+    store::save_route(&route).unwrap();
+    let given = HashMap::from([("q".into(), "chairs".into())]);
+    let fields = vec!["results[].name".into()];
+    let (reply, url) = (json!({"ok":true,"browser":false,"records":1,"data":data}), route.root.clone());
+    let ask = Asked { url: &url, goal: what, subject: &[], reworded: false, sibling: false, given: &given };
+    assert_eq!(goal::unanswered(&reply, &route, &ask), None);
+    let direct = rt.block_on(call::with_the_browser_shut(true, call::do_call_when_settled(
+        &node, &agent, route.id.clone(), given.clone(), fields.clone()))).unwrap();
+    assert_eq!(direct["ok"], true, "{direct}");
+    assert_eq!(direct["data"]["results"][0]["name"], "Chaise Longue");
+
+    let mut stale = reply;
+    stale["data"]["results"][0]["name"] = json!("Reading light");
+    stale["data"]["query"] = json!("lamps");
+    assert_eq!(goal::unanswered(&stale, &route, &ask), Some(json!("it answered what the walk asked, not what this page asks")));
+    let relabelled = json!({"query":"chairs", "results":[{"name":"Reading lamps"}]});
+    assert!(goal::replay_answers_the_walk(&route, &given, &relabelled, &relabelled), "the label changed but the records still name the old query");
+    let current = json!({"query":"chairs", "results":[{"name":"Chaise Longue"}],"recent_searches":[{"value":"lamps"}]});
+    assert!(!goal::replay_answers_the_walk(&route, &given, &current, &current));
+    let mut nested = route.clone();
+    nested.heard.records_at = Some("search/payload/results".into());
+    let stale_nested = json!({"search":{"query":"lamps","payload":{"results":stale["data"]["results"]}}});
+    assert!(goal::replay_answers_the_walk(&nested, &given, &stale_nested, &stale_nested));
+    let (port, _) = hearing_site(stale["data"].to_string());
+    route.root = format!("http://127.0.0.1:{port}/find?q=lamps");
+    route.graph.steps[0].url = format!("http://127.0.0.1:{port}/find?q={{q}}");
+    store::save_route(&route).unwrap();
+    let direct = rt.block_on(call::with_the_browser_shut(true, call::do_call_when_settled(
+        &node, &agent, route.id, given, fields))).unwrap();
+    assert_eq!(direct["outcome_from"], "call.answers_the_walk", "{direct}");
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn an_unchanged_query_label_cannot_name_a_different_filter_with_the_same_default() {
+    let mut route = a_lamps_route_on("same-defaults", 1);
+    route.heard.records_at = Some("results".into());
+    let mut filter = route.inputs[0].clone();
+    filter.name = "brand".into();
+    route.inputs[0].default = Some("apple".into());
+    filter.default = Some("apple".into());
+    route.inputs.push(filter);
+    let reply = json!({"query":"apple", "results":[{"name":"Samsung charger","brand":"Samsung"}]});
+    let filtered = HashMap::from([("brand".into(), "samsung".into())]);
+    assert!(!goal::replay_answers_the_walk(&route, &filtered, &reply, &reply));
+
+    let prior_rows = json!({"query":"apple", "results":[{"name":"Apple charger","brand":"Apple"}]});
+    assert!(goal::replay_answers_the_walk(&route, &filtered, &prior_rows, &prior_rows));
+    route.inputs.pop();
+    let query_changed = HashMap::from([("q".into(), "samsung".into())]);
+    assert!(goal::replay_answers_the_walk(&route, &query_changed, &reply, &reply), "an unambiguous old label is evidence");
+}
+
+#[test]
+fn unready_documents_and_pending_apis_cannot_certify_an_empty_replay() {
+    let (home, rt, node, agent, _) = node_and_site("unready-empty-replay", vec![(200, "{}")]);
+    let shell = r#"<html><head><title>Search</title><script type="application/json">{"results":[]}</script></head><body>Finding matches</body></html>"#;
+    let fragment = r#"<script type="application/json">{"results":[]}</script>"#;
+    let pending = r#"{"results":[],"pending":true}"#;
+    let nested_pending = r#"{"loading":true,"search":{"results":[]}}"#;
+    for (id, body, place) in [
+        ("legacy-document", shell, "results"),
+        ("legacy-document-no-input", shell, "results"),
+        ("legacy-script-fragment", fragment, "results"),
+        ("pending-api", pending, "results"),
+        ("pending-side-api", pending, "results"),
+        ("pending-ancestor", nested_pending, "search/results"),
+    ] {
+        let (port, _) = hearing_site(body.to_string());
+        let mut route = a_lamps_route_on(id, port);
+        route.root = format!("http://127.0.0.1:{port}/find?q=lamps");
+        route.graph.steps[0].url = format!("http://127.0.0.1:{port}/find?q={{q}}");
+        route.heard.records_at = Some(place.into());
+        if id.starts_with("legacy-") {
+            route.graph.visited.push(0);
+            route.graph.steps[0].response_shape = Some(json!({"results":[]}));
+        }
+        if id == "pending-side-api" {
+            route.graph.steps[0].url = format!("http://127.0.0.1:{port}/api/results?q={{q}}");
+        }
+        let (url, inputs) = if id == "legacy-document-no-input" {
+            route.root = format!("http://127.0.0.1:{port}/find");
+            route.graph.steps[0].url = route.root.clone();
+            route.graph.steps[0].fields.clear();
+            route.inputs.clear();
+            (route.root.clone(), HashMap::new())
+        } else {
+            (format!("http://127.0.0.1:{port}/find?q=chairs"), HashMap::from([("q".into(), "chairs".into())]))
+        };
+        store::save_route(&route).unwrap();
+        let direct = rt.block_on(call::with_the_browser_shut(true, call::do_call_when_settled(
+            &node, &agent, route.id.clone(), inputs, vec![],
+        ))).unwrap();
+        assert_eq!(direct["ok"], false, "{id}: {direct}");
+        assert_eq!(direct["error"], goal::MISSING_RECORDS, "{id}: {direct}");
+        if id == "pending-side-api" {
+            continue;
+        }
+        let ask = DoBody { goal: route.what.clone(), url, browser: "never".into(),
+            inputs: HashMap::new(), session: String::new(), fields: Vec::new(), many: false, budget_usdc: None };
+        let failure = rt.block_on(goal::do_goal_said(&node, &agent, ask)).expect_err(id);
+        assert!(failure.error.contains(goal::MISSING_RECORDS), "{failure:?}");
+    }
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn a_pending_search_list_cannot_be_confirmed_by_other_records_on_its_page() {
+    let (home, rt, node, agent, _) = node_and_site("pending-recorded-list", vec![(200, "{}")]);
+    let catalog: Vec<_> = (1..=5).map(|n| json!({"name":format!("Desk catalog model {n}"),"price":"$30.00","url":format!("/catalog/{n}")})).collect();
+    let state = json!({"search":{"query":"desk","listingCards":[],"numberOfResults":0,"pending":true},"catalog":{"results":catalog}});
+    let (port, _) = hearing_site(state.to_string());
+    let what = "search listings and list the name, price and link of each";
+    let mut page = a_lamps_route_on("recorded-page", port);
+    page.what = what.into();
+    page.root = format!("http://127.0.0.1:{port}/find?q=lamps");
+    page.path = "/find?q={q}".into();
+    page.graph.steps[0].url = format!("http://127.0.0.1:{port}/find?q={{q}}");
+    page.heard.records_at = Some("search/listingCards".into());
+    page.heard.document_records = true;
+    page.heard.said_back = Some("chairs".into());
+    store::save_route(&page).unwrap();
+
+    let ask = DoBody { goal: what.into(), url: format!("http://127.0.0.1:{port}/find?q=desk"), browser: "never".into(),
+        inputs: HashMap::new(), session: String::new(), fields: Vec::new(), many: true, budget_usdc: None };
+    let failure = rt.block_on(do_goal(&node, &agent, ask)).expect_err("the pending list has no answer yet");
+    assert!(failure.1.contains(goal::MISSING_RECORDS), "{failure:?}");
+    let direct = rt.block_on(call::with_the_browser_shut(true, call::do_call_when_settled(&node, &agent, page.id,
+        HashMap::from([("q".into(), "desk".into())]), vec![]))).expect("the reply says the call failed");
+    assert_eq!((direct["ok"].clone(), direct["browser"].clone(), direct["data"].clone()), (json!(false), json!(false), Value::Null), "{direct}");
+    assert_eq!(direct["error"], goal::MISSING_RECORDS);
     let _ = std::fs::remove_dir_all(&home);
 }
 
@@ -5248,7 +6207,7 @@ fn a_walk_the_node_holds_is_read_and_the_call_an_agent_picks_is_kept() {
     let call = format!("http://127.0.0.1:{port}/api/items?q=lamps");
     let answer = json!({ "items": [{ "id": 1, "name": "desk lamp" }, { "id": 2, "name": "floor lamp" }] }).to_string();
     let trace = unbrowse_learn::Trace { exchanges: vec![walked("GET", &page, None, "<html><body>lamps</body></html>", true), walked("GET", &call, None, &answer, false)], inputs: Vec::new() };
-    node.walks.0.locked().insert("held-walk".into(), learn::Walk { url: page.clone(), trace, probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None });
+    node.walks.0.locked().insert("held-walk".into(), learn::Walk { url: page.clone(), trace: trace.into(), probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None });
     let walk = |pick: Option<u64>, what: &str| rt.block_on(do_walk(&node, &a, page.clone(), "search the shop".into(), pick, what.into(), "held-walk".into()));
     let seen = walk(None, "").unwrap();
     assert_eq!((seen["walk"].as_str(), seen["site"].as_str()), (Some("held-walk"), Some("127.0.0.1")), "{seen}");
@@ -5518,11 +6477,14 @@ fn a_route_called_for_a_new_value_whose_call_the_site_refuses_is_not_served() {
     let kettle: &'static str = Box::leak(json!({ "query": "kettle", "results": (0..6).map(|n| json!({ "id": n, "title": format!("kettle item number {n}") })).collect::<Vec<_>>() }).to_string().into_boxed_str());
     let (home, rt, node, a, port) = node_and_site("calls-first-doubt", vec![(200, kettle), (500, r#"{"error":"the shelf is down"}"#)]);
     let url = format!("http://127.0.0.1:{port}/api/items?q=kettle");
-    let crate::learn::Plain::Route(route) = crate::learn::learn_plain(&url, "search the items", "You") else { panic!("a JSON url is its own route") };
-    let body = DoBody { goal: "search the items".into(), url: format!("http://127.0.0.1:{port}/api/items?q=teapot"), inputs: HashMap::new(), session: String::new(), browser: "never".into(), fields: Vec::new(), many: true, budget_usdc: None };
+    let crate::learn::Plain::Route(mut route) = crate::learn::learn_plain(&url, "search the items", "You") else { panic!("a JSON url is its own route") };
+    route.root = format!("http://127.0.0.1:{port}/find?q=kettle");
+    store::save_route(&route).unwrap();
+    let body = DoBody { goal: "search the items".into(), url: format!("http://127.0.0.1:{port}/find?q=teapot"), inputs: HashMap::new(), session: String::new(), browser: "never".into(), fields: Vec::new(), many: true, budget_usdc: None };
     let (status, said) = rt.block_on(async move { tokio::time::timeout(std::time::Duration::from_secs(60), do_goal(&node, &a, body)).await.expect("answered") }).unwrap_err();
     assert_eq!(status, StatusCode::PRECONDITION_FAILED, "{said}");
     assert!(said.contains("the call said browser: never") && said.contains("served by the node's browser"), "{said}");
+    assert!(said.contains("the site answered 500: the shelf is down"), "{said}");
     let stood = store::load_route(&route.id).expect("the route stands as it was");
     assert!(!stood.provisional || stood.heard.said_back.is_none(), "a refused call confirmed nothing: {:?}", stood.heard);
     let _ = std::fs::remove_dir_all(&home);
@@ -5546,7 +6508,7 @@ fn a_wiring_the_site_bears_out_is_kept_and_the_route_goes_without_the_value() {
     let mut api = walked("GET", &call, None, &answer, false);
     api.request_headers.push(("x-trace".into(), "9f8e7d6c5b4a".into()));
     let trace = unbrowse_learn::Trace { exchanges: vec![walked("GET", &page, None, "<html><body>lamps</body></html>", true), api], inputs: Vec::new() };
-    node.walks.0.locked().insert("wire-walk".into(), learn::Walk { url: page.clone(), trace, probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None });
+    node.walks.0.locked().insert("wire-walk".into(), learn::Walk { url: page.clone(), trace: trace.into(), probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None });
     let seen = rt.block_on(do_walk(&node, &a, page.clone(), "search the shop".into(), None, String::new(), "wire-walk".into())).unwrap();
     let index = seen["candidates"].as_array().unwrap().iter().find(|c| c["path"].as_str().is_some_and(|p| p.starts_with("/api/items"))).expect("the call")["index"].as_u64();
     let kept = rt.block_on(do_walk(&node, &a, page.clone(), "search the shop".into(), index, "search the shop".into(), "wire-walk".into())).unwrap();
@@ -5703,4 +6665,216 @@ fn an_observe_on_a_node_without_its_browser_says_so() {
     let said: Value = serde_json::from_str(m["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(said["code"], "browser_missing", "{said}");
     let _ = std::fs::remove_dir_all(&home);
+}
+
+/// A node's own route, once it has answered, is a tool to a session of a client that asked for route tools once that
+/// session reached it, and to no other session or client; the call that reached it says so, and calling the tool
+/// answers what `unbrowse_call` with that route answers (`tools.route-opt-in`, `tools.surfaced-by-session`,
+/// `tools.route-is-a-call`).
+#[test]
+fn a_route_tool_answers_as_unbrowse_call_and_is_listed_only_to_the_session_that_reached_it() {
+    let (home, rt, node, headers) = node_with_a_token("route-tools");
+    let site = crate::run::test_site(vec![("/api/items", 200, "application/json", r#"{"items":[{"id":1,"name":"desk lamp"}]}"#.to_string())]);
+    let url = format!("http://127.0.0.1:{site}/api/items?q=lamp");
+    let crate::learn::Plain::Route(route) = crate::learn::learn_plain(&url, "search the items", "You") else { panic!("a JSON url is its own route") };
+    let ask = |h: &HeaderMap, msg: Value| {
+        let (n, h) = (node.clone(), h.clone());
+        let (_, Json(m)) = rt.block_on(async move { mcp_answer(n, &h, msg).await });
+        m
+    };
+    let call = |h: &HeaderMap, id: u64, tool: &str, args: Value| {
+        let m = ask(h, json!({ "jsonrpc": "2.0", "id": id, "method": "tools/call", "params": { "name": tool, "arguments": args } }));
+        let reply = serde_json::from_str::<Value>(m["result"]["content"][0]["text"].as_str().unwrap_or("null")).unwrap_or_else(|_| m.clone());
+        (reply, m)
+    };
+    let names = |h: &HeaderMap| -> Vec<String> {
+        ask(h, json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" }))["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect()
+    };
+    let session = |id: &str| {
+        let mut h = headers.clone();
+        h.insert(super::route_tools::ASKED_IN_HEADER, "tools".parse().unwrap());
+        h.insert("mcp-session-id", id.parse().unwrap());
+        h
+    };
+    let (one, two) = (session("route-tools-one"), session("route-tools-two"));
+    let primitives = PRIMITIVES.len();
+    let (by_id, _) = call(&headers, 2, "unbrowse_call", json!({ "route_id": route.id, "inputs": { "q": "lamp" } }));
+    assert_eq!(by_id["ok"], json!(true), "{by_id}");
+    assert!(by_id.get("tools_added").is_none(), "a client that didn't ask hears of no tools: {by_id}");
+    assert_eq!(names(&headers).len(), primitives, "and sees the primitives alone");
+    assert_eq!(names(&one).len(), primitives, "a session that reached nothing sees the primitives alone");
+    let (reached, raw) = call(&one, 3, "unbrowse_call", json!({ "route_id": route.id, "inputs": { "q": "desk" } }));
+    let tool = reached["tools_added"][0].as_str().unwrap_or_else(|| panic!("the call names the tool it brought: {reached}")).to_string();
+    assert!(super::route_tools::added_by(&raw), "and its result says so for the stream: {raw}");
+    assert_eq!(names(&one), PRIMITIVES.iter().map(|p| p.tool.to_string()).chain([tool.clone()]).collect::<Vec<_>>());
+    assert_eq!(names(&two).len(), primitives, "another session's set is its own");
+    let (again, _) = call(&one, 4, "unbrowse_call", json!({ "route_id": route.id, "inputs": { "q": "lamp" } }));
+    assert!(again.get("tools_added").is_none(), "a tool is new to a session once: {again}");
+    let (by_tool, _) = call(&one, 5, &tool, json!({ "q": "lamp" }));
+    // The same reply but for what differs between any two calls: the ask's own id and how long the site took.
+    let same = |mut v: Value| {
+        if let Some(o) = v.as_object_mut() {
+            o.remove("ask");
+            o.remove("ms");
+        }
+        v
+    };
+    assert_eq!(same(by_tool.clone()), same(by_id.clone()), "the tool's reply is unbrowse_call's");
+    assert!(serde_json::to_string(&by_tool["data"]).unwrap().contains("desk lamp"), "{by_tool}");
+    let gone = ask(&one, json!({ "jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": { "name": "shop_example__nothing_000000", "arguments": {} } }));
+    assert_eq!(gone["error"]["code"], json!(-32602), "{gone}");
+    let init = ask(&one, json!({ "jsonrpc": "2.0", "id": 7, "method": "initialize", "params": { "protocolVersion": "2025-06-18", "clientInfo": { "name": "t", "version": "1" } } }));
+    assert_eq!(init["result"]["capabilities"]["tools"]["listChanged"], json!(true), "{init}");
+    assert!(super::route_tools::asked_in(Some("routes=tools")) && !super::route_tools::asked_in(Some("routes=none")) && !super::route_tools::asked_in(None));
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+// Steve QA 2026-11-24 (UNB-300): `{session}` in answers and route details where nothing of the session stood. Each test
+// below fails on staging 6443f61 and is held expected-to-fail (`should_panic` on "UNB-300") until the mask is fixed: a
+// fix makes it stop panicking, and the test then fails until its `should_panic` is removed.
+
+fn walk_exchange(url: &str, headers: Vec<(&str, &str)>, answer: Value) -> unbrowse_learn::trace::Exchange {
+    unbrowse_learn::trace::Exchange {
+        method: "GET".into(),
+        url: url.parse().unwrap(),
+        request_headers: headers.into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        request_body: None,
+        status: 200,
+        response_headers: vec![("content-type".into(), "application/json".into())],
+        response_body: Some(answer.to_string()),
+        response_mime: "application/json".into(),
+        resource_type: Some("XHR".into()),
+        main_frame: Some(true),
+    }
+}
+
+/// The host a walk's request went to, and the address it asked for, are the request's own address, not a credential,
+/// however token-shaped they read (`Host: uj5wyc0l7x-dsn.algolia.net`, `:path: /?operationName=…`). Steve saw a Hacker
+/// News search route whose site read `{session}`, and an IMDb route whose path did; release v13.18.1 said both.
+#[test]
+fn steve_qa_a_routes_site_and_path_are_never_said_as_the_session() {
+    let home = store::scratch_home("steve-qa-host");
+    let (rt, node, agent) = agent_node(&home);
+    let (host, path, referer) = ("uj5wyc0l7x-dsn.algolia.net", "/1/indexes/Item_dev/query?x-algolia-agent=Algolia%20for%20JavaScript%20(4.13.1)", "https://hn.algolia.com/?q=rust&page=0&dateRange=all");
+    crate::session_held::note_trace(&unbrowse_learn::Trace {
+        exchanges: vec![walk_exchange(&format!("https://{host}{path}"), vec![("Host", host), (":path", path), ("Referer", referer)], json!({ "hits": [] }))],
+        inputs: Vec::new(),
+    });
+    let heard = heard_by_an_agent(&rt, &node, &agent, json!({ "route": { "site": host, "path": path, "from": referer } }));
+    let _ = std::fs::remove_dir_all(&home);
+    assert!(heard.contains(host) && heard.contains(path) && heard.contains(referer), "UNB-300: the request's own address was said as the session: {heard}");
+}
+
+/// A name written as words in camel case (a GraphQL operation `TitleContentRating`) that the site listed among others
+/// and the page then sent back is the site's word, not minted for a visitor. Steve saw an IMDb route whose operation
+/// names all read `{session}`.
+#[test]
+fn steve_qa_a_camel_case_name_the_page_sent_back_is_never_said_as_the_session() {
+    let home = store::scratch_home("steve-qa-camel");
+    let (rt, node, agent) = agent_node(&home);
+    crate::session_held::note_trace(&unbrowse_learn::Trace {
+        exchanges: vec![
+            walk_exchange("https://www.example.com/title/tt0111161/", vec![], json!({ "queries": ["TitleContentRating", "TitleMainSidebarQuery"] })),
+            walk_exchange("https://graphql.example.com/?operationName=TitleContentRating&op2=TitleMainSidebarQuery", vec![], json!({ "data": {} })),
+        ],
+        inputs: Vec::new(),
+    });
+    let heard = heard_by_an_agent(&rt, &node, &agent, json!({ "operationName": { "options": ["TitleContentRating", "TitleMainSidebarQuery"] } }));
+    let _ = std::fs::remove_dir_all(&home);
+    assert!(heard.contains("TitleContentRating") && heard.contains("TitleMainSidebarQuery"), "UNB-300: a camel-case name was said as the session: {heard}");
+}
+
+/// A name the site's own script carries (`getElementById`, an operation's name in the bundle) is its code, fetched by
+/// every visitor, and the page sending it back hands no one a credential. Steve saw an npm README read
+/// `document.{session}('root')`.
+#[test]
+fn steve_qa_a_name_the_sites_script_carries_is_never_said_as_the_session() {
+    let home = store::scratch_home("steve-qa-script");
+    let (rt, node, agent) = agent_node(&home);
+    let mut script = walk_exchange("https://static.example.com/app.js", vec![], json!(null));
+    script.resource_type = Some("Script".into());
+    script.response_mime = "application/javascript".into();
+    script.response_body = Some("document.getElementById('root');fetch('/q?fn='+'getElementById')".into());
+    crate::session_held::note_trace(&unbrowse_learn::Trace {
+        exchanges: vec![
+            script,
+            walk_exchange("https://www.example.com/config", vec![], json!({ "call": "getElementById" })),
+            walk_exchange("https://www.example.com/q?fn=getElementById", vec![], json!({ "data": {} })),
+        ],
+        inputs: Vec::new(),
+    });
+    let heard = heard_by_an_agent(&rt, &node, &agent, json!({ "readme": "document.getElementById('root')" }));
+    let _ = std::fs::remove_dir_all(&home);
+    assert!(heard.contains("getElementById"), "UNB-300: a name the site's script carries was said as the session: {heard}");
+}
+
+/// What the mask spares as the site's own (a name its scripts carry, a pick from a list) never spares a credential
+/// written the same way: a token in a script served to one visitor (`Cache-Control: private`, a `Set-Cookie`), and a
+/// token picked from a list of the visitor's own keys, are still said as the session.
+#[test]
+fn a_token_a_visitors_own_script_or_a_list_of_keys_carries_is_still_the_session() {
+    let home = store::scratch_home("unb300-guard");
+    let (rt, node, agent) = agent_node(&home);
+    let (in_script, in_list, other) = ("Zq9xS3ss1onT0k3nPr1v", "Kp7wAp1K3yS3cr3tN0w8", "Mv2qAp1K3yS3cr3tN0w3");
+    let mut private = walk_exchange("https://www.example.com/session.js", vec![], json!(null));
+    private.resource_type = Some("Script".into());
+    private.response_headers = vec![("cache-control".into(), "private, max-age=0".into())];
+    private.response_body = Some(format!("window.__t='{in_script}'"));
+    let mut cookie = private.clone();
+    cookie.url = "https://www.example.com/boot.js".parse().unwrap();
+    cookie.response_headers = vec![("set-cookie".into(), "sid=1; Path=/".into())];
+    crate::session_held::note_trace(&unbrowse_learn::Trace {
+        exchanges: vec![
+            private,
+            cookie,
+            walk_exchange("https://www.example.com/me", vec![], json!({ "t": in_script, "api_keys": [{ "token": in_list }, { "token": other }] })),
+            walk_exchange(&format!("https://www.example.com/q?t={in_script}&k={in_list}"), vec![], json!({ "data": {} })),
+        ],
+        inputs: Vec::new(),
+    });
+    let heard = heard_by_an_agent(&rt, &node, &agent, json!({ "a": in_script, "b": in_list }));
+    let _ = std::fs::remove_dir_all(&home);
+    assert!(!heard.contains(in_script) && !heard.contains(in_list), "a visitor's own token reached an agent: {heard}");
+}
+
+/// Still open (UNB-300): a camel-case name one answer handed the page alone and the page sent back, with no script of
+/// the walk carrying it, is held as a token. Its shape can't tell it from one: letters only in camel case passed as
+/// "words" for 1.3% of random letter tokens and 0.07% of random base62 ones of 16 characters (measured on 400,000
+/// each), too many for the mask. Held expected-to-fail until a reading of where the name came from tells it apart.
+#[test]
+#[should_panic(expected = "UNB-300")]
+fn steve_qa_a_camel_case_name_one_answer_handed_back_alone_is_never_said_as_the_session() {
+    let home = store::scratch_home("steve-qa-camel-alone");
+    let (rt, node, agent) = agent_node(&home);
+    crate::session_held::note_trace(&unbrowse_learn::Trace {
+        exchanges: vec![
+            walk_exchange("https://www.example.com/title/tt0111161/", vec![], json!({ "call": "PricedOfferSummary" })),
+            walk_exchange("https://graphql.example.com/?fn=PricedOfferSummary", vec![], json!({ "data": {} })),
+        ],
+        inputs: Vec::new(),
+    });
+    let heard = heard_by_an_agent(&rt, &node, &agent, json!({ "readme": "document.PricedOfferSummary('root')" }));
+    let _ = std::fs::remove_dir_all(&home);
+    assert!(heard.contains("PricedOfferSummary"), "UNB-300: a camel-case name was said as the session: {heard}");
+}
+
+/// A place the site listed among others, each with its own id, and the page then sent back for the one picked, is the
+/// pick, not a credential: every visitor who searches the same place gets the same id. Steve saw Airbnb answers whose
+/// links read `place_id={session}` on staging (the Google place id of Osaka, from the site's own suggestions).
+#[test]
+fn steve_qa_a_place_id_the_site_listed_is_never_said_as_the_session() {
+    let home = store::scratch_home("steve-qa-place");
+    let (rt, node, agent) = agent_node(&home);
+    let (osaka, station) = ("ChIJ4eIGNFXmAGAR5y9q5G7BW8U", "ChIJ0Qgx67KMGGARd2ZbObLZHPE");
+    crate::session_held::note_trace(&unbrowse_learn::Trace {
+        exchanges: vec![
+            walk_exchange("https://www.stays.example/api/autocomplete?q=Osaka", vec![], json!({ "suggestions": [{ "name": "Osaka", "placeId": osaka }, { "name": "Osaka Station", "placeId": station }] })),
+            walk_exchange(&format!("https://www.stays.example/s/Osaka/homes?place_id={osaka}"), vec![], json!({ "results": [] })),
+        ],
+        inputs: Vec::new(),
+    });
+    let link = format!("https://www.stays.example/s/Osaka/homes?place_id={osaka}&refinement_paths%5B%5D=%2Fhomes");
+    let heard = heard_by_an_agent(&rt, &node, &agent, json!({ "listings": [{ "title": "Flat in Sumida-ku", "link": link }] }));
+    let _ = std::fs::remove_dir_all(&home);
+    assert!(heard.contains(&link), "UNB-300: a listed place's id was said as the session: {heard}");
 }

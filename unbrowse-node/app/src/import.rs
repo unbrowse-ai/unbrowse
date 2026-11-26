@@ -17,6 +17,8 @@
 //! same store or file is dropped before anything is written. This is not a sweep of every cookie from every browser.
 //! No cookie value is printed, logged or returned: callers get counts.
 
+mod other;
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -108,9 +110,10 @@ pub fn session(host: &str) -> Result<Kept, String> {
     }
     let host = host_arg(host)?;
     let sources = cookie_sources();
-    if sources.is_empty() {
+    let others = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(|h| other::stores(Path::new(&h))).unwrap_or_default();
+    if sources.is_empty() && others.is_empty() {
         return Err(format!(
-            "no ordinary browser here to read a session from (the node's own downloaded browser holds no sign-in). Sign in to {host} in a normally installed Chrome, Chromium, Brave, Edge or Vivaldi, or export the cookies and import the file (`unbrowse-node session import {host} --from cookies.json`)"
+            "no ordinary browser here to read a session from (the node's own downloaded browser holds no sign-in). Sign in to {host} in a normally installed Chrome, Firefox, Safari, Brave or Edge, or export its cookies to a file with a cookie extension and import that file"
         ));
     }
 
@@ -137,10 +140,6 @@ pub fn session(host: &str) -> Result<Kept, String> {
         let _ = std::fs::remove_dir_all(&work);
     }
 
-    if had_store.is_empty() {
-        let tried = sources.iter().map(|(n, _, _)| n.as_str()).collect::<Vec<_>>().join(", ");
-        return Err(format!("no browser here has cookies yet (looked in {tried}): open {host} in your browser and sign in, then try again"));
-    }
     let mut mine = for_host(&host, held, store::now() as f64);
     // The browser gave none, though its store holds the host's: on macOS a browser launched on a copy of the store may
     // be refused its own key (Chrome 158 can no longer open a copied store, and drops every cookie in it). The node
@@ -154,17 +153,46 @@ pub fn session(host: &str) -> Result<Kept, String> {
             }
         }
     }
+    let chromium: Vec<&str> = sources.iter().map(|(n, _, _)| n.as_str()).collect();
+    let (mine, from) = chosen(&host, &chromium, &others, &import, mine, had_store, unread)?;
+    keep(&host, mine, &from)
+}
+
+/// Which session an import keeps, once the Chromium browsers (`chromium`, by name) were read: their cookies for the host
+/// (`mine`), else the first of the other browsers (`others`) that holds some, read one at a time so one browser's
+/// session is kept whole. Answers the cookies and the browser they came from, or what the owner is told: no browser
+/// with cookies at all, or none with the host's, with what couldn't be read. `had_store` and `unread` come in from the
+/// Chromium read.
+fn chosen(host: &str, chromium: &[&str], others: &[other::Store], import: &Path, mut mine: Vec<Cookie>, mut had_store: Vec<String>, mut unread: Vec<String>) -> Result<(Vec<Cookie>, String), String> {
+    let mut from = had_store.join(", ");
+    if mine.is_empty() {
+        for s in others {
+            let work = import.join(format!("{}-{}-{}", session_name(host), session_name(&s.name), std::process::id()));
+            match other::read(s, host, &work) {
+                Ok(cookies) => {
+                    had_store.push(s.name.clone());
+                    mine = for_host(host, cookies, store::now() as f64);
+                    if !mine.is_empty() {
+                        from = s.name.clone();
+                        break;
+                    }
+                }
+                Err(e) => unread.push(format!("{}: {e}", s.name)),
+            }
+        }
+    }
+    let couldnt = |msg: String| if unread.is_empty() { msg } else { format!("{msg}. Couldn't read: {}", unread.join("; ")) };
+    if had_store.is_empty() {
+        let tried = chromium.iter().copied().chain(others.iter().map(|s| s.name.as_str())).collect::<Vec<_>>().join(", ");
+        return Err(couldnt(format!("no browser here has cookies yet (looked in {tried}): open {host} in your browser and sign in, then try again")));
+    }
     if mine.is_empty() {
         let read = had_store.join(", ");
-        let mut msg = format!(
-            "no cookies for {host} in your browsers ({read}). Sign in to {host} in one of them first; if you already are, that browser may lock its cookies to itself (app-bound encryption): export them to a file and import that (`unbrowse-node session import {host} --from cookies.json`), or sign in through Unbrowse once instead"
-        );
-        if !unread.is_empty() {
-            msg.push_str(&format!(". Couldn't read: {}", unread.join("; ")));
-        }
-        return Err(msg);
+        return Err(couldnt(format!(
+            "no cookies for {host} in your browsers ({read}). Sign in to {host} in one of them first; if you already are, that browser may lock its cookies to itself (app-bound encryption): export them to a file with a cookie extension and import that file, or sign in through Unbrowse once instead"
+        )));
     }
-    keep(&host, mine, &had_store.join(", "))
+    Ok((mine, from))
 }
 
 /// The owner's browsers on this machine the node can read a cookie store from: every real browser it can drive, not

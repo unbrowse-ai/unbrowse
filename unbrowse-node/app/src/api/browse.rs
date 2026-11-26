@@ -41,7 +41,13 @@ pub(crate) fn parse_snapshot(text: &str) -> Vec<Value> {
         let role = first.trim_end_matches(':');
         let name = {
             let after = line.find('"').map(|i| &line[i + 1..]).unwrap_or_default();
-            after.find('"').map(|i| after[..i].replace("\\\"", "\"")).unwrap_or_default()
+            // The name ends at the first quote not escaped by a backslash before it.
+            let end = after.char_indices().scan(false, |escaped, (i, c)| {
+                let ends = c == '"' && !*escaped;
+                *escaped = c == '\\' && !*escaped;
+                Some((i, ends))
+            });
+            end.filter(|&(_, ends)| ends).map(|(i, _)| after[..i].replace("\\\"", "\"")).next().unwrap_or_default()
         };
         // The first bracket group is the element's own: a later one describes what it does (`clickable [cursor:pointer]`).
         let attrs = line.find('[').and_then(|open| line[open..].find(']').map(|close| &line[open + 1..open + close])).map(parse_attrs).unwrap_or_default();
@@ -84,6 +90,15 @@ fn actions_for(role: &str) -> Vec<&'static str> {
         "file" | "button-file" => vec!["upload"],
         "button" | "link" | "menuitem" | "tab" | "option" | "treeitem" => vec!["click"],
         _ => vec!["click"],
+    }
+}
+
+fn site_for_background_learn(result: Result<&str, &str>, stopped: bool, previous: impl FnOnce() -> Option<String>) -> Option<String> {
+    match result {
+        Ok(site) => Some(site.into()),
+        Err(agent_browser_core::session::STOPPED) => None,
+        Err(_) if stopped => None,
+        Err(_) => previous(),
     }
 }
 
@@ -137,8 +152,9 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
     let n = node.clone();
     // The step ends on its ask's stop flag (`mint::stops_with`): a wait for the site's profile, a walk it starts.
     let stop = super::mcp::ask_stop();
+    let command_stop = stop.clone();
     super::asks::phase("browse");
-    let out = tokio::task::spawn_blocking(move || unbrowse_learn::mint::stops_with(stop, || {
+    let out = tokio::task::spawn_blocking(move || unbrowse_learn::mint::stops_with(command_stop, || {
         let (goal, session) = (goal2, session2);
         let named = Some(site.as_str()).filter(|s| !s.is_empty());
         let on = crate::browse::site(&args, named, &session)?;
@@ -156,11 +172,14 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
         }
         // The flow being left (a tab closing, another page opening) is learned before the reply, so the reply names
         // what it learned: the agent judges it (`unbrowse_judge`) before a goal calls it.
-        let leaving = (learning && (closes || leaves)).then(|| learn::leaving(&on, &session, started));
+        let leaving = (leaves || (learning && closes)).then(|| learn::leaving(&on, &session, started));
         if learning && (closes || leaves) {
             if let Some((r, sent)) = learn::learn_auto(&on, &session, Some(started), &who2, &eye2) {
                 crate::browse::credit_learned(&on, &session, &r.id, sent);
             }
+        }
+        if unbrowse_learn::mint::asked_to_stop() {
+            return Err(agent_browser_core::session::STOPPED.into());
         }
         if closes {
             crate::browse::set_goal(&on, &session, "");
@@ -193,7 +212,14 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
             (None, None) => crate::browse::act(&args, named, &who2, &session),
         };
         if let Some(leaving) = leaving {
-            leaving.over(done.is_ok());
+            let reached = leaving.over(done.is_ok(), learning);
+            if leaves && reached {
+                // The command can stop after the tab already reached its new page. Record the goal before returning.
+                crate::browse::set_goal(&on, &session, &goal);
+                if done.is_err() {
+                    crate::browse::browsed(&session, &on);
+                }
+            }
         }
         if let (Ok(_), Ok(keys), false) = (&done, n.key(), card_held) {
             crate::passkey::on_browse(&on, keys);
@@ -216,12 +242,12 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
         }
         // What the step came to, and the words naming the page it returned on when it waited past a door, read from
         // the step's own lines (those after `mark`).
-        let came_of = |done: &Result<String, String>, mark: u64| -> (crate::browse::Came, Option<String>) {
+        let came_of = |done: &Result<String, String>, mark: u64| -> (crate::browse::Came, Option<String>, Option<u16>) {
             // A navigation the browser never got the page for (no address, nothing listening) is a page that isn't
             // there, said as one, not a step that failed.
             let unreached = leaves && matches!(done, Err(e) if crate::browse::never_reached(e));
             let mut passed: Option<String> = None;
-            let came = match done {
+            let (came, status) = match done {
                 Ok(_) if clicks || leaves => {
                     let asked = if leaves { args.get(1).map(String::as_str) } else { None };
                     // The document the tab shows, read from the step's lines; the page asked for when the tab shows
@@ -248,14 +274,28 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
                     if looks > 0 {
                         passed = landed.as_ref().map(crate::browse::landed_said);
                     }
-                    crate::browse::came_to_page(&verb2, asked, before.as_ref(), after.as_ref(), landed.as_ref())
+                    let status = landed.as_ref().map(|d| d.status);
+                    (crate::browse::came_to_page(&verb2, asked, before.as_ref(), after.as_ref(), landed.as_ref()), status)
                 }
-                Err(_) if unreached => crate::browse::Came::Gone { status: 0 },
-                _ => crate::browse::Came::Done,
+                Err(_) if unreached => (crate::browse::Came::Gone { status: 0 }, Some(0)),
+                _ => (crate::browse::Came::Done, None),
             };
-            (came, passed)
+            (came, passed, status)
         };
-        let (mut came, mut passed) = came_of(&done, mark);
+        let (mut came, mut passed, landed_status) = came_of(&done, mark);
+        // A door that answered nothing, or refused while it decided, may be refusing a client with no window: the page
+        // is opened once more in one, and the site says whether that was it. Once per site, never when the owner keeps
+        // windows off, and the reply says which it was, with the answer it gave each way.
+        let mut shown = None;
+        if leaves && !closes && crate::browse::refused_a_client(landed_status) && !crate::browse::windowed(&on) && !crate::browsers::headless_only() {
+            crate::browse::relaunch_in_a_window(&on);
+            let mark2 = crate::browse::log_mark(&on);
+            let again = crate::browse::act(&args, named, &who2, &session);
+            let (c2, p2, s2) = came_of(&again, mark2);
+            came = c2;
+            passed = p2;
+            shown = Some((landed_status, s2));
+        }
         // A check at the very address asked for may be the page itself, an app whose first HTML is only a shell with
         // a check's widget in it (a help widget, a form further down): rendered, a working page shows its own
         // controls, where a check that stands in for the page shows little but its widget.
@@ -287,7 +327,7 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
                     eprintln!("   [browse] {on} sent the page to {at}; took in the owner's browser session ({} cookies) and opened it again", kept.cookies);
                     mark = crate::browse::log_mark(&on);
                     done = crate::browse::act(&args, named, &who2, &session);
-                    (came, passed) = came_of(&done, mark);
+                    (came, passed, _) = came_of(&done, mark);
                 }
                 Some(Err(none)) => eprintln!("   [browse] {on} sent the page to {at}; the owner's browser holds no session for it: {none}"),
                 None => {}
@@ -316,26 +356,18 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
             Err(_) => Vec::new(),
         };
         let waiting = crate::browse::sign_ups_waiting(&on);
-        done.map(|text| (on, text, came, sent, unfillable, kept, waiting))
+        done.map(|text| (on, text, came, sent, unfillable, kept, waiting, shown))
     }))
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     node.events.emit("activity", ());
     // A command that timed out may still have done its work (a page that never goes quiet still loaded): the node
     // learns from what the browser did either way.
-    let on = match &out {
-        Ok((on, ..)) => Some(on.clone()),
-        Err(_) => crate::browse::last_site(&session),
-    };
-    if let (true, Some(on)) = (leaves && !learning, &on) {
-        crate::browse::set_goal(on, &session, &goal);
-    }
+    let stopped = stop.load(std::sync::atomic::Ordering::Relaxed);
+    let on = site_for_background_learn(out.as_ref().map(|(on, ..)| on.as_str()).map_err(String::as_str), stopped, || crate::browse::last_site(&session));
     if let (true, false, Some(on)) = (learning, closes, on) {
         let (n, session) = (node.clone(), session.clone());
         tokio::task::spawn_blocking(move || {
-            if leaves {
-                crate::browse::set_goal(&on, &session, &goal);
-            }
             // What the command set off lands in the log once it settles, and is learned from here, after the reply. A
             // page just opened set nothing off: it is learned when the agent leaves it, under the goal it was opened
             // for, and reported then.
@@ -371,7 +403,7 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
         });
     }
     // A step the owner's pause stopped is the pause, not a step that failed.
-    let (on, output, came, sent, unfillable, kept, waiting) = out.map_err(|e| (if e == crate::outcome::PAUSED { StatusCode::SERVICE_UNAVAILABLE } else { StatusCode::UNPROCESSABLE_ENTITY }, e))?;
+    let (on, output, came, sent, unfillable, kept, waiting, shown) = out.map_err(|e| (if e == crate::outcome::PAUSED { StatusCode::SERVICE_UNAVAILABLE } else { StatusCode::UNPROCESSABLE_ENTITY }, e))?;
     let mut reply = json!({ "site": on, "output": output });
     // A step that landed elsewhere than asked, on a page that isn't there or asks for a person, or a click that
     // changed nothing, isn't done: the reply says where it landed, and what to do next.
@@ -382,6 +414,21 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
             reply["needs_owner"] = json!(true);
         }
         landed.outcome.put(&mut reply);
+    }
+    // A fallback says so: the page was opened a second time in a window, and the reply names what each answer was.
+    if let Some((before, after)) = shown {
+        let note = match (came == crate::browse::Came::Done, before == after) {
+            (true, _) => " (opened again in a window: the site refused this client without one)".to_string(),
+            (false, true) => " (opened again in a window, and answered the same: a door refusing a client with no window is not what refused this one)".to_string(),
+            (false, false) => format!(
+                " (opened again in a window: the site answered {} without one and {} with one, so a door was refusing a client that shows no window)",
+                before.map_or_else(|| "nothing".into(), |s| s.to_string()),
+                after.map_or_else(|| "nothing".into(), |s| s.to_string())
+            ),
+        };
+        if let Some(o) = reply["output"].as_str().map(str::to_string) {
+            reply["output"] = json!(format!("{o}{note}"));
+        }
     }
     // What this browsing has learned so far, and a route that already does what the page was opened for: from here the
     // agent calls the route, no more clicking through that flow.
@@ -589,7 +636,7 @@ pub(super) fn came_said(came: &crate::browse::Came, site: &str, can_ask: bool) -
             needs_owner: false,
         },
         Came::Gone { status: 0 } => Landed {
-            said: "The page didn't load: the browser got no answer from the site (offline, or an address that doesn't resolve), and shows its own error page. There is nothing on it to drive.".into(),
+            said: "The page didn't load: the browser's connection to the site failed, and it shows its own error page. That is the machine offline, an address that doesn't resolve, or the site cutting the connection, which is how some sites refuse a client they read as a robot (the other sites' pages still load). There is nothing on it to drive.".into(),
             outcome: Said::new(Outcome::Gone, "browse.landed.status"),
             needs_owner: false,
         },
@@ -1003,6 +1050,16 @@ pub(super) async fn do_challenge(
 mod observe_tests {
     use super::*;
 
+    #[test]
+    fn a_cancelled_command_error_does_not_fall_back_to_the_last_site() {
+        let previous = || Some("before.example".to_string());
+        assert_eq!(site_for_background_learn(Err(agent_browser_core::session::STOPPED), false, previous), None);
+        assert_eq!(site_for_background_learn(Err("the browser did not start"), true, previous), None);
+        assert_eq!(site_for_background_learn(Err("the browser timed out"), false, previous).as_deref(), Some("before.example"));
+        assert_eq!(site_for_background_learn(Ok("after.example"), false, previous).as_deref(), Some("after.example"));
+        assert_eq!(site_for_background_learn(Ok("after.example"), true, previous).as_deref(), Some("after.example"));
+    }
+
     /// Loom's library, opened signed in, was told "a check that asks for a person, not the page asked for": its first
     /// HTML is an app's shell with a check's widget in it. At the address asked, a page that renders its own controls
     /// is the page carrying a check; a check standing in for the page renders little but its widget, and stays a check.
@@ -1058,3 +1115,7 @@ mod observe_tests {
         assert_eq!(nested[0]["name"], "Stories");
     }
 }
+
+#[cfg(test)]
+#[path = "browse_cov_tests.rs"]
+mod browse_cov_tests;

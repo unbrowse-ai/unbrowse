@@ -1127,8 +1127,9 @@ the status or kind of the agent's last error (never what the site said), the nod
 a route call or paid fetch of another contributor's route that failed, by its kind of failure, step and status and the route's shape. \
 It becomes a public GitHub issue on unbrowse-ai/unbrowse";
 pub const HOW_TO_STOP: &str = "turn them off with `unbrowse-node reports off` or UNBROWSE_REPORTS=0 (telemetry off turns them off too)";
-/// What an owner with reports off runs to send them: said where a report was not sent, never `HOW_TO_STOP`.
-pub const HOW_TO_START: &str = "the owner turns them on with `unbrowse-node reports on` (telemetry on too)";
+/// What an agent is told of reports off, where a report was not sent: who can turn them on, never a command
+/// (`said_to_agents`). The owner's own terminal names the command (`cli`).
+pub const HOW_TO_START: &str = "only the node's owner can turn them on (with telemetry), on the node's own computer";
 
 /// `unbrowse-node reports [on|off]`.
 pub fn cli(args: &[String]) -> i32 {
@@ -1141,7 +1142,7 @@ pub fn cli(args: &[String]) -> i32 {
             let on = decide(env, saved.on, tel, cfg!(debug_assertions));
             println!("bug reports: {}{}", if on { "on" } else { "off" }, if !tel { " (telemetry is off)" } else if env.is_some() { " (set by UNBROWSE_REPORTS)" } else { "" });
             println!("a report holds: {WHAT}");
-            println!("{}", if on { HOW_TO_STOP } else { HOW_TO_START });
+            println!("{}", if on { HOW_TO_STOP } else { "turn them on with `unbrowse-node reports on` (telemetry on too)" });
             0
         }
         Some(c @ ("on" | "off")) => {
@@ -2373,3 +2374,7 @@ mod tests {
         assert_eq!((reply["report"].clone(), reply["why"].clone()), (json!("refused"), json!("field not allowed: cookie")));
     }
 }
+
+#[cfg(test)]
+#[path = "report_cov_tests.rs"]
+mod report_cov_tests;

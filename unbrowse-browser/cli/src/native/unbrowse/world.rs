@@ -25,7 +25,7 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 
 use super::super::actions::DaemonState;
-use super::super::cdp::client::CdpClient;
+use super::super::cdp::client::{is_session_detached_error, CdpClient};
 
 /// The isolated world a caller's script runs in.
 pub const WORLD: &str = "unbrowse-agent";
@@ -446,12 +446,41 @@ fn reachable_sessions(session: &str, iframe_sessions: &HashMap<String, String>) 
     all
 }
 
+/// Whether the frame `frame_id` of another process is still one of the browser's targets. Chrome keys such a frame's
+/// target by its frame id. A frame the page took away is no target any more: no dispatch reaches it.
+async fn frame_still_there(client: &CdpClient, frame_id: &str) -> Result<bool, String> {
+    let targets = client.send_command_no_params("Target.getTargets", None).await.map_err(|e| cannot_tell(&format!("the browser's frames: {e}")))?;
+    let listed = targets["targetInfos"].as_array().ok_or_else(|| cannot_tell("the browser's frames"))?;
+    Ok(listed.iter().any(|t| t["targetId"].as_str() == Some(frame_id)))
+}
+
+/// The frames of the frame of another process `frame_id`, held by `session`, or None where that frame is gone: its
+/// session answers that it no longer exists, and the browser lists no such frame. The browser's events can say so
+/// late, or never (a page that asks for much drops them before they are read, and a frame inside a frame that went
+/// goes with it, unannounced), so the browser is asked. A session that fails for any other reason, or a frame the
+/// browser still lists, can't be read, and refuses the command as before.
+async fn frames_unless_gone(client: &CdpClient, session: &str, frame_id: &str) -> Result<Option<Vec<String>>, String> {
+    match client.send_command_no_params("Page.getFrameTree", Some(session)).await {
+        Ok(_) => frames_of(client, session).await.map(Some),
+        Err(e) if is_session_detached_error(&e) && !frame_still_there(client, frame_id).await? => Ok(None),
+        Err(e) => Err(cannot_tell(&format!("its frames: {e}"))),
+    }
+}
+
 /// Arms the check at the moment of activation ([`ARM`]) in every frame a dispatch in `session`'s page can reach. A
-/// frame that can't be armed refuses the command: nothing is dispatched past a check that isn't there.
+/// frame that can't be armed refuses the command: nothing is dispatched past a check that isn't there. A frame of
+/// another process the page has taken away is not one a dispatch can reach ([`frames_unless_gone`]).
 pub async fn arm(client: &CdpClient, session: &str, iframe_sessions: &HashMap<String, String>) -> Result<(), String> {
     let script = ARM.replace("ARMED", "true");
     for s in reachable_sessions(session, iframe_sessions) {
-        for frame in frames_of(client, &s).await? {
+        let frames = match iframe_sessions.iter().find(|(_, held)| **held == s) {
+            Some((frame_id, _)) => match frames_unless_gone(client, &s, frame_id).await? {
+                Some(frames) => frames,
+                None => continue,
+            },
+            None => frames_of(client, &s).await?,
+        };
+        for frame in frames {
             let context = guard_context(client, &s, &frame).await?;
             let said = client
                 .send_command("Runtime.evaluate", Some(json!({ "expression": script, "contextId": context, "returnByValue": true })), Some(&s))

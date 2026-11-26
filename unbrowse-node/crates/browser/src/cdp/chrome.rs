@@ -1007,7 +1007,7 @@ impl ReattachedChrome {
     }
 
     pub fn has_exited(&self) -> bool {
-        !runtime_pid_alive(self.pid) || !crate::process::is_still(self.pid, self.started)
+        !crate::process::alive(self.pid) || !crate::process::is_still(self.pid, self.started)
     }
 
     /// Waits for a browser that answered `Browser.close` to go, and ends it if it doesn't. A browser that didn't answer
@@ -1036,18 +1036,6 @@ impl ReattachedChrome {
 
 /// Whether the process is alive and ours to signal. Elsewhere the endpoint's
 /// own report of its browser process is the whole check.
-fn runtime_pid_alive(pid: u32) -> bool {
-    #[cfg(unix)]
-    {
-        i32::try_from(pid).is_ok_and(|pid| pid > 0 && unsafe { libc::kill(pid, 0) } == 0)
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = pid;
-        true
-    }
-}
-
 /// Reattaches to a surviving runtime Chrome, if one is alive: reads the
 /// `DevToolsActivePort` file the fixed runtime dir holds and checks that
 /// what answers there is the Chrome this runtime dir launched. A port any
@@ -1091,7 +1079,7 @@ async fn reattach_runtime_dir(dir: &Path, timeout: Duration) -> Option<(String, 
         .trim()
         .parse()
         .ok()?;
-    if !runtime_pid_alive(pid) {
+    if !crate::process::alive(pid) {
         return None;
     }
     let ws_url = format!("ws://127.0.0.1:{port}{ws_path}");
@@ -1171,7 +1159,7 @@ pub fn launch_chrome(options: &LaunchOptions) -> Result<ChromeProcess, String> {
     let chrome_path = match &options.executable_path {
         Some(p) => PathBuf::from(p),
         None => find_chrome().ok_or_else(|| {
-            let cache_dir = crate::paths::get_browsers_dir();
+            let cache_dir = crate::paths::browsers_dirs_here().iter().map(|d| d.display().to_string()).collect::<Vec<_>>().join(", ");
             format!(
                 "Chrome not found. Checked:\n  \
                  - agent-browser cache: {}\n  \
@@ -1179,7 +1167,7 @@ pub fn launch_chrome(options: &LaunchOptions) -> Result<ChromeProcess, String> {
                  - Puppeteer browser cache\n  \
                  - Playwright browser cache\n\
                  Run `agent-browser install` to download Chrome, or use --executable-path.",
-                cache_dir.display()
+                cache_dir
             )
         })?,
     };
@@ -1304,12 +1292,75 @@ fn profile_held(_user_data_dir: &Path) -> bool {
     false
 }
 
+/// How the launched browser's debugger is reached: on its pipe (`pipe`), or on a loopback port it picks and names in
+/// `DevToolsActivePort`, as the agent-browser CLI reaches it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Debugger {
+    Pipe,
+    Port,
+}
+
+/// Set once a browser on this machine has stayed silent on its pipe: later launches go straight to the port.
+static PIPE_SILENT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// What a launch on the pipe that went unanswered falls back to. Windows, 22 Nov 2026 (c772f210): the system Chrome
+/// 157.0.8103.79 never answered the engine's pipe, three launches of 30 s each, while the CLI drove the same Chrome on
+/// a port in about a second. A browser that left early, or whose launch failed for another reason, is not retried:
+/// the port would fail it the same way.
+fn fallback_after(debugger: Debugger, error: &str, windows: bool) -> Option<Debugger> {
+    (windows && debugger == Debugger::Pipe && error.starts_with(PIPE_TIMEOUT)).then_some(Debugger::Port)
+}
+
+/// The start of the error a launch whose browser never answered on its pipe ends with.
+const PIPE_TIMEOUT: &str = "Timeout waiting for Chrome's debugger to answer";
+
+/// How long a launch waits for the browser's first answer on its pipe. Shorter on Windows, where a silent pipe falls
+/// back to the port rather than failing.
+fn pipe_wait(windows: bool) -> Duration {
+    Duration::from_secs(if windows { 10 } else { 30 })
+}
+
 fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<ChromeProcess, String> {
+    let windows = cfg!(windows);
+    let first = if windows && PIPE_SILENT.load(std::sync::atomic::Ordering::Relaxed) { Debugger::Port } else { Debugger::Pipe };
+    match try_launch_chrome_on(chrome_path, options, first) {
+        Err(e) => match fallback_after(first, &e, windows) {
+            Some(next) => {
+                PIPE_SILENT.store(true, std::sync::atomic::Ordering::Relaxed);
+                let _ = writeln!(std::io::stderr(), "[chrome] {e}; trying its debugger on a port instead");
+                try_launch_chrome_on(chrome_path, options, next).map_err(|port| format!("{e}; on a port: {port}"))
+            }
+            None => Err(e),
+        },
+        ok => ok,
+    }
+}
+
+/// The launch's arguments with the debugger placed as `debugger` says.
+fn debugger_args(mut args: Vec<String>, debugger: Debugger) -> Vec<String> {
+    if debugger == Debugger::Port {
+        for arg in args.iter_mut().filter(|a| *a == "--remote-debugging-pipe") {
+            *arg = "--remote-debugging-port=0".to_string();
+        }
+    }
+    args
+}
+
+/// The browser's DevTools address from its `DevToolsActivePort` file (port, then path), once Chrome has written both.
+fn devtools_address(content: &str) -> Option<String> {
+    let mut lines = content.lines();
+    let port: u16 = lines.next()?.trim().parse().ok().filter(|p| *p != 0)?;
+    let path = lines.next()?.trim();
+    path.starts_with("/devtools/browser/").then(|| format!("ws://127.0.0.1:{port}{path}"))
+}
+
+fn try_launch_chrome_on(chrome_path: &Path, options: &LaunchOptions, debugger: Debugger) -> Result<ChromeProcess, String> {
     let ChromeArgs {
         args,
         user_data_dir,
         temp_user_data_dir,
     } = build_chrome_args(options)?;
+    let args = debugger_args(args, debugger);
 
     let cleanup_temp_dir = |dir: &Option<PathBuf>| {
         if let Some(ref d) = dir {
@@ -1348,10 +1399,13 @@ fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<Chro
     let xvfb = maybe_start_xvfb(options);
 
     // The debugger's pipe: Chrome reads fd 3 and writes fd 4, and nothing else in the system holds them.
-    let pipes = super::pipe::pipes().map_err(|e| {
-        cleanup_temp_dir(&temp_user_data_dir);
-        format!("no pipe for the browser's debugger: {e}")
-    })?;
+    let pipes = match debugger {
+        Debugger::Pipe => Some(super::pipe::pipes().map_err(|e| {
+            cleanup_temp_dir(&temp_user_data_dir);
+            format!("no pipe for the browser's debugger: {e}")
+        })?),
+        Debugger::Port => None,
+    };
 
     #[cfg(not(windows))]
     let mut cmd = Command::new(chrome_path);
@@ -1377,7 +1431,7 @@ fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<Chro
     // The child's pipe ends, copied above the numbers they go to so placing one can't close the other. They close on
     // exec except where `dup2` puts them, at 3 and 4.
     #[cfg(unix)]
-    let child_fds = {
+    let child_fds = if let Some(pipes) = pipes.as_ref() {
         use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
         let above = |fd: i32| -> Result<OwnedFd, String> {
             // SAFETY: fcntl on a descriptor this process owns; the copy is owned by the OwnedFd.
@@ -1388,12 +1442,14 @@ fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<Chro
             Ok(unsafe { OwnedFd::from_raw_fd(copy) })
         };
         match (above(pipes.child_reads.as_raw_fd()), above(pipes.child_writes.as_raw_fd())) {
-            (Ok(r), Ok(w)) => (r, w),
+            (Ok(r), Ok(w)) => Some((r, w)),
             (Err(e), _) | (_, Err(e)) => {
                 cleanup_temp_dir(&temp_user_data_dir);
                 return Err(e);
             }
         }
+    } else {
+        None
     };
 
     // Place Chrome in its own process group so we can kill the entire tree
@@ -1408,14 +1464,16 @@ fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<Chro
     {
         use std::os::fd::AsRawFd;
         use std::os::unix::process::CommandExt;
-        let (read_fd, write_fd) = (child_fds.0.as_raw_fd(), child_fds.1.as_raw_fd());
+        let fds = child_fds.as_ref().map(|(r, w)| (r.as_raw_fd(), w.as_raw_fd()));
         // SAFETY: pre_exec runs between fork() and exec() in the child.
         // setpgid and dup2 are async-signal-safe.
         unsafe {
             cmd.pre_exec(move || {
                 libc::setpgid(0, 0);
-                if libc::dup2(read_fd, 3) < 0 || libc::dup2(write_fd, 4) < 0 {
-                    return Err(std::io::Error::last_os_error());
+                if let Some((read_fd, write_fd)) = fds {
+                    if libc::dup2(read_fd, 3) < 0 || libc::dup2(write_fd, 4) < 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
                 }
                 Ok(())
             });
@@ -1429,13 +1487,15 @@ fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<Chro
         chrome_path,
         &args,
         options.effectively_headless(),
-        Some((&pipes.child_reads, &pipes.child_writes)),
+        pipes.as_ref().map(|p| (&p.child_reads, &p.child_writes)),
     );
     // This process's copies of the child's ends go now: the pipe closes when the browser does.
     #[cfg(unix)]
     drop(child_fds);
-    let super::pipe::Pipes { child_reads, child_writes, to_browser, from_browser } = pipes;
-    drop((child_reads, child_writes));
+    let pipes = pipes.map(|super::pipe::Pipes { child_reads, child_writes, to_browser, from_browser }| {
+        drop((child_reads, child_writes));
+        (to_browser, from_browser)
+    });
     let mut child = spawned.map_err(|e| {
         cleanup_temp_dir(&temp_user_data_dir);
         format!("Failed to launch Chrome at {:?}: {}", chrome_path, e)
@@ -1454,24 +1514,45 @@ fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<Chro
     // its own. Only a browser with this record, alive as this same process, is ever reused (`proven_profile_endpoint`).
     record_browser(&user_data_dir, child.id());
 
-    let relay = match super::pipe::Relay::start(to_browser, from_browser) {
-        Ok(relay) => relay,
-        Err(e) => {
-            terminate_launched_chrome(&mut child);
-            cleanup_temp_dir(&temp_user_data_dir);
-            return Err(format!("the browser's debugger couldn't be served: {e}"));
+    let deadline = |wait: Duration| std::time::Instant::now() + wait;
+    let (ws_url, relay) = match pipes {
+        Some((to_browser, from_browser)) => {
+            let relay = match super::pipe::Relay::start(to_browser, from_browser) {
+                Ok(relay) => relay,
+                Err(e) => {
+                    terminate_launched_chrome(&mut child);
+                    cleanup_temp_dir(&temp_user_data_dir);
+                    return Err(format!("the browser's debugger couldn't be served: {e}"));
+                }
+            };
+            if let Err(e) = wait_for_debugger(&mut child, || relay.wait_ready(Duration::from_millis(50)).then(|| relay.ws_url()), || relay.is_closed(), deadline(pipe_wait(cfg!(windows)))) {
+                terminate_launched_chrome(&mut child);
+                // A profile another browser holds is said as its folder and who holds it, read before the folder goes.
+                let e = said_of_lock(&user_data_dir, e);
+                cleanup_temp_dir(&temp_user_data_dir);
+                return Err(e);
+            }
+            let ws_url = relay.ws_url();
+            remember_devtools(&user_data_dir, &ws_url);
+            (ws_url, Some(relay))
+        }
+        None => {
+            let port_file = user_data_dir.join("DevToolsActivePort");
+            let answered = || {
+                std::thread::sleep(Duration::from_millis(50));
+                std::fs::read_to_string(&port_file).ok().and_then(|c| devtools_address(&c))
+            };
+            match wait_for_debugger(&mut child, answered, || false, deadline(Duration::from_secs(30))) {
+                Ok(ws_url) => (ws_url, None),
+                Err(e) => {
+                    terminate_launched_chrome(&mut child);
+                    let e = said_of_lock(&user_data_dir, e.replace(PIPE_TIMEOUT, "Timeout waiting for Chrome to name its debugger's port"));
+                    cleanup_temp_dir(&temp_user_data_dir);
+                    return Err(e);
+                }
+            }
         }
     };
-    let deadline = std::time::Instant::now() + Duration::from_secs(30);
-    if let Err(e) = wait_for_pipe(&mut child, &relay, deadline) {
-        terminate_launched_chrome(&mut child);
-        // A profile another browser holds is said as its folder and who holds it, read before the folder goes.
-        let e = said_of_lock(&user_data_dir, e);
-        cleanup_temp_dir(&temp_user_data_dir);
-        return Err(e);
-    }
-    let ws_url = relay.ws_url();
-    remember_devtools(&user_data_dir, &ws_url);
 
     #[cfg(unix)]
     let pgid = {
@@ -1491,13 +1572,19 @@ fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<Chro
         #[cfg(target_os = "linux")]
         xvfb,
         hold: None,
-        relay: Some(relay),
+        relay,
     })
 }
 
-/// Waits for the browser's first answer on its pipe. Chrome's stderr is drained for the life of the browser (it blocks
-/// on a full pipe), and what it said before an early exit is the launch's error.
-fn wait_for_pipe(child: &mut Child, relay: &super::pipe::Relay, deadline: std::time::Instant) -> Result<(), String> {
+/// Waits for the browser's debugger: `answered` gives its address once it is up (each call waits a moment), and
+/// `closed` says its pipe has closed. Chrome's stderr is drained for the life of the browser (it blocks on a full pipe),
+/// and what it said before an early exit is the launch's error.
+fn wait_for_debugger(
+    child: &mut Child,
+    mut answered: impl FnMut() -> Option<String>,
+    closed: impl Fn() -> bool,
+    deadline: std::time::Instant,
+) -> Result<String, String> {
     let said: Arc<std::sync::Mutex<Vec<String>>> = Arc::default();
     if let Some(stderr) = child.stderr.take() {
         let said = said.clone();
@@ -1517,19 +1604,34 @@ fn wait_for_pipe(child: &mut Child, relay: &super::pipe::Relay, deadline: std::t
         chrome_launch_error(message, &said.lock().unwrap_or_else(|e| e.into_inner()))
     };
     while std::time::Instant::now() <= deadline {
-        if relay.wait_ready(Duration::from_millis(50)) {
+        if let Some(address) = answered() {
             said.lock().unwrap_or_else(|e| e.into_inner()).clear();
-            return Ok(());
+            return Ok(address);
         }
-        if let Ok(Some(status)) = child.try_wait() {
-            let code = status.code().map(|c| c.to_string()).unwrap_or_else(|| "unknown".to_string());
-            return Err(last_words(&format!("Chrome exited early (exit code: {code}) before its debugger answered")));
+        if let Some(exited) = exited_early(child) {
+            return Err(last_words(&exited));
         }
-        if relay.is_closed() {
+        if closed() {
+            // A browser closes its pipe on its way out, and the pipe's end can come before the exit can be read: wait
+            // a moment for the exit, so the error names it and what Chrome said.
+            let until = std::time::Instant::now() + Duration::from_millis(1000);
+            while std::time::Instant::now() < until {
+                if let Some(exited) = exited_early(child) {
+                    return Err(last_words(&exited));
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
             return Err(last_words("Chrome closed its debugger's pipe before answering"));
         }
     }
-    Err("Timeout waiting for Chrome's debugger to answer".to_string())
+    Err(PIPE_TIMEOUT.to_string())
+}
+
+/// "Chrome exited early (exit code: n) ..." once the launched browser has exited, else None.
+fn exited_early(child: &mut Child) -> Option<String> {
+    let status = child.try_wait().ok()??;
+    let code = status.code().map(|c| c.to_string()).unwrap_or_else(|| "unknown".to_string());
+    Some(format!("Chrome exited early (exit code: {code}) before its debugger answered"))
 }
 
 /// Write `DevToolsActivePort` in Chrome's own shape (port, then path), so the browser can be found again while its
@@ -1722,8 +1824,7 @@ pub fn find_chrome() -> Option<PathBuf> {
 
     // If the cache directory exists but no Chrome was found, warn -- this
     // likely means the cache is corrupted or the directory layout is unexpected.
-    let cache_dir = crate::paths::get_browsers_dir();
-    if cache_dir.exists() {
+    if let Some(cache_dir) = crate::paths::browsers_dirs_here().into_iter().find(|d| d.exists()) {
         let _ = writeln!(
             std::io::stderr(),
             "Warning: Chrome cache directory exists ({}) but no Chrome binary found inside. \
@@ -2146,7 +2247,7 @@ fn sweep_left_copies(dir: &Path) {
             .and_then(|n| n.strip_prefix(COPY_PREFIX))
             .and_then(|rest| rest.split('-').next())
             .and_then(|pid| pid.parse::<u32>().ok());
-        if maker.is_some_and(|pid| !runtime_pid_alive(pid)) && !profile_held(&entry.path()) {
+        if maker.is_some_and(|pid| !crate::process::alive(pid)) && !profile_held(&entry.path()) {
             let _ = std::fs::remove_dir_all(entry.path());
         }
     }
@@ -2777,13 +2878,13 @@ mod reattach_tests {
         assert!(chrome.others_remain());
         chrome.serve_while_others_remain_polling(Duration::from_millis(20));
         std::thread::sleep(Duration::from_millis(300));
-        assert!(runtime_pid_alive(pid), "the browser went from under the other process");
+        assert!(crate::process::alive(pid), "the browser went from under the other process");
         let port = ws_url.split(':').nth(2).unwrap().split('/').next().unwrap();
         assert!(std::net::TcpStream::connect(format!("127.0.0.1:{port}")).is_ok(), "its debugger is still served");
 
         drop(other);
         serve_kept_browsers();
-        assert!(!runtime_pid_alive(pid), "the last one out closed it");
+        assert!(!crate::process::alive(pid), "the last one out closed it");
     }
 
     /// A browser that exits before answering on its pipe is a failed launch, with what it said.
@@ -2801,6 +2902,95 @@ mod reattach_tests {
         let options = LaunchOptions { profile: Some(profile.path().to_string_lossy().into_owned()), ..Default::default() };
         let err = try_launch_chrome(&executable, &options).err().unwrap();
         assert!(err.contains("exit code: 3") && err.contains("FATAL: cannot start"), "{err}");
+    }
+
+    /// A browser that closes its debugger's pipe on its way out is a failed launch that names its exit and what it said,
+    /// not a pipe that closed: the pipe's end can reach the launcher before the exit does (UNB-208, seen under a loaded
+    /// test pass).
+    #[cfg(unix)]
+    #[test]
+    fn a_browser_that_closes_its_pipe_and_exits_is_reported_by_its_exit() {
+        let fixture = tempfile::tempdir().unwrap();
+        let executable = fixture.path().join("chrome");
+        std::fs::write(&executable, "#!/bin/sh\nexec 3<&- 4>&-\nsleep 0.2\necho 'FATAL: cannot start' >&2\nexit 3\n").unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let profile = tempfile::tempdir().unwrap();
+        let options = LaunchOptions { profile: Some(profile.path().to_string_lossy().into_owned()), ..Default::default() };
+        let err = try_launch_chrome(&executable, &options).err().unwrap();
+        assert!(err.contains("exit code: 3") && err.contains("FATAL: cannot start"), "{err}");
+    }
+
+    /// The CLI's way to the debugger, which drove Chrome 157 on Windows in about a second (22 Nov 2026): Chrome picks a
+    /// port and names it, with the browser's path, in the profile's `DevToolsActivePort`.
+    #[cfg(unix)]
+    #[test]
+    fn a_browser_on_a_port_is_reached_at_the_address_it_names() {
+        let fixture = tempfile::tempdir().unwrap();
+        let executable = fixture.path().join("chrome");
+        std::fs::write(
+            &executable,
+            "#!/bin/sh\nfor arg do case \"$arg\" in --user-data-dir=*) profile=\"${arg#*=}\" ;; esac; done\nprintf '%s\\n' \"$@\" > \"$profile/args\"\nsleep 0.3\nprintf '41234\\n/devtools/browser/abc\\n' > \"$profile/DevToolsActivePort\"\nexec sleep 60\n",
+        )
+        .unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let profile = tempfile::tempdir().unwrap();
+        let options = LaunchOptions { profile: Some(profile.path().to_string_lossy().into_owned()), ..Default::default() };
+        let mut chrome = try_launch_chrome_on(&executable, &options, Debugger::Port).unwrap();
+        assert_eq!(chrome.ws_url, "ws://127.0.0.1:41234/devtools/browser/abc");
+        let args = std::fs::read_to_string(profile.path().join("args")).unwrap();
+        assert!(args.lines().any(|a| a == "--remote-debugging-port=0") && !args.contains("--remote-debugging-pipe"), "{args}");
+        chrome.kill();
+    }
+
+    /// The port path against a real Chrome: what a Windows launch falls back to when the pipe stays silent.
+    #[test]
+    #[ignore = "requires installed Chrome"]
+    fn a_real_chrome_on_a_port_is_reached_and_goes_with_its_launch() {
+        let executable = find_chrome().expect("a Chrome on this machine");
+        let profile = tempfile::tempdir().unwrap();
+        let options = LaunchOptions { headless: true, profile: Some(profile.path().to_string_lossy().into_owned()), ..Default::default() };
+        let started = std::time::Instant::now();
+        let chrome = try_launch_chrome_on(&executable, &options, Debugger::Port).unwrap();
+        assert!(started.elapsed() < Duration::from_secs(25), "{:?}", started.elapsed());
+        assert!(chrome.ws_url.starts_with("ws://127.0.0.1:") && chrome.ws_url.contains("/devtools/browser/"), "{}", chrome.ws_url);
+        let port: u16 = chrome.ws_url.split(':').nth(2).unwrap().split('/').next().unwrap().parse().unwrap();
+        assert!(std::net::TcpStream::connect(("127.0.0.1", port)).is_ok(), "Chrome listens where it said");
+        let pid = chrome.id();
+        drop(chrome);
+        std::thread::sleep(Duration::from_millis(500));
+        assert!(!crate::process::alive(pid), "the browser outlived its launch");
+    }
+
+    /// Windows: a browser that stays silent on its pipe is tried once more on a port, and every launch after it goes
+    /// there first. One that left early, or failed another way, is not: the port would fail it the same way.
+    #[test]
+    fn only_a_silent_pipe_on_windows_falls_back_to_the_port() {
+        let silent = PIPE_TIMEOUT.to_string();
+        assert_eq!(fallback_after(Debugger::Pipe, &silent, true), Some(Debugger::Port));
+        assert_eq!(fallback_after(Debugger::Pipe, &silent, false), None, "elsewhere the pipe is the only way");
+        assert_eq!(fallback_after(Debugger::Port, &silent, true), None, "the port is the last try");
+        assert_eq!(fallback_after(Debugger::Pipe, "Chrome exited early (exit code: 21) before its debugger answered", true), None);
+        assert!(pipe_wait(true) < pipe_wait(false), "a silent pipe on Windows is given up on sooner: {:?}", pipe_wait(true));
+        let args = debugger_args(vec!["--remote-debugging-pipe".into(), "--no-first-run".into()], Debugger::Port);
+        assert_eq!(args, ["--remote-debugging-port=0", "--no-first-run"]);
+        let args = debugger_args(vec!["--remote-debugging-pipe".into()], Debugger::Pipe);
+        assert_eq!(args, ["--remote-debugging-pipe"]);
+    }
+
+    /// A port file is read only once Chrome has written both its lines; a half-written one, or a port of 0, is not yet.
+    #[test]
+    fn the_port_file_names_the_address_once_it_is_whole() {
+        assert_eq!(devtools_address("9222\n/devtools/browser/x-1\n").as_deref(), Some("ws://127.0.0.1:9222/devtools/browser/x-1"));
+        assert_eq!(devtools_address("9222\r\n/devtools/browser/x-1\r\n").as_deref(), Some("ws://127.0.0.1:9222/devtools/browser/x-1"));
+        assert_eq!(devtools_address("9222\n"), None);
+        assert_eq!(devtools_address("0\n/devtools/browser/x\n"), None);
+        assert_eq!(devtools_address(""), None);
     }
 
     /// A profile given by name runs in a temp copy that goes with its browser: there is nothing to find again.
@@ -4234,5 +4424,637 @@ exec sleep 60"#,
     fn auto_connect_wait_stays_below_client_read_timeout() {
         let client_floor = crate::connection::read_timeout_for(&serde_json::json!({}));
         assert!(AUTO_CONNECT_WS_VERIFY_TIMEOUT < client_floor);
+    }
+}
+
+
+/// Runs the calling test alone in a child copy of the test binary, so an environment it changes (a PATH without the
+/// system folders, another HOME) never reaches the other tests of this process. Returns true in the child, where the
+/// body goes on; in the parent it runs the child, asserts it passed, and returns false for the body to stop.
+#[cfg(test)]
+pub(crate) fn own_process(module: &str, name: &str) -> bool {
+    let path = format!("{}::{name}", module.split_once("::").map_or(module, |(_, rest)| rest));
+    if std::env::var("U208B_OWN_PROCESS").is_ok_and(|v| v == path) {
+        return true;
+    }
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([path.as_str(), "--exact", "--nocapture", "--test-threads=1"])
+        .env("U208B_OWN_PROCESS", &path)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success() && String::from_utf8_lossy(&out.stdout).contains("1 passed"),
+        "the test failed in its own process:\n{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    false
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod host_lookup_tests {
+    use super::*;
+    use crate::test_utils::EnvGuard;
+    use std::os::unix::fs::PermissionsExt;
+
+    const CA_PEM: &str = "-----BEGIN CERTIFICATE-----\n\
+MIIDBTCCAe2gAwIBAgIUFhZ9tlfduuEvOIOcGuOA7E0SSL4wDQYJKoZIhvcNAQEL\n\
+BQAwEjEQMA4GA1UEAwwHdGVzdC1jYTAeFw0yNjAzMjUxNDE5MDVaFw0yNzAzMjUx\n\
+NDE5MDVaMBIxEDAOBgNVBAMMB3Rlc3QtY2EwggEiMA0GCSqGSIb3DQEBAQUAA4IB\n\
+DwAwggEKAoIBAQDcgmzozr7Ia72OCsxk2uKUFhM6wR0H69cv4qO5OViu+0qFoYr6\n\
+Bny2o+Q/ooqCCYveamPukYlZMFilnk9b4M2VwxK72pOVTkvyWUWpIJrV6OQKqsaf\n\
+DNgDdl4U4i2U/HKKNXTNtaVPzc3d40rcwy8dHVzFaTs8o7UG73foHQ2/7KQ6sY5d\n\
+gjOchbLDlhN2Nkyc4WxXEipesonUogLzZxx9gSMZN6VmXaIyijncAFxO9vSenTQd\n\
+FstTlTI/FCPQU2cg5K3rtToPli3j7z9oeeMrrt3pp1xmU5/cliz5kQ3CXxbH1UR3\n\
+uFAaW09wTsK+fSo8rBgGWO5JU706M1aL5wvXAgMBAAGjUzBRMB0GA1UdDgQWBBR3\n\
+yFGDemoQUIFA/YW1BJYhT6hlhzAfBgNVHSMEGDAWgBR3yFGDemoQUIFA/YW1BJYh\n\
+T6hlhzAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQCq5bl2J+JO\n\
+LpOZG4n4xbQUi456bV40a9lxFwXyR4toiOnLc9QTiFLtrRRMjiAYBlpnp7Aq7rPK\n\
+0dxGhFsNhTHYv5bKF3Wt6EKnfmjC5J2PQ4j4fZbqnBJVNhtP3/QdTg/Alx2DgVlP\n\
+vUaYBYvyM8aeAGCvlTr9XbciLgDHrO6xE0mppF87jG3DbVIqhGAa8z7KR286Hmw3\n\
+JtnWOCSAT+dNsAXmz4ebm7kp9OnpLLKjvrNEUNPA20J5S+BXTtPv7x/koRwSX35M\n\
+9yOorGsG0RB4CaEy4fpiKTewGNMdHNoZNevXB1s7jm3YdW5BDxvG4Su5RGqAjS+Y\n\
+49s7jC+okfzl\n\
+-----END CERTIFICATE-----\n";
+
+    fn exe(dir: &Path, name: &str, body: &str) -> PathBuf {
+        let path = dir.join(name);
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        path
+    }
+
+    /// PATH with `bin` in front: the rest of it stays, so other tests' `sleep` and `true` still resolve.
+    fn path_with(guard: &EnvGuard, bin: &Path) {
+        let old = std::env::var("PATH").unwrap_or_default();
+        guard.set("PATH", &format!("{}:{old}", bin.display()));
+    }
+
+    fn real_bundle(dir: &Path) -> CaBundle {
+        let file = dir.join("ca.pem");
+        std::fs::write(&file, CA_PEM).unwrap();
+        crate::ca_bundle::load(file.to_str().unwrap()).unwrap()
+    }
+
+    /// The `-d` database path of the first certutil call in the log, and so the temporary home it lives under.
+    fn home_of(log: &str) -> PathBuf {
+        let db = log.split_whitespace().find_map(|w| w.strip_prefix("sql:")).unwrap();
+        PathBuf::from(db).ancestors().nth(4).unwrap().to_path_buf()
+    }
+
+    #[test]
+    fn a_ca_certificate_is_imported_into_a_private_trust_store_and_the_staged_copy_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("log");
+        exe(dir.path(), "certutil", &format!("echo \"$@\" >> {l}", l = log.display()));
+        let guard = EnvGuard::new(&["PATH"]);
+        path_with(&guard, dir.path());
+
+        let home = prepare_nss_home(&real_bundle(dir.path())).unwrap();
+        let calls = std::fs::read_to_string(&log).unwrap();
+        let lines: Vec<&str> = calls.lines().collect();
+        assert_eq!(lines.len(), 2, "{calls}");
+        assert!(lines[0].starts_with("-N --empty-password -d sql:"), "{calls}");
+        assert!(lines[1].starts_with("-A -d sql:") && lines[1].contains("-t C,, -n agent-browser-ca-0 -i "), "{calls}");
+
+        let path = home.path().to_path_buf();
+        assert_eq!(path, home_of(&calls));
+        assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o700);
+        assert_eq!(std::fs::read_link(path.join(".pki")).unwrap(), PathBuf::from(".local/share/pki"));
+        assert!(!path.join("ca-0.der").exists(), "the staged certificate goes once imported");
+        drop(home);
+        assert!(!path.exists(), "the store goes with its last holder");
+    }
+
+    #[test]
+    fn a_certutil_that_refuses_the_import_fails_the_launch_and_leaves_no_trust_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("log");
+        exe(
+            dir.path(),
+            "certutil",
+            &format!("echo \"$@\" >> {l}\nif [ \"$1\" = -A ]; then echo 'bad certificate' >&2; exit 1; fi", l = log.display()),
+        );
+        let guard = EnvGuard::new(&["PATH"]);
+        path_with(&guard, dir.path());
+
+        let err = prepare_nss_home(&real_bundle(dir.path())).err().expect("import must fail");
+        assert_eq!(err, "Failed to import the CA certificate: bad certificate");
+        let home = home_of(&std::fs::read_to_string(&log).unwrap());
+        assert!(!home.exists(), "a failed setup removes the store it made");
+    }
+
+    #[test]
+    fn a_certutil_that_fails_silently_is_reported_by_its_exit_status() {
+        let dir = tempfile::tempdir().unwrap();
+        exe(dir.path(), "certutil", "exit 4");
+        let guard = EnvGuard::new(&["PATH"]);
+        path_with(&guard, dir.path());
+        let err = prepare_nss_home(&real_bundle(dir.path())).err().unwrap();
+        assert!(err.starts_with("Failed to initialize the NSS database: certutil exited with"), "{err}");
+        assert!(err.contains("libnss3-tools"), "{err}");
+    }
+
+    #[test]
+    fn a_missing_certutil_says_how_to_install_it() {
+        if !own_process(module_path!(), "a_missing_certutil_says_how_to_install_it") {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let empty = dir.path().join("empty");
+        std::fs::create_dir_all(&empty).unwrap();
+        let guard = EnvGuard::new(&["PATH"]);
+        guard.set("PATH", &empty.display().to_string());
+        let err = run_certutil(&["-N"], "initialize the NSS database").unwrap_err();
+        assert!(err.starts_with("Failed to initialize the NSS database: could not run certutil"), "{err}");
+        assert!(err.contains("agent-browser install --with-deps"), "{err}");
+    }
+
+    #[test]
+    fn a_launch_takes_a_prepared_store_before_a_bundle_and_a_bundle_before_a_file() {
+        let dir = tempfile::tempdir().unwrap();
+        exe(dir.path(), "certutil", "exit 0");
+        let guard = EnvGuard::new(&["PATH"]);
+        path_with(&guard, dir.path());
+
+        assert!(resolve_prepared_nss_home(&LaunchOptions::default()).unwrap().is_none());
+
+        let prepared = prepare_nss_home(&real_bundle(dir.path())).unwrap();
+        let options = LaunchOptions {
+            prepared_nss_home: Some(prepared.clone()),
+            ca_cert: Some("/path/that/must/not/be/read".into()),
+            ..Default::default()
+        };
+        let got = resolve_prepared_nss_home(&options).unwrap().unwrap();
+        assert_eq!(got.path(), prepared.path());
+
+        let options = LaunchOptions { ca_bundle: Some(real_bundle(dir.path())), ca_cert: Some("/path/that/must/not/be/read".into()), ..Default::default() };
+        let made = resolve_prepared_nss_home(&options).unwrap().unwrap();
+        assert_ne!(made.path(), prepared.path());
+
+        let file = dir.path().join("ca.pem");
+        let options = LaunchOptions { ca_cert: Some(file.display().to_string()), ..Default::default() };
+        assert!(resolve_prepared_nss_home(&options).unwrap().is_some(), "a named file is loaded and imported");
+
+        let options = LaunchOptions { ca_cert: Some(dir.path().join("missing.pem").display().to_string()), ..Default::default() };
+        let err = resolve_prepared_nss_home(&options).err().unwrap();
+        assert!(err.contains("Failed to read CA certificate"), "{err}");
+    }
+
+    /// A DevToolsActivePort that names a live server: it answers the first command, as Chrome does.
+    async fn live_cdp_server() -> u16 {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            use futures_util::{SinkExt, StreamExt};
+            while let Ok((stream, _)) = listener.accept().await {
+                let Ok(mut ws) = tokio_tungstenite::accept_async(stream).await else { continue };
+                if let Some(Ok(_)) = ws.next().await {
+                    let _ = ws.send(tokio_tungstenite::tungstenite::Message::Text(r#"{"id":1,"result":{}}"#.into())).await;
+                }
+            }
+        });
+        port
+    }
+
+    #[test]
+    fn the_devtools_port_file_gives_a_port_and_a_path_or_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(read_devtools_active_port(dir.path()), None);
+        let file = dir.path().join("DevToolsActivePort");
+        std::fs::write(&file, "9333\n/devtools/browser/abc\n").unwrap();
+        assert_eq!(read_devtools_active_port(dir.path()), Some((9333, "/devtools/browser/abc".to_string())));
+        std::fs::write(&file, "9333").unwrap();
+        assert_eq!(read_devtools_active_port(dir.path()), Some((9333, "/devtools/browser".to_string())), "no path line: the default");
+        std::fs::write(&file, "not-a-port\n/x").unwrap();
+        assert_eq!(read_devtools_active_port(dir.path()), None);
+        std::fs::write(&file, "").unwrap();
+        assert_eq!(read_devtools_active_port(dir.path()), None);
+    }
+
+    #[test]
+    fn chromes_profile_folders_sit_under_the_homes_config() {
+        if !own_process(module_path!(), "chromes_profile_folders_sit_under_the_homes_config") {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["HOME"]);
+        guard.set("HOME", &dir.path().display().to_string());
+        let dirs = get_chrome_user_data_dirs();
+        assert_eq!(dirs.len(), 4);
+        assert_eq!(dirs[0], dir.path().join(".config/google-chrome"));
+        assert_eq!(dirs[3], dir.path().join(".config/BraveSoftware/Brave-Browser"));
+        assert_eq!(find_chrome_user_data_dir(), None);
+        std::fs::create_dir_all(dir.path().join(".config/chromium")).unwrap();
+        std::fs::write(dir.path().join(".config/chromium/Local State"), "{}").unwrap();
+        assert_eq!(find_chrome_user_data_dir(), Some(dir.path().join(".config/chromium")));
+    }
+
+    #[tokio::test]
+    async fn an_auto_connect_takes_the_live_browser_a_port_file_names() {
+        if !own_process(module_path!(), "an_auto_connect_takes_the_live_browser_a_port_file_names") {
+            return;
+        }
+        let port = live_cdp_server().await;
+        let dir = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["HOME"]);
+        guard.set("HOME", &dir.path().display().to_string());
+        let profile = dir.path().join(".config/google-chrome");
+        std::fs::create_dir_all(&profile).unwrap();
+        std::fs::write(profile.join("DevToolsActivePort"), format!("{port}\n/devtools/browser/xyz")).unwrap();
+
+        let url = auto_connect_cdp().await.unwrap();
+        assert_eq!(url, format!("ws://127.0.0.1:{port}/devtools/browser/xyz"));
+        assert!(profile.join("DevToolsActivePort").exists(), "a live port file stays");
+    }
+
+    #[tokio::test]
+    async fn an_auto_connect_removes_the_port_file_a_dead_browser_left() {
+        if !own_process(module_path!(), "an_auto_connect_removes_the_port_file_a_dead_browser_left") {
+            return;
+        }
+        let dead = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let dir = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["HOME"]);
+        guard.set("HOME", &dir.path().display().to_string());
+        let profile = dir.path().join(".config/chromium");
+        std::fs::create_dir_all(&profile).unwrap();
+        std::fs::write(profile.join("DevToolsActivePort"), format!("{dead}\n/devtools/browser/old")).unwrap();
+
+        let result = auto_connect_cdp().await;
+        assert!(!profile.join("DevToolsActivePort").exists(), "the stale file goes: {result:?}");
+    }
+
+    #[tokio::test]
+    async fn an_auto_connect_with_no_port_file_finds_nothing_here() {
+        if !own_process(module_path!(), "an_auto_connect_with_no_port_file_finds_nothing_here") {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["HOME"]);
+        guard.set("HOME", &dir.path().display().to_string());
+        // 9222 and 9229 are probed last: a machine with a browser on one of them answers, any other gets the refusal.
+        if let Err(e) = auto_connect_cdp().await {
+            assert!(e.starts_with("No running Chrome instance found"), "{e}");
+        }
+    }
+
+    #[test]
+    fn a_profile_copy_is_marked_cleanly_closed_only_when_it_said_crashed() {
+        let dir = tempfile::tempdir().unwrap();
+        let prefs = dir.path().join("Preferences");
+        let read = || serde_json::from_slice::<serde_json::Value>(&std::fs::read(&prefs).unwrap()).unwrap();
+
+        std::fs::write(&prefs, r#"{"profile":{"exit_type":"Crashed","name":"A"},"x":1}"#).unwrap();
+        mark_cleanly_closed(dir.path());
+        let v = read();
+        assert_eq!(v["profile"]["exit_type"], "Normal");
+        assert_eq!((&v["profile"]["name"], &v["x"]), (&serde_json::json!("A"), &serde_json::json!(1)));
+        let temps = std::fs::read_dir(dir.path()).unwrap().count();
+        assert_eq!(temps, 1, "no temporary file is left behind");
+
+        let other = r#"{"profile":{"exit_type":"SessionEnded"}}"#;
+        std::fs::write(&prefs, other).unwrap();
+        mark_cleanly_closed(dir.path());
+        assert_eq!(std::fs::read_to_string(&prefs).unwrap(), other);
+
+        std::fs::write(&prefs, "{not json").unwrap();
+        mark_cleanly_closed(dir.path());
+        assert_eq!(std::fs::read_to_string(&prefs).unwrap(), "{not json");
+
+        std::fs::write(&prefs, r#"{"x":1}"#).unwrap();
+        mark_cleanly_closed(dir.path());
+        assert_eq!(std::fs::read_to_string(&prefs).unwrap(), r#"{"x":1}"#);
+
+        std::fs::remove_file(&prefs).unwrap();
+        mark_cleanly_closed(dir.path());
+        assert!(!prefs.exists());
+    }
+
+    #[test]
+    fn a_directory_copy_keeps_nested_files_and_skips_the_cache_folders() {
+        let src = tempfile::tempdir().unwrap();
+        let dst = tempfile::tempdir().unwrap();
+        let s = src.path();
+        std::fs::create_dir_all(s.join("Default/Local Storage")).unwrap();
+        std::fs::create_dir_all(s.join("Default/Cache")).unwrap();
+        std::fs::create_dir_all(s.join("Code Cache")).unwrap();
+        std::fs::write(s.join("Local State"), "ls").unwrap();
+        std::fs::write(s.join("Default/Cookies"), "c").unwrap();
+        std::fs::write(s.join("Default/Local Storage/a"), "a").unwrap();
+        std::fs::write(s.join("Default/Cache/big"), "x").unwrap();
+        std::fs::write(s.join("Code Cache/big"), "x").unwrap();
+
+        let out = dst.path().join("copy");
+        copy_dir_recursive(s, &out).unwrap();
+        assert_eq!(std::fs::read_to_string(out.join("Local State")).unwrap(), "ls");
+        assert_eq!(std::fs::read_to_string(out.join("Default/Cookies")).unwrap(), "c");
+        assert_eq!(std::fs::read_to_string(out.join("Default/Local Storage/a")).unwrap(), "a");
+        assert!(!out.join("Default/Cache").exists() && !out.join("Code Cache").exists());
+    }
+
+    #[test]
+    fn a_directory_copy_of_a_missing_folder_names_it() {
+        let dst = tempfile::tempdir().unwrap();
+        let err = copy_dir_recursive(&dst.path().join("nope"), &dst.path().join("out")).unwrap_err();
+        assert!(err.starts_with("Failed to read directory ") && err.contains("nope"), "{err}");
+    }
+
+    #[test]
+    fn the_sandbox_goes_off_when_the_operator_says_so_and_never_twice() {
+        if !own_process(module_path!(), "the_sandbox_goes_off_when_the_operator_says_so_and_never_twice") {
+            return;
+        }
+        let guard = EnvGuard::new(&["AGENT_BROWSER_NO_SANDBOX"]);
+        guard.set("AGENT_BROWSER_NO_SANDBOX", "1");
+        assert!(should_disable_sandbox(&[]));
+        assert!(!should_disable_sandbox(&["--no-sandbox".to_string()]));
+    }
+
+    #[test]
+    fn the_newest_puppeteer_chrome_wins_by_version_number() {
+        if !own_process(module_path!(), "the_newest_puppeteer_chrome_wins_by_version_number") {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["PUPPETEER_CACHE_DIR", "HOME", "USERPROFILE"]);
+        guard.set("PUPPETEER_CACHE_DIR", &dir.path().display().to_string());
+        guard.set("HOME", &home.path().display().to_string());
+        guard.set("USERPROFILE", &home.path().display().to_string());
+        assert_eq!(find_puppeteer_chrome(), None);
+        for v in ["linux-9.0.1", "linux-10.0.0", "linux-8.0.0"] {
+            let bin = dir.path().join("chrome").join(v).join("chrome-linux64");
+            std::fs::create_dir_all(&bin).unwrap();
+            if v != "linux-8.0.0" {
+                std::fs::write(bin.join("chrome"), "").unwrap();
+            }
+        }
+        std::fs::create_dir_all(dir.path().join("chrome/linux-99.0.0")).unwrap();
+        assert_eq!(find_puppeteer_chrome(), Some(dir.path().join("chrome/linux-10.0.0/chrome-linux64/chrome")));
+    }
+
+    #[test]
+    fn a_puppeteer_cache_under_the_home_is_searched_too() {
+        if !own_process(module_path!(), "a_puppeteer_cache_under_the_home_is_searched_too") {
+            return;
+        }
+        let empty = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["PUPPETEER_CACHE_DIR", "HOME", "USERPROFILE"]);
+        guard.set("PUPPETEER_CACHE_DIR", &empty.path().display().to_string());
+        guard.set("HOME", &home.path().display().to_string());
+        guard.set("USERPROFILE", &home.path().display().to_string());
+        let bin = home.path().join(".cache/puppeteer/chrome/linux-1.0.0/chrome-linux64");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("chrome"), "").unwrap();
+        assert_eq!(find_puppeteer_chrome(), Some(bin.join("chrome")));
+    }
+
+    #[test]
+    fn the_newest_playwright_chromium_wins_and_the_testing_layout_is_the_fallback() {
+        if !own_process(module_path!(), "the_newest_playwright_chromium_wins_and_the_testing_layout_is_the_fallback") {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["PLAYWRIGHT_BROWSERS_PATH", "HOME", "USERPROFILE"]);
+        guard.set("PLAYWRIGHT_BROWSERS_PATH", &dir.path().display().to_string());
+        guard.set("HOME", &home.path().display().to_string());
+        guard.set("USERPROFILE", &home.path().display().to_string());
+        assert_eq!(find_playwright_chromium(), None);
+        let make = |name: &str, layout: &str| {
+            let d = dir.path().join(name).join(layout);
+            std::fs::create_dir_all(&d).unwrap();
+            std::fs::write(d.join("chrome"), "").unwrap();
+        };
+        make("chromium-1000", "chrome-linux");
+        make("chromium-1100", "chrome-linux64");
+        make("firefox-2000", "chrome-linux");
+        assert_eq!(find_playwright_chromium(), Some(dir.path().join("chromium-1100/chrome-linux64/chrome")));
+        make("chromium-1100", "chrome-linux");
+        assert_eq!(find_playwright_chromium(), Some(dir.path().join("chromium-1100/chrome-linux/chrome")), "the standard layout is preferred");
+    }
+
+    #[test]
+    fn a_playwright_cache_under_the_home_is_searched_too() {
+        if !own_process(module_path!(), "a_playwright_cache_under_the_home_is_searched_too") {
+            return;
+        }
+        let home = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["PLAYWRIGHT_BROWSERS_PATH", "HOME", "USERPROFILE"]);
+        guard.remove("PLAYWRIGHT_BROWSERS_PATH");
+        guard.set("HOME", &home.path().display().to_string());
+        guard.set("USERPROFILE", &home.path().display().to_string());
+        let d = home.path().join(".cache/ms-playwright/chromium-5/chrome-linux");
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("chrome"), "").unwrap();
+        assert_eq!(find_playwright_chromium(), Some(d.join("chrome")));
+    }
+
+    #[test]
+    fn a_chrome_on_the_path_is_found_when_none_was_installed_for_the_engine() {
+        if !own_process(module_path!(), "a_chrome_on_the_path_is_found_when_none_was_installed_for_the_engine") {
+            return;
+        }
+        let home = tempfile::tempdir().unwrap();
+        let bin = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["PATH", "HOME", "USERPROFILE", "PUPPETEER_CACHE_DIR", "PLAYWRIGHT_BROWSERS_PATH"]);
+        guard.set("HOME", &home.path().display().to_string());
+        guard.set("USERPROFILE", &home.path().display().to_string());
+        guard.remove("PUPPETEER_CACHE_DIR");
+        guard.remove("PLAYWRIGHT_BROWSERS_PATH");
+        // `which` is found in the system folders; a stand-in `google-chrome` (the first name asked for) sits first on
+        // the PATH, so it is found ahead of any Chrome the machine has installed (CI's runner has one).
+        let chrome = exe(bin.path(), "google-chrome", "exit 0");
+        path_with(&guard, bin.path());
+        assert_eq!(find_chrome(), Some(chrome));
+        // A cache folder that exists but holds no browser only warns; the search goes on.
+        std::fs::create_dir_all(home.path().join(".agent-browser/browsers")).unwrap();
+        assert_eq!(find_chrome().map(|p| p.file_name().unwrap().to_owned()), Some("google-chrome".into()));
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod named_profile_tests {
+    use super::*;
+    use crate::test_utils::EnvGuard;
+
+    /// A Chrome user-data folder holding the given (directory, display name) profiles, each with a crashed-exit Preferences.
+    fn user_data(dir: &Path, profiles: &[(&str, &str)]) {
+        let cache: serde_json::Map<String, serde_json::Value> =
+            profiles.iter().map(|(d, n)| (d.to_string(), serde_json::json!({ "name": n }))).collect();
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(dir.join("Local State"), serde_json::json!({ "profile": { "info_cache": cache } }).to_string()).unwrap();
+        for (d, _) in profiles {
+            std::fs::create_dir_all(dir.join(d).join("Cache")).unwrap();
+            std::fs::write(dir.join(d).join("Cookies"), d).unwrap();
+            std::fs::write(dir.join(d).join("Preferences"), r#"{"profile":{"exit_type":"Crashed"}}"#).unwrap();
+        }
+    }
+
+    #[test]
+    fn profiles_are_listed_by_directory_with_their_display_names() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(list_chrome_profiles(dir.path()).is_empty(), "no Local State");
+        std::fs::write(dir.path().join("Local State"), "{oops").unwrap();
+        assert!(list_chrome_profiles(dir.path()).is_empty(), "unreadable Local State");
+        std::fs::write(dir.path().join("Local State"), r#"{"profile":{"info_cache":[]}}"#).unwrap();
+        assert!(list_chrome_profiles(dir.path()).is_empty(), "an info_cache that is no object");
+        std::fs::write(dir.path().join("Local State"), r#"{"profile":{"info_cache":{"Profile 2":{"name":"Work"},"Default":{}}}}"#).unwrap();
+        let got: Vec<(String, String)> = list_chrome_profiles(dir.path()).into_iter().map(|p| (p.directory, p.name)).collect();
+        assert_eq!(got, [("Default".into(), "Default".into()), ("Profile 2".into(), "Work".into())], "sorted; a missing name is the directory's");
+    }
+
+    #[test]
+    fn a_profile_name_resolves_by_directory_then_display_name_then_either_in_any_case() {
+        let dir = tempfile::tempdir().unwrap();
+        user_data(dir.path(), &[("Default", "Person 1"), ("Profile 1", "Work"), ("Profile 2", "work")]);
+        assert_eq!(resolve_chrome_profile(dir.path(), "Profile 1").unwrap(), "Profile 1");
+        assert_eq!(resolve_chrome_profile(dir.path(), "person 1").unwrap(), "Default");
+        assert_eq!(resolve_chrome_profile(dir.path(), "DEFAULT").unwrap(), "Default");
+        let ambiguous = resolve_chrome_profile(dir.path(), "WORK").unwrap_err();
+        assert!(ambiguous.starts_with("Ambiguous profile name \"WORK\"") && ambiguous.contains("Profile 1 (Work)") && ambiguous.contains("Profile 2 (work)"), "{ambiguous}");
+        let missing = resolve_chrome_profile(dir.path(), "Nobody").unwrap_err();
+        assert!(missing.starts_with("Chrome profile \"Nobody\" not found. Available profiles:\n  Default (Person 1)"), "{missing}");
+        let empty = tempfile::tempdir().unwrap();
+        assert!(resolve_chrome_profile(empty.path(), "x").unwrap_err().starts_with("No Chrome profiles found in "));
+    }
+
+    #[test]
+    fn a_profile_copy_holds_the_profile_without_its_caches_and_says_it_closed_cleanly() {
+        let dir = tempfile::tempdir().unwrap();
+        user_data(dir.path(), &[("Default", "Person 1")]);
+        let copy = copy_chrome_profile(dir.path(), "Default").unwrap();
+        assert!(copy.join("Local State").is_file());
+        assert_eq!(std::fs::read_to_string(copy.join("Default/Cookies")).unwrap(), "Default");
+        assert!(!copy.join("Default/Cache").exists());
+        let prefs: serde_json::Value = serde_json::from_slice(&std::fs::read(copy.join("Default/Preferences")).unwrap()).unwrap();
+        assert_eq!(prefs["profile"]["exit_type"], "Normal");
+        std::fs::remove_dir_all(&copy).unwrap();
+
+        let err = copy_chrome_profile(dir.path(), "Profile 9").unwrap_err();
+        assert!(err.starts_with("Profile directory not found: ") && err.ends_with("Profile 9"), "{err}");
+    }
+
+    #[test]
+    fn a_launch_with_no_chrome_anywhere_lists_where_it_looked() {
+        if !own_process(module_path!(), "a_launch_with_no_chrome_anywhere_lists_where_it_looked") {
+            return;
+        }
+        let home = tempfile::tempdir().unwrap();
+        let empty = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["PATH", "HOME", "USERPROFILE", "PUPPETEER_CACHE_DIR", "PLAYWRIGHT_BROWSERS_PATH"]);
+        for v in ["HOME", "USERPROFILE"] {
+            guard.set(v, &home.path().display().to_string());
+        }
+        guard.set("PATH", &empty.path().display().to_string());
+        guard.remove("PUPPETEER_CACHE_DIR");
+        guard.remove("PLAYWRIGHT_BROWSERS_PATH");
+        let err = launch_chrome(&LaunchOptions::default()).err().expect("no browser to launch");
+        assert!(err.starts_with("Chrome not found. Checked:\n  - agent-browser cache: "), "{err}");
+        assert!(err.contains(&home.path().join(".agent-browser/browsers").display().to_string()), "{err}");
+        assert!(err.ends_with("Run `agent-browser install` to download Chrome, or use --executable-path."), "{err}");
+    }
+
+    #[test]
+    fn a_profile_named_with_no_chrome_user_data_folder_says_to_give_a_path() {
+        if !own_process(module_path!(), "a_profile_named_with_no_chrome_user_data_folder_says_to_give_a_path") {
+            return;
+        }
+        let home = tempfile::tempdir().unwrap();
+        let fixture = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["HOME", "USERPROFILE"]);
+        for v in ["HOME", "USERPROFILE"] {
+            guard.set(v, &home.path().display().to_string());
+        }
+        let options = LaunchOptions {
+            executable_path: Some(fake_chrome(fixture.path(), "exec sleep 60").display().to_string()),
+            profile: Some("Default".into()),
+            ..Default::default()
+        };
+        let err = launch_chrome(&options).err().unwrap();
+        assert!(err.starts_with("No Chrome user data directory found. Cannot resolve profile name."), "{err}");
+    }
+
+    #[test]
+    fn a_profile_named_runs_in_a_copy_that_goes_with_its_browser() {
+        if !own_process(module_path!(), "a_profile_named_runs_in_a_copy_that_goes_with_its_browser") {
+            return;
+        }
+        let home = tempfile::tempdir().unwrap();
+        let fixture = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["HOME", "USERPROFILE"]);
+        for v in ["HOME", "USERPROFILE"] {
+            guard.set(v, &home.path().display().to_string());
+        }
+        user_data(&home.path().join(".config/google-chrome"), &[("Default", "Person 1"), ("Profile 1", "Work")]);
+        let options = LaunchOptions {
+            executable_path: Some(fake_chrome(fixture.path(), "exec sleep 60").display().to_string()),
+            profile: Some("work".into()),
+            ..Default::default()
+        };
+        let chrome = launch_chrome(&options).unwrap();
+        let copy = chrome.temp_user_data_dir.clone().expect("the copy is the browser's to clean up");
+        assert!(copy.starts_with(std::env::temp_dir()) && copy.join("Profile 1/Cookies").is_file());
+        assert!(!copy.join("Default/Cookies").exists(), "only the profile asked for is copied");
+        let args = std::fs::read_to_string(copy.join("args")).unwrap();
+        assert!(args.lines().any(|a| a == "--profile-directory=Profile 1"), "{args}");
+        assert!(args.lines().any(|a| a == format!("--user-data-dir={}", copy.display())), "{args}");
+        drop(chrome);
+        assert!(!copy.exists(), "the copy goes with its browser");
+    }
+
+    #[test]
+    fn a_profile_name_no_profile_answers_to_fails_the_launch_before_any_browser_starts() {
+        if !own_process(module_path!(), "a_profile_name_no_profile_answers_to_fails_the_launch_before_any_browser_starts") {
+            return;
+        }
+        let home = tempfile::tempdir().unwrap();
+        let fixture = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["HOME", "USERPROFILE"]);
+        for v in ["HOME", "USERPROFILE"] {
+            guard.set(v, &home.path().display().to_string());
+        }
+        user_data(&home.path().join(".config/google-chrome"), &[("Default", "Person 1")]);
+        let options = LaunchOptions {
+            executable_path: Some(fake_chrome(fixture.path(), "exec sleep 60").display().to_string()),
+            profile: Some("Nobody".into()),
+            ..Default::default()
+        };
+        let err = launch_chrome(&options).err().unwrap();
+        assert!(err.starts_with("Chrome profile \"Nobody\" not found."), "{err}");
+        assert!(!fixture.path().join("args").exists(), "the browser was never started");
+    }
+
+    #[test]
+    fn a_browser_that_fails_every_attempt_is_tried_three_times_and_its_profile_copy_removed() {
+        if !own_process(module_path!(), "a_browser_that_fails_every_attempt_is_tried_three_times_and_its_profile_copy_removed") {
+            return;
+        }
+        use std::os::unix::fs::PermissionsExt;
+        let home = tempfile::tempdir().unwrap();
+        let fixture = tempfile::tempdir().unwrap();
+        let guard = EnvGuard::new(&["HOME", "USERPROFILE"]);
+        for v in ["HOME", "USERPROFILE"] {
+            guard.set(v, &home.path().display().to_string());
+        }
+        user_data(&home.path().join(".config/google-chrome"), &[("Default", "Person 1")]);
+        let executable = fixture.path().join("chrome");
+        let log = fixture.path().join("runs");
+        std::fs::write(
+            &executable,
+            format!("#!/bin/sh\nfor arg do case \"$arg\" in --user-data-dir=*) echo \"${{arg#*=}}\" >> {} ;; esac; done\necho 'FATAL: nope' >&2\nexit 5\n", log.display()),
+        )
+        .unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let options = LaunchOptions { executable_path: Some(executable.display().to_string()), profile: Some("Default".into()), ..Default::default() };
+        let err = launch_chrome(&options).err().unwrap();
+        assert!(err.contains("FATAL: nope") || err.contains("pipe"), "{err}");
+        let runs = std::fs::read_to_string(&log).unwrap();
+        let dirs: Vec<&str> = runs.lines().collect();
+        assert_eq!(dirs.len(), 3, "three attempts: {runs}");
+        assert!(dirs.iter().all(|d| *d == dirs[0]), "every attempt runs in the same copy");
+        assert!(!Path::new(dirs[0]).exists(), "the copy is removed when every attempt has failed");
     }
 }

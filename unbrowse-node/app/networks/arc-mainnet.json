@@ -3,10 +3,33 @@
   "network": "arc-mainnet",
   "chain_id": 5042,
   "registry_from": 28500000,
-  "deployment": null,
+  "deployment": {
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "usdc_decimals": 6,
+    "unb": "0x12329f0d6e930cb6266b91e4a94a9b990e00ae2c",
+    "pool": "0xeeac1d470b2ca72c7c5eeb539e03129bf98685db",
+    "settlement": "0xfcfd324306e96168d3d1273715580360166b8d4d",
+    "dnssec": "0xbd372b9c952fded4076e76003455ed9dc691901e",
+    "domains": "0x21d9788308222107aa35996a5e99f837a13ad39e",
+    "escrow_wait": 14,
+    "epoch_blocks": 170400,
+    "coins": {
+      "route_coins": "0xdb4573b4e0a046da2476cbd13fdd235218514b3c",
+      "route_coin_implementation": "0x75b87ec8feb7d13feda95fc21f6f15b8429daec9",
+      "coin_stakes": "0x96a66af09501be6fe3cd609e02237864a8b2d6ce",
+      "coin_fetch": "0x401a3c751a930183e4a05f8fdd8bfb8169131c73",
+      "coin_bounties": "0x464d60e167c4f6cf39476958e2ec4ccfb3d1bb7b",
+      "chain_id": 5042,
+      "block": 32740301
+    },
+    "chain_id": 5042,
+    "block": 32740301,
+    "code": "0x343ddb6e50930277e8957250abac8b6709f1448c36d17899c88db33b5c5ce34c"
+  },
   "existing": {
     "usdc": "0x3600000000000000000000000000000000000000",
     "unb": null,
     "pool": null
-  }
+  },
+  "epoch_blocks": 170400
 }

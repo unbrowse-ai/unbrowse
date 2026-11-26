@@ -134,6 +134,8 @@ export type AnswerFields = { returned: string[]; more: AnswerField[]; moreTotal:
 
 export type CallOptions = {
   signal?: AbortSignal;
+  /** Use "never" to disable browser fallback for the route. */
+  browser?: "auto" | "never";
   /**
    * Fields of the answer to get besides the ones a call hands back by default, by the paths in `result.fields.more`
    * (`["items[].rating"]`), or `["*"]` for the whole answer. By default a call hands back the fields its goal names
@@ -147,7 +149,7 @@ export type CallOptions = {
   pays?: boolean;
 };
 
-export type DoOptions = CallOptions & {
+export type DoOptions = Omit<CallOptions, "browser"> & {
   /**
    * A page that does it, walked when no route does yet. Put what you'd search for in its query
    * (`https://hn.algolia.com/?q=rust`): the value becomes the route's input.
@@ -178,7 +180,7 @@ export type DoOptions = CallOptions & {
 /** One page of several asked at once (`doPages`): a url, or a url with its own goal and inputs. */
 export type PageAsk = string | { url: string; goal?: string; inputs?: Record<string, string | number | boolean> };
 
-export type DoPagesOptions = CallOptions & {
+export type DoPagesOptions = Omit<CallOptions, "browser"> & {
   /** Values by the routes' input names, for every page; a page's own win over them. */
   inputs?: Record<string, string | number | boolean>;
   /** As `DoOptions.browser`. */

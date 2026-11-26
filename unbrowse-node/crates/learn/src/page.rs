@@ -118,6 +118,7 @@ fn read_once(body: &str, base: &url::Url) -> Value {
     }
 
     let mut links = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     // The content region's own links before the page's: a search's results are its main region's anchors, and a menu's
     // hundred links would fill the budget first.
     let mut anchors: Vec<_> = doc.select(&sel("a[href]")).collect();
@@ -133,7 +134,7 @@ fn read_once(body: &str, base: &url::Url) -> Value {
         // inside the anchor, and that is no part of its name.
         let label = squash(&a.descendants().filter(|n| !skipped.contains(&n.id())).filter_map(|n| n.value().as_text().map(|t| t.to_string())).collect::<Vec<_>>().join(" "));
         let Some(href) = a.value().attr("href").and_then(|h| base.join(h).ok()) else { continue };
-        if label.is_empty() || !matches!(href.scheme(), "http" | "https") {
+        if label.is_empty() || !matches!(href.scheme(), "http" | "https") || !seen.insert(href.as_str().to_owned()) {
             continue;
         }
         links.push(json!({ "text": label, "url": href.as_str() }));
@@ -292,7 +293,7 @@ pub fn answer_asked(body: &str, base: &url::Url, asked: &[&str]) -> (Value, bool
 pub fn answer_like(body: &str, base: &url::Url, like: Option<&Value>, asked: &[&str]) -> (Value, bool) {
     let page = read(body, base);
     let shaped = like.filter(|l| l.as_object().is_some_and(|o| !o.is_empty()));
-    let embedded = crate::trace::embedded_json_like(body, shaped).and_then(|s| serde_json::from_str::<Value>(&s).ok());
+    let embedded = crate::trace::embedded_json_value_like(body, shaped);
     let like_it = |state: &Value| shaped.is_some_and(|l| crate::trace::shares_top_keys(state, l));
     let said = format!("{}\n{}", page["title"].as_str().unwrap_or_default(), page["text"].as_str().unwrap_or_default());
     let drawn_from = |state: &Value| {
@@ -306,6 +307,21 @@ pub fn answer_like(body: &str, base: &url::Url, like: Option<&Value>, asked: &[&
         Some(state) if prices_only_in_text(&state, page["text"].as_str().unwrap_or_default()) => (page, true),
         Some(state) if holds_the_page(&state, page["text"].as_str().unwrap_or_default()) || drawn_from(&state) => (state, false),
         _ => (page, true),
+    }
+}
+
+/// The links the received markup actually rendered. Preserve distinct query strings and the first text for a URL.
+pub(crate) fn rendered_links(body: &str, base: &url::Url) -> Vec<Value> {
+    let mut page = read(body, base);
+    std::mem::take(page["links"].as_array_mut().expect("a page read has links"))
+}
+
+/// The links from a document whose structured answer does not already carry a link view.
+pub fn links_beside_state(body: &str, base: &url::Url, state: &Value) -> Vec<Value> {
+    if state.is_object() && state.get("links").is_none() {
+        rendered_links(body, base)
+    } else {
+        Vec::new()
     }
 }
 
@@ -394,7 +410,16 @@ fn an_html_door(body: &str, at: &url::Url) -> bool {
     PARSES.with(|n| n.set(n.get() + 1));
     let sel = |s: &str| Selector::parse(s).expect("static selector");
     let doc = Html::parse_document(body);
-    let runs_code = doc.select(&sel("script")).next().is_some();
+    // A page that runs its own code: a script it loads, or one the browser executes. A `<script>` that carries data —
+    // `type="application/json"`, `ld+json`, a template — is not code, so a page whose scripts only hold its state draws
+    // itself from that state and is a page.
+    let runs_code = doc.select(&sel("script")).any(|s| {
+        if s.value().attr("src").is_some() {
+            return true;
+        }
+        let kind = s.value().attr("type").unwrap_or_default().trim().to_ascii_lowercase();
+        kind.is_empty() || kind.contains("javascript") || kind.contains("ecmascript") || kind == "module"
+    });
     let asks = doc.select(&sel("input:not([type=hidden]):not([type=checkbox]), textarea, select")).next().is_some();
     let own = |h: &str| !h.starts_with('#') && at.join(h).ok().and_then(|u| u.host_str().map(String::from)).zip(at.host_str()).is_some_and(|(to, here)| crate::identity::same_site(&to, here));
     let links_home = doc.select(&sel("a[href]")).filter_map(|a| a.value().attr("href")).any(own);
@@ -707,6 +732,52 @@ mod tests {
     }
 
     #[test]
+    fn rendered_links_do_not_change_the_structured_answer() {
+        let base = url::Url::parse("https://shop.example/search?q=desk").unwrap();
+        let html = |state: &str, link: &str| format!(r#"<html><body><main><a href="{link}">Browse catalog</a></main><script type="application/json">{state}</script></body></html>"#);
+        let initial = json!({ "items": [{"name": "desk"}], "total": 1 });
+        let state = initial.to_string();
+        let (first, _) = answer_asked(&html(&state, "/catalog?view=a"), &base, &["desk"]);
+        let (second, _) = answer_like(&html(&state, "/catalog?view=b"), &base, Some(&initial), &["desk"]);
+        assert_eq!(first, initial);
+        assert_eq!(first, second);
+        let empty = json!({ "items": [] });
+        let (reply, _) = answer_like(&html(&empty.to_string(), "/catalog"), &base, Some(&initial), &["desk"]);
+        assert_eq!(reply, empty);
+        assert!(crate::answer::lists_nothing(&reply, &["desk"]));
+        assert!(crate::replay::answers_like(&crate::graph::shape(&first), &crate::graph::shape(&empty)));
+    }
+
+    #[test]
+    fn a_page_answer_keeps_links_alongside_its_embedded_state() {
+        let html = r#"<html><head><title>Packages</title></head><body>
+            <nav><a href="/login">Sign in</a></nav>
+            <main><a href="/packages/playwright">playwright</a><a href="/packages/playwright">Read more</a>
+                <a href="/packages/playwright?tab=versions">Versions</a></main>
+            <script type="application/json">{"items":[{"name":"playwright","version":"1.56.0"}]}</script>
+            </body></html>"#;
+        let base = url::Url::parse("https://www.example.com/search?q=playwright").unwrap();
+        let shape = json!({ "items": [{"name": "playwright", "version": "1.56.0"}] });
+        let (replayed, is_page) = answer_like(html, &base, Some(&shape), &["playwright"]);
+        assert!(!is_page);
+        assert_eq!(replayed["items"], shape["items"]);
+        assert_eq!(Value::Array(rendered_links(html, &base)), json!([
+            { "text": "playwright", "url": "https://www.example.com/packages/playwright" },
+            { "text": "Versions", "url": "https://www.example.com/packages/playwright?tab=versions" }
+        ]));
+
+        let html = html.replace(r#"{"items":"#, r#"{"links":["/packages/docs"],"items":"#);
+        let (replayed, _) = answer_like(&html, &base, Some(&shape), &["playwright"]);
+        assert_eq!(replayed["links"], json!(["/packages/docs"]));
+
+        let repeats = r#"<a href="/packages/playwright">playwright</a>"#.repeat(LINK_LIMIT);
+        let html = format!(r#"<html><body><main>{repeats}<a href="/packages/docs">docs</a></main></body></html>"#);
+        let links = rendered_links(&html, &base);
+        assert_eq!(links.len(), 2);
+        assert_eq!(links[1]["url"], "https://www.example.com/packages/docs");
+    }
+
+    #[test]
     fn prefers_the_largest_embedded_state() {
         let html = r#"<html><head></head><body>
             <script type="application/ld+json">{"@type":"WebSite"}</script>
@@ -903,6 +974,29 @@ mod tests {
         let at = url::Url::parse("https://shop.example/items/none-such").unwrap();
         let door = r#"<!DOCTYPE html><html lang="en"><head><meta name="viewport" content="width=device-width, initial-scale=1" /><link href="/_x/assets/styles.css" rel="stylesheet" /><title>One moment</title><style>#loading-error { display: none; }</style></head><body><noscript><div><img src="/_x/icon.svg" alt="" role="presentation" /><span>JavaScript is disabled in your browser.</span><p>Please enable JavaScript to proceed.</p></div></noscript><div id="loading-error" role="alert" aria-live="polite">A required part of this site couldn't load. This may be due to a browser extension, network issues, or browser settings. Please check your connection, disable any ad blockers, or try using a different browser.</div><script>function loadScript(src) { return new Promise((resolve, reject) => { const s = document.createElement('script'); s.onload = resolve; s.onerror = reject; s.src = src; document.body.appendChild(s); }); } loadScript('/_x/errors.js').then(() => loadScript('/_x/script.js?reload=true'));</script></body></html>"#;
         assert!(a_door(200, door, &at));
+    }
+
+    /// A page whose scripts only carry its data runs no code: it draws itself from the state it shipped with, so it is
+    /// a page, not a check serving itself. Its state may be any JSON a script tag holds, and code is still code.
+    #[test]
+    fn a_page_whose_scripts_only_carry_its_data_is_no_door() {
+        let at = url::Url::parse("https://market.example/search/iphone%2015").unwrap();
+        let pages = [
+            r#"<html><body><script id="state" type="application/json">{"results":[{"title":"iPhone 15"},{"title":"iPhone 15 Pro"}]}</script></body></html>"#,
+            r#"<html><head><script type="application/ld+json">{"@context":"https://schema.org","@type":"Product"}</script></head><body><app-root></app-root></body></html>"#,
+            r#"<html><body><script type="text/template" id="row"><li>{\"title\":\"x\"}</li></script><app-root></app-root></body></html>"#,
+        ];
+        for page in pages {
+            assert!(!a_door(200, page, &at), "{page}");
+        }
+        let code = [
+            r#"<html><head><script>window.__check={};</script></head><body><p>Wait.</p></body></html>"#,
+            r#"<html><head><script type="module">import "/hold.js";</script></head><body><p>Wait.</p></body></html>"#,
+            r#"<html><head><script type="text/javascript">var a=1;</script></head><body><p>Wait.</p></body></html>"#,
+        ];
+        for page in code {
+            assert!(a_door(200, page, &at), "code runs: {page}");
+        }
     }
 
     /// Checked against pages that aren't the ones this rule was written from: every document in the walks the node

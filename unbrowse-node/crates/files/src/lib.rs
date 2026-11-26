@@ -415,6 +415,8 @@ pub const ERC8004: Format = fields("erc8004", "erc8004-<owner>.json");
 pub const PEER_KEY: Format = fields("peer-key", "peer-key.json");
 /// This node's remote MCP address: on or off, the gateway and the node's key there (`app/src/remote.rs`).
 pub const REMOTE: Format = fields("remote", "remote.json");
+/// The agent apps that have reached this node, by the name each gives at MCP `initialize` (`app/src/heard.rs`).
+pub const HEARD: Format = fields("heard", "heard.json");
 pub const PEER_PORT: Format = fields("peer-port", "peer-port.json");
 pub const PEER_PUBLISHED: Format = fields("peer-published", "peer-published.json");
 pub const PEER_TABLE: Format = items("peer-table", "peer-table.json");
@@ -489,6 +491,7 @@ pub const ALL: &[&Format] = &[
     &ERC8004,
     &PEER_KEY,
     &REMOTE,
+    &HEARD,
     &PEER_PORT,
     &PEER_PUBLISHED,
     &PEER_TABLE,

@@ -67,6 +67,70 @@ pub struct Recipe {
     /// How the call reads on to its list's next page (version 2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub paging: Option<unbrowse_learn::paging::Paging>,
+    /// The site's sign-in, for a route that needs a session: the requests that sign in, as a recipe of their own whose
+    /// only caller values are `login.account` and the secret `login.secret`, which each caller fills from its own vault
+    /// (`credential.never`). Never the contributor's account or session: what they typed is out of it, and the check
+    /// says so ([`sign_in_admitted`]). A caller's node takes it as its own kept sign-in only on its owner's yes
+    /// (`setups::adopt`), and so signs in as its owner's own account, never as anyone else.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sign_in: Option<Box<Recipe>>,
+}
+
+/// The caller value a shared sign-in sends as the account that signs in.
+pub const LOGIN_ACCOUNT: &str = "login.account";
+/// The caller value a shared sign-in sends as the password, from the caller's own vault.
+pub const LOGIN_SECRET: &str = "login.secret";
+
+/// Whether `s`, a route's shared sign-in (`Recipe::sign_in`) for `site`, is only a sign-in, as the node that runs it can
+/// read from it alone, before any value is filled in:
+/// - it is held to the rules for someone else's code ([`check_foreign`]) and goes only over https to public hosts
+///   ([`goes_where_it_may`], `Egress::Foreign`), whoever runs it;
+/// - every step goes to a host the template fixes, on `site` itself: the account and the password go to the site whose
+///   sign-in it is, and to nowhere a template builds at call time;
+/// - its only caller values are [`LOGIN_SECRET`], a secret, and [`LOGIN_ACCOUNT`]; each is sent only in the body of its
+///   last request, which changes the site (not a GET), never in an address, a header or a cookie, where a site writes
+///   it into its logs and its pages;
+/// - it holds no sign-in of its own.
+pub fn sign_in_admitted(s: &Recipe, site: &str) -> Result<(), String> {
+    let refused = |why: String| Err(refuse(format!("its sign-in {why}")));
+    if s.sign_in.is_some() {
+        return refused("holds a sign-in of its own".into());
+    }
+    check_foreign(s).map_err(|e| format!("its sign-in: {e}"))?;
+    goes_where_it_may(s, unbrowse_learn::egress::Egress::Foreign).map_err(|e| format!("its sign-in: {e}"))?;
+    let home = unbrowse_learn::identity::site_of(site);
+    for (n, step) in s.steps.iter().enumerate() {
+        let host = url::Url::parse(&step.url).ok().and_then(|u| u.host_str().map(str::to_string));
+        let Some(host) = host.filter(|h| !h.contains('{')) else { return refused(format!("sends step {} to a host made at call time", n + 1)) };
+        if unbrowse_learn::identity::site_of(&host) != home {
+            return refused(format!("sends step {} to {host}, not to {home}", n + 1));
+        }
+    }
+    let Some(last) = s.steps.last() else { return refused("holds no request".into()) };
+    if matches!(last.method.as_str(), "GET" | "HEAD") {
+        return refused("signs in with a request that changes nothing (a GET)".into());
+    }
+    if !s.params.iter().any(|p| p.name == LOGIN_SECRET && p.secret) {
+        return refused(format!("sends no {LOGIN_SECRET}"));
+    }
+    for p in &s.params {
+        match p.name.as_str() {
+            LOGIN_SECRET if p.secret && p.default.is_none() => {}
+            LOGIN_ACCOUNT if !p.secret && p.default.is_none() => {}
+            other => return refused(format!("asks its caller for {other}, not only an account and a password")),
+        }
+    }
+    for (n, step) in s.steps.iter().enumerate() {
+        for f in &step.fields {
+            if let Source::Param { name } = &f.from {
+                let in_the_body = matches!(f.loc, Loc::Json(_) | Loc::Form(_));
+                if n + 1 != s.steps.len() || !in_the_body {
+                    return refused(format!("sends {name} outside the body of its last request"));
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// One value the caller supplies.
@@ -292,7 +356,15 @@ fn token_shaped(v: &str) -> bool {
 /// Whether a request header's value is shaped like a session's: token-shaped ([`token_shaped`]) in a field that isn't
 /// one of HTTP's representation fields, whose values are never credentials.
 pub(crate) fn session_shaped(header: &str, value: &str) -> bool {
-    token_shaped(value.trim()) && !representation_field(header)
+    token_shaped(value.trim()) && !representation_field(header) && !address_field(header)
+}
+
+/// The fields a request names its own address in (HTTP/2's pseudo-headers, `Host`, and where it was sent from,
+/// `Referer` and `Origin`): a host, a path or a page, the same for everyone who asks there, never who is asking. A host
+/// name reads token-shaped (`uj5wyc0l7x-dsn.algolia.net`), and holding it said a route's site as `{session}` (Steve,
+/// UNB-300).
+fn address_field(h: &str) -> bool {
+    h.starts_with(':') || ["host", "referer", "origin"].iter().any(|f| h.eq_ignore_ascii_case(f))
 }
 
 /// HTTP's representation and negotiation fields (RFC 9110 §8.3 to §8.6, §12.5): their values are media types, codings,
@@ -363,7 +435,15 @@ fn bare_root(root: &str) -> String {
 /// credential in the exact bytes that would be published (R6.36, prevent). The reason names the pattern and never the
 /// value.
 pub fn of_route(route: &store::Route) -> Result<Recipe, String> {
-    let recipe = compile(route)?;
+    let mut recipe = compile(route)?;
+    // A route that needs a session carries the site's sign-in, with nothing of the owner's in it (`setups::shared`),
+    // so a caller's node can sign in as its own owner and have what the owner has.
+    if !matches!(recipe.session, SessionType::None) {
+        if let Some(sign_in) = crate::setups::shared(&route.site) {
+            recipe.sign_in = Some(Box::new(sign_in));
+            check_foreign(&recipe)?;
+        }
+    }
     leaks(&canonical(&recipe))?;
     split_card(&recipe)?;
     Ok(recipe)
@@ -668,6 +748,7 @@ pub fn compile_with(route: &store::Route, detect: bool) -> Result<Recipe, String
         write: route.graph.steps.iter().any(|s| unbrowse_learn::ledger::writes_as(s, false)) || route.judged.writes,
         browser_assisted: route.graph.steps.iter().any(|s| s.needs_browser || s.is_page_signed()),
         steps,
+        sign_in: None,
     };
     // A listed body is checked by every node that fetches it as someone else's code, so it is held to that rule here,
     // where its owner can still see why it can't be shared.
@@ -1017,6 +1098,9 @@ pub fn check_foreign(r: &Recipe) -> Result<(), String> {
 /// drive's forced listing, as [`compile_with`] has it.
 fn check_foreign_with(r: &Recipe, detect: bool) -> Result<(), String> {
     check(r)?;
+    if let Some(s) = &r.sign_in {
+        sign_in_admitted(s, &r.site)?;
+    }
     words_shown_plainly(r)?;
     fixed_values_admitted(r, detect)?;
     defaults_admitted(r, detect)?;
@@ -1203,10 +1287,46 @@ pub(crate) fn into_route(recipe: Recipe, listing: &crate::listing::SignedListing
     // A default becomes the input's value in every field it fills: held there to the rules a constant is, here as well
     // as in `check`, since this is where it is put in each.
     defaults_admitted(&recipe, true)?;
+    let steps = steps_of(&recipe);
+    let digest = listing.content_id.strip_prefix(HASH_PREFIX).unwrap_or(&listing.content_id);
+    let id: String = format!("{}-{}", listing.route_id, &digest[..digest.len().min(12)]).chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect();
+    let what = format!("{} {}", recipe.method, recipe.endpoint);
+    let mut route = store::Route::from_graph(id, what, recipe.root.clone(), Graph { steps, provisional: false, page_origin: unbrowse_learn::graph::origin_of(&recipe.root) , ..Graph::default() }).ok_or("the body has no target step")?;
+    if route.site != recipe.site || route.site != listing.site {
+        return Err("the body calls another site than its listing names".into());
+    }
+    // Its target is the listing's site; every step of it must be: a chain that reaches another site could carry what
+    // one call read to a host its contributor chose. Its own subdomains are the same site; another site is not, and a
+    // host built at call time is never.
+    only_its_site(&route.graph.steps, &listing.site)?;
+    route.paging = recipe.paging.clone();
+    for i in &mut route.inputs {
+        i.options = recipe.params.iter().find(|p| p.name == i.name).map(|p| p.options.clone()).unwrap_or_default();
+    }
+    route.yours = false;
+    route.listing = None;
+    route.fetched = Some(store::Fetched {
+        entry_id: format!("{:#x}", listing.entry()),
+        route_id: listing.route_id.clone(),
+        agent_id: listing.agent_id.clone(),
+        content_id: listing.content_id.clone(),
+        listed_as: listing.terms.description.clone(),
+        fetched_at: store::now(),
+    });
+    // Someone else's body writes when any of its steps does, not only its target (`store::route_writes`).
+    route.write = store::route_writes(&route);
+    Ok(route)
+}
+
+
+
+/// A body's steps as this node runs them: each value from where the body says it comes, every step marked someone
+/// else's (`Step::foreign`).
+fn steps_of(recipe: &Recipe) -> Vec<Step> {
     let bodies: Vec<Option<Body>> = recipe.steps.iter().map(|s| s.body.as_deref().and_then(|b| serde_json::from_str(b).ok())).collect();
     let secret: HashMap<&str, bool> = recipe.params.iter().map(|p| (p.name.as_str(), p.secret)).collect();
     let optional: HashMap<&str, Option<&String>> = recipe.params.iter().filter(|p| p.optional).map(|p| (p.name.as_str(), p.default.as_ref())).collect();
-    let steps: Vec<Step> = recipe
+    recipe
         .steps
         .iter()
         .zip(bodies)
@@ -1251,37 +1371,17 @@ pub(crate) fn into_route(recipe: Recipe, listing: &crate::listing::SignedListing
             // A route another node serves carries what its own walk read for a value, never a fallback of this one's.
             fallbacks: Vec::new(),
         })
-        .collect();
-    let digest = listing.content_id.strip_prefix(HASH_PREFIX).unwrap_or(&listing.content_id);
-    let id: String = format!("{}-{}", listing.route_id, &digest[..digest.len().min(12)]).chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect();
-    let what = format!("{} {}", recipe.method, recipe.endpoint);
-    let mut route = store::Route::from_graph(id, what, recipe.root.clone(), Graph { steps, provisional: false, page_origin: unbrowse_learn::graph::origin_of(&recipe.root) , ..Graph::default() }).ok_or("the body has no target step")?;
-    if route.site != recipe.site || route.site != listing.site {
-        return Err("the body calls another site than its listing names".into());
-    }
-    // Its target is the listing's site; every step of it must be: a chain that reaches another site could carry what
-    // one call read to a host its contributor chose. Its own subdomains are the same site; another site is not, and a
-    // host built at call time is never.
-    only_its_site(&route.graph.steps, &listing.site)?;
-    route.paging = recipe.paging.clone();
-    for i in &mut route.inputs {
-        i.options = recipe.params.iter().find(|p| p.name == i.name).map(|p| p.options.clone()).unwrap_or_default();
-    }
-    route.yours = false;
-    route.listing = None;
-    route.fetched = Some(store::Fetched {
-        entry_id: format!("{:#x}", listing.entry()),
-        route_id: listing.route_id.clone(),
-        agent_id: listing.agent_id.clone(),
-        content_id: listing.content_id.clone(),
-        listed_as: listing.terms.description.clone(),
-        fetched_at: store::now(),
-    });
-    // Someone else's body writes when any of its steps does, not only its target (`store::route_writes`).
-    route.write = store::route_writes(&route);
-    Ok(route)
+        .collect()
 }
 
+/// A route's shared sign-in (`Recipe::sign_in`) as the graph of a sign-in, once it passes [`sign_in_admitted`] for
+/// `site`: what `setups::adopt` keeps as the node's own sign-in, filled from its own vault, on its owner's yes.
+pub(crate) fn sign_in_graph(sign_in: &Recipe, site: &str) -> Result<Graph, String> {
+    sign_in_admitted(sign_in, site)?;
+    let steps = steps_of(sign_in);
+    only_its_site(&steps, site)?;
+    Ok(Graph { steps, provisional: false, page_origin: unbrowse_learn::graph::origin_of(&sign_in.root), ..Graph::default() })
+}
 
 /// Refuses a body with a step off the site it was listed for: a route is the site's own API surface, and someone
 /// else's body may not send what it read to a host its contributor picked.

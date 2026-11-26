@@ -641,9 +641,14 @@ impl Door {
         let gated = trace.exchanges.iter().find(|e| {
             let refused = e.is_refused() && e.url.host_str().is_some_and(|h| crate::identity::on_site(h, site));
             let challenge = crate::page::a_door(e.status, e.response_body.as_deref().unwrap_or_default(), &e.url);
-            (refused || challenge) && Door::kind_of(e).is_some()
+            (refused || challenge) && e.url.host_str().is_some_and(|h| crate::identity::on_site(h, site))
         })?;
-        let kind = Door::kind_of(gated).or_else(|| trace.exchanges.iter().find_map(Door::kind_of))?;
+        // A check carries a vendor's mark or it doesn't. One that serves itself — a page that only runs its own code to
+        // let a caller in — has none, and is still a door: `Unknown`, earned by that code (`Earn::Recompute`, as the
+        // kind is not device-bound). A bare refusal carries no page to run, and stays the site's own answer.
+        let kind = Door::kind_of(gated)
+            .or_else(|| trace.exchanges.iter().find_map(Door::kind_of))
+            .or(if gated.is_refused() { None } else { Some(DoorKind::Unknown) })?;
         Some(Door { at: Some(gated.url.to_string()), ..Door::classified(trace, kind) })
     }
 
@@ -1620,7 +1625,32 @@ const MIN_ISSUED: usize = 16;
 /// was made for the visit, not kept from before it, and sent again later it is refused. It is the page's to make, so
 /// the step needs the page, and the jar never holds it.
 fn issued_this_visit(trace: &Trace, value: &str) -> bool {
-    value.chars().count() >= MIN_ISSUED && trace.exchanges.iter().any(|e| e.response_body.as_deref().is_some_and(|b| b.contains(value)))
+    value.chars().count() >= MIN_ISSUED && trace.exchanges.iter().any(|e| {
+        e.response_body.as_deref().is_some_and(|b| b.contains(value)) && !immutable_public_script(e)
+    })
+}
+
+fn immutable_public_script(e: &Exchange) -> bool {
+    let script = match e.resource_type.as_deref() {
+        Some("Script") => true,
+        None | Some("Other") => {
+            let mime = e.response_mime.split(';').next().unwrap_or_default().trim();
+            ["application/javascript", "text/javascript", "application/ecmascript", "text/ecmascript"]
+                .iter().any(|kind| mime.eq_ignore_ascii_case(kind))
+        }
+        Some(_) => false,
+    };
+    if !script || !(200..300).contains(&e.status) ||
+        e.request_header("authorization").is_some() || e.request_header("cookie").is_some() ||
+        e.response_header("set-cookie").is_some() {
+        return false;
+    }
+    let cache = e.response_header("cache-control").unwrap_or_default().to_ascii_lowercase();
+    let directives = || cache.split(',').map(|part| part.trim().split('=').next().unwrap_or_default());
+    let vary = e.response_header("vary").unwrap_or_default().to_ascii_lowercase();
+    directives().any(|part| part == "immutable")
+        && !directives().any(|part| matches!(part, "private" | "no-store" | "no-cache"))
+        && vary.split(',').map(str::trim).all(|part| matches!(part, "" | "accept-encoding" | "origin"))
 }
 
 /// Whether the walk kept the header `name` at `value` across its requests: it sent the header once, or some request
@@ -1774,6 +1804,52 @@ mod session_header_tests {
         unconfirmed(&mut g);
         assert_eq!(session_headers(&mut g, &kept).len(), 1, "no call issued it: the session's");
         assert!(matches!(field(&g), Some(Class::Minted { .. })));
+    }
+
+    #[test]
+    fn a_bearer_from_an_immutable_public_script_stays_in_the_session() {
+        let bearer = "Bearer sample_application_token_12345";
+        let bundle = Exchange {
+            method: "GET".into(),
+            url: "https://static.example/app.js".parse().unwrap(),
+            request_headers: vec![],
+            request_body: None,
+            status: 200,
+            response_headers: vec![("cache-control".into(), "max-age=31536000, immutable".into()), ("vary".into(), "origin, Accept-Encoding".into())],
+            response_body: Some(format!("const credential = '{bearer}';")),
+            response_mime: "application/javascript".into(),
+            resource_type: Some("Script".into()),
+            main_frame: None,
+        };
+        let call = Exchange {
+            url: "https://app.example/api/saved".parse().unwrap(),
+            request_headers: vec![("authorization".into(), bearer.into())],
+            response_headers: vec![],
+            response_body: Some(r#"{"items":[{"id":1}]}"#.into()),
+            response_mime: "application/json".into(),
+            resource_type: Some("Fetch".into()),
+            ..bundle.clone()
+        };
+        let mut trace = Trace { exchanges: vec![bundle, call], inputs: vec![] };
+        let unconfirmed = || {
+            let mut graph = build(&[Trace { exchanges: vec![trace.exchanges[1].clone()], inputs: vec![] }], |_| true).unwrap();
+            graph.steps[0].fields.iter_mut().find(|f| f.loc == Loc::Header("authorization".into())).unwrap().class = Class::Unconfirmed { value: bearer.into() };
+            graph
+        };
+        let (mut public, mut private, mut worker, mut data) = (unconfirmed(), unconfirmed(), unconfirmed(), unconfirmed());
+        assert_eq!(session_headers(&mut public, &trace), vec![("authorization".into(), bearer.into())]);
+        assert!(!serde_json::to_string(&public).unwrap().contains(bearer));
+        trace.exchanges[0].response_headers[0].1 = "private, immutable".into();
+        assert!(session_headers(&mut private, &trace).is_empty());
+        assert!(private.steps[0].needs_browser);
+
+        trace.exchanges[0].response_headers[0].1 = "max-age=31536000, immutable".into();
+        trace.exchanges[0].resource_type = Some("Other".into());
+        assert_eq!(session_headers(&mut worker, &trace), vec![("authorization".into(), bearer.into())]);
+        assert!(!worker.steps[0].needs_browser);
+        trace.exchanges[0].response_mime = "application/json".into();
+        assert!(session_headers(&mut data, &trace).is_empty());
+        assert!(data.steps[0].needs_browser);
     }
 
     /// A header that only says what the body is, spelled also in a script the page loaded, was not issued for the visit
@@ -2005,6 +2081,11 @@ fn url_template(ex: &Exchange, fields: &[Field]) -> String {
                 )
         })
     };
+    // An address with no host and no path of pieces (`data:…`, which holds its own answer) is one opaque text: it has
+    // no place a caller fills, and rebuilt from a host and pieces it would be `data://`, its answer gone.
+    if ex.url.cannot_be_a_base() {
+        return ex.url.as_str().to_string();
+    }
     let mut url = format!("{}://{}", ex.url.scheme(), ex.url.host_str().unwrap_or_default());
     if let Some(port) = ex.url.port() {
         url.push_str(&format!(":{port}"));
@@ -3086,6 +3167,15 @@ mod page_read_tests {
             resource_type: Some(if mime.starts_with("text/html") { "Document" } else { "Fetch" }.into()),
             main_frame: None,
         }
+    }
+
+    /// A `data:` address a page's script fetched holds its own answer, and is kept whole: it has no host or pieces to
+    /// write it again from (rebuilt so, it was `data://`, its answer gone). An address with a host is written as before.
+    #[test]
+    fn an_address_with_no_host_is_kept_whole() {
+        let packed = "data:application/json;base64,eyJxIjoibGFtcCJ9";
+        assert_eq!(url_template(&ex("GET", packed, "application/json", r#"{"q":"lamp"}"#, None), &[]), packed);
+        assert_eq!(url_template(&ex("GET", "https://shop.example/api/items?page=2", "application/json", "{}", None), &[]), "https://shop.example/api/items?page=2");
     }
 
     /// A page read as text keeps the shape of the JSON script it carries: that shape is what tells a later page from a

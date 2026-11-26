@@ -460,7 +460,10 @@ pub async fn start(node: St<'_>) -> Result<Value, String> {
     let site = reachable_site().await;
     // No agent grants ride on the sign-in: agents pay from the node's own balance by default. Paying from the owner's
     // account instead is an Advanced choice, which sends its grants from the same page on its own (`renew`).
-    let url = page_with(&site, &me, &nonce, fund, &[], false);
+    // The same visit links this node to the owner's account for apps signed in to the gateway's /mcp (ChatGPT, Claude):
+    // the page names it (`own=`), and the node asks the owner in its own dialog before it is linked.
+    let own = crate::remote::own_for_sign_in(&site).map(|p| format!("&own={p}")).unwrap_or_default();
+    let url = format!("{}{own}", page_with(&site, &me, &nonce, fund, &[], false));
     waiting().began(&nonce);
     let opened = open(&url).is_ok();
     let n = node.clone();
@@ -769,7 +772,7 @@ async fn keep_once_confirmed(keys: Option<&(dyn unbrowse_core::KeyStore + Send +
 }
 
 /// Opens `url` in the owner's default browser. A test's node opens nothing: the test is the browser.
-fn open(url: &str) -> std::io::Result<()> {
+pub(crate) fn open(url: &str) -> std::io::Result<()> {
     if cfg!(test) {
         return Err(std::io::Error::other("a test opens no browser"));
     }

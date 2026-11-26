@@ -1320,3 +1320,7 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "proxy_cov_tests.rs"]
+mod proxy_cov_tests;

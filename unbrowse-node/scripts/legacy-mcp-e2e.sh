@@ -84,7 +84,9 @@ done
 [ ! -e "$HOME/.unbrowse/bridges/first" ] || fail "a grant exists before anyone asked for one"
 session before node "$cli" mcp > "$work/before.tools"
 [ "$(cat "$work/before.tools")" = "unbrowse_connect" ] || fail "with no grant, an old entry listed: $(cat "$work/before.tools")"
-grep -q "unbrowse connect" "$work/before.out" || fail "with no grant, the old entry isn't told to run unbrowse connect"
+# It tells its person where to connect it, in the app, and never hands them a command (#822, `said_to_agents`).
+grep -q "click Connect" "$work/before.out" || fail "with no grant, the old entry isn't told where to connect it: $(cat "$work/before.out")"
+! grep -q "unbrowse connect" "$work/before.out" || fail "with no grant, the old entry hands its person a command"
 
 # The owner lets the node's first agent in (on a desktop the window asks; here the root key file stands in).
 i=0

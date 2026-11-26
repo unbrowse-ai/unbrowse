@@ -141,6 +141,9 @@ export type CallResult = {
   records?: number | null;
   bounties?: BountyAsks;
   browser?: boolean;
+  route_id?: string;
+  replaced?: string;
+  learned_again?: string;
   outcome?: Outcome;
   outcome_from?: string;
   next?: Next;
@@ -226,6 +229,7 @@ export type DoResult =
       route: Route;
       result: CallResult;
       picked_by?: string;
+      learned_routes?: string[];
       outcome?: Outcome;
       outcome_from?: string;
       next?: Next;
@@ -332,6 +336,7 @@ export type FirstBuy = {
   stake_tx: string | null;
   at: number;
 };
+export type ForPerson = { kind: "link" | "dialog" | "app"; url?: string; say: string };
 export type Funding = {
   live: string | null;
   short: GasShort | null;
@@ -501,7 +506,7 @@ export type NetworkSkipped = {
 export type NewAgent = { agent: Agent; setup: string; token: string };
 export type NewRemoteKey = { agent: Agent; token: string; url: string; claude: string };
 export type Next = {
-  tool: "unbrowse_do" | "unbrowse_call" | "unbrowse_browse" | "unbrowse_challenge" | "unbrowse_search";
+  tool: "unbrowse_do" | "unbrowse_call" | "unbrowse_browse" | "unbrowse_challenge" | "unbrowse_search" | "unbrowse_setup";
   args: Record<string, unknown>;
 };
 export type NodeInfo = { name: string; version: string; api_port: number; dev: boolean; terms_version: string };
@@ -683,6 +688,7 @@ export type Settings = {
   list_per_day?: number;
   private_network: boolean;
   terms_accepted: string | null;
+  advanced: boolean | null;
   peer_network: boolean;
   light: boolean;
   serve_kept: boolean;
@@ -693,6 +699,7 @@ export type Settings = {
   passkeys: boolean;
   passkeys_never: string[];
   chain: string;
+  chain_chosen: boolean;
   max_fetch_usdc: number;
   deposit_floor_usdc: number;
   coin_dev_buy_bps: number;
@@ -706,6 +713,16 @@ export type Settings = {
   keep_card_codes: boolean;
   accept_bearer: boolean;
 };
+export type Setup = {
+  steps: SetupStep[];
+  left: string[];
+  did: string;
+  ok: boolean;
+  said: string;
+  person: ForPerson | null;
+};
+export type SetupStatus = { steps: SetupStep[]; left: string[] };
+export type SetupStep = { id: string; done: boolean; optional: boolean; said: string; next: Next | null };
 export type ShareBlocked =
   | { kind: "locked" | "network_off" }
   | { kind: "no_settlement"; error: string }
@@ -804,6 +821,7 @@ export type Whoami = {
   node: string;
   browser?: BrowserState;
   browser_fetch?: boolean;
+  call_browser?: boolean;
   owner?: OwnerReach;
 };
 export type WrongPage = { page: string; why: string };
@@ -927,7 +945,13 @@ export interface AgentPrimitives {
     result: LinkPreview;
   };
   unbrowse_call: {
-    args: { route_id: string; inputs?: Record<string, string>; fields?: string[] };
+    args: {
+      route_id: string;
+      inputs?: Record<string, string>;
+      /** Use never for replay only. Default auto allows browser fallback. */
+      browser?: "auto" | "never";
+      fields?: string[];
+    };
     result: CallResult;
   };
   unbrowse_inspect: {
@@ -972,6 +996,13 @@ export interface AgentPrimitives {
   unbrowse_whoami: {
     args: Record<string, never>;
     result: Whoami;
+  };
+  unbrowse_setup: {
+    args: {
+      do?: "accept_terms" | "sign_in" | "connect_apps" | "tools" | "web" | "connect_site";
+      host?: string;
+    };
+    result: Setup;
   };
   unbrowse_report: {
     args: {
@@ -1018,10 +1049,11 @@ export const PRIMITIVES = {
   unbrowse_observe: { tool: "unbrowse_observe", method: "POST", path: "/v1/observe", renamed: [], args: ["goal", "session", "site"], required: [], sdk: ["observe"], cli: "observe" },
   unbrowse_logins: { tool: "unbrowse_logins", method: "GET", path: "/v1/logins", renamed: [], args: [], required: [], sdk: ["logins", "cards"], cli: "logins" },
   unbrowse_open: { tool: "unbrowse_open", method: "GET", path: "/v1/open", renamed: [{ http: "q", tool: "link" }], args: ["link"], required: ["link"], sdk: ["open"], cli: "open" },
-  unbrowse_call: { tool: "unbrowse_call", method: "POST", path: "/v1/routes/{id}/call", renamed: [{ http: "id", tool: "route_id" }], args: ["fields", "inputs", "route_id"], required: ["route_id"], sdk: ["call"], cli: "call" },
+  unbrowse_call: { tool: "unbrowse_call", method: "POST", path: "/v1/routes/{id}/call", renamed: [{ http: "id", tool: "route_id" }], args: ["browser", "fields", "inputs", "route_id"], required: ["route_id"], sdk: ["call"], cli: "call" },
   unbrowse_inspect: { tool: "unbrowse_inspect", method: "GET", path: "/v1/routes/{id}/inspect", renamed: [{ http: "id", tool: "route_id" }], args: ["route_id"], required: ["route_id"], sdk: ["inspect"], cli: "inspect" },
   unbrowse_judge: { tool: "unbrowse_judge", method: "POST", path: "/v1/routes/{id}/judge", renamed: [{ http: "id", tool: "route_id" }], args: ["bounty", "entry", "fields", "links", "route_id", "url", "verdict", "what", "why", "word", "writes"], required: ["route_id", "verdict"], sdk: ["judge"], cli: "judge" },
   unbrowse_whoami: { tool: "unbrowse_whoami", method: "GET", path: "/v1/whoami", renamed: [], args: [], required: [], sdk: ["whoami"], cli: "whoami" },
+  unbrowse_setup: { tool: "unbrowse_setup", method: "POST", path: "/v1/setup", renamed: [], args: ["do", "host"], required: [], sdk: ["setup"], cli: "setup" },
   unbrowse_report: { tool: "unbrowse_report", method: "POST", path: "/v1/report", renamed: [], args: ["error", "expected", "goal", "got", "kind", "route_id", "summary", "tool", "url"], required: ["kind", "summary", "expected", "got"], sdk: ["report"], cli: "report" },
 } as const satisfies Record<keyof AgentPrimitives, PrimitiveSpec>;
 
@@ -1079,11 +1111,14 @@ export interface OwnerCommandTypes {
         path: string;
         note?: string;
         manual?: boolean;
+        heard?: number;
       }[];
     };
   };
   agent_connect: {
-    args: { clients: ("claude_code" | "claude_desktop" | "cursor" | "codex")[] };
+    args: {
+      clients: ("claude_code" | "claude_desktop" | "cursor" | "codex" | "vscode" | "windsurf" | "devin" | "gemini_cli" | "antigravity" | "qwen_code" | "copilot_cli" | "factory_droid" | "kiro" | "warp" | "amp" | "opencode" | "kilo_code" | "augment" | "junie" | "cline" | "roo_code" | "lm_studio" | "hermes" | "openclaw" | "elizaos")[];
+    };
     result: {
       results: { id: string; name: string; ok: boolean; restart_needed: boolean; error: string | null }[];
     };
@@ -1421,6 +1456,10 @@ export interface OwnerCommandTypes {
     args: { name?: string };
     result: NewRemoteKey;
   };
+  remote_link: {
+    args: Record<string, never>;
+    result: { url: string; opened: boolean };
+  };
   remote_revoke: {
     args: Record<string, never>;
     result: Remote;
@@ -1480,6 +1519,7 @@ export interface OwnerCommandTypes {
         list_per_day?: number | null;
         private_network?: boolean;
         terms_accepted?: string | null;
+        advanced?: boolean | null;
         peer_network?: boolean;
         light?: boolean;
         serve_kept?: boolean;
@@ -1490,6 +1530,7 @@ export interface OwnerCommandTypes {
         passkeys?: boolean;
         passkeys_never?: string[];
         chain?: string;
+        chain_chosen?: boolean;
         max_fetch_usdc?: number;
         deposit_floor_usdc?: number;
         coin_dev_buy_bps?: number;
@@ -1517,6 +1558,10 @@ export interface OwnerCommandTypes {
   settings: {
     args: Record<string, never>;
     result: Settings;
+  };
+  setup_status: {
+    args: Record<string, never>;
+    result: SetupStatus;
   };
   share_approve: {
     args: Record<string, never>;
@@ -1659,7 +1704,7 @@ export abstract class OwnerCommands {
     return this.command<OwnerResult<"advance_day">>("advance_day");
   }
 
-  /** The MCP clients this machine has (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI, opencode and the others Unbrowse connects): whether each is found and connected to this node, and its config file. */
+  /** The MCP clients this machine has (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI, opencode and the others Unbrowse connects): whether each is found and connected to this node, its config file, and when it last reached this node (`heard`, unix seconds, by the name it gives at MCP initialize). */
   agentClients(): Promise<{
     clients: {
       id: string;
@@ -1669,13 +1714,14 @@ export abstract class OwnerCommands {
       path: string;
       note?: string;
       manual?: boolean;
+      heard?: number;
     }[];
   }> {
     return this.command<OwnerResult<"agent_clients">>("agent_clients");
   }
 
   /** Connects the named MCP clients to this node as its first agent: each gets `unb mcp --agent first` in its own config, checked to answer first, its file kept as it was beside it, and no token in it. */
-  connectAgents(clients: ("claude_code" | "claude_desktop" | "cursor" | "codex")[]): Promise<{
+  connectAgents(clients: ("claude_code" | "claude_desktop" | "cursor" | "codex" | "vscode" | "windsurf" | "devin" | "gemini_cli" | "antigravity" | "qwen_code" | "copilot_cli" | "factory_droid" | "kiro" | "warp" | "amp" | "opencode" | "kilo_code" | "augment" | "junie" | "cline" | "roo_code" | "lm_studio" | "hermes" | "openclaw" | "elizaos")[]): Promise<{
     results: { id: string; name: string; ok: boolean; restart_needed: boolean; error: string | null }[];
   }> {
     return this.command<OwnerResult<"agent_connect">>("agent_connect", { clients });
@@ -1978,7 +2024,7 @@ export abstract class OwnerCommands {
     return this.command<OwnerResult<"identity">>("identity");
   }
 
-  /** Takes a site's cookies from the browser the node uses into the node's session for it, answering how many it kept. */
+  /** Takes a site's cookies from the owner's browsers on this machine (the Chromium browsers first, then Firefox and Safari, the first that holds the site's session kept whole) into the node's session for it, answering how many it kept. */
   importSession(host: string): Promise<{ cookies: number }> {
     return this.command<OwnerResult<"import_session">>("import_session", { host });
   }
@@ -2088,6 +2134,11 @@ export abstract class OwnerCommands {
     return this.command<OwnerResult<"remote_key_create">>("remote_key_create", { name });
   }
 
+  /** Links this node to the owner's Unbrowse account, so ChatGPT and Claude signed in to Unbrowse reach it with no address to paste: turns the address on if it is off, lets a sign-in ask, and opens the gateway's link page in the owner's browser (url, opened). The node asks the owner before it is linked. */
+  linkAccount(): Promise<{ url: string; opened: boolean }> {
+    return this.command<OwnerResult<"remote_link">>("remote_link");
+  }
+
   /** Revokes every remote key for the gateway. */
   revokeRemoteKeys(): Promise<Remote> {
     return this.command<OwnerResult<"remote_revoke">>("remote_revoke");
@@ -2156,6 +2207,11 @@ export abstract class OwnerCommands {
   /** The owner's settings. */
   settings(): Promise<Settings> {
     return this.command<OwnerResult<"settings">>("settings");
+  }
+
+  /** This node's setup as one list, the same an agent reads with unbrowse_setup: the terms, signing in, the agent apps on this machine, the address for ChatGPT and Claude on the web, the sites it holds a sign-in for, and whether an agent has called it. Each step: done, optional, a line saying where it stands, and the unbrowse_setup call that does it; left names the steps setup still needs. */
+  setupStatus(): Promise<SetupStatus> {
+    return this.command<OwnerResult<"setup_status">>("setup_status");
   }
 
   /** The owner has looked at the routes waiting to be shared and lets the first listing go now, rather than a day after the node told them (R2.8). */

@@ -515,9 +515,99 @@ pub fn leaves(tree: &Value) -> Vec<(String, String)> {
     out
 }
 
+/// A content encoding a request can say its body is in that this crate opens and writes again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Coding {
+    Gzip,
+    /// zlib's format, which is what `deflate` names in HTTP.
+    Deflate,
+}
+
+/// The coding a request's `content-encoding` names, where it names one this crate writes: gzip or deflate. Brotli and
+/// zstd are not read here, and a body in one stays its bytes.
+fn coding(content_encoding: &str) -> Option<Coding> {
+    match content_encoding.trim().to_ascii_lowercase().as_str() {
+        "gzip" | "x-gzip" => Some(Coding::Gzip),
+        "deflate" => Some(Coding::Deflate),
+        _ => None,
+    }
+}
+
+/// The most a compressed body opens to: a body that would open past it is not read as one.
+const MOST_OPENED: u64 = 16 << 20;
+
+/// A request's body in the content encoding its `content-encoding` names, as what it compresses: None where the
+/// encoding is none this crate writes, or the bytes are not wholly a body in it (a trailing byte, a cut stream).
+pub fn uncompressed(content_encoding: &str, bytes: &[u8]) -> Option<Vec<u8>> {
+    use std::io::Read;
+    let mut out = Vec::new();
+    let rest = match coding(content_encoding)? {
+        Coding::Gzip => {
+            let mut d = flate2::bufread::GzDecoder::new(bytes);
+            (&mut d).take(MOST_OPENED + 1).read_to_end(&mut out).ok()?;
+            d.into_inner()
+        }
+        Coding::Deflate => {
+            let mut d = flate2::bufread::ZlibDecoder::new(bytes);
+            (&mut d).take(MOST_OPENED + 1).read_to_end(&mut out).ok()?;
+            d.into_inner()
+        }
+    };
+    (rest.is_empty() && out.len() as u64 <= MOST_OPENED).then_some(out)
+}
+
+/// `bytes` written in the content encoding a request names, where it names one this crate writes.
+fn compressed(content_encoding: &str, bytes: &[u8]) -> Option<Vec<u8>> {
+    use std::io::Write;
+    match coding(content_encoding)? {
+        Coding::Gzip => {
+            let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            e.write_all(bytes).ok()?;
+            e.finish().ok()
+        }
+        Coding::Deflate => {
+            let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+            e.write_all(bytes).ok()?;
+            e.finish().ok()
+        }
+    }
+}
+
+/// The bytes a request sends for its body, under the content encoding its headers say it is in: a walk keeps a
+/// compressed body as what it compresses (`uncompressed`), and a route fills that, so it is compressed again on the
+/// way out. A body already in the encoding, and one in an encoding this crate doesn't write, go as they are.
+pub fn as_sent(content_encoding: Option<&str>, bytes: &[u8]) -> Vec<u8> {
+    match content_encoding {
+        Some(enc) if uncompressed(enc, bytes).is_none() => compressed(enc, bytes).unwrap_or_else(|| bytes.to_vec()),
+        _ => bytes.to_vec(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A page that compresses what it sends says so in the request's `content-encoding`: the body is read as what it
+    /// compresses, a body that isn't wholly one is not, and a body filled as text goes out compressed again, once.
+    #[test]
+    fn a_compressed_request_body_reads_as_what_it_compresses_and_is_sent_compressed() {
+        let json = br#"{"context":{"client":{"hl":"en"}},"query":"desk lamp"}"#;
+        for enc in ["gzip", "deflate", " GZIP "] {
+            let sent = compressed(enc, json).unwrap();
+            assert_ne!(sent, json.to_vec());
+            assert_eq!(uncompressed(enc, &sent).as_deref(), Some(&json[..]), "{enc}");
+            let mut trailing = sent.clone();
+            trailing.push(0);
+            assert_eq!(uncompressed(enc, &trailing), None, "{enc}: a byte past the stream is no body in it");
+            assert_eq!(uncompressed(enc, &sent[..sent.len() - 2]), None, "{enc}: a cut stream is none");
+            let out = as_sent(Some(enc), json);
+            assert_eq!(uncompressed(enc, &out).as_deref(), Some(&json[..]), "{enc}: text goes out compressed");
+            assert_eq!(as_sent(Some(enc), &out), out, "{enc}: a body already compressed goes as it is");
+        }
+        assert_eq!(uncompressed("br", json), None, "an encoding this crate doesn't write is not read");
+        assert_eq!(as_sent(Some("br"), json), json.to_vec());
+        assert_eq!(as_sent(None, json), json.to_vec());
+    }
 
     /// A search posted as a schemaless message: field 1 the word, field 2 a count, field 3 a message within.
     fn search(word: &str) -> Vec<u8> {

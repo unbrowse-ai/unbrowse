@@ -409,6 +409,22 @@ pub fn chip(c: *ui.Context, s: []const u8, warn: bool) void {
     ui.text(c, s, .{ .size = 11.5, .weight = .medium, .color = if (warn) x(c).warn else c.theme.text });
 }
 
+/// The top bar's balance: what this node has to spend, and the way to add more. The count and "Top up" are one pill
+/// because they are one control, sized to sit beside `chip`. While payments aren't open there is nowhere to top up:
+/// the count still shows, as a plain chip, and nothing pretends to be a button.
+pub fn creditBadge(c: *ui.Context, balance: []const u8, can_top_up: bool) bool {
+    if (!can_top_up) {
+        chip(c, balance, false);
+        return false;
+    }
+    return kit.button(c, c.print("{s}  Top up", .{balance}), .{
+        .variant = .default,
+        .size = .xs,
+        .pill = true,
+        .tooltip = "Add funds with USDC on Arc",
+    }).clicked;
+}
+
 /// A switch, on in ink as Quartz's (the theme's success green is for status).
 pub fn toggle(c: *ui.Context, v: *bool) bool {
     const saved = c.theme;

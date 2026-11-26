@@ -121,7 +121,7 @@ pub(crate) const PAUSED: &str = "the node is paused by its owner";
 pub(crate) const TOOLS: &[&str] = &["unbrowse_do", "unbrowse_call", "unbrowse_browse", "unbrowse_challenge"];
 
 /// The tools a `next` may name: those, and the search for a page or a route when no page was given.
-pub(crate) const NEXT_TOOLS: &[&str] = &["unbrowse_do", "unbrowse_call", "unbrowse_browse", "unbrowse_challenge", "unbrowse_search"];
+pub(crate) const NEXT_TOOLS: &[&str] = &["unbrowse_do", "unbrowse_call", "unbrowse_browse", "unbrowse_challenge", "unbrowse_search", "unbrowse_setup"];
 
 /// An outcome, the reader that decided it, and the call to make next.
 #[derive(Clone, Debug, PartialEq)]

@@ -11,7 +11,7 @@ const look = @import("../look.zig");
 const App = @import("../app.zig").App;
 
 pub const title = "ChatGPT and Claude on the web";
-pub const intro = "If you chat with ChatGPT or Claude in a browser or on your phone, they can use this node too: its browser and your logins. Turn on an address for this node at unbrowse.ai, then add it to the app as a custom connector. The node dials out, so no port opens on this Mac, and an app gets in only when you allow it here.";
+pub const intro = "If you chat with ChatGPT or Claude in a browser or on your phone, they can use Unbrowse on this Mac too, with your logins. Turn on an address for it at unbrowse.ai, then add it to the app as a custom connector. Unbrowse dials out, so no port opens on this Mac, and an app gets in only when you allow it here.";
 
 /// Each app's steps, in the words its own settings use (claude.ai and chatgpt.com, November 2026).
 pub const apps = [_][]const u8{ "Claude", "ChatGPT" };
@@ -45,7 +45,7 @@ pub fn view(a: *App, c: *ui.Context) void {
         return;
     }
     const url = r.url.?;
-    look.label(c, "This node's address");
+    look.label(c, "Your Unbrowse address");
     look.well(c, url);
     {
         const row = ui.div(c).row().wFull().gap(8).itemsCenter();
@@ -55,8 +55,9 @@ pub fn view(a: *App, c: *ui.Context) void {
             a.toaster.push(.{ .status = .success, .title = "Copied", .duration = 2 });
             a.cheer();
         }
-        // A sign-in may ask the owner only for a while after they turn the address on: this opens that while again.
-        if (look.ghost(c, "Adding it now? Let a sign-in ask", .{ .size = .sm })) a.store.actWith(.generic, "remote_set", "remote_set", .{ .on = true });
+        // Link this node to the owner's Unbrowse account: ChatGPT and Claude signed in to Unbrowse then reach it with no
+        // address to paste. It also lets a sign-in ask, for an app being added by the address now.
+        if (look.secondary(c, "Link to my Unbrowse account", .{ .loading = a.store.isBusy("remote_link") })) a.store.actWith(.remote_link, "remote_link", "remote_link", struct {}{});
     }
     _ = kit.tabs(c, &apps, &a.cloud_tab, .{ .variant = .segmented, .size = .sm });
     const steps: []const []const u8 = if (a.cloud_tab == 1) &chatgpt_steps else &claude_steps;

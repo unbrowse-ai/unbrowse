@@ -294,3 +294,7 @@ mod tests {
         assert!(decode_answer(&[]).is_err() && decode_answer(&[7]).is_err() && decode_answer(&[0, 1]).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "tower_tests.rs"]
+mod tower_tests;
