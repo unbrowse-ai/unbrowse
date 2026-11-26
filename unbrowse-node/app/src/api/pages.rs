@@ -448,11 +448,12 @@ impl Walks {
 pub(super) static PAGES: std::sync::LazyLock<std::sync::Mutex<Walks>> = std::sync::LazyLock::new(Default::default);
 
 /// What makes two asks one page's walk: the same goal on the same page, with the same values, for the same session and
-/// the same fields. A late answer goes to the next ask of this key, so an ask with other inputs is another page's.
+/// the same fields and browser policy. A late answer goes to the next ask of this key.
 pub(super) fn in_flight(page: &DoBody) -> String {
     let inputs: std::collections::BTreeMap<&String, &String> = page.inputs.iter().collect();
+    let browser = crate::browsers::Use::parse(&page.browser);
     // The task's budget too: an answer a route over it gave is no answer for a task that can't pay for it.
-    format!("{}\n{}\n{inputs:?}\n{}\n{:?}\n{:?}", page.goal.trim().to_lowercase(), page.url.trim(), page.session, page.fields, page.budget_usdc)
+    format!("{}\n{}\n{inputs:?}\n{}\n{:?}\n{:?}\n{browser:?}", page.goal.trim().to_lowercase(), page.url.trim(), page.session, page.fields, page.budget_usdc)
 }
 
 /// The pages of one site's task. A panic in one ends the task with the rest not run: left marked as walking, each would

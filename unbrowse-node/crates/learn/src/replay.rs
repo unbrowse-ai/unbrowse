@@ -4082,3 +4082,7 @@ mod fill_tests {
         assert_eq!((new_sent.iter().map(|r| r.url.to_string()).collect::<Vec<_>>(), &new), (old_sent.iter().map(|r| r.url.to_string()).collect::<Vec<_>>(), &old));
     }
 }
+
+#[cfg(test)]
+#[path = "replay_cov_tests.rs"]
+mod replay_cov_tests;

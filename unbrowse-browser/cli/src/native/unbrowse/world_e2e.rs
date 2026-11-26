@@ -9,13 +9,13 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use super::super::actions::{execute_command, DaemonState};
 
-fn assert_success(resp: &Value) {
+pub(super) fn assert_success(resp: &Value) {
     assert_eq!(resp.get("success").and_then(Value::as_bool), Some(true), "Expected success but got: {}", serde_json::to_string_pretty(resp).unwrap_or_default());
 }
 
 /// A command as the daemon runs it, but `page_evaluate`: a script of the test's own in the page's own world, for its
 /// setup and its checks only (the page's code, its title, what it ran). No caller reaches the page's world.
-async fn run(cmd: &Value, state: &mut DaemonState) -> Value {
+pub(super) async fn run(cmd: &Value, state: &mut DaemonState) -> Value {
     if cmd["action"] != "page_evaluate" {
         return execute_command(cmd, state).await;
     }
@@ -27,7 +27,7 @@ async fn run(cmd: &Value, state: &mut DaemonState) -> Value {
     }
 }
 
-async fn start_routed_server(route: fn(&str, &str) -> (u16, String, String)) -> (String, tokio::task::JoinHandle<()>) {
+pub(super) async fn start_routed_server(route: fn(&str, &str) -> (u16, String, String)) -> (String, tokio::task::JoinHandle<()>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base_url = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
     let handle = tokio::spawn(async move {

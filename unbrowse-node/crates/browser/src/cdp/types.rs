@@ -587,3 +587,46 @@ pub struct BrowserVersionInfo {
 pub mod generated {
     include!(concat!(env!("OUT_DIR"), "/cdp_generated.rs"));
 }
+
+#[cfg(test)]
+mod ax_id_tests {
+    use super::*;
+
+    #[test]
+    fn an_ax_node_reads_string_and_integer_ids_alike() {
+        let chrome: AXNode =
+            serde_json::from_str(r#"{"nodeId":"7","childIds":["8","9"]}"#).unwrap();
+        let lightpanda: AXNode = serde_json::from_str(r#"{"nodeId":7,"childIds":[8,9]}"#).unwrap();
+        assert_eq!(chrome.node_id, "7");
+        assert_eq!(lightpanda.node_id, "7");
+        assert_eq!(chrome.child_ids, Some(vec!["8".to_string(), "9".to_string()]));
+        assert_eq!(lightpanda.child_ids, chrome.child_ids);
+    }
+
+    #[test]
+    fn an_ax_node_without_child_ids_has_none() {
+        let node: AXNode = serde_json::from_str(r#"{"nodeId":"1"}"#).unwrap();
+        assert_eq!(node.child_ids, None);
+        let null: AXNode = serde_json::from_str(r#"{"nodeId":"1","childIds":null}"#).unwrap();
+        assert_eq!(null.child_ids, None);
+    }
+
+    #[test]
+    fn an_ax_node_id_that_is_neither_string_nor_integer_is_refused() {
+        let err = serde_json::from_str::<AXNode>(r#"{"nodeId":true}"#).unwrap_err();
+        assert!(err.to_string().contains("expected string or integer, got true"), "{err}");
+    }
+
+    #[test]
+    fn an_ax_child_id_that_is_neither_string_nor_integer_is_refused() {
+        let err = serde_json::from_str::<AXNode>(r#"{"nodeId":"1","childIds":["2",{"a":1}]}"#)
+            .unwrap_err();
+        assert!(err.to_string().contains("expected string or integer in array, got {\"a\":1}"), "{err}");
+    }
+
+    #[test]
+    fn a_cdp_error_displays_its_message() {
+        let e = CdpError { code: Some(-32000), message: "No target".into(), data: None };
+        assert_eq!(e.to_string(), "No target");
+    }
+}

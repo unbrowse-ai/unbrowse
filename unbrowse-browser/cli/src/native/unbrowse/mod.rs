@@ -18,10 +18,28 @@ pub mod busy;
 pub mod capture;
 pub mod eval;
 pub mod fill;
+pub mod network;
+pub mod saved;
 pub mod tab;
 pub mod world;
 #[cfg(test)]
+mod contract;
+#[cfg(test)]
+mod surface;
+#[cfg(test)]
+mod flags_table;
+#[cfg(test)]
+mod chrome_search;
+#[cfg(test)]
+mod features;
+#[cfg(test)]
+mod handlers_e2e;
+#[cfg(test)]
 mod world_e2e;
+#[cfg(test)]
+mod provider_stubs;
+#[cfg(test)]
+mod webdriver_stub;
 
 /// What the fork keeps for a daemon, as one field of upstream's `DaemonState`.
 #[derive(Default)]

@@ -639,7 +639,7 @@ pub(super) fn walks_of(walks: &Walks, route: &Route) -> Option<(Trace, Option<Tr
     let last = route.graph.steps.last()?;
     let asked = asked_of(&route.graph);
     let again = newest.iter().find(|w| !std::ptr::eq(**w, *first) && w.url != first.url && sighting_again(&first.trace, &w.trace, last, &asked).is_some());
-    Some((first.trace.clone(), again.map(|w| w.trace.clone())))
+    Some((first.trace.as_ref().clone(), again.map(|w| w.trace.as_ref().clone())))
 }
 
 /// `by_an_agent`, with the node's walks and the site. `links` is each value as the agent named it: the step as
@@ -1488,7 +1488,7 @@ mod tests {
     }
 
     fn walk_held(trace: &Trace, url: &str, age: u64) -> Walk {
-        Walk { url: url.into(), trace: trace.clone(), probes: Vec::new(), recording: None, at: std::time::Instant::now() - std::time::Duration::from_secs(age), addresses: None }
+        Walk { url: url.into(), trace: trace.clone().into(), probes: Vec::new(), recording: None, at: std::time::Instant::now() - std::time::Duration::from_secs(age), addresses: None }
     }
 
     /// The walk a route was learned from is the newest one the node holds that made every call of it; the same page

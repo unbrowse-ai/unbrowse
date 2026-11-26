@@ -69,6 +69,9 @@ pub struct RouteClient {
     /// What the calls made on this client cost (`learn.rung`): the rung of each step of the run that answered, and the
     /// highest rung anything done for them reached.
     made: crate::rung::Made,
+    /// Rendered links collected for the caller's reply when it requests them. None keeps a replay's state on its own.
+    rendered_links: Option<Vec<Value>>,
+    answered_with_data: bool,
     /// What the call fell back on, and why, in the order it happened: the sandbox skipped, a step the browser ran, the
     /// page walked again. A fallback that still answers is otherwise silent, and a route that only ever answers through
     /// one looks healthy. The caller hands these back with the answer.
@@ -148,7 +151,22 @@ impl RouteClient {
         let writes = route_writes(&graph);
         // A step made from someone else's body says so: such a route is held to their rule unless a caller says otherwise.
         let egress = if graph.steps.iter().any(|s| s.foreign) { crate::egress::Egress::Foreign } else { Default::default() };
-        Self { cdp: None, frames: None, sign_in: None, plain_sign_in: None, clearers: Vec::new(), body: None, ran_body: false, graph, store: None, browser: None, jar: HashMap::new(), loaded: None, jar_domains: HashMap::new(), loaded_scope: None, borrowed: HashMap::new(), cookie_meta: HashMap::new(), loaded_meta: None, storage: Default::default(), fingerprint: serde_json::Value::Null, shared_mint: false, used_browser: Default::default(), made: Default::default(), fell_back: Default::default(), unheld: Default::default(), chrome: false, root: None, target: None, writes, judged_write: false, egress, excluded: Vec::new(), healed: None, scratch_profile: None, session_reads_approved: false, owner_consent: None, held: None, learn_again: false, drifted: None, heal_held: false, #[cfg(test)] wire: None }
+        Self { cdp: None, frames: None, sign_in: None, plain_sign_in: None, clearers: Vec::new(), body: None, ran_body: false, graph, store: None, browser: None, jar: HashMap::new(), loaded: None, jar_domains: HashMap::new(), loaded_scope: None, borrowed: HashMap::new(), cookie_meta: HashMap::new(), loaded_meta: None, storage: Default::default(), fingerprint: serde_json::Value::Null, shared_mint: false, used_browser: Default::default(), made: Default::default(), rendered_links: None, answered_with_data: false, fell_back: Default::default(), unheld: Default::default(), chrome: false, root: None, target: None, writes, judged_write: false, egress, excluded: Vec::new(), healed: None, scratch_profile: None, session_reads_approved: false, owner_consent: None, held: None, learn_again: false, drifted: None, heal_held: false, #[cfg(test)] wire: None }
+    }
+
+    /// Keep links from markup that answered with embedded state for the agent's reply.
+    pub fn with_rendered_links(mut self) -> Self {
+        self.rendered_links = Some(Vec::new());
+        self
+    }
+
+    pub fn take_rendered_links(&mut self) -> Vec<Value> {
+        self.rendered_links.as_mut().map(std::mem::take).unwrap_or_default()
+    }
+
+    /// Whether the target's own reply supplied the JSON rather than a blob embedded in markup.
+    pub fn answered_with_data(&self) -> bool {
+        self.answered_with_data
     }
 
     /// A call that, where the site drifted (`a_drift`), does not heal the route in place: no browser re-walks the
@@ -501,7 +519,7 @@ impl RouteClient {
 
     /// Takes in a session the browser earned since this client read its jar.
     pub fn absorb(&mut self, jar: HashMap<String, String>) {
-        self.jar.extend(jar);
+        take_in(&mut self.jar, &mut self.cookie_meta, jar);
     }
 
     pub fn with_session_store(mut self, dir: impl Into<PathBuf>) -> Self {
@@ -922,17 +940,30 @@ impl RouteClient {
     /// setting host is in and not a public suffix, and never a replacement of the owner's session ([`Sent::replaced_by`]),
     /// which earns nothing at all.
     fn compute_the_door(&mut self, transport: &mut dyn Fetch, door: &Exchange, rule: &DoorRule<'_>) -> bool {
+        // Every way out says what it did, on one line the x-ray reads: a fallback that is silent is a door nobody can
+        // diagnose. None of these says a value.
+        let says = |what: &str| eprintln!("   [door] {}: {what}", door.url.path());
         if !crate::sandbox::available() {
+            says("its page's scripts are not run: no sandbox on this machine (Node 25 or later)");
             return false;
         }
         // Before the page's scripts are asked for, not after: a door pass that is off sends the site nothing.
         if !crate::sandbox::door_pass_enabled() {
-            eprintln!("   [door] {}: its page's scripts are not run (UNBROWSE_DOOR_PASS=1 turns the door pass on)", door.url.path());
+            says("its page's scripts are not run (UNBROWSE_DOOR_PASS=1 turns the door pass on)");
             return false;
         }
-        let Some((scheme, home)) = self.home() else { return false };
-        let Some(html) = door.response_body.clone().filter(|b| b.contains("<script")) else { return false };
-        let Some(site) = door.url.host_str().map(str::to_ascii_lowercase) else { return false };
+        let Some((scheme, home)) = self.home() else {
+            says("its page is not run: this route names no page to run it on");
+            return false;
+        };
+        let Some(html) = door.response_body.clone().filter(|b| b.contains("<script")) else {
+            says("its page holds no script to run: the door is not one a page's code opens");
+            return false;
+        };
+        let Some(site) = door.url.host_str().map(str::to_ascii_lowercase) else {
+            says("its page is not run: the answer names no site");
+            return false;
+        };
         let alone = crate::trace::Trace { exchanges: vec![door.clone()], inputs: Vec::new() };
         if crate::mint::asks_a_person(&html, &alone, &door.url) {
             eprintln!("   [door] {} asks a person: its page is not run", door.url.path());
@@ -941,7 +972,7 @@ impl RouteClient {
         let not_cookies = minted_tokens(&self.graph);
         // The jar's cookies this call may carry at all: a token the route names is not a cookie, a cookie whose life
         // ran out is gone, and a route that came from another node carries only what `sendable` lets it.
-        let alive = |k: &str| self.cookie_meta.get(k).is_none_or(|m| m.expires.is_none_or(|e| e > now_secs()));
+        let alive = |k: &str| cookie_alive(&self.cookie_meta, k);
         let carried: Vec<(&String, &String)> = self
             .jar
             .iter()
@@ -1183,6 +1214,10 @@ impl RouteClient {
     /// Calls the route, and says what the call did to the site whether or not it answered: a write that may have
     /// reached the site is never sent twice, and the ledger is how the caller learns it must check before retrying.
     pub fn call_with_ledger(&mut self, inputs: &HashMap<String, String>) -> (Result<Value, ReplayError>, Ledger) {
+        self.answered_with_data = false;
+        if let Some(links) = &mut self.rendered_links {
+            links.clear();
+        }
         // What a run reads besides each step's request: the graph, or the body's skeleton beside it.
         let (writes, refused, alone) = {
             let runs = self.runs();
@@ -1265,7 +1300,7 @@ impl RouteClient {
         // the route: it is tried where a heal is held and where no browser may open. Sent once, whatever comes of it.
         if first.as_ref().err().is_some_and(session_gone) {
             if let Some(jar) = self.plain_sign_in.as_mut().and_then(|sign_in| sign_in()) {
-                self.jar.extend(jar);
+                take_in(&mut self.jar, &mut self.cookie_meta, jar);
                 // The sign-in's own host may be another of the site's (`auth.` beside `www.`): what it earned there for
                 // the domain is in that host's jar.
                 if let (Some(dir), Some(host)) = (self.store.clone(), self.host()) {
@@ -1351,7 +1386,7 @@ impl RouteClient {
         // page. A retry that may have written stands as it is, as anywhere else.
         if first.as_ref().err().is_some_and(session_gone) {
             if let Some(jar) = self.sign_in.as_mut().and_then(|sign_in| sign_in()) {
-                self.jar.extend(jar);
+                take_in(&mut self.jar, &mut self.cookie_meta, jar);
                 let (again, ledger) = self.run(inputs);
                 if again.is_ok() || ledger.retry(self.writes) != Retry::AsIs {
                     return (again, ledger);
@@ -1391,9 +1426,8 @@ impl RouteClient {
         for (k, v) in crate::graph::session_headers(&mut g, &fresh_trace) {
             self.jar.insert(k, v);
         }
-        for (k, v) in crate::graph::walked_cookies(&mut g, &fresh_trace) {
-            self.jar.insert(k, v);
-        }
+        let walked: HashMap<String, String> = crate::graph::walked_cookies(&mut g, &fresh_trace).into_iter().collect();
+        take_in(&mut self.jar, &mut self.cookie_meta, walked);
         eprintln!("   [heal] route drifted; chain recomputed from a fresh root sighting ({} steps)", g.steps.len());
         self.graph = g;
         // The body was learned from the walks the old graph was, not this one: the rebuilt graph runs alone.
@@ -1569,6 +1603,7 @@ impl RouteClient {
         // The route's target is the site's page, or a piece of one (its results are rendered into the HTML): answer
         // with the state it embeds when that holds what the page shows, else with the page read (`page::answer`).
         let like = graph.steps.last().and_then(|s| s.response_shape.as_ref());
+        self.answered_with_data = false;
         if crate::page::is_markup(&content_type, body) && serde_json::from_str::<Value>(body).is_err() {
             // A page read for its text keeps its script's shape as a guard, never as the answer to read.
             let like = like.filter(|_| !graph.steps.last().is_some_and(|s| s.reads_page));
@@ -1593,11 +1628,15 @@ impl RouteClient {
             if let (true, Some(page)) = (run.target.status >= 400, answer.as_object_mut()) {
                 page.insert("status".into(), Value::from(run.target.status));
             }
+            if let Some(links) = self.rendered_links.as_mut().filter(|_| !read) {
+                *links = crate::page::links_beside_state(body, &run.target.url, &answer);
+            }
             return (Ok(answer), ledger);
         }
         // Its data, or a target that serves its data as text (a feed, XML, Markdown, plain text): the one reading of a
         // reply as the call's answer (`answer::data_of`), which a walk's record of the same call is read by too.
-        if let Some(v) = crate::answer::data_of(&run.target, like) {
+        if let Some((v, own_json)) = crate::answer::data_with_source(&run.target, like) {
+            self.answered_with_data = own_json;
             return (Ok(v), ledger);
         }
         let answer = serde_json::from_str(body).map_err(|_| {
@@ -1607,6 +1646,7 @@ impl RouteClient {
                 got: Value::String(body.chars().take(120).collect()),
             }
         });
+        self.answered_with_data = answer.is_ok();
         (answer, ledger)
     }
 }
@@ -2099,6 +2139,28 @@ fn sends_the_owners_session(owner: &HashMap<String, String>, req: &Request) -> b
     })
 }
 
+/// Takes into the jar a session earned again (the owner's sign-in from the vault, a browser that signed in or walked the
+/// page): each value it brings replaces the old one, and where it changes the value, the old line's life is not the new
+/// value's. The source said no life of its own, so the cookie lives while the jar does, until an answer sets its line
+/// again (`keep_set_cookies_of`). Its path and reach stand. The one way a session earned elsewhere enters the jar.
+fn take_in(jar: &mut HashMap<String, String>, meta: &mut HashMap<String, CookieMeta>, fresh: HashMap<String, String>) {
+    for (name, value) in fresh {
+        if jar.get(&name) != Some(&value) {
+            if let Some(line) = meta.get_mut(&name) {
+                line.expires = None;
+            }
+        }
+        jar.insert(name, value);
+    }
+}
+
+/// Whether the jar's cookie `name` is still inside the life its line gave it: a browser lets a cookie go when that runs
+/// out, and a site remembers what it issued as spent. A name the jar keeps no line for (a token, a cookie whose line
+/// gave no life) is not one that runs out. The one reader of a cookie's life, wherever a call would write it.
+fn cookie_alive(meta: &HashMap<String, CookieMeta>, name: &str) -> bool {
+    meta.get(name).is_none_or(|m| m.expires.is_none_or(|e| e > now_secs()))
+}
+
 /// The cookies of a jar a request was sent with, as [`Runner::with_session_cookies`] sends them: what an answer to it
 /// replaces when it sets one of them again.
 struct Sent<'a> {
@@ -2131,8 +2193,7 @@ impl Sent<'_> {
     fn reaches(&self, name: &str, host: &str) -> bool {
         let token = self.not_cookies.contains(name) || name.ends_with("-response");
         let reaches = host.eq_ignore_ascii_case(self.home) || (crate::identity::same_site(self.home, host) && self.domains.get(name).is_some_and(|d| crate::mint::sent_to(d, host)));
-        let alive = self.meta.get(name).is_none_or(|m| m.expires.is_none_or(|e| e > now_secs()));
-        !token && reaches && alive
+        !token && reaches && cookie_alive(self.meta, name)
     }
 
     /// The first cookie of `owner`'s session the answer `ex` sets to another value or takes out, among those the request
@@ -2411,6 +2472,10 @@ impl Fetch for Runner {
         if self.egress != crate::egress::Egress::Own && (self.cookie_meta.contains_key(name) || self.jar_domains.contains_key(name)) {
             return None;
         }
+        // A cookie whose life ran out is spent wherever a body writes it (`cookie_alive`).
+        if !cookie_alive(&self.cookie_meta, name) {
+            return None;
+        }
         self.jar.get(name).filter(|v| self.may_send(name, v)).cloned()
     }
 
@@ -2436,6 +2501,11 @@ impl Fetch for Runner {
         }
         // And for a route that came from another node, only a host one of its origins is on.
         if self.transport.within.as_ref().is_some_and(|w| !w.names_host(to)) {
+            return None;
+        }
+        // A cookie named by the body goes where the jar's header would take it, and not after its life ran out
+        // (`Sent::reaches`, the one reader the header asks too).
+        if !self.held().is_some_and(|h| h.reaches(name, to)) {
             return None;
         }
         self.jar.get(name).filter(|v| self.may_send(name, v)).cloned()
@@ -4108,6 +4178,43 @@ mod tests {
         assert_eq!(r.minted_cookie("sid", None), None, "a host built at call time");
     }
 
+    /// A cookie a route's body names goes only where the jar sends one, and never after the life its line gave it: a
+    /// browser has let it go, and a site that issued it remembers it as spent. Sent on, a door's pass that ran out is
+    /// refused where no pass at all is let through (a stream reset, or the site's check page), and the call never
+    /// earns the fresh one the site's own page hands a visitor that holds none. The one reader is `Sent::reaches`.
+    #[test]
+    fn a_cookie_whose_life_ran_out_is_not_sent_by_name() {
+        let mut r = runner("https://www.shop.example.com/");
+        r.jar.insert("pass".to_string(), "spent".to_string());
+        r.cookie_meta.insert("pass".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() - 60.0), order: 1, http_only: None, bound_to: None });
+        r.jar.insert("fresh".to_string(), "alive".to_string());
+        r.cookie_meta.insert("fresh".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() + 600.0), order: 2, http_only: None, bound_to: None });
+        assert_eq!(r.minted_cookie("pass", Some("www.shop.example.com")), None, "its life ran out");
+        assert_eq!(r.minted_cookie("fresh", Some("www.shop.example.com")).as_deref(), Some("alive"));
+        assert_eq!(r.minted_cookie("sid", Some("www.shop.example.com")).as_deref(), Some("host-only-secret"), "a cookie whose line gave no life");
+        // A body that writes the walk's cookie header as a template asks for each by name, anywhere: spent is spent.
+        assert_eq!(r.minted("pass"), None, "its life ran out, wherever the body writes it");
+        assert_eq!(r.minted("fresh").as_deref(), Some("alive"));
+        let sent = cookie(&r.with_session_cookies(&get("https://www.shop.example.com/s"))).unwrap_or_default().to_string();
+        assert!(!sent.contains("pass="), "and the jar's own header agrees: {sent}");
+    }
+
+    /// A value the jar takes in from where the session is earned again (the owner's sign-in from the vault, a browser
+    /// that signed in or walked the page) replaces the old line, and the old line's life is not the new value's: the
+    /// fresh session goes with the very next request, by name and in the jar's own header alike.
+    #[test]
+    fn a_session_earned_again_is_sent_whatever_the_old_line_said() {
+        let mut r = runner("https://www.shop.example.com/");
+        r.cookie_meta.insert("sid".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() - 60.0), order: 1, http_only: None, bound_to: None });
+        assert_eq!(r.minted_cookie("sid", Some("www.shop.example.com")), None, "the old session ran out");
+        take_in(&mut r.jar, &mut r.cookie_meta, HashMap::from([("sid".to_string(), "signed-in-again".to_string())]));
+        assert_eq!(r.minted_cookie("sid", Some("www.shop.example.com")).as_deref(), Some("signed-in-again"));
+        assert_eq!(r.minted("sid").as_deref(), Some("signed-in-again"));
+        let sent = cookie(&r.with_session_cookies(&get("https://www.shop.example.com/account"))).unwrap_or_default().to_string();
+        assert!(sent.contains("sid=signed-in-again"), "the jar's own header sends it: {sent}");
+        assert_eq!(r.cookie_meta.get("sid").map(|m| m.path.as_str()), Some("/"), "the line keeps where it goes");
+    }
+
     /// A route client on a page of `shop.example`, rooted at the page it was learned on, with a session in its jar:
     /// what a call that went stale re-mints before anything opens a browser.
     fn client_on_a_page() -> RouteClient {
@@ -4363,6 +4470,53 @@ mod tests {
         assert_eq!((c.jar.get("sid").map(String::as_str), c.jar.get("pass")), (Some("old"), None));
     }
 
+    /// Every way the call-side door pass declines says which way it declined — that line is what makes a wall
+    /// diagnosable — so each exit is held as the pass itself is. Nothing here reaches the site: every one of these
+    /// exits is a decision made before a page's first request.
+    #[test]
+    fn a_door_pass_that_declines_says_which_way_it_declined() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        struct Nowhere;
+        impl Fetch for Nowhere {
+            fn fetch(&mut self, _req: &Request) -> Result<Exchange, ReplayError> {
+                panic!("a door pass that declines must not send anything")
+            }
+            fn fetch_unredirected(&mut self, _req: &Request) -> Result<Exchange, ReplayError> {
+                panic!("a door pass that declines must not send anything")
+            }
+        }
+        let door = |url: &str, body: &str| Exchange {
+            method: "GET".into(),
+            url: url.parse().unwrap(),
+            request_headers: vec![],
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(body.into()),
+            response_mime: "text/html".into(),
+            resource_type: Some("Document".into()),
+            main_frame: Some(true),
+        };
+        let rule = DoorRule { within: None, owner: None, material: false };
+        // The pass is off: the page's scripts are not run, and the line says how to turn them on.
+        crate::sandbox::DOOR_PASS_IN_TEST.set(Some(false));
+        let mut page = client_on_a_page();
+        assert!(!page.compute_the_door(&mut Nowhere, &door("https://shop.example/hold", "<html><script src='/h.js'></script></html>"), &rule));
+        crate::sandbox::DOOR_PASS_IN_TEST.set(Some(true));
+        // On: a route that names no page has none to run.
+        let mut bare = client_on_a_page();
+        bare.root = None;
+        bare.graph.steps.clear();
+        assert!(bare.home().is_none(), "a route with no step names no page to run the door's code on");
+        assert!(!bare.compute_the_door(&mut Nowhere, &door("https://shop.example/hold", "<html><script src='/h.js'></script></html>"), &rule));
+        // A page with nothing to run, and an answer that names no site.
+        assert!(!page.compute_the_door(&mut Nowhere, &door("https://shop.example/hold", "<html><body><p>no code here</p></body></html>"), &rule));
+        assert!(!page.compute_the_door(&mut Nowhere, &door("data:text/html,<script>1</script>", "<html><script>1</script></html>"), &rule));
+    }
+
     /// The same door with the door pass as a node has it unless its owner turned it on: the page is not run, the
     /// script it names is not even asked for, and the jar gains nothing.
     #[test]
@@ -4387,6 +4541,46 @@ mod tests {
         assert!(!c.refresh_with(&mut door), "the door's page ran with the door pass off");
         assert_eq!(c.jar.get("pass"), None, "{:?}", c.jar);
         assert!(!door.0.iter().any(|p| p == "/door.js"), "the door's script was asked for: {:?}", door.0);
+    }
+
+    /// A door the pass cannot run, with the pass on: a route that names no page to run it on, a page that holds no
+    /// script, an answer that names no site. Each gives up before the site is asked anything, and the jar gains nothing.
+    #[test]
+    fn a_door_the_pass_cannot_run_asks_the_site_nothing_and_earns_nothing() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        crate::sandbox::DOOR_PASS_IN_TEST.set(Some(true));
+        struct Asked(Vec<String>);
+        impl Fetch for Asked {
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.0.push(req.url.to_string());
+                ScriptDoor.fetch(req)
+            }
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+        }
+        let rule = DoorRule { within: None, owner: None, material: true };
+        let scripted = ScriptDoor.fetch(&get("https://shop.example/search?q=lamp")).unwrap();
+        assert!(scripted.response_body.as_deref().is_some_and(|b| b.contains("<script")), "the door's page holds a script");
+        let plain = Same.fetch(&get("https://shop.example/search?q=lamp")).unwrap();
+        let nowhere = ScriptDoor.fetch(&get("data:text/html,door")).unwrap();
+        assert!(nowhere.url.host_str().is_none() && nowhere.response_body.as_deref().is_some_and(|b| b.contains("<script")));
+
+        let mut no_page = client_on_a_page();
+        no_page.graph.steps.clear();
+        assert!(no_page.home().is_none(), "a route with no step names no page");
+        let mut no_script = client_on_a_page();
+        let mut no_site = client_on_a_page();
+        for (client, door, why) in [(&mut no_page, &scripted, "no page to run it on"), (&mut no_script, &plain, "no script"), (&mut no_site, &nowhere, "no site")] {
+            let before = client.jar.clone();
+            let mut asked = Asked(Vec::new());
+            assert!(!client.compute_the_door(&mut asked, door, &rule), "{why}: the pass earned something");
+            assert!(asked.0.is_empty(), "{why}: the site was asked {:?}", asked.0);
+            assert_eq!(client.jar, before, "{why}: the jar changed");
+        }
     }
 
     /// The same page, answering with the cookie it was sent: nothing new.
@@ -7269,3 +7463,7 @@ mod client_state_tests {
         assert!(free.allows(&at("https://collector.example.net/x")).is_ok());
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "client_cov_tests.rs"]
+mod client_cov_tests;

@@ -96,6 +96,7 @@ dependencies = [
  "dirs",
  "futures-util",
  "libc",
+ "psl",
  "reqwest 0.12.28",
  "rustls",
  "rustls-pemfile",
@@ -8795,6 +8796,7 @@ name = "unbrowse-route"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "flate2",
  "hmac 0.12.1",
  "md-5",
  "percent-encoding",

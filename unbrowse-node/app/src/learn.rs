@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::Serialize;
@@ -24,7 +24,7 @@ use crate::sync::Locked;
 /// A walk the owner is choosing from.
 pub struct Walk {
     pub url: String,
-    pub trace: Trace,
+    pub trace: Arc<Trace>,
     /// What the page's own code built when it signed, if the walk probed it: a recipe is fitted from it.
     pub probes: Vec<unbrowse_learn::trace::Probe>,
     /// The walk as the recording reads it: the scripts by hash and what sent each call, so a learn by example can
@@ -48,7 +48,7 @@ pub fn learn_kept_walk(capture: &std::path::Path, url: &str, goal: &str) -> Resu
     let trace = trace_from_walk(dir, session).ok_or("the capture holds no walk")?;
     let walk = Walk {
         url: url.to_string(),
-        trace,
+        trace: trace.into(),
         probes: unbrowse_learn::walk::probes_from_walk(dir, session),
         recording: unbrowse_learn::recording::Recording::read(dir, session),
         at: std::time::Instant::now(),
@@ -74,7 +74,24 @@ fn keep_walk(walks: &mut HashMap<String, Walk>, id: String, walk: Walk) {
 
 /// The walks the owner is choosing from, and the last pictures of the walks (`frames`).
 #[derive(Default)]
-pub struct Walks(pub Mutex<HashMap<String, Walk>>, pub crate::frames::Frames);
+pub struct Walks(pub Mutex<HashMap<String, Walk>>, pub crate::frames::Frames, Mutex<HashMap<String, Vec<(String, String)>>>);
+
+impl Walks {
+    fn remember_companion(&self, walk: &str, route: &str, companion: String) {
+        let walks = self.0.locked();
+        let mut companions = self.2.locked();
+        companions.retain(|id, _| walks.contains_key(id));
+        let kept = companions.entry(walk.to_string()).or_default();
+        if !kept.iter().any(|(primary, other)| primary == route && *other == companion) {
+            kept.push((route.to_string(), companion));
+        }
+    }
+
+    pub(crate) fn companions(&self, walk: &str, route: &str) -> Vec<String> {
+        self.2.locked().get(walk).into_iter().flatten()
+            .filter(|(primary, _)| primary == route).map(|(_, other)| other.clone()).collect()
+    }
+}
 
 /// One of the site's own calls the walk saw: a candidate route.
 #[derive(Clone, Serialize)]
@@ -119,6 +136,10 @@ pub enum Eye {
     Picked { walk: String, index: usize, method: String, host: String, path: String, by: &'static str, reasons: Vec<String> },
     Saved { walk: String, route: String, what: String, site: String, steps: usize, inputs: Vec<String> },
     Failed { walk: String, error: String },
+    /// The calls the walk's door took away before any was a candidate (`Trace::door_why`), each with why: a reader of
+    /// the learn sees what the walk showed rather than a learn with no candidate and no reason. Assets are counted, not
+    /// listed.
+    Door { walk: String, took: usize, assets: usize, calls: Vec<Taken> },
     /// A new picture of the page is ready (`GET /owner/frame`): pixels only, fetched by the window.
     Frame(crate::frames::FrameNote),
 }
@@ -131,6 +152,47 @@ pub struct Scored {
     pub path: String,
     pub score: f64,
     pub noise: bool,
+}
+
+/// One call the door took: where it went, and why the page that held it there was the door's.
+#[derive(Clone, Serialize)]
+pub struct Taken {
+    pub index: usize,
+    pub method: String,
+    pub host: String,
+    pub path: String,
+    pub why: &'static str,
+    pub by: usize,
+}
+
+/// What the door took from a walk, for the eye: every call but assets, listed (at most 24), assets counted. None
+/// when the door took nothing.
+fn door_taken(walk: &str, trace: &Trace, site: &str) -> Option<Eye> {
+    let door = trace.door_why(site);
+    if door.is_empty() {
+        return None;
+    }
+    let (assets, calls): (Vec<&unbrowse_learn::trace::InDoor>, Vec<_>) = door.iter().partition(|d| trace.exchanges[d.index].is_asset());
+    Some(Eye::Door {
+        walk: walk.to_string(),
+        took: door.len(),
+        assets: assets.len(),
+        calls: calls
+            .into_iter()
+            .take(24)
+            .map(|d| {
+                let e = &trace.exchanges[d.index];
+                Taken {
+                    index: d.index,
+                    method: e.method.clone(),
+                    host: e.url.host_str().unwrap_or_default().to_string(),
+                    path: e.url.path().to_string(),
+                    why: d.why.name(),
+                    by: d.by,
+                }
+            })
+            .collect(),
+    })
 }
 
 /// Where the eye's events go. The API hands in the window's emitter; tests hand in nothing.
@@ -413,9 +475,15 @@ fn walk_read(walks: &Walks, url: &str, id: &str, who: &str, eye: Sink) -> Result
             let _ = std::fs::remove_file(&fingerprint_file);
         }
     }
-    let trace = trace_from_walk(&capture_dir, &session).ok_or("the walk recorded nothing")?;
     let probes = unbrowse_learn::walk::probes_from_walk(&capture_dir, &session);
     let mut recording = unbrowse_learn::recording::Recording::read(&capture_dir, &session);
+    let trace = match &recording {
+        Some(rec) => {
+            crate::session_held::note_trace(&rec.trace);
+            rec.trace.clone()
+        }
+        None => trace_from_walk(&capture_dir, &session).ok_or("the walk recorded nothing")?.into(),
+    };
     // The recording keeps what the page stored as the walk ended, for the page's own origin, where its capture did not:
     // a value a call sends that the page held there is learned as the storage's (`lab::compile::storage_when_called`).
     if let (Some(rec), Ok(page)) = (recording.as_mut(), url::Url::parse(url)) {
@@ -1185,14 +1253,22 @@ pub fn with_other_pages(url: &str, found: Vec<(String, String)>, others: &[Strin
 
 /// Clef, the decision model, when this machine has a key for it: `TYPESAFE_API_KEY`, else the Keychain item
 /// `network.unbrowse.clef` / `api-key` (add it with `security add-generic-password -s network.unbrowse.clef -a api-key -w`).
+/// A test reads only `TYPESAFE_API_KEY`, never the machine's Keychain: a Mac that holds the owner's key would otherwise
+/// put a remote model behind every pick a test checks, the way `store::test_home` keeps a test out of `~/.unbrowse`.
 fn clef() -> Option<unbrowse_learn::judge::TypesafeJudge> {
-    let key = std::env::var("TYPESAFE_API_KEY")
-        .ok()
-        .or_else(|| {
-            let item = keyring::Entry::new("network.unbrowse.clef", "api-key").ok()?;
-            unbrowse_core::keystore::retrying(|| item.get_password()).ok()
-        })?;
+    let key = std::env::var("TYPESAFE_API_KEY").ok().or_else(clef_from_keychain)?;
     Some(unbrowse_learn::judge::TypesafeJudge::new(key.trim()))
+}
+
+#[cfg(not(test))]
+fn clef_from_keychain() -> Option<String> {
+    let item = keyring::Entry::new("network.unbrowse.clef", "api-key").ok()?;
+    unbrowse_core::keystore::retrying(|| item.get_password()).ok()
+}
+
+#[cfg(test)]
+fn clef_from_keychain() -> Option<String> {
+    None
 }
 
 /// Keeps candidate `index` of a walk as a route named `what`.
@@ -1222,7 +1298,7 @@ fn history_of(walks: &HashMap<String, Walk>, id: &str, url: &str) -> Vec<(Trace,
         .collect();
     found.sort_by_key(|w| std::cmp::Reverse(w.at));
     found.truncate(3);
-    found.into_iter().map(|w| (w.trace.clone(), w.probes.clone())).collect()
+    found.into_iter().map(|w| ((*w.trace).clone(), w.probes.clone())).collect()
 }
 
 /// Carries the site's own decoder for a reply no standard reader reads onto `route`, so a call reads the answer as the
@@ -1293,7 +1369,7 @@ fn attach_a_decoder(route: &mut Route, trace: &Trace, recording: Option<&unbrows
 fn keep_as(walks: &Walks, walk: &str, index: usize, what: &str, extra: &[(String, String)], who: &str, live: bool) -> Result<Route, String> {
     let guard = walks.0.locked();
     let w = guard.get(walk).ok_or("that walk has expired; walk the page again")?;
-    let mut trace = w.trace.clone();
+    let mut trace = (*w.trace).clone();
     trace.inputs = walk_inputs(&w.url, extra, &trace.exchanges);
     // A walk only loads the page: every call in it the page sent by itself.
     let history = history_of(&guard, walk, &w.url);
@@ -3002,7 +3078,8 @@ fn route_of_by(trace: &Trace, index: usize, what: &str, root: &str, on_load: boo
     let write = graph.steps.last().is_some_and(unbrowse_learn::ledger::writes);
     if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() {
         for f in graph.steps.last().into_iter().flat_map(|s| &s.fields).filter(|f| !matches!(f.loc, unbrowse_learn::Loc::Path(_) | unbrowse_learn::Loc::Cookie(_)) && !matches!(f.class, unbrowse_learn::Class::Constant { .. } | unbrowse_learn::Class::Input { .. })) {
-            eprintln!("   [route] as built, {:?} is {}", f.loc, serde_json::to_string(&f.class).unwrap_or_default().chars().take(90).collect::<String>());
+            let class = serde_json::to_value(&f.class).unwrap_or_default();
+            eprintln!("   [route] as built, {:?} is {}", f.loc, serde_json::json!({ "class": class["class"] }));
         }
     }
     if let Some(why) = unbrowse_learn::answer::not_an_answer(&target, write) {
@@ -3172,6 +3249,31 @@ fn route_of_by(trace: &Trace, index: usize, what: &str, root: &str, on_load: boo
     // Read from the whole walk, its scripts included: the lean trace the graph was built from sets them aside.
     route.page_made = page_made(&route.graph, walked, root);
     route.walk_without_fragment = walk_without_fragment(root, visited, walked);
+    if target.is_main_document() && !route.write && goal::only_reads(&route.what) && !wants_one(&route.what) {
+        let fields = goal::fields(&route.what);
+        let values: Vec<String> = route.inputs.iter().filter(|input| !input.secret && !input.optional)
+            .filter_map(|input| input.default.as_ref()).filter(|value| a_word(value) && !address_setting(value)).cloned().collect();
+        if let Some(term) = values.iter().max_by_key(|value| (value.split_whitespace().count(), value.len()))
+            .filter(|_| fields.iter().any(|field| field.shape == goal::Shape::Link))
+        {
+            route.heard.records_at = confirm::as_the_route_reads(&route, &target, &values)
+                .and_then(|answer| {
+                    let anchors = std::cell::OnceCell::new();
+                    confirm::observed_search_list(&answer, term, |rows| {
+                        let holding = goal::holding_for_goal(rows, &fields, &values, &route.what);
+                        if holding.has_shapes() && holding.has_record_fields(&route.what, &fields) {
+                            return Some(holding.covered.len());
+                        }
+                        let anchors = anchors.get_or_init(|| unbrowse_learn::page::links_beside_state(
+                            target.response_body.as_deref().unwrap_or_default(), &target.url, &answer,
+                        ));
+                        goal::holding_with_rendered_links(rows, anchors, &fields, &values, &route.what)
+                            .map(|result| result.holding.covered.len())
+                    })
+                });
+            route.heard.document_records = route.heard.records_at.is_some();
+        }
+    }
     // Both judged now, by this build's rules: a route judged by others is read as unjudged.
     route.read_by = Some(store::ReadBy::current());
     Ok(route)
@@ -3268,44 +3370,53 @@ fn page_made(graph: &unbrowse_learn::Graph, trace: &Trace, root: &str) -> Option
     let mut bare = walked.clone();
     bare.set_fragment(None);
     let (navigated, served) = sources_before_code(trace, &bare);
-    // Each source's layers are read once: every word the route carries is looked for in all of them.
-    let sources: Vec<unbrowse_learn::trace::Readings> = std::iter::once(bare.as_str()).chain(served.iter().copied()).map(unbrowse_learn::trace::Readings::of).collect();
-    let explained = |v: &str| sources.iter().any(|r| r.carries_whole(v));
     let browsers_own = |loc: &unbrowse_learn::slots::Loc, v: &str| match loc {
         unbrowse_learn::slots::Loc::Header(h) => unbrowse_learn::sandbox::forbidden_header(h) || navigated.iter().any(|(k, nv)| k.eq_ignore_ascii_case(h) && nv == v),
         _ => false,
     };
+    let checks: Vec<_> = graph.steps.iter().map(|step| {
+        let host = unbrowse_learn::replay::step_host(&step.url).filter(|host| !bare.host_str().is_some_and(|h| h.eq_ignore_ascii_case(host)));
+        let fields: Vec<_> = step.fields.iter().map(|field| {
+            let value = match &field.class {
+                unbrowse_learn::Class::Constant { value, .. } | unbrowse_learn::Class::Unconfirmed { value }
+                    if !matches!(field.loc, unbrowse_learn::slots::Loc::Cookie(_)) && !browsers_own(&field.loc, value) => Some(value.as_str()),
+                _ => None,
+            };
+            let browser_key = matches!(&field.loc, unbrowse_learn::slots::Loc::Header(h) if unbrowse_learn::sandbox::forbidden_header(h) || navigated.iter().any(|(k, _)| k.eq_ignore_ascii_case(h)));
+            let keys = if browser_key { Vec::new() } else { loc_words(&field.loc) };
+            (&field.loc, value, keys)
+        }).collect();
+        let mut keys = Vec::new();
+        shape_keys(step.response_shape.as_ref(), &mut keys);
+        (host, fields, keys)
+    }).collect();
+    let words = checks.iter().flat_map(|(host, fields, keys)| {
+        let field_words = fields.iter().flat_map(|(_, value, keys)| value.iter().copied().chain(keys.iter().map(String::as_str)));
+        host.as_deref().into_iter().chain(field_words).chain(keys.iter().map(String::as_str))
+    });
+    let explained = unbrowse_learn::trace::whole_values(std::iter::once(bare.as_str()).chain(served), words);
     // Every text the route would carry that the walk wrote, not only a value: the key a value goes under (a query
     // name, a header name, a JSON or form key, a cookie name), the host a step goes to, and the keys of the answer it
     // expects. Any of them may be the page's own work on the fragment as much as a value may.
-    let unexplained_word = |w: &str| !w.is_empty() && !explained(w);
+    let unexplained = |word: &str| !explained.contains(&word.to_lowercase());
     let mut made = Vec::new();
-    for (n, step) in graph.steps.iter().enumerate() {
+    for (n, (host, fields, keys)) in checks.into_iter().enumerate() {
         let at = |what: String| format!("step {} {what}", n + 1);
-        if let Some(host) = unbrowse_learn::replay::step_host(&step.url) {
-            if !(bare.host_str().is_some_and(|h| h.eq_ignore_ascii_case(&host)) || explained(&host)) {
-                made.push(at(format!("host {host}")));
-            }
+        if let Some(host) = host.filter(|host| unexplained(host)) {
+            made.push(at(format!("host {host}")));
         }
-        for f in &step.fields {
+        for (loc, value, keys) in fields {
             // Every value the walk sent that the route sends again, whichever learner made the graph and however it
             // classed the value: a constant, or one left open for the caller to fill (`Unconfirmed`). A value the page
             // made from the fragment is the owner's either way, and a route that asks for it isn't shared, even empty.
-            if let unbrowse_learn::Class::Constant { value, .. } | unbrowse_learn::Class::Unconfirmed { value } = &f.class {
-                if !matches!(f.loc, unbrowse_learn::slots::Loc::Cookie(_)) && !browsers_own(&f.loc, value) && !explained(value) {
-                    made.push(at(f.loc.to_string()));
-                }
+            if value.is_some_and(unexplained) {
+                made.push(at(loc.to_string()));
             }
-            if let Some(key) = loc_words(&f.loc).into_iter().find(|w| unexplained_word(w)) {
-                let theirs = matches!(&f.loc, unbrowse_learn::slots::Loc::Header(h) if unbrowse_learn::sandbox::forbidden_header(h) || navigated.iter().any(|(k, _)| k.eq_ignore_ascii_case(h)));
-                if !theirs {
-                    made.push(at(format!("key {key} ({})", f.loc)));
-                }
+            if let Some(key) = keys.into_iter().find(|w| !w.is_empty() && unexplained(w)) {
+                made.push(at(format!("key {key} ({loc})")));
             }
         }
-        let mut keys = Vec::new();
-        shape_keys(step.response_shape.as_ref(), &mut keys);
-        if let Some(key) = keys.into_iter().find(|k| unexplained_word(k)) {
+        if let Some(key) = keys.into_iter().find(|k| !k.is_empty() && unexplained(k)) {
             made.push(at(format!("answer key {key}")));
         }
     }
@@ -4194,7 +4305,7 @@ fn page_shown<'e>(pages: impl IntoIterator<Item = &'e Exchange>, url: &str, read
 /// host is a door, so the asked site stays.
 fn walked_site<'e>(exchanges: impl IntoIterator<Item = &'e Exchange>, host: &str) -> String {
     let asked = site_of(host);
-    let landed = exchanges.into_iter().filter(|e| e.is_main_document() && matches!(e.url.scheme(), "http" | "https")).last();
+    let landed = exchanges.into_iter().filter(|e| e.is_main_document() && e.has_final_http_response() && matches!(e.url.scheme(), "http" | "https")).last();
     let Some(e) = landed.filter(|e| (200..300).contains(&e.status)) else { return asked };
     let there = e.url.host_str().unwrap_or_default();
     let body = e.response_body.as_deref().unwrap_or_default();
@@ -4277,18 +4388,17 @@ fn is_the_page_itself(e: &Exchange, page: &str) -> bool {
     e.is_main_document() && e.url.host_str() == page.host_str() && e.url.path().trim_end_matches('/') == page.path().trim_end_matches('/')
 }
 
+/// A short main document that says it wants a person is a check. A long page can mention it among its records.
+fn page_asks_for_person(e: &Exchange) -> bool {
+    e.is_main_document() && e.response_body.as_deref().filter(|b| unbrowse_learn::page::is_markup(&e.response_mime, b)).is_some_and(|b| {
+        let read = unbrowse_learn::page::read(b, &e.url);
+        read["text"].as_str().is_some_and(|t| t.chars().count() < 4000 && crate::challenge::wants_a_person(t))
+    })
+}
+
 fn fails_goal(e: &Exchange, goal: &str, page: &str, asked: &[String], landed: &str, trace: &Trace) -> Option<String> {
-    // A page that says it wants a person is the site's check, wherever the walk's browser was sent to meet it: never
-    // the page that was asked for, and never a route. Only a short page: a long one that mentions the word among its
-    // results is a page about it. The same reading a call's answer is held to (`challenge::wants_a_person`).
-    if e.is_main_document() {
-        let asks = e.response_body.as_deref().filter(|b| unbrowse_learn::page::is_markup(&e.response_mime, b)).is_some_and(|b| {
-            let read = unbrowse_learn::page::read(b, &e.url);
-            read["text"].as_str().is_some_and(|t| t.chars().count() < 4000 && crate::challenge::wants_a_person(t))
-        });
-        if asks {
-            return Some("the page asks for a person: it is the site's check, not the page that was asked for".into());
-        }
+    if page_asks_for_person(e) {
+        return Some("the page asks for a person: it is the site's check, not the page that was asked for".into());
     }
     // A page that links nowhere and says nothing of what was asked is a check or a wall: read back, it fails the call
     // (`page::a_check_not_the_page`), so it is never kept as the route that answers. A page as served that says none of
@@ -4341,7 +4451,7 @@ fn fails_goal(e: &Exchange, goal: &str, page: &str, asked: &[String], landed: &s
         return Some("its records are the ones it sent: it reports them, and answers nothing".into());
     }
     let fields = goal::fields(goal);
-    let h = holding_of(e, &fields, asked);
+    let h = holding_of(e, &fields, asked, goal);
     // Another site's call whose answer lists nothing and holds none of what the goal asks for was told about the page
     // (its address, its title, the word in it) and answers nothing: a route made of it hands every caller the same
     // few lines. A search service the page uses on another site lists what it found, and is not this. A goal for one
@@ -4353,6 +4463,9 @@ fn fails_goal(e: &Exchange, goal: &str, page: &str, asked: &[String], landed: &s
     if !h.has_shapes() {
         let shaped: Vec<&str> = fields.iter().filter(|f| f.shape != goal::Shape::Plain).map(|f| f.word.as_str()).collect();
         return Some(format!("its answer holds no {}", shaped.join(" or ")));
+    }
+    if !h.has_record_fields(goal, &fields) && (!e.is_main_document() || !shows_document_records(e)) {
+        return Some("its links do not come with the requested record fields".into());
     }
     // A search's answer is its results: a list, a call that asks for what was searched by itself, or what says it
     // back. One record from a call carrying the word only inside another value (the page's title), saying none of it
@@ -4449,16 +4562,21 @@ fn not_the_page(trace: &Trace, url: &str) -> Option<String> {
     page_gone(trace).or_else(|| page_detoured(trace, url)).or_else(|| page_turned_away(trace, url))
 }
 
-/// The walk's main documents, as the browser loaded them: the redirects on the way are not pages.
-fn main_pages(trace: &Trace) -> Vec<&Exchange> {
-    trace.exchanges.iter().filter(|e| e.is_main_document() && matches!(e.url.scheme(), "http" | "https") && !(300..400).contains(&e.status)).collect()
+fn main_document_requests(trace: &Trace) -> impl DoubleEndedIterator<Item = &Exchange> {
+    trace.exchanges.iter().filter(|e| e.is_main_document() && matches!(e.url.scheme(), "http" | "https"))
+}
+
+/// A main document can only replace the page once the browser has received a final HTTP response.
+/// The capture uses status 0 when the request received no response. Redirects lead to another document.
+fn main_pages(trace: &Trace) -> impl DoubleEndedIterator<Item = &Exchange> {
+    main_document_requests(trace).filter(|e| e.has_final_http_response() && !(300..400).contains(&e.status))
 }
 
 /// What the site said when it answered that the page isn't there and never went on to serve one.
 fn page_gone(trace: &Trace) -> Option<String> {
-    let pages = main_pages(trace);
-    let first = pages.first()?;
-    if !matches!(first.status, 404 | 410) || pages.iter().any(|e| (200..300).contains(&e.status)) {
+    let mut pages = main_pages(trace);
+    let first = pages.next()?;
+    if !matches!(first.status, 404 | 410) || pages.any(|e| (200..300).contains(&e.status)) {
         return None;
     }
     let said = unbrowse_learn::answer::site_said(first.response_body.as_deref().unwrap_or_default());
@@ -4469,8 +4587,7 @@ fn page_gone(trace: &Trace) -> Option<String> {
 /// from a script, so the page it ended on is the one that counts.
 fn page_detoured(trace: &Trace, url: &str) -> Option<String> {
     let asked = url::Url::parse(url).ok()?;
-    let pages = main_pages(trace);
-    let last = pages.last()?;
+    let last = main_pages(trace).next_back()?;
     if unbrowse_learn::answer::detour(&asked, &last.url) {
         return Some(format!("the site sent the page to {} instead, naming it to come back to (a sign-in or a wall), so no route was kept", last.url.path()));
     }
@@ -4489,7 +4606,7 @@ fn page_turned_away(trace: &Trace, url: &str) -> Option<String> {
     if values.is_empty() {
         return None;
     }
-    let last = main_pages(trace).into_iter().rfind(|e| (200..300).contains(&e.status))?;
+    let last = main_pages(trace).rfind(|e| (200..300).contains(&e.status))?;
     let page = |u: &url::Url| format!("{}{}", u.host_str().unwrap_or_default(), u.path().trim_end_matches('/'));
     if page(&last.url) == page(&asked) || values.iter().any(|v| unbrowse_learn::trace::carries_text(last.url.as_str(), v)) {
         return None;
@@ -4523,7 +4640,7 @@ fn page_unreached(trace: &Trace, url: &str) -> Option<Unlearned> {
 /// `browse::came_to_page` gives the same landing): a check stood in the way, and nothing was asked of the site. Never
 /// a value the site has nothing for, which an agent reads as an answer and stops on.
 fn turned_to_a_check(trace: &Trace) -> Option<Unlearned> {
-    let last = main_pages(trace).into_iter().rfind(|e| (200..300).contains(&e.status))?;
+    let last = main_pages(trace).rfind(|e| (200..300).contains(&e.status))?;
     unbrowse_learn::challenge::asks_a_person(last.response_body.as_deref().unwrap_or_default(), &last.url).then(|| {
         Unlearned::Check(
             format!("the site sent the browser to {} instead of the page asked for: a check that asks for a person, so nothing was read for this value. Meet it with unbrowse_challenge, then ask again", last.url.path()),
@@ -4534,10 +4651,8 @@ fn turned_to_a_check(trace: &Trace) -> Option<Unlearned> {
 
 /// The page a walk landed on, when the site answered its address with another (a redirect): the first page it loaded.
 fn landed(trace: &Trace) -> String {
-    trace
-        .exchanges
-        .iter()
-        .find(|e| e.is_main_document() && matches!(e.url.scheme(), "http" | "https") && (200..300).contains(&e.status))
+    main_pages(trace)
+        .find(|e| (200..300).contains(&e.status))
         .map(|e| e.url.to_string())
         .unwrap_or_default()
 }
@@ -4551,20 +4666,35 @@ fn short_for_a_list(h: &goal::Holding, goal: &str, asked: &[String]) -> bool {
 /// What a call's answer holds of the goal, read the way its route will answer (`RouteClient`): its JSON, or for a page
 /// the state it embeds when that holds what the page shows, else the page as the replay reads it (its text and its
 /// links: `page::answer`). A page whose state is a scrap of config answers with what it renders, not with that scrap.
-fn holding_of(e: &Exchange, fields: &[goal::Field], asked: &[String]) -> goal::Holding {
+fn holding_of(e: &Exchange, fields: &[goal::Field], asked: &[String], goal: &str) -> goal::Holding {
     let body = e.response_body.as_deref().unwrap_or_default();
     let content_type = e.response_header("content-type").unwrap_or(&e.response_mime);
     if unbrowse_learn::page::is_markup(content_type, body) && serde_json::from_str::<serde_json::Value>(body).is_err() {
         let values: Vec<&str> = asked.iter().map(String::as_str).collect();
         return match unbrowse_learn::page::answer_asked(body, &e.url, &values) {
             (page, true) => goal::page_holding(&page, fields, asked),
-            (state, false) => goal::holding(&state, fields, asked),
+            (state, false) => {
+                let held = goal::holding_for_goal(&state, fields, asked, goal);
+                if (!held.has_shapes() || !held.has_record_fields(goal, fields)) && fields.iter().any(|f| f.shape == goal::Shape::Link) {
+                    let links = unbrowse_learn::page::links_beside_state(body, &e.url, &state);
+                    if let Some(linked) = goal::holding_with_rendered_links(&state, &links, fields, asked, goal) {
+                        return linked.holding;
+                    }
+                }
+                held
+            }
         };
     }
     if let Some(v) = e.json_body() {
-        return goal::holding(&v, fields, asked);
+        return goal::holding_for_goal(&v, fields, asked, goal);
     }
     goal::holding(&serde_json::Value::Null, fields, asked)
+}
+
+fn shows_document_records(e: &Exchange) -> bool {
+    let Some(body) = e.response_body.as_deref().filter(|b| unbrowse_learn::page::is_markup(&e.response_mime, b)) else { return false };
+    let page = unbrowse_learn::page::read(body, &e.url);
+    goal::has_rendered_links(&page)
 }
 
 /// The rule's pick (`rule_scores` best first): of the calls whose answer holds the goal, the one whose records say
@@ -4587,7 +4717,7 @@ fn rule_pick(trace: &Trace, view: &WalkView, goal: &str, query_values: &[String]
         }
         let (Some(c), false) = (view.candidates.iter().find(|c| c.index == i), noise) else { continue };
         let e = &trace.exchanges[i];
-        let h = holding_of(e, &fields, query_values);
+        let h = holding_of(e, &fields, query_values, goal);
         let shapes = h.has_shapes();
         let covered = !h.covered.is_empty();
         let answers = shapes && (covered || answers_goal(e, c, goal, query_values));
@@ -4734,7 +4864,28 @@ fn rule_pick(trace: &Trace, view: &WalkView, goal: &str, query_values: &[String]
             read["links"].as_array().is_some_and(|links| links.iter().filter(|l| l["text"].as_str().is_some_and(said)).count() >= LISTS_IT)
         }
     });
-    let rank = |h: &goal::Holding, i: usize| -> (bool, bool, bool, bool, bool, bool, bool, usize, usize, usize) {
+    let linked_document_answers = fields.iter().any(|field| field.shape == goal::Shape::Link)
+        && held.iter().any(|(h, _, i, _)| h.echoes && h.records >= LISTS_IT && is_the_page_itself(&trace.exchanges[*i], &view.url));
+    // The one thing the page is about is the last piece of its address (`/title/tt0111161/`): the record that names it
+    // is the thing's own, and a field it holds is the thing's (`thing_holding`).
+    let thing = goal::thing_of(&view.url);
+    let thing_held = |i: usize| -> Option<goal::Holding> {
+        let thing = thing.as_deref()?;
+        let e = &trace.exchanges[i];
+        let body = e.response_body.as_deref().unwrap_or_default();
+        let answer = if markup(e) && e.own_json().is_none() {
+            let values: Vec<&str> = query_values.iter().map(String::as_str).collect();
+            match unbrowse_learn::page::answer_asked(body, &e.url, &values) {
+                (page, true) => page.get("state").cloned().unwrap_or_default(),
+                (state, false) => state,
+            }
+        } else {
+            e.own_json().unwrap_or_default()
+        };
+        Some(goal::thing_holding(&answer, &fields, thing)).filter(|h| !h.covered.is_empty())
+    };
+    let thing_has = |i: usize| thing_held(i).map_or(0, |h| h.covered.len());
+    let rank = |h: &goal::Holding, i: usize| -> (bool, bool, usize, bool, bool, bool, bool, bool, usize, usize, usize) {
         let e = &trace.exchanges[i];
         let names = asks_for_itself(e, &subject);
         let itself = one && (names == Some(true) || says_its_name(e, &subject));
@@ -4744,7 +4895,9 @@ fn rule_pick(trace: &Trace, view: &WalkView, goal: &str, query_values: &[String]
         let page_or_data = e.is_main_document() || !markup(e);
         if one {
             // Then, of the rest, a data call over the page: it holds the thing's figures, the page its words about it.
-            (true, itself, itself && !e.is_main_document(), names != Some(false), page_or_data, h.echoes, h.shaped > 0, h.shaped, h.covered.len(), 0)
+            // Of those, the one whose record of the thing holds the goal's fields itself, over one that holds them only
+            // in a list of other records it carries (a title's featured reviews, each with a rating of its own).
+            (true, itself, if itself { thing_has(i) } else { 0 }, itself && !e.is_main_document(), names != Some(false), page_or_data, h.echoes, h.shaped > 0, h.shaped, h.covered.len(), 0)
         } else {
             // The site's data call before the page that renders it: HTML is the fallback, and a call that answers the
             // same question with records is the route. A call whose own address names the goal (`opname=…Availability`)
@@ -4758,8 +4911,11 @@ fn rule_pick(trace: &Trace, view: &WalkView, goal: &str, query_values: &[String]
             // it, the call lists something else than what the page shows for the word (a strip of the site's own
             // picks, beside the results). It took the word and answers with its records all the same, so it looked
             // like the search; it is a list at the side of it, and the page is the answer.
-            let beside = page_says_it_back && !e.is_main_document() && !markup(e) && !h.echoes;
-            (!beside, answers(i) || (names_goal(i) && !e.is_main_document() && !markup(e)), !e.is_main_document() && !markup(e), names_goal(i), page_or_data, h.echoes, h.shaped > 0, h.shaped, h.covered.len(), carried(i))
+            // The document already shows a full list of linked records. A smaller neighbouring list cannot supply
+            // the requested list just because its cards mention the same search.
+            let beside = !e.is_main_document() && !markup(e)
+                && ((page_says_it_back && !h.echoes) || (linked_document_answers && h.records < LISTS_IT));
+            (!beside, answers(i) || (names_goal(i) && !e.is_main_document() && !markup(e)), 0, !e.is_main_document() && !markup(e), names_goal(i), page_or_data, h.echoes, h.shaped > 0, h.shaped, h.covered.len(), carried(i))
         }
     };
     held.sort_by(|a, b| rank(&b.0, b.2).cmp(&rank(&a.0, a.2)).then(b.1.total_cmp(&a.1)));
@@ -4772,28 +4928,15 @@ fn rule_pick(trace: &Trace, view: &WalkView, goal: &str, query_values: &[String]
     }
     let (h, _, i, mut reasons) = held.into_iter().next().ok_or(NEEDS_HANDS)?;
     reasons.insert(0, h.said());
+    if let Some(own) = thing_held(i).filter(|_| one) {
+        reasons.insert(0, format!("its record of {} holds {} itself", thing.as_deref().unwrap_or_default(), own.covered.join(", ")));
+    }
     Ok((i, reasons))
 }
 
-/// Whether a goal asks for one thing (`get the price of a coin`, `get a crate's details`) rather than a list (`search
-/// stories`, `list open markets`): it never asks for a list or for all of something.
+/// Whether a goal asks for one thing rather than a list: `goal::wants_one`, the one reader.
 pub(crate) fn wants_one(goal: &str) -> bool {
-    let words: Vec<String> = goal.to_lowercase().split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(String::from).collect();
-    let lists = ["search", "list", "find", "browse", "compare", "show", "all", "every", "each"];
-    // A goal that asks for several of something names it up front (`flights from Singapore to Tokyo`), even where the
-    // caller left out a list's verb. It was read as a goal for one thing, so the page's own last piece
-    // (`showfarefirst` at `/flights/showfarefirst`) was taken for the thing it names and the streamed answer rejected
-    // for never saying it. The head word is the first that isn't an article or a verb of asking; the endings that look
-    // plural and are not (`status`, `analysis`, `gas`, `chaos`) and a number's pieces are left out.
-    let lead = ["the", "a", "an", "me", "please", "get", "read", "give", "fetch", "retrieve", "check", "look", "for"];
-    let plural = |w: &str| {
-        w.chars().count() >= 4
-            && w.ends_with('s')
-            && !["ss", "us", "is", "as", "os"].iter().any(|e| w.ends_with(e))
-            && w.chars().any(|c| c.is_alphabetic())
-    };
-    let head = words.iter().find(|w| !lead.contains(&w.as_str()));
-    !words.iter().any(|w| lists.contains(&w.as_str())) && !head.is_some_and(|w| plural(w))
+    goal::wants_one(goal)
 }
 
 /// Whether a call asks for the thing a page names by itself: a value the page was asked for is the last piece of the
@@ -4916,24 +5059,24 @@ fn says_its_name(e: &Exchange, subject: &[String]) -> bool {
     !e.is_main_document() && e.json_body().is_some_and(|v| v.is_object() && named(&v, &subject, 0))
 }
 
-/// The page's own document when it serves the answer in its content: the last main GET that returned substantial
-/// HTML — many links or a long body — the way a server-rendered page (a news front page, a listing, an article)
-/// does. A bare form or login page, with little content, is not kept: it needs interaction, which is browse, not a
-/// route. This is the fallback when no call on the page answers the goal, since the agent pointed at this page.
-fn document_answer(trace: &Trace) -> Option<usize> {
-    (0..trace.exchanges.len()).rev().find(|&i| {
-        let e = &trace.exchanges[i];
-        if !(e.is_main_document() && e.method.eq_ignore_ascii_case("GET") && e.status < 400) || its_data_failed(trace, i) {
-            return false;
+/// The opening document when it serves the answer in its content. A walk can read on into more pages, so use the
+/// first successful main document on the site with substantial HTML. Redirect responses and doors do not answer.
+fn document_answer(trace: &Trace, site: &str) -> Option<usize> {
+    use unbrowse_learn::{identity::on_site, page};
+    trace.exchanges.iter().enumerate().find_map(|(i, e)| {
+        let opened = e.is_main_document() && e.method.eq_ignore_ascii_case("GET")
+            && (200..300).contains(&e.status) && e.url.host_str().is_some_and(|host| on_site(host, site));
+        if !opened || its_data_failed(trace, i) {
+            return None;
         }
-        let Some(body) = e.response_body.as_deref() else { return false };
-        if !unbrowse_learn::page::is_html(body) {
-            return false;
+        let body = e.response_body.as_deref()?;
+        if !page::is_html(body) || page::a_door(e.status, body, &e.url) {
+            return None;
         }
-        let page = unbrowse_learn::page::read(body, &e.url);
+        let page = page::read(body, &e.url);
         let links = page["links"].as_array().map(|a| a.len()).unwrap_or(0);
         let text = page["text"].as_str().map(str::len).unwrap_or(0);
-        links >= 5 || text >= 1000
+        (links >= 5 || text >= 1000).then_some(i)
     })
 }
 
@@ -4991,7 +5134,7 @@ fn model_rows(trace: &Trace, view: &WalkView, goal: &str, query_values: &[String
         .iter()
         .map(|c| {
             let e = &trace.exchanges[c.index];
-            let h = holding_of(e, &fields, query_values);
+            let h = holding_of(e, &fields, query_values, goal);
             unbrowse_learn::judge::ExchangeRow {
                 index: c.index,
                 method: c.method.clone(),
@@ -5141,7 +5284,7 @@ pub(crate) fn lists_the_ask(e: &Exchange, goal: &str, asked: &[String]) -> bool 
     if asked.is_empty() {
         return false;
     }
-    let h = holding_of(e, &goal::fields(goal), asked);
+    let h = holding_of(e, &goal::fields(goal), asked, goal);
     h.has_shapes() && !h.covered.is_empty() && h.echoes && h.records >= 2
 }
 
@@ -5256,6 +5399,28 @@ pub(crate) fn stood_in_the_way(trace: &Trace, url: &str, why: Unlearned) -> Unle
     let on_site = |e: &Exchange| e.url.host_str().is_some_and(|h| unbrowse_learn::identity::on_site(h, &site));
     if trace.exchanges.iter().any(|e| on_site(e) && e.own_json().as_ref().and_then(unbrowse_learn::answer::check_url).is_some()) {
         return Unlearned::Check(words(&why), "answer.check_url");
+    }
+    // A page that only runs its own code stood in the walk's door stretch (`page::a_door`), and the walk ended without
+    // a page that answers what it was asked: a check that serves itself, whose pass a script earns. The check's own page
+    // may be the last document, or the site's "access denied" after it — the answer a failed check gives — so the
+    // ending is read too: a page that says what the walk was asked (a real page, empty results included) is a page.
+    let door = trace.door(&site);
+    let check_in_door = door.iter().any(|i| {
+        let e = &trace.exchanges[*i];
+        e.is_main_document()
+            && !e.is_refused()
+            && unbrowse_learn::page::a_door(e.status, e.response_body.as_deref().unwrap_or_default(), &e.url)
+    });
+    let ended = trace.exchanges.iter().rposition(|e| e.is_main_document() && (on_site(e) || e.main_frame == Some(true)));
+    let says_the_ask = url::Url::parse(url).ok().is_some_and(|asked| {
+        let asked: Vec<String> = unbrowse_learn::trace::asked_pairs(&asked).into_iter().map(|(_, v)| v.to_lowercase()).filter(|v| v.chars().count() > 2).collect();
+        ended.map(|i| &trace.exchanges[i]).is_some_and(|e| {
+            let said = e.response_body.as_deref().unwrap_or_default().to_lowercase();
+            !asked.is_empty() && asked.iter().any(|v| said.contains(v))
+        })
+    });
+    if check_in_door && !says_the_ask {
+        return Unlearned::Check(words(&why), "trace.door");
     }
     if matches!(why, Unlearned::Door(..)) {
         return why;
@@ -5498,16 +5663,21 @@ pub fn verification_begins(url: &str) {
 /// good deal by then gives every word the same page. Deaf stands where the first look never showed otherwise, and a
 /// second look that asked is otherwise the later word.
 fn heard_after(first: &store::Heard, second: &store::Heard) -> store::Heard {
-    match (first.probed && first.deaf.is_empty(), second.deaf.is_empty()) {
+    let mut heard = match (first.probed && first.deaf.is_empty(), second.deaf.is_empty()) {
         (true, false) => first.clone(),
         _ if second.probed => second.clone(),
         _ => first.clone(),
+    };
+    if first.document_records {
+        heard.records_at.clone_from(&first.records_at);
+        heard.document_records = true;
     }
+    heard
 }
 
 /// What the walk `id` that taught `route` answered the ask with, for the values `given` (`confirm::walks_answer`):
 /// None where the walk is gone or made no answered call of the route.
-pub fn walks_answer(walks: &Walks, id: &str, route: &Route, given: &HashMap<String, String>) -> Option<serde_json::Value> {
+pub fn walks_answer(walks: &Walks, id: &str, route: &Route, given: &HashMap<String, String>) -> Option<crate::run::WholeAnswer> {
     let guard = walks.0.locked();
     let walk = guard.get(id)?;
     confirm::walks_answer(route, &walk.trace, given)
@@ -5584,7 +5754,7 @@ pub fn verify_learned(walks: &Walks, url: &str, goal: &str, who: &str, id: &str,
         // refusal of the second trial is all that changed, and the route that answered is put back.
         Ok((route, _)) if needs_the_page(&route) && !needs_the_page(first) => {
             let mut kept = first.clone();
-            kept.heard = if route.heard.probed { route.heard.clone() } else { first.heard.clone() };
+            kept.heard = heard_after(&first.heard, &route.heard);
             let _ = store::save_route(&kept);
             eprintln!("   [verify] {} {} stands as first learned: plain, where the second look's trial was refused", first.method, first.site);
         }
@@ -5608,8 +5778,8 @@ pub fn verify_learned(walks: &Walks, url: &str, goal: &str, who: &str, id: &str,
     let again = walks.0.locked().get(&format!("{id}c")).map(|w| w.trace.clone());
     if let (Some(route), Some(walked)) = (store::load_route(&standing), walked) {
         if !route.write {
-            let route = links::with_proposed_links(route, &walked, again.as_ref(), url, goal);
-            links::with_proposed_fields(route, &walked, again.as_ref(), goal);
+            let route = links::with_proposed_links(route, &walked, again.as_deref(), url, goal);
+            links::with_proposed_fields(route, &walked, again.as_deref(), goal);
         }
     }
     // With the switch on, the route that stands is put to the site: its four tests, then the smallest request it
@@ -5932,7 +6102,7 @@ fn walk_pick(trace: &Trace, view: &WalkView, goal: &str, query_values: &[String]
         Err(_) if unbrowse_learn::mint::asked_to_stop() => None,
         // No call answers, but a page the agent opened that serves the answer in its own content is the answer
         // itself: for a server-rendered page the route is just the GET that returns the HTML.
-        Err(_) => document_answer(trace).filter(|&i| passes(i)).map(|i| (i, "the page itself", vec!["the page the agent opened serves the answer in its own content; no call is needed".to_string()])),
+        Err(_) => document_answer(trace, &view.site).filter(|&i| passes(i)).map(|i| (i, "the page itself", vec!["the page the agent opened serves the answer in its own content; no call is needed".to_string()])),
     }
 }
 
@@ -6006,6 +6176,10 @@ fn pick_and_keep(walks: &Walks, url: &str, goal: &str, who: &str, id: &str, eye:
     // page to another of its own names (a country's store, a search the site hosts elsewhere) is the walk of where it
     // landed (`walked_site`), which is how a live walk was already read.
     let site = walks.0.locked().get(&view.walk).map_or_else(|| site_of(&host), |w| walked_site(&w.trace.exchanges, &host));
+    let taken = walks.0.locked().get(&view.walk).and_then(|w| door_taken(id, &w.trace, &view.site));
+    if let Some(taken) = taken {
+        eye(taken);
+    }
     let asked = if experiment {
         None
     } else {
@@ -6047,9 +6221,7 @@ fn pick_and_keep(walks: &Walks, url: &str, goal: &str, who: &str, id: &str, eye:
     // The walk's browser ended on a page that asks for a person: that is what stood between the walk and an answer,
     // and the caller is told so, not that the page needs typing.
     let checked = walks.0.locked().get(&view.walk).is_some_and(|w| {
-        w.trace.exchanges.iter().rev().find(|e| e.is_main_document() && e.main_frame != Some(false) && e.response_body.is_some()).is_some_and(|e| {
-            fails_goal(e, goal, url, &[], "", &w.trace).is_some_and(|why| why.starts_with("the page asks for a person"))
-        })
+        w.trace.exchanges.iter().rev().find(|e| e.is_main_document() && e.main_frame != Some(false) && e.response_body.is_some()).is_some_and(page_asks_for_person)
     });
     if checked {
         let why = "the site sent the page to its check for a person, so the walk read no answer: someone on the page may pass it".to_string();
@@ -6210,12 +6382,14 @@ fn pick_and_keep(walks: &Walks, url: &str, goal: &str, who: &str, id: &str, eye:
         // first stands marked deaf: it answers this page, and an ask for another value walks that page.
         match &settled {
             Some((_, names)) => {
-                route.heard = store::Heard { probed: true, deaf: names.clone(), ..Default::default() };
+                route.heard.probed = true;
+                route.heard.deaf.clone_from(names);
                 let _ = store::save_route(&route);
             }
             None if stands_deaf => {
                 eprintln!("   [second walk] no call on the page hears the caller: {} {} stands for this page alone", route.method, route.site);
-                route.heard = store::Heard { probed: true, deaf: deaf_names.clone(), ..Default::default() };
+                route.heard.probed = true;
+                route.heard.deaf.clone_from(&deaf_names);
                 let _ = store::save_route(&route);
             }
             // The page was asked a word and the route has no slot for it (the word reached its call as something
@@ -6256,13 +6430,15 @@ fn pick_and_keep(walks: &Walks, url: &str, goal: &str, who: &str, id: &str, eye:
                         unheard.push((index, names));
                         continue;
                     }
-                    route.heard = store::Heard { probed: true, deaf: names, ..Default::default() };
+                    route.heard.probed = true;
+                    route.heard.deaf = names;
                     let _ = store::save_route(&route);
                 }
                 Hears::Yes => {
                     let walked = walked_text(walks, &view.walk, &view.site);
                     route = read_on_by_trial_for(spaced_as_the_site_writes(held_where_the_site_hears(the_calls_address(route)), &walked), second.as_ref().map(|s| s.word.as_str()), !experiment);
-                    route.heard = store::Heard { probed: true, deaf: Vec::new(), ..Default::default() };
+                    route.heard.probed = true;
+                    route.heard.deaf.clear();
                     let _ = store::save_route(&route);
                 }
                 Hears::Unasked(why) => eprintln!("   [hears] not asked: {why}"),
@@ -6279,6 +6455,32 @@ fn pick_and_keep(walks: &Walks, url: &str, goal: &str, who: &str, id: &str, eye:
             steps: route.steps,
             inputs: route.inputs.iter().map(|i| i.name.clone()).collect(),
         });
+        if !picked_the_page && !route.write && route.graph.steps.len() > 1 && goal::only_reads(goal) && !query_values.is_empty() {
+            let opening = walks.0.locked().get(&view.walk).and_then(|w| {
+                let i = document_answer(&w.trace, &view.site)?;
+                let page = &w.trace.exchanges[i];
+                let asked = url::Url::parse(url).ok()?;
+                let requested = unbrowse_learn::trace::asked_pairs(&asked);
+                // The settled page can add its own parameters. Every input the caller gave must still be there,
+                // without an extra occurrence of a name the caller supplied.
+                let kept_the_ask = unbrowse_learn::trace::asked_pairs(&page.url).into_iter()
+                    .filter(|(name, _)| requested.iter().any(|(key, _)| key == name))
+                    .eq(requested.iter().cloned());
+                let same_page = page.url.origin() == asked.origin()
+                    && page.url.path().trim_end_matches('/') == asked.path().trim_end_matches('/')
+                    && kept_the_ask;
+                (i < index && same_page && !is_rejected(&rejected, page) && lists_the_ask(page, goal, &query_values)).then_some(i)
+            });
+            if let Some(opening) = opening {
+                match keep_as(walks, &view.walk, opening, goal, &in_path, who, false) {
+                    Ok(page) => {
+                        eprintln!("   [route] opening document {} kept beside {} for its own results", page.id, route.id);
+                        walks.remember_companion(id, &route.id, page.id);
+                    }
+                    Err(why) => eprintln!("   [route] opening document could not be kept beside {}: {why}", route.id),
+                }
+            }
+        }
         break (route, by);
     };
     try_the_page_later(&route, "learn::pick_and_keep");
@@ -6540,8 +6742,8 @@ pub fn note_setups(site: &str) {
 /// sent what was typed is learned as soon as it lands. When the agent leaves a page (`until`: the moment it opened
 /// the next one, or closed the browser), the flow ends: a page that was only read is learned from the call that
 /// answered with the page's own inputs, or that answers the goal the agent gave for it, and typing that left by no recorded call is noted. What the node already
-/// knows isn't learned twice. One at a time; a learn already running leaves this one to the next command. With the
-/// route comes the time the call it was learned from went out, so the node can tell whose step set it off.
+/// knows isn't learned twice. The final read waits its turn before the browser can leave the flow. With the route
+/// comes the time the call it was learned from went out, so the node can tell whose step set it off.
 pub fn learn_auto(site: &str, session: &str, until: Option<f64>, who: &str, eye: Sink) -> Option<(Route, f64)> {
     learn_with(site, session, until, who, eye, false)
 }
@@ -6552,14 +6754,27 @@ pub fn learn_now(site: &str, session: &str, who: &str, eye: Sink) -> Option<(Rou
     learn_with(site, session, None, who, eye, true)
 }
 
+static BROWSE_LEARN: Mutex<()> = Mutex::new(());
+
 fn learn_with(site: &str, browsing: &str, until: Option<f64>, who: &str, eye: Sink, patient: bool) -> Option<(Route, f64)> {
-    static RUNNING: Mutex<()> = Mutex::new(());
     let since = std::time::Instant::now();
+    let mut waiting_to_leave = false;
     let _one = loop {
-        match RUNNING.try_lock() {
+        if unbrowse_learn::mint::asked_to_stop() {
+            return None;
+        }
+        match BROWSE_LEARN.try_lock() {
             Ok(one) => break one,
             // A learn that failed partway holds nothing the next one needs: the lock only keeps them one at a time.
             Err(std::sync::TryLockError::Poisoned(p)) => break p.into_inner(),
+            Err(_) if until.is_some() => {
+                // Leaving advances the capture mark. A cancelled command stops waiting before it can leave.
+                if !waiting_to_leave {
+                    eprintln!("   [learn] {site}: waiting for the running learn before leaving the page");
+                    waiting_to_leave = true;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
             Err(_) if patient && since.elapsed() < std::time::Duration::from_secs(5) => std::thread::sleep(std::time::Duration::from_millis(100)),
             Err(_) => {
                 eprintln!("   [learn] {site}: another learn is running; this one is skipped");
@@ -6575,13 +6790,14 @@ fn learn_with(site: &str, browsing: &str, until: Option<f64>, who: &str, eye: Si
     let id = walk_id(&site);
     // The page the browsing is on, when the part of the log read starts after it was opened: kept beside the log.
     let known_page = std::fs::read_to_string(crate::browse::page_file(&site)).ok().filter(|p| !p.trim().is_empty());
+    let decisions = Mutex::new(Vec::new());
     let outcome = from_log(&site, marks.at, |session| {
         crate::setups::note(&site, &session);
         // Only this session's steps are its flow: the same browser may be serving another's (`browse::acting_at`).
         // Moved out of the session read, not copied: a page's flow can be hundreds of MB of answers.
         let own = session.into_only(|t| crate::browse::acting_at(&site, t).is_none_or(|w| w == browsing));
         let mut own = own;
-        learn_from_flow(&mut own, &site, goal.as_deref(), flow, marks.sent, until.unwrap_or(f64::INFINITY), &id, &|_| {}, known_page.as_deref())
+        learn_from_flow(&mut own, &site, goal.as_deref(), flow, marks.sent, until.unwrap_or(f64::INFINITY), &id, &|event| decisions.locked().push(event), known_page.as_deref())
     });
     eprintln!("   [learn] {site} until={until:?}: {}", match &outcome { Ok(Outcome::Route { by, .. }) => format!("route by {by}"), Ok(Outcome::Unsent(w)) => format!("unsent: {w}"), Ok(Outcome::Nothing(w)) => format!("nothing: {w}"), Err(e) => format!("err: {e}") });
     let learned = match outcome {
@@ -6617,7 +6833,11 @@ fn learn_with(site: &str, browsing: &str, until: Option<f64>, who: &str, eye: Si
                     Some(old)
                 }
                 None => {
-                    eye(Eye::Started { walk: id.clone(), url: site.clone(), goal: route.what.clone(), agent: who.to_string() });
+                    let origin = url::Url::parse(&route.root).map(|page| page.origin().ascii_serialization()).unwrap_or_else(|_| format!("https://{site}/"));
+                    eye(Eye::Started { walk: id.clone(), url: origin, goal: goal.clone().unwrap_or_else(|| route.what.clone()), agent: who.to_string() });
+                    for event in decisions.into_inner().unwrap_or_else(|err| err.into_inner()) {
+                        eye(event);
+                    }
                     // A route the browsing found and the node could not keep is said, never dropped in silence: the
                     // agent was told its steps become a route.
                     let kept = keep_browsed(route, &site, who, &id, eye).map_err(|why| eprintln!("   [learn] {site}: the route the browsing found was not kept: {why}")).ok();
@@ -6658,6 +6878,17 @@ fn learn_with(site: &str, browsing: &str, until: Option<f64>, who: &str, eye: Si
                 tx: None,
                 note: Some(why),
             });
+            None
+        }
+        Ok(Outcome::Nothing(_)) if until.is_some() => {
+            if let Some(goal) = goal {
+                let origin = known_page.as_deref().and_then(|page| url::Url::parse(page.trim()).ok())
+                    .map(|page| page.origin().ascii_serialization()).unwrap_or_else(|| format!("https://{site}/"));
+                eye(Eye::Started { walk: id.clone(), url: origin, goal, agent: who.to_string() });
+                let failure = decisions.into_inner().unwrap_or_else(|err| err.into_inner())
+                    .into_iter().find(|event| matches!(event, Eye::Failed { .. }));
+                eye(failure.unwrap_or_else(|| Eye::Failed { walk: id, error: "the recorded browser flow ended without an answering route".into() }));
+            }
             None
         }
         _ => None,
@@ -6707,13 +6938,18 @@ pub fn leaving(site: &str, session: &str, end: f64) -> Leaving {
 
 impl Leaving {
     /// The step is over. It left the page when it says so, or when its tab is elsewhere whatever it said: a command that
-    /// timed out may have done its work. One that was refused, or never reached the browser, left nothing, and what comes
-    /// next is still this flow.
-    pub fn over(self, done: bool) {
+    /// timed out may have done its work. Return whether the command completed or the tab reached a different page.
+    pub fn over(self, done: bool, learning: bool) -> bool {
         let now = crate::browse::page_url(&self.site, Some(&crate::browse::tab_of(&self.session)));
-        if left_the_page(done, self.page.as_deref(), now.as_deref()) {
+        self.over_at(done, learning, now.as_deref())
+    }
+
+    fn over_at(self, done: bool, learning: bool, now: Option<&str>) -> bool {
+        let left = left_the_page(done, self.page.as_deref(), now);
+        if learning && left {
             self.ended();
         }
+        done || (left && now.is_some())
     }
 
     /// Ends the session's flow. Another session's goes on: the site's mark moves only when nobody else acted since it
@@ -6892,7 +7128,7 @@ fn browsed_from(site: &str, start: u64, sockets: u64) -> Result<unbrowse_learn::
     // What the agent read off the pages, as actions of its own: the browser records what was done, the node what
     // was read.
     for (t, text) in crate::browse::reads(site) {
-        session.actions.push(unbrowse_learn::Action { t, kind: "read".into(), selector: None, field: None, locator: None, value: Some(text), secret: false });
+        session.actions.push(unbrowse_learn::Action { t, kind: "read".into(), selector: None, field: None, locator: None, value: Some(text), secret: false , submit: false});
     }
     session.actions.sort_by(|a, b| a.t.total_cmp(&b.t));
     Ok(session)
@@ -7347,7 +7583,14 @@ fn learn_from_flow(
     // answer, and a walk of the same page is held to the same (`the_pages_ask_was_refused`). Kept as "the page,
     // read", it would answer every value with a title, a header and a footer.
     if !session.actions.iter().any(typed_value) {
-        if let Some(why) = with_flow(session, within, |flow| not_the_page(flow, &page).or_else(|| the_pages_ask_was_refused(flow, &page, site))) {
+        if let Some(why) = with_flow(session, within, |flow| {
+            let (why, reason) = not_the_page(flow, &page).map(|why| (why, "the captured navigation did not reach the requested page"))
+                .or_else(|| the_pages_ask_was_refused(flow, &page, site).map(|why| (why, "the captured page's own request was refused")))?;
+            let mut statuses: Vec<_> = main_document_requests(flow).rev().take(4).map(|doc| doc.status).collect();
+            statuses.reverse();
+            eye(Eye::Failed { walk: id.to_string(), error: format!("{reason} ({} exchanges, main document statuses {statuses:?})", flow.exchanges.len()) });
+            Some(why)
+        }) {
             return Ok(Outcome::Nothing(why));
         }
     }
@@ -7373,7 +7616,9 @@ fn learn_from_flow(
         .filter_map(|i| page_address(trace.exchanges[i].url.as_str()))
         .chain(page_address(&page))
         .collect();
-    let reports_a_page = |e: &Exchange| pages.iter().any(|p| reports_the_page(&e.url, e.request_body.as_deref(), p));
+    // A call that carries one of them along asked for the value only where it also sends it as its own
+    // (`sends_its_own_ask`): a search whose client context names the results page it opens sent the word in its query.
+    let reports_a_page = |e: &Exchange, value: &str| pages.iter().any(|p| reports_the_page(&e.url, e.request_body.as_deref(), p)) && !sends_as_its_own(e, value);
     // A beacon that happens to carry what was typed is not the call that sent it: a named telemetry endpoint, or a
     // third-party POST to a root path that answers with nothing (the typed word rode along in an opaque body) is
     // reporting, not the page's data (#24). The automatic path filters these the way goal learning does.
@@ -7400,14 +7645,30 @@ fn learn_from_flow(
     };
     let send_of = |a: &unbrowse_learn::Action| -> Option<Sent> {
         let value = a.value.clone().unwrap_or_default();
-        let call = (0..trace.exchanges.len()).find(|&i| {
-            let (e, t) = (&trace.exchanges[i], session.time_of(i));
-            // A preflight is the browser asking leave to send the call, never the call.
-            t >= a.t && t > sent && t <= until && !door.contains(&i) && !e.is_asset() && !e.method.eq_ignore_ascii_case("OPTIONS") && e.status < 400 && carries(e, std::slice::from_ref(&value)) && !reports_a_page(e) && !reports_an_event(e, site) && !reporting(e) && !an_empty_landing(e, &value)
-        });
-        let frame = session.sockets.iter().position(|f| {
-            f.kind == "sent" && f.opcode == 1 && f.t >= a.t && f.t > sent && f.t <= until && f.data.as_deref().is_some_and(|d| frame_carries(d, &value))
-        });
+        // The first call from `from` on that carries it, by when it was sent: the log holds calls in the order they
+        // ended, and a long answer ends after a short one sent later.
+        let call_from = |from: f64| {
+            (0..trace.exchanges.len())
+                .filter(|&i| {
+                    let (e, t) = (&trace.exchanges[i], session.time_of(i));
+                    // A preflight is the browser asking leave to send the call, never the call.
+                    t >= from && t > sent && t <= until && !door.contains(&i) && !e.is_asset() && !e.method.eq_ignore_ascii_case("OPTIONS") && e.status < 400 && carries(e, std::slice::from_ref(&value)) && !reports_a_page(e, &value) && !reports_an_event(e, site) && !reporting(e) && !an_empty_landing(e, &value)
+                })
+                .min_by(|x, y| session.time_of(*x).total_cmp(&session.time_of(*y)))
+        };
+        let frame_from = |from: f64| {
+            session.sockets.iter().position(|f| {
+                f.kind == "sent" && f.opcode == 1 && f.t >= from && f.t > sent && f.t <= until && f.data.as_deref().is_some_and(|d| frame_carries(d, &value))
+            })
+        };
+        // A value the flow then handed over (Enter, a button, a fill that submitted its form) was sent by what came
+        // after that step: a call made while it was being typed answered the field (its suggestions), not the asking.
+        // A flow whose page sends nothing after it (a search that answers as it is typed) is read from the typing.
+        let handed = session.actions.iter().filter(|s| s.t > a.t && s.submits()).map(|s| s.t).min_by(f64::total_cmp);
+        let (call, frame) = handed
+            .map(|h| (call_from(h), frame_from(h)))
+            .filter(|(c, f)| c.is_some() || f.is_some())
+            .unwrap_or_else(|| (call_from(a.t), frame_from(a.t)));
         match (call.map(Sent::Call), frame.map(Sent::Frame)) {
             (Some(c), Some(f)) => Some(if when(f) < when(c) { f } else { c }),
             (c, f) => c.or(f),
@@ -7449,6 +7710,7 @@ fn learn_from_flow(
             view.candidates.retain(|c| in_flow(c.index) && (!c.page || is_opened(&trace.exchanges[c.index])));
             pass_over(&mut view, trace, &rejected_calls(&page, goal));
             if view.candidates.is_empty() {
+                eye(Eye::Failed { walk: id.to_string(), error: format!("no recorded call reached candidate scoring ({} exchanges)", view.exchanges) });
                 return Ok(Outcome::Nothing("the browsing made no call that answers with data".into()));
             }
             let read: Vec<String> = session.actions.iter().filter(|a| a.kind == "read" && within(a.t)).filter_map(|a| a.value.clone()).collect();
@@ -7501,7 +7763,10 @@ fn learn_from_flow(
                         let best = passing.iter().position(|s| fills(s.1)).unwrap_or(0);
                         match passing.into_iter().nth(best) {
                             Some((_, i, _, reasons)) => (i, "the rule", reasons),
-                            None => return Ok(Outcome::Nothing("the browsing made no call whose answer answers the goal".into())),
+                            None => {
+                                eye(Eye::Failed { walk: id.to_string(), error: "none of the scored browser calls answered the goal".into() });
+                                return Ok(Outcome::Nothing("the browsing made no call whose answer answers the goal".into()));
+                            }
                         }
                     }
                 },
@@ -7587,7 +7852,13 @@ fn learn_from_flow(
     route.given = session.actions.iter().filter(|a| within(a.t) && a.gives_a_value()).filter_map(|a| a.field.clone().or_else(|| a.selector.clone())).collect();
     // The owner's own session gave them, not a caller's word: the route is held to the fragment guard's sources.
     route.session_gave = !route.given.is_empty();
-    if goal.is_none_or(|g| g.trim().is_empty()) {
+    // The route is named for the agent's goal only when something tied it to the goal: it sent what was typed, or the
+    // decision model said it answers it, or a cold document showed the queried records at a stable place. The rule's
+    // pick alone is the page's best call by score and by the goal's words, which
+    // a feed the page polls by itself can match: named for the goal, it would answer that goal from then on. It is named
+    // from its own call, as with no goal stated.
+    let tied_to_the_goal = matches!(by, "what was typed" | "the decision model") || route.heard.records_at.is_some();
+    if goal.is_none_or(|g| g.trim().is_empty()) || !tied_to_the_goal {
         route.what = name_of(target, route.write);
     }
     Ok(Outcome::Route { route, by, notes, at: session.time_of(index), carries_page, secrets })
@@ -8228,6 +8499,75 @@ mod tests {
         assert!(matches!(stood_in_the_way(&Trace { exchanges: vec![ok], inputs: vec![] }, url, Unlearned::Hands("x".into())), Unlearned::Hands(_)));
     }
 
+    /// A walk stopped by a check that serves itself — a document that runs a script, asks nothing, links nowhere on its
+    /// site and says a few lines — is a check to pass (`Outcome::Challenge`), not a page that needs clicks. The check may
+    /// be the walk's last document, or an earlier one the walk ended on before the site answered "access denied": both
+    /// are in the walk's door stretch, and a walk let through to a page of the site is neither.
+    #[test]
+    fn a_walk_stopped_by_a_check_that_serves_itself_is_a_check() {
+        let url = "https://www.shop.example/find/lamps/?q=lamps";
+        let check = walked(
+            "GET",
+            url,
+            r#"<html><head><title>One moment</title><script src="/hold.js"></script></head><body><p>Please wait.</p></body></html>"#,
+            true,
+        );
+        // The check alone: the last document is the check, read by the one reader of a page that asks for something.
+        let got = stood_in_the_way(&Trace { exchanges: vec![check.clone()], inputs: vec![] }, url, Unlearned::Hands("x".into()));
+        assert!(matches!(&got, Unlearned::Check(_, "challenge.asks_a_person")), "{got}");
+        assert_eq!(got.outcome().0, crate::outcome::Outcome::Challenge);
+        // The check, then the site's "access denied" page: the check is still the door the walk was stopped at.
+        let denied = walked("GET", url, "<html><head><title>Access Denied</title></head><body><h1>Access Denied</h1><a href=\"/\">Go home</a></body></html>", true);
+        let stopped_trace = Trace { exchanges: vec![check, denied], inputs: vec![] };
+        assert_eq!(stopped_trace.door("shop.example"), vec![0], "the check is the walk's door");
+        let stopped = stood_in_the_way(&stopped_trace, url, Unlearned::Hands("x".into()));
+        assert!(matches!(&stopped, Unlearned::Check(_, "trace.door")), "{stopped}");
+        assert_eq!(stopped.outcome().0, crate::outcome::Outcome::Challenge);
+        // A walk let through to a page of the site is no check, whatever it passed on the way.
+        let through = walked("GET", url, "<html><body><a href=\"/lamps/1\">Brass lamp</a><p>Forty lamps, sorted by price.</p></body></html>", true);
+        let page = stood_in_the_way(&Trace { exchanges: vec![walked("GET", url, "<html><head><script src=\"/hold.js\"></script></head><body><p>Wait.</p></body></html>", true), through], inputs: vec![] }, url, Unlearned::Hands("x".into()));
+        assert!(matches!(page, Unlearned::Hands(_)), "{page}");
+    }
+
+    /// A check that serves itself is a door on the route, with no vendor's mark: `Unknown`, its pass earned by its own
+    /// code (`Earn::Recompute`, since nothing device-bound marks it), standing at the address the walk met it at.
+    /// What the door took is said once, before any call is a candidate: each call it took with why, and assets only
+    /// counted, so a learn that kept nothing shows where its calls went (the x-ray's pick reads this line).
+    #[test]
+    fn the_eye_says_what_the_door_took_and_why() {
+        let url = "https://www.shop.example/lamps";
+        let mut refused = walked("GET", url, "<html><body>Forbidden</body></html>", true);
+        refused.status = 403;
+        let ping = walked("POST", "https://www.shop.example/.check/ping", "{}", false);
+        let mut script = walked("GET", "https://www.shop.example/.check/c.js", "var a=1;", false);
+        script.resource_type = Some("Script".into());
+        script.response_mime = "text/javascript".into();
+        let page = walked("GET", url, "<html><body><h1>Lamps</h1><a href=\"/lamps/1\">Brass lamp</a></body></html>", true);
+        let api = walked("GET", "https://www.shop.example/api/lamps", r#"{"lamps":[]}"#, false);
+        let trace = Trace { exchanges: vec![refused, ping, script, page, api], inputs: vec![] };
+        let Some(Eye::Door { walk, took, assets, calls }) = door_taken("w1", &trace, "shop.example") else { panic!("the door took calls") };
+        assert_eq!((walk.as_str(), took, assets), ("w1", 3, 1));
+        let said: Vec<(usize, &str, &str, &str, usize)> = calls.iter().map(|c| (c.index, c.method.as_str(), c.path.as_str(), c.why, c.by)).collect();
+        assert_eq!(said, vec![(0, "GET", "/lamps", "refused", 0), (1, "POST", "/.check/ping", "refused", 0)]);
+        let through = Trace { exchanges: trace.exchanges[3..].to_vec(), inputs: vec![] };
+        assert!(door_taken("w2", &through, "shop.example").is_none(), "nothing taken, nothing said");
+    }
+
+    #[test]
+    fn a_check_that_serves_itself_is_a_door_of_unknown_kind() {
+        let url = "https://www.shop.example/find/lamps/?q=lamps";
+        let check = walked("GET", url, r#"<html><head><title>One moment</title><script src="/hold.js"></script></head><body><p>Please wait.</p></body></html>"#, true);
+        let met = unbrowse_learn::graph::Door::met(&Trace { exchanges: vec![check], inputs: vec![] }, "shop.example").expect("a door");
+        assert_eq!(met.kind, unbrowse_learn::graph::DoorKind::Unknown);
+        assert_eq!(met.earn, unbrowse_learn::graph::Earn::Recompute);
+        assert_eq!(met.at.as_deref(), Some(url));
+        // A bare refusal names no page to run, and stays the site's own answer.
+        let refused_page = walked("GET", url, "<html><body><h1>Forbidden</h1></body></html>", true);
+        let mut refused = refused_page.clone();
+        refused.status = 403;
+        assert!(unbrowse_learn::graph::Door::met(&Trace { exchanges: vec![refused], inputs: vec![] }, "shop.example").is_none());
+    }
+
     /// A walk whose own ask a check walled (an on-site call answered with a failure code naming its check page) takes
     /// in the owner's browser session — the same primitive a sign-in uses, since the owner's live session may carry
     /// the site's clearance cookie. A healthy answer, or an off-site check, triggers no import.
@@ -8848,6 +9188,28 @@ mod tests {
         assert!(held < read * 3 / 2, "a learn over {} MB of browsing held {} MB at once", read >> 20, held >> 20);
     }
 
+    #[test]
+    fn an_ending_flow_waits_for_background_learning() {
+        let home = store::scratch_home("ending-flow-waits");
+        let busy = BROWSE_LEARN.lock().unwrap();
+        let (begin, began) = std::sync::mpsc::sync_channel(0);
+        let (finish, finished) = std::sync::mpsc::channel();
+        std::thread::scope(|threads| {
+            threads.spawn(|| {
+                store::use_home(&home);
+                begin.send(()).unwrap();
+                let _ = learn_auto("shop.example", "1:a", Some(2.0), "agent", &|_| {});
+                finish.send(()).unwrap();
+            });
+            began.recv().unwrap();
+            let returned_while_busy = finished.recv_timeout(std::time::Duration::from_millis(300)).is_ok();
+            drop(busy);
+            assert!(!returned_while_busy, "the departing tab cannot retry a skipped learn on its next command");
+            finished.recv_timeout(std::time::Duration::from_secs(5)).expect("the closing learn runs after the background learn");
+        });
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
     /// A learn reads the marks, works, and writes them. The owner taking the page meanwhile moved them on, and that cut
     /// stands: nothing typed by hand is read into a flow by the learn that started before it.
     #[test]
@@ -8871,7 +9233,7 @@ mod tests {
         let mut walks = HashMap::new();
         for n in 0..(WALKS_KEPT + 5) {
             let trace = Trace { exchanges: Vec::new(), inputs: Vec::new() };
-            keep_walk(&mut walks, format!("w{n}"), Walk { url: String::new(), trace, probes: Vec::new(), recording: None, at: std::time::Instant::now() + std::time::Duration::from_secs(n as u64), addresses: None });
+            keep_walk(&mut walks, format!("w{n}"), Walk { url: String::new(), trace: trace.into(), probes: Vec::new(), recording: None, at: std::time::Instant::now() + std::time::Duration::from_secs(n as u64), addresses: None });
         }
         assert_eq!(walks.len(), WALKS_KEPT);
         assert!(!walks.contains_key("w0") && walks.contains_key(&format!("w{}", WALKS_KEPT + 4)));
@@ -8985,7 +9347,7 @@ mod tests {
         println!("{url}  asked={values:?}  door={} of {}", trace.door(&site).len(), trace.exchanges.len());
         for (score, i, noise, _) in scores.iter().take(15) {
             let c = view.candidates.iter().find(|c| c.index == *i).unwrap();
-            let h = holding_of(&trace.exchanges[*i], &fields, &values);
+            let h = holding_of(&trace.exchanges[*i], &fields, &values, &goal);
             println!("  {score:6.1} {}{} {} {} | {}", if *noise { "noise " } else { "" }, c.method, c.host, bare(&c.path), h.said() + if h.has_shapes() { "" } else { " [missing a shaped field]" });
         }
         // The pick itself is the live learn's (`walk_pick`), so this prints what a walk of the page would keep.
@@ -9077,7 +9439,71 @@ mod tests {
         assert!(route.path.starts_with("/api/search"), "the call that answers is kept, not the page: {}", route.path);
         assert!(route.inputs.iter().any(|i| i.default.as_deref() == Some("lamp")), "the asked value is the route's input: {:?}", route.inputs.iter().map(|i| (&i.name, &i.default)).collect::<Vec<_>>());
         assert!(store::load_route(&route.id).is_some(), "the route is kept in this home");
+        assert_eq!(store::load_routes().len(), 1, "the opening shell holds no search results");
         assert!(learn_kept_walk(&walks.join("learn_none.jsonl"), url, "search").is_err(), "a capture that isn't there is no walk");
+    }
+
+    #[test]
+    fn a_cold_read_keeps_its_opening_results_alongside_the_dependent_call() {
+        let _home = store::scratch_home("opening-search-route");
+        let url = "https://shop.example/search?q=lamp";
+        let rendered_url = "https://shop.example/search?q=lamp&view=cards";
+        let what = "search listings for lamp and list the title, price, availability and link of each result";
+        let session = "fixture-page-session-9eddbbbe61";
+        let cards: Vec<_> = (1..=6).map(|n| serde_json::json!({
+            "title": format!("Desk lamp model {n}"),
+            "price": "$36.00",
+            "availability": "in stock",
+            "photo": format!("https://shop.example/photos/{n}.jpg")
+        })).collect();
+        let suggestions: Vec<_> = (1..=8).map(|n| serde_json::json!({
+            "title": format!("Lamp suggestion {n}"), "url": format!("https://shop.example/suggest/{n}")
+        })).collect();
+        let recommendations: Vec<_> = suggestions.iter().cloned().map(|mut row| {
+            row["price"] = "$29.00".into();
+            row
+        }).collect();
+        let state = serde_json::json!({"search":{"session":session,"results":cards,"suggestions":suggestions,"recommendations":recommendations}});
+        let offers: String = (1..=6).map(|n| format!(
+            "<article><a href='/products/{n}'>Desk lamp model {n}</a><span>$36.00</span></article>"
+        )).collect();
+        let page = format!("<html><body>{offers}<script type='application/json'>{state}</script></body></html>");
+        let api_cards: Vec<_> = cards.iter().cloned().enumerate().map(|(i, mut card)| {
+            card["url"] = format!("https://shop.example/products/{}", i + 1).into();
+            card
+        }).collect();
+        let mut api = walked("POST", "https://shop.example/api/search", &serde_json::json!({"results":api_cards}).to_string(), false);
+        api.request_headers.push(("content-type".into(), "application/json".into()));
+        api.request_body = Some(serde_json::json!({"query":"lamp","session":session}).to_string());
+        let trace = Trace { exchanges: vec![main_page(200, rendered_url, &page), api], inputs: vec![] };
+        let mut fewer = trace.clone();
+        let mut short = fewer.exchanges[1].own_json().unwrap();
+        short["results"].as_array_mut().unwrap().truncate(4);
+        fewer.exchanges[1].response_body = Some(short.to_string());
+        let walks = Walks::default();
+        keep_walk(&mut walks.0.locked(), "opening".into(), Walk {
+            url: url.into(), trace: trace.into(), probes: vec![], recording: None,
+            at: std::time::Instant::now(), addresses: None,
+        });
+        let (primary, _) = pick_and_keep(&walks, url, what, "You", "opening", &|_| {}, None, true).expect("the original API route");
+        assert_eq!((primary.method.as_str(), primary.graph.steps.len()), ("POST", 2));
+        let routes = store::load_routes();
+        let opening = routes.iter().find(|r| r.method == "GET").expect("the opening document supplies an independent answer");
+        assert_eq!(opening.what, what);
+        assert_eq!(opening.graph.steps.len(), 1);
+        assert_eq!(walks.companions("opening", &primary.id), vec![opening.id.clone()]);
+        assert!(walks.companions("another-walk", &primary.id).is_empty());
+        assert!(opening.inputs.iter().any(|i| i.default.as_deref() == Some("lamp")));
+        let records = opening.heard.records_at.as_deref().expect("the cold document showed a search result list");
+        assert!(records.ends_with("/results"), "{records}");
+        let a_different_list = serde_json::json!({"catalog": {"results": cards}});
+        assert!(confirm::lacks_its_records(opening, &a_different_list));
+        keep_walk(&mut walks.0.locked(), "short-strip".into(), Walk {
+            url: url.into(), trace: fewer.into(), probes: vec![], recording: None,
+            at: std::time::Instant::now(), addresses: None,
+        });
+        let (complete, _) = pick_and_keep(&walks, url, what, "You", "short-strip", &|_| {}, None, true).expect("the complete list is on the document");
+        assert_eq!(complete.method, "GET", "a shorter strip of related results cannot outrank the complete linked list");
     }
 
     /// A network block that answers 200 with a title and one line: read back, the call fails, so it is never kept. A
@@ -9480,6 +9906,23 @@ mod tests {
         assert_eq!(trace.exchanges[i].url.path(), "/restapi/soa2/27015/FlightListSearchSSE", "the streamed call, not the page that renders it: {reasons:?}");
     }
 
+    /// A goal for one thing (`IMDb rating of The Shawshank Redemption`, on the thing's own page `/title/tt0111161/`) is
+    /// answered where the thing's own record holds the field: the record that names it (`id: "tt0111161"`) carrying a
+    /// rating of its own (`ratingsSummary.aggregateRating`). A call about the thing whose ratings belong to a list of
+    /// other records under it (each featured review's `authorRating`) answers something else. Steve, UNB-300: IMDb's
+    /// route was its featured reviews, while only the title page's embedded state carried the title's rating (9.3); the
+    /// rank put a data call over the page whenever both named the thing. The cut is that walk's page (its title and the
+    /// state of the title) and its reviews call, reviewers scrubbed.
+    #[test]
+    fn a_goal_for_one_thing_is_answered_by_the_things_own_record_not_a_list_under_it() {
+        store::scratch_home("one-thing");
+        let session = browsed_session(&cut("title-page-and-its-reviews.jsonl")).unwrap();
+        let out = learn_from_session(&session, "imdb.com", Some("IMDb rating of The Shawshank Redemption"), 1795540000.0, 1795540000.0, 1795540004.0, "w", &no_eye, None).unwrap();
+        let Outcome::Route { route, .. } = out else { panic!("the page answers") };
+        assert_eq!(route.site, "www.imdb.com", "the page whose state holds the title's own rating, not the reviews call: {} {}", route.site, route.path);
+        assert!(!route.path.contains("operationName"), "the title page, not {}", route.path);
+    }
+
     /// A call that carries the page's address along holds every value the page was asked with, and each one reads as a
     /// form field of the address (`dcity=sin`) although the call's body is JSON. It sends none of them: its own values
     /// are the two locale settings. A call that sends the value itself does.
@@ -9776,7 +10219,9 @@ mod tests {
         store::scratch_home("repro");
         let raw = std::fs::read_to_string(log).unwrap();
         let session = browsed_session(&raw).unwrap();
-        let navs: Vec<f64> = session.actions.iter().filter(|a| a.kind != "read").map(|a| a.t).collect();
+        let mut navs: Vec<f64> = session.actions.iter().filter(|a| a.kind != "read").map(|a| a.t).collect();
+        // The stretch after the last step too: what the last step sent lands after it.
+        navs.push(f64::INFINITY);
         for w in navs.windows(2) {
             let (since, until) = (w[0] - 0.5, w[1] - 0.01);
             let out = learn_from_session(&session, &site, goal.as_deref(), since, since, until, "w", &|e| if let Eye::Scored { candidates, .. } = e { for c in candidates { eprintln!("    {:6.1} {} {} {}{}", c.score, c.method, c.host, c.path, if c.noise { " noise" } else { "" }); } }, None);
@@ -9989,7 +10434,7 @@ mod tests {
         // The calls a learn picks from are the site it landed on's, while the walk keeps the address it was asked.
         let walks = Walks::default();
         let id = "moved".to_string();
-        let held = Walk { url: asked.into(), trace: trace.clone(), probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None };
+        let held = Walk { url: asked.into(), trace: trace.clone().into(), probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None };
         keep_walk(&mut walks.0.locked(), id.clone(), held);
         let view = view(&walks, &id).expect("the walk is held");
         assert_eq!(view.url, asked, "the walk says the address it was asked");
@@ -11340,6 +11785,30 @@ mod tests {
         rule_pick(&trace, &view, goal, &values, scores).map(|(i, _)| format!("{} {}", trace.exchanges[i].method, trace.exchanges[i].url.path()))
     }
 
+    #[test]
+    fn a_list_of_asset_urls_cannot_answer_for_linked_records() {
+        let url = "https://reading.example/saved";
+        let goal = "my saved posts: each post's text, author handle and its link, newest first";
+        let assets = serde_json::Value::Array((0..30).map(|i| serde_json::json!({
+            "hashtag": format!("tag-{i}"),
+            "asset_url": format!("https://static.example/assets/{i}.png")
+        })).collect()).to_string();
+        let shell = walked("GET", url, "<html><title>Saved</title><body><main></main><script src='/app.js'></script></body></html>", true);
+        let flags = walked("GET", "https://reading.example/api/assets.json", &assets, false);
+        assert!(picked(url, goal, vec![shell.clone(), flags.clone()]).is_err());
+
+        let entries: Vec<_> = (0..8).map(|i| serde_json::json!({
+            "content": {"itemContent": {"post_results": {"result": {
+                "legacy": {"full_text": format!("Saved note {i}")},
+                "author": {"handle": "reader"},
+                "url": format!("https://reading.example/posts/{i}")
+            }}}}
+        })).collect();
+        let timeline = serde_json::json!({"data": {"saved_timeline": {"timeline": {"instructions": [{"entries": entries}]}}}}).to_string();
+        let answer = walked("GET", "https://reading.example/api/graphql/operation/Saved", &timeline, false);
+        assert_eq!(picked(url, goal, vec![shell, flags, answer]).as_deref(), Ok("GET /api/graphql/operation/Saved"));
+    }
+
     /// A call an agent rejected for a page (`unbrowse_judge`) is never the learner's pick for it again: the learner keeps
     /// its next pick instead, whatever the rule scored highest. The rejected call is matched by its route's template,
     /// so another value in its query is the same call.
@@ -11513,6 +11982,8 @@ mod tests {
         let mut room = walked("GET", "https://queue.gate.example/wait?c=stay", "<html><head><script>setTimeout(()=>location.reload(),5000)</script></head><body>Please wait</body></html>", true);
         room.main_frame = Some(true);
         assert_eq!(walked_site([&moved, &room], "www.stayhere.com"), "stayhere.com", "a waiting room is the door");
+        let unanswered = Exchange { status: 0, response_body: None, ..room };
+        assert_eq!(walked_site([&moved, &there, &unanswered], "www.stayhere.com"), "stayhere.com.sg", "an unanswered request cannot replace the page reached");
         let trace = Trace { exchanges: vec![moved, there], inputs: Vec::new() };
         let view = view_of("w", "https://www.stayhere.com/s/Bangkok/homes?adults=2", &walked_site(&trace.exchanges, "www.stayhere.com"), &trace, 0);
         assert!(view.candidates.iter().any(|c| c.index == 1 && c.page), "the page it moved to is a candidate: {:?}", view.candidates.iter().map(|c| (c.index, c.page)).collect::<Vec<_>>());
@@ -11918,7 +12389,7 @@ mod tests {
         let scores = rule_scores(&trace, &view, goal, &values, &[]);
         let i = match rule_pick(&trace, &view, goal, &values, scores) {
             Ok((i, _)) => i,
-            Err(e) => document_answer(&trace).ok_or(e)?,
+            Err(e) => document_answer(&trace, &site).ok_or(e)?,
         };
         Ok(format!("{} {}", trace.exchanges[i].method, trace.exchanges[i].url.path()))
     }
@@ -11937,6 +12408,21 @@ mod tests {
         // stays browse, not a route.
         let login = walked("GET", "https://the-internet.herokuapp.com/login", r#"<html><body><h2>Login Page</h2><form><input type="text"/><input type="password"/><button>Login</button></form><a href="/">home</a></body></html>"#, true);
         assert!(picked_full("https://the-internet.herokuapp.com/login", "sign in", vec![login]).is_err(), "a bare login form is not a document route");
+    }
+
+    #[test]
+    fn a_page_route_answers_the_opening_document_when_the_walk_reads_on() {
+        let page = |at: &str, kind: &str| {
+            let links: String = (0..30).map(|i| format!("<li><a href='/posts/{kind}-{i}'>An article about {kind} {i}</a></li>")).collect();
+            walked("GET", at, &format!("<html><body><ol>{links}</ol></body></html>"), true)
+        };
+        let first = page("https://news.example/", "new");
+        let later = page("https://news.example/page/5", "old");
+        assert_eq!(picked_full("https://news.example/", "top stories", vec![first.clone(), later.clone()]).as_deref(), Ok("GET /"));
+
+        let mut redirect = page("https://news.example/latest", "redirect");
+        redirect.status = 302;
+        assert_eq!(picked_full("https://news.example/latest", "top stories", vec![redirect, first, later]).as_deref(), Ok("GET /"));
     }
 
     /// A demo bank's accounts overview as it is served: the table's head and foot, its rows left to a script.
@@ -12188,6 +12674,11 @@ $(document).ready(function() {
         let form = format!("<html><head><title>Bank | Register for Free Online Account Access</title></head><body><h1>Signing up is easy!</h1><p>If you have an account with us you can sign-up for free instant online access. You will have to provide some personal information.</p><form><label>First Name:</label><input name='customer.firstName'/><label>Last Name:</label><input name='customer.lastName'/><label>Username:</label><input name='customer.username'/><label>Password:</label><input type='password' name='customer.password'/><button>Register</button></form><ul>{links}</ul></body></html>");
         let page = walked("GET", "https://bank.example/bank/register.htm", &form, true);
         assert!(picked_full("https://bank.example/bank/register.htm", "register a new customer account", vec![page.clone()]).is_err());
+        assert!(picked_full(
+            "https://bank.example/bank/register.htm",
+            "On the demo bank, register a fresh account, then read Accounts Overview.",
+            vec![page.clone()],
+        ).is_err());
         // The same page answers a goal that reads it.
         assert!(picked_full("https://bank.example/bank/register.htm", "read the bank's services page", vec![page]).is_ok());
     }
@@ -12505,6 +12996,17 @@ $(document).ready(function() {
     /// A call that hands on the page's whole path as one value (`path=/search`: an ad slot saying where it shows) and
     /// answers with the same word reports the page's address: the site's route word stays a route word, never an input
     /// the page was asked for.
+    /// A test's decision model is only the one its environment names: the machine's Keychain item is the owner's, and a
+    /// Mac runner that held it put a remote model behind the picks four learn tests check (staging, 23 November 2026).
+    #[test]
+    fn a_test_never_takes_the_decision_model_from_the_machines_keychain() {
+        if std::env::var("TYPESAFE_API_KEY").is_ok() {
+            return;
+        }
+        assert!(clef_from_keychain().is_none());
+        assert!(clef().is_none(), "no TYPESAFE_API_KEY, so no decision model");
+    }
+
     #[test]
     fn the_page_path_handed_on_whole_is_no_input() {
         if std::env::var("TYPESAFE_API_KEY").is_ok() {
@@ -12623,6 +13125,56 @@ $(document).ready(function() {
         let Outcome::Route { route, by, .. } = learn_from_session(&session, "shop.example", None, 0.0, 0.0, f64::INFINITY, "w", &no_eye, None).unwrap() else { panic!("a route") };
         assert_eq!(by, "what was typed");
         assert_eq!(route.site, "www.shop.example", "the page sent the search, not the ad bid: {}", route.path);
+    }
+
+    /// The walk that exposed it (a video site's search box): typing asks the box's suggestions call with the word as it
+    /// lands, and Enter then sends the search, whose body the page compresses (`content-encoding: gzip`). The search's
+    /// long answer ends after a suggestion sent later, so it is logged after it. The route is the search: the value was
+    /// handed over by Enter, the call made before it answered the box, and the compressed body reads as what it holds.
+    #[test]
+    fn a_value_handed_over_is_sent_by_the_call_after_the_hand_over() {
+        use base64::Engine;
+        let word = "folding desk lamp";
+        let suggest = |t: f64| {
+            format!(
+                r#"{{"type":"exchange","t":{t},"resourceType":"Fetch","entry":{{"_resourceType":"Fetch","request":{{"method":"GET","url":"https://www.video.example/complete/search?client=web&q={}","headers":[]}},"response":{{"status":200,"headers":[],"content":{{"mimeType":"text/javascript","text":{}}}}}}}}}"#,
+                word.replace(' ', "%20"),
+                serde_json::to_string(&format!(r#"window.ac.h(["{word}",[],{{"j":"2"}}])"#)).unwrap()
+            )
+        };
+        let found = format!(r#"{{"contents":{{"items":[{{"video":{{"id":"a1","title":"{word} review"}}}},{{"video":{{"id":"b2","title":"best {word}"}}}}]}},"estimatedResults":"812"}}"#);
+        // As the site sends it: the client context carries the address of the results page the search opens, the word
+        // in it, beside the word as the search's own `query`.
+        let address = format!("https://www.video.example/results?search_query={}", word.replace(' ', "+"));
+        let body = format!(r#"{{"context":{{"client":{{"hl":"en","clientName":"WEB","originalUrl":"{address}"}},"request":{{"graftUrl":"/results?search_query={}"}}}},"query":"{word}"}}"#, word.replace(' ', "+"));
+        for compressed in [true, false] {
+            let (headers, post) = if compressed {
+                let bytes = unbrowse_learn::route::wire::as_sent(Some("gzip"), body.as_bytes());
+                (
+                    r#"[{"name":"Content-Type","value":"application/json"},{"name":"Content-Encoding","value":"gzip"}]"#,
+                    format!(r#"{{"mimeType":"application/json","text":"{}","_encoding":"base64"}}"#, base64::engine::general_purpose::STANDARD.encode(bytes)),
+                )
+            } else {
+                (r#"[{"name":"Content-Type","value":"application/json"}]"#, format!(r#"{{"mimeType":"application/json","text":{}}}"#, serde_json::to_string(&body).unwrap()))
+            };
+            let search = format!(
+                r#"{{"type":"exchange","t":3.0,"resourceType":"Fetch","entry":{{"_resourceType":"Fetch","request":{{"method":"POST","url":"https://www.video.example/api/v1/search?prettyPrint=false","headers":{headers},"postData":{post}}},"response":{{"status":200,"headers":[],"content":{{"mimeType":"application/json","text":{}}}}}}}}}"#,
+                serde_json::to_string(&found).unwrap()
+            );
+            let log = [
+                r#"{"type":"action","t":1.0,"action":"navigate","value":"https://www.video.example/results?search_query=lamps"}"#.to_string(),
+                format!(r#"{{"type":"action","t":2.0,"action":"fill","selector":"@e1","field":"search_query","value":"{word}","secret":false}}"#),
+                suggest(2.1),
+                r#"{"type":"action","t":2.8,"action":"press","value":"Enter"}"#.to_string(),
+                suggest(3.1),
+                search,
+            ]
+            .join("\n");
+            let session = browsed_session(&log).unwrap();
+            let Outcome::Route { route, by, .. } = learn_from_session(&session, "video.example", Some("search videos"), 0.0, 0.0, f64::INFINITY, "w", &no_eye, None).unwrap() else { panic!("a route") };
+            assert_eq!(by, "what was typed");
+            assert_eq!((route.method.as_str(), route.path.split('?').next().unwrap()), ("POST", "/api/v1/search"), "compressed: {compressed}: the search, not the box's suggestions");
+        }
     }
 
     /// The walk that exposed it: a dictionary search typed a word; a third-party beacon POST to a root path carried
@@ -12888,6 +13440,82 @@ $(document).ready(function() {
         assert!(!matches!(learn(empty), Ok(Outcome::Route { .. })), "an empty frame is no search");
     }
 
+    #[test]
+    fn a_closed_browser_flow_with_no_answer_is_visible_to_xray() {
+        store::scratch_home("no-answer-eye");
+        let site = "flow-observation.example";
+        let page = format!("https://{site}/find?q=lamps");
+        let goal = "list lamps and prices";
+        let path = log_of(site);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let navigate = serde_json::json!({"type":"action","t":1,"action":"navigate","value":page});
+        let response = serde_json::json!({"type":"exchange","t":2,"resourceType":"Document","tab":"one","entry":{
+            "_resourceType":"Document","request":{"method":"GET","url":page,"headers":[{"name":"Sec-Fetch-Dest","value":"document"}]},
+            "response":{"status":404,"headers":[],"content":{"mimeType":"text/html","text":"<p>private page detail</p>"}}
+        }});
+        std::fs::write(&path, format!("{navigate}\n{response}\n")).unwrap();
+        crate::browse::set_goal(site, "test-flow", goal);
+        let events = std::sync::Mutex::new(Vec::new());
+        assert!(learn_auto(site, "test-flow", Some(3.0), "test", &|event| events.lock().unwrap().push(event)).is_none());
+        let events = events.into_inner().unwrap();
+        let [Eye::Started { walk, url, .. }, Eye::Failed { walk: failed, error }] = events.as_slice() else {
+            panic!("the x-ray receives a complete failed flow");
+        };
+        assert_eq!(walk, failed);
+        assert_eq!(url.trim_end_matches('/'), format!("https://{site}"));
+        assert_eq!(error, "the captured navigation did not reach the requested page (1 exchanges, main document statuses [404])");
+
+        let candidate = serde_json::json!({"type":"exchange","t":2,"resourceType":"Fetch","tab":"one","entry":{
+            "_resourceType":"Fetch","request":{"method":"GET","url":format!("https://{site}/search/private-candidate-path?q=lamps"),"headers":[]},
+            "response":{"status":200,"headers":[],"content":{"mimeType":"application/json","text":
+                serde_json::json!({"results":[{"name":"Reading lamp","category":"lights"},{"name":"Desk lamp","category":"lights"}]}).to_string()}}
+        }});
+        std::fs::write(&path, format!("{navigate}\n{candidate}\n")).unwrap();
+        let events = std::sync::Mutex::new(Vec::new());
+        assert!(learn_auto(site, "test-flow", Some(3.0), "test", &|event| events.lock().unwrap().push(event)).is_none());
+        let events = events.into_inner().unwrap();
+        let [Eye::Started { .. }, Eye::Failed { error, .. }] = events.as_slice() else {
+            panic!("an unkept flow cannot share its scored candidate paths");
+        };
+        assert_eq!(error, "none of the scored browser calls answered the goal");
+    }
+
+    #[test]
+    fn a_main_document_request_without_a_response_does_not_replace_the_results_page() {
+        store::scratch_home("closed-flow-unanswered-navigation");
+        let page = "https://catalog.example/search?q=lamps";
+        let detour = "https://catalog.example/sign-in?return=%2Fsearch%3Fq%3Dlamps";
+        let document = |t, url: &str, status, body: Option<&str>| serde_json::json!({
+            "type":"exchange", "t":t, "tab":"one", "resourceType":"Document", "entry":{
+                "_resourceType":"Document",
+                "request":{"method":"GET", "url":url, "headers":[{"name":"Sec-Fetch-Dest","value":"document"}]},
+                "response":{"status":status, "headers":[], "content":{"mimeType":"text/html", "text":body}}
+            }
+        });
+        let rows: String = (0..6).map(|i| format!("<li><a href='/products/{i}'>Desk lamps {i}</a><span>$25.00</span></li>")).collect();
+        let body = format!("<html><head><title>Desk lamps</title></head><body><h1>Desk lamps</h1><ul>{rows}</ul></body></html>");
+        let opening = [
+            serde_json::json!({"type":"action", "t":1, "action":"navigate", "value":page}),
+            document(2, page, 202, Some("<html><body>Loading the page</body></html>")),
+            document(3, page, 200, Some(&body)),
+        ];
+        let capture = |last| {
+            let log = opening.iter().cloned().chain([last]).map(|line| line.to_string()).collect::<Vec<_>>().join("\n");
+            browsed_session(&log).unwrap()
+        };
+        let held = capture(document(4, detour, 0, None));
+        assert_eq!(held.trace.exchanges.iter().filter(|e| e.is_main_document()).map(|e| e.status).collect::<Vec<_>>(), [202, 200, 0]);
+        assert!(unbrowse_learn::answer::detour(&page.parse().unwrap(), &detour.parse().unwrap()));
+        assert_eq!(not_the_page(&held.trace, page), None);
+        let learn = learn_from_session(&held, "catalog.example", Some("list the first five lamps with name, price and link"),
+            0.0, 0.0, f64::INFINITY, "closed-flow", &no_eye, None);
+        let Ok(Outcome::Route { route, .. }) = learn else { panic!("the loaded page supplied the five results") };
+        assert_eq!(route.graph.steps.last().unwrap().url, "https://catalog.example/search?q={q}");
+
+        let sign_in = capture(document(4, detour, 200, Some("<html><body><input type='password'></body></html>")));
+        assert!(not_the_page(&sign_in.trace, page).is_some(), "a real HTTP detour still replaces the page");
+    }
+
     /// A message sent by hand: the call that carries what the agent typed is the route, though it answers with
     /// little, and a bigger answer elsewhere doesn't outscore it. What was typed into a code field stays secret.
     #[test]
@@ -12977,6 +13605,40 @@ $(document).ready(function() {
         let Outcome::Route { route, by, carries_page, .. } = learn_from_session(&session, "shop.example", None, 9.9, 9.9, 19.9, "w", &no_eye, None).unwrap() else { panic!() };
         assert_eq!((by, carries_page, route.method.as_str()), ("the rule", true, "GET"));
         assert_eq!(route.inputs.iter().map(|i| i.name.as_str()).collect::<Vec<_>>(), ["q"]);
+    }
+
+    /// A call kept from a page that was only read is named for the agent's goal only when something tied it to that
+    /// goal: the decision model said it answers it, or it sent what was typed. The rule's pick, by score and the goal's
+    /// words, is the page's call and is named from its own request. A chart page polls a news feed by itself, carrying
+    /// the page's symbol; the agent clicked about and nothing it did sent anything. Kept under "compile a strategy
+    /// source and add it to the chart", every later ask for that goal was answered with the news.
+    #[test]
+    fn a_call_the_goal_never_picked_is_not_named_for_it() {
+        let line = |t: f64, kind: &str, url: &str, mime: &str, body: &str| {
+            format!(
+                r#"{{"type":"exchange","t":{t},"resourceType":"{kind}","entry":{{"_resourceType":"{kind}","request":{{"method":"GET","url":"{url}","headers":[]}},"response":{{"status":200,"headers":[],"content":{{"mimeType":"{mime}","text":{}}}}}}}}}"#,
+                serde_json::to_string(body).unwrap()
+            )
+        };
+        let page = "<html><title>BTCUSDT chart</title><body><div id=chart></div></body></html>";
+        let feed = r#"{"items":[{"title":"Bitcoin slips below 60k","source":"Wire One","symbols":["BINANCE:BTCUSDT"],"place":"chart"},{"title":"ETF flows turn negative","source":"Wire Two","symbols":["BINANCE:BTCUSDT"],"place":"chart"},{"title":"Miners sell into weakness","source":"Wire One","symbols":["BINANCE:BTCUSDT"],"place":"chart"}]}"#;
+        let news = "https://news.chart.example/public/news?symbol=BINANCE%3ABTCUSDT&client=chart";
+        let log = [
+            r#"{"type":"action","t":1.0,"action":"navigate","value":"https://www.chart.example/chart/?symbol=BINANCE%3ABTCUSDT&interval=240"}"#.to_string(),
+            line(1.5, "Document", "https://www.chart.example/chart/?symbol=BINANCE%3ABTCUSDT&interval=240", "text/html", page),
+            line(2.0, "Fetch", news, "application/json", feed),
+            r#"{"type":"action","t":5.0,"action":"click","selector":"e93"}"#.to_string(),
+            r#"{"type":"action","t":6.0,"action":"press","value":"Escape"}"#.to_string(),
+            line(8.0, "Fetch", news, "application/json", feed),
+        ]
+        .join("\n");
+        let session = browsed_session(&log).unwrap();
+        let goal = "compile a strategy source and add it to the chart";
+        let Outcome::Route { route, by, .. } = learn_from_session(&session, "chart.example", Some(goal), 0.0, 0.0, 9.0, "w", &no_eye, None).unwrap() else { panic!("the page's call is still kept") };
+        assert_eq!(by, "the rule");
+        assert_eq!(route.path.split('?').next().unwrap(), "/public/news");
+        assert_ne!(route.what, goal, "the rule's pick is named for a goal nothing tied it to");
+        assert_eq!(route.what, name_of(&session.trace.exchanges[session.trace.exchanges.iter().position(|e| e.url.path() == "/public/news").unwrap()], route.write));
     }
 
     /// A page that was only read is answered by the call that holds what was read off it, not by the page's own
@@ -13569,3 +14231,8 @@ mod own_ask_tests {
         assert!(!started && said.is_empty(), "a try that was not due is not counted as held");
     }
 }
+
+// UNB-208 step 6 (A2): a second climb over what no test reached.
+#[cfg(test)]
+#[path = "learn_a2_tests.rs"]
+mod a2_tests;

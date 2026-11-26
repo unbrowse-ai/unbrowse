@@ -57,6 +57,7 @@ const RECORDS_READ: usize = 24;
 
 /// The most paths read from one answer.
 const MOST_PATHS: usize = 5000;
+const MAX_FIELD_DEPTH: usize = 20;
 
 /// The longest a value that looks like money is, to be an amount: "S$828" is one, "Start trading with $20" mentions one.
 const SHORT_MONEY: usize = 24;
@@ -111,7 +112,7 @@ impl Read {
     /// How many fields reading `v` would give, as `walk` reads it, up to [`MOST_PATHS`]: a list's records are alike,
     /// so a list needs what its biggest record needs. Noted for `v` and every object and list inside it.
     fn measure(&mut self, v: &Value, depth: usize) -> usize {
-        if depth > 12 {
+        if depth > MAX_FIELD_DEPTH {
             return 1;
         }
         let n = match v {
@@ -227,7 +228,7 @@ fn walk(v: &Value, prefix: &str, depth: usize, held: usize, out: &mut Vec<Field>
     if out.len() >= limit {
         return;
     }
-    if depth > 12 {
+    if depth > MAX_FIELD_DEPTH {
         note(out, prefix, v, held);
         return;
     }
@@ -464,7 +465,10 @@ fn keys(path: &str) -> Vec<&str> {
 /// a record that carries a price says it (2026-11-11). 7: members of an object keyed by values are records only when
 /// alike in every field they hold, not their top keys alone: a cache of different answers in one wrapping is not a list;
 /// and an answer's parts share the fields read, so a big early part can't keep its records from being read (2026-11-18).
-pub const DEFAULTS_RULE: u32 = 7;
+/// 8: a goal for one thing hands back the thing's own record, not the richest list beside it (2026-11-25).
+/// 9: release reads keep fields whose names and values carry a release version (2026-11-26).
+/// 10: deep record fields include requested text and handles.
+pub const DEFAULTS_RULE: u32 = 10;
 
 /// Whether fields chosen as a route's defaults miss every list of records in an answer that has one: chosen before the
 /// rule could tell its records from its counts, they hand back the counts alone. Such defaults are chosen again; the
@@ -554,6 +558,16 @@ fn names(path: &str, word: &str) -> bool {
     let want = singular(word);
     let inside = &path[records_of(path).len()..];
     keys(inside).iter().any(|k| name_words(k).iter().any(|w| singular(w) == want))
+}
+
+fn requested_text(f: &Field, word: &str) -> Option<bool> {
+    let key = name_words(leaf(&f.path));
+    let shows_text = matches!(f.kind, "text" | "long text");
+    match word {
+        "text" => Some(shows_text && (key.last().is_some_and(|w| w == "text") || key == ["text", "content"])),
+        "handle" => Some(shows_text && (key.last().is_some_and(|w| w == "handle" || w == "username") || key == ["screen", "name"] || key == ["user", "name"])),
+        _ => None,
+    }
 }
 
 /// Whether a field's own key is a price of the moment by its words (`tick.close`, `bestBid`, `last`).
@@ -723,6 +737,56 @@ fn original(c: &MarkedCopy, path: &str, fields: &[Field]) -> Option<String> {
     fields.iter().any(|f| f.path == p && f.kind != "empty").then_some(p)
 }
 
+fn looks_like(field: &Field, shape: Shape) -> bool {
+    match shape {
+        Shape::Money => field.kind == "money",
+        Shape::Link => field.kind == "link",
+        Shape::Date => field.kind == "date",
+        Shape::ReleaseVersion => field.whole.as_deref().or(field.example.as_deref())
+            .is_some_and(|value| goal::release_field(&goal::key_words(leaf(&field.path)), value)),
+        Shape::Plain => false,
+    }
+}
+
+/// For a goal about one thing, the fields of that thing's own record the goal names, and the record's name. The record
+/// is an object outside every list that holds, as a value of its own, what the route was asked (`id: "tt0111161"`), or
+/// the last piece of its page's address when it was asked nothing; of several, the one holding most of the goal's
+/// fields, and of those the deepest (the record itself before the page around it). Its own fields are those with no list between it and them: the lists beside it (the titles like it, each with
+/// a rating of its own) and inside it (its videos) are other things. Nothing when no record names the thing, or the one
+/// that does holds none of the goal's fields.
+fn things_own(usable: &[&Field], wanted: &[goal::Field], asked: &[String], page: &str) -> Vec<String> {
+    let things: Vec<String> = if asked.is_empty() { goal::thing_of(page).into_iter().collect() } else { asked.to_vec() };
+    let things: Vec<&str> = things.iter().map(|t| t.trim()).filter(|t| t.chars().count() >= 3).collect();
+    let outside = |f: &Field| !f.path.contains("[]") && !f.path.contains("{}");
+    let names_it = |f: &Field| f.whole.as_deref().or(f.example.as_deref()).is_some_and(|v| things.iter().any(|t| v.trim().eq_ignore_ascii_case(t)));
+    let mut records: Vec<&str> = usable.iter().filter(|f| outside(f) && names_it(f)).map(|f| parent(&f.path).unwrap_or("")).collect();
+    records.dedup();
+    let own = |r: &str| -> Vec<&Field> { usable.iter().copied().filter(|f| outside(f) && (r.is_empty() || under(&f.path, r)) && f.path != r).collect() };
+    let rest = |f: &Field, r: &str| -> String { if r.is_empty() { f.path.clone() } else { f.path[r.len() + 1..].to_string() } };
+    let named = |f: &Field, r: &str| {
+        let rest = rest(f, r);
+        f.kind != "long text"
+            && wanted.iter().any(|w| {
+                keys(&rest).iter().any(|k| name_words(k).iter().any(|x| singular(x) == singular(&w.word)))
+                    || looks_like(f, w.shape)
+            })
+    };
+    let Some((record, fields)) = records
+        .into_iter()
+        .map(|r| (r, own(r).into_iter().filter(|f| named(f, r)).collect::<Vec<_>>()))
+        .filter(|(_, held)| !held.is_empty())
+        .max_by_key(|(r, held)| (held.len(), keys(r).len()))
+    else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = fields.iter().map(|f| f.path.clone()).collect();
+    let mut names: Vec<&Field> = own(record).into_iter().filter(|f| can_name(f) && name_words(leaf(&f.path)).last().is_some_and(|w| NAMES.contains(&w.as_str()))).collect();
+    names.sort_by_key(|f| keys(&rest(f, record)).len());
+    out.extend(names.into_iter().take(2).map(|f| f.path.clone()).filter(|p| !fields.iter().any(|f| &f.path == p)));
+    out.truncate(MOST_DEFAULTS);
+    out
+}
+
 /// The fields a call hands back by default, for a route that does `goal` and was asked `asked` (its inputs' values):
 /// every field the goal names, by a key of its path or, for a field with a look of its own (a price, a link, a day),
 /// by values of that look; then each matching record's name; then what says back the caller's search. An answer the
@@ -743,6 +807,12 @@ pub fn defaults_on(fields: &[Field], goal_text: &str, asked: &[String], page: &s
     let a_copy = |f: &Field| copied.iter().any(|c| under(&f.path, &c.part));
     let usable: Vec<&Field> =
         fields.iter().filter(|f| f.kind != "empty" && f.kind != "object" && (f.kind != "address" || goal_says(goal_text, &f.path)) && !in_a_menu(f) && !a_copy(f)).collect();
+    if goal::wants_one(goal_text) {
+        let own = things_own(&usable, &wanted, &asked, page);
+        if !own.is_empty() {
+            return own;
+        }
+    }
     let mut keep: Vec<&str> = Vec::new();
     // An answer with a list of records answers with them: the richest such list is its answer, and what sits outside
     // every list (the request said back, the session, settings) is about the call. For a search, the richest list whose
@@ -753,27 +823,21 @@ pub fn defaults_on(fields: &[Field], goal_text: &str, asked: &[String], page: &s
     let says_back = |f: &Field| !asked.is_empty() && f.whole.as_deref().or(f.example.as_deref()).is_some_and(|e| asked.iter().any(|a| e.to_lowercase().contains(a.as_str())));
     let saying: std::collections::HashSet<&str> = usable.iter().filter(|f| says_back(f)).flat_map(|f| lists_on_the_way(&f.path)).collect();
     let main_list = richest_list_of(&usable, Some(&saying)).or_else(|| richest_list(&usable));
-    // The goal's own fields: named by a key, or shown by a look of their own.
-    let looks = |f: &Field, shape: Shape| match shape {
-        Shape::Money => f.kind == "money",
-        Shape::Link => f.kind == "link",
-        Shape::Date => f.kind == "date",
-        Shape::Plain => false,
-    };
     // A look the goal asks for is the record's own: the nearest such field to the record's top, a list on the way
     // counted as a step down. A record's parts (each artist's pictures, each presale's start and end) have that look
     // too, and taken with it they filled the reply, which was then cut short of the records the page lists.
     let nearest = |shape: Shape, list: &str| {
-        usable.iter().filter(|f| looks(f, shape) && f.path.starts_with(list)).map(|f| steps_down(&f.path[list.len()..])).min()
+        usable.iter().filter(|f| looks_like(f, shape) && f.path.starts_with(list)).map(|f| steps_down(&f.path[list.len()..])).min()
     };
-    let nearest_named = |word: &str, list: &str| usable.iter().filter(|f| f.path.starts_with(list) && names(&f.path, word)).map(|f| steps_down(&f.path[list.len()..])).min();
+    let by_word = |f: &Field, word: &str| requested_text(f, word).unwrap_or_else(|| names(&f.path, word));
+    let nearest_named = |word: &str, list: &str| usable.iter().filter(|f| f.path.starts_with(list) && by_word(f, word)).map(|f| steps_down(&f.path[list.len()..])).min();
     for f in &usable {
         let figure = f.kind == "number" || f.kind == "money" || f.example.as_deref().is_some_and(|e| e.replace(',', "").parse::<f64>().is_ok());
         // Outside the records, in an answer that has them, a key above the field names nothing: `request.search.root`
         // is no field of a search's.
         let beside = main_list.is_some() && records_of(&f.path).is_empty();
         let by_name = wanted.iter().any(|w| {
-            let named = if beside { name_words(leaf(&f.path)).iter().any(|k| singular(k) == singular(&w.word)) } else { names(&f.path, &w.word) };
+            let named = if beside { requested_text(f, &w.word).unwrap_or_else(|| name_words(leaf(&f.path)).iter().any(|k| singular(k) == singular(&w.word))) } else { by_word(f, &w.word) };
             // A word the goal asks for is the record's own field too: the nearest the word names, not each part's.
             let own = match main_list.filter(|l| f.path.starts_with(*l)) {
                 Some(list) => nearest_named(&w.word, list).is_none_or(|n| steps_down(&f.path[list.len()..]) <= n),
@@ -782,13 +846,13 @@ pub fn defaults_on(fields: &[Field], goal_text: &str, asked: &[String], page: &s
             (named && own) || (w.now && figure && traded(&f.path))
         });
         let by_look = wanted.iter().any(|w| {
-            looks(f, w.shape)
+            looks_like(f, w.shape)
                 && match main_list.filter(|l| f.path.starts_with(*l)) {
                     Some(list) => nearest(w.shape, list).is_none_or(|n| steps_down(&f.path[list.len()..]) <= n),
                     None => true,
                 }
         });
-        if (by_name || by_look) && f.kind != "long text" {
+        if (by_name || by_look) && (f.kind != "long text" || wanted.iter().any(|w| requested_text(f, &w.word) == Some(true))) {
             keep.push(&f.path);
         }
     }
@@ -883,12 +947,7 @@ pub fn defaults_on(fields: &[Field], goal_text: &str, asked: &[String], page: &s
     let own = |f: &Field, w: &str| name_words(leaf(&f.path)).iter().any(|x| singular(x) == singular(w));
     let rank = |f: &Field| -> usize {
         let money_word = wanted.iter().filter(|w| w.shape == Shape::Money);
-        let looked = wanted.iter().any(|w| match w.shape {
-            Shape::Money => f.kind == "money",
-            Shape::Link => f.kind == "link",
-            Shape::Date => f.kind == "date",
-            Shape::Plain => false,
-        });
+        let looked = wanted.iter().any(|w| looks_like(f, w.shape));
         let mut words = money_word.map(|w| w.word.as_str());
         // A price asked for as it is now: the key's own figure of the moment first, a figure over a span after.
         let span = |f: &Field| wanted.iter().any(|w| w.now) && goal::over_a_span(&name_words(leaf(&f.path)));
@@ -897,7 +956,8 @@ pub fn defaults_on(fields: &[Field], goal_text: &str, asked: &[String], page: &s
             0
         } else if amount(f) && words.any(|w| names(&f.path, w)) {
             1
-        } else if looked || (main_list.is_some_and(|l| f.path.starts_with(l)) && priced(f)) {
+        } else if looked || (main_list.is_some_and(|l| f.path.starts_with(l)) && priced(f))
+            || wanted.iter().any(|w| requested_text(f, &w.word) == Some(true)) {
             // A look the goal asked for, or what a record costs (`priced`): beside its name, ahead of the rest.
             2
         } else if NAMES.iter().any(|n| name_words(leaf(&f.path)).last().is_some_and(|w| w == n)) {
@@ -1270,6 +1330,58 @@ pub fn shown_for_read(answer: &Value, all: Vec<Field>, defaults: &[String], aske
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_release_read_returns_the_version_field_after_projection() {
+        use super::*;
+        use serde_json::json;
+
+        let goal_text = "get the latest published version of widget";
+        for mut answer in [
+            json!({"tag":"2.34.2", "published_at":"2026-11-26"}),
+            json!({"tag_name":"v2.34.2", "published_at":"2026-11-26"}),
+            json!({"package":{"name":"widget", "max_stable_version":"2.34.2"}, "versions":[{"num":"2.33.0"}]}),
+        ] {
+            answer["description"] = json!("Further information. ".repeat(WHOLE_UNDER));
+            let all = paths(&answer);
+            let chosen = defaults_on(&all, goal_text, &[], "https://registry.example/widget");
+            let (shown, _) = shown_for_read(&answer, all, &chosen, &[], goal_text);
+            assert!(goal::holding(&shown, &goal::fields(goal_text), &[]).has_shapes(), "the projected reply lost the release: {chosen:?}");
+        }
+    }
+
+    /// A goal for one thing (`IMDb rating of The Shawshank Redemption`), asked with the thing's id (`tt0111161`), is
+    /// answered by the record that names it (`aboveTheFoldData`, `id: "tt0111161"`): its own rating, not the richest list
+    /// beside it, the twelve titles like it, each with a rating of its own (8.6 came back for a 9.3). Asked another
+    /// title, the same route answers with that one's own. Steve, UNB-300; the answer is a cut of the title page's state
+    /// as the route read it.
+    #[test]
+    fn a_goal_for_one_thing_hands_back_the_things_own_fields_not_a_list_beside_it() {
+        let text = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/answers/title-state-and-titles-like-it.json")).unwrap();
+        let answer: Value = serde_json::from_str(&text).unwrap();
+        let goal = "IMDb rating of The Shawshank Redemption";
+        let page = "https://www.imdb.com/title/tt0111161/";
+        let chosen = defaults_on(&paths(&answer), goal, &["title".into(), "tt0111161".into()], page);
+        assert!(chosen.iter().any(|p| p == "props.pageProps.aboveTheFoldData.ratingsSummary.aggregateRating"), "{chosen:?}");
+        assert!(!chosen.iter().any(|p| p.contains("moreLikeThisTitles") || p.contains("[]")), "{chosen:?}");
+        assert_eq!(project(&answer, &chosen)["props"]["pageProps"]["aboveTheFoldData"]["ratingsSummary"]["aggregateRating"], 9.3);
+        // The same route, asked for another title: its state names that one, and its own record answers.
+        let mut other = answer.clone();
+        other["props"]["pageProps"]["aboveTheFoldData"]["id"] = "tt0068646".into();
+        let chosen = defaults_on(&paths(&other), goal, &["title".into(), "tt0068646".into()], page);
+        assert!(chosen.iter().any(|p| p == "props.pageProps.aboveTheFoldData.ratingsSummary.aggregateRating"), "{chosen:?}");
+        // An answer whose only records of the thing sit in a list is read as before, by its lists.
+        let mut listed = answer.clone();
+        let props = listed["props"]["pageProps"].as_object_mut().unwrap();
+        props.remove("aboveTheFoldData");
+        props.remove("tconst");
+        listed.as_object_mut().unwrap().remove("query");
+        let chosen = defaults_on(&paths(&listed), goal, &["title".into(), "tt0111161".into()], page);
+        assert!(chosen.iter().any(|p| p.contains("moreLikeThisTitles")), "{chosen:?}");
+        // A goal for several things is read by its lists, whatever names the page's own thing.
+        let chosen = defaults_on(&paths(&answer), "list titles like The Shawshank Redemption with rating", &["title".into(), "tt0111161".into()], page);
+        assert!(chosen.iter().any(|p| p.contains("moreLikeThisTitles")), "{chosen:?}");
+    }
+
     /// A shop's search for `dress`: each product's name is a description longer than an example, with the word past the
     /// cut, beside its brand. The description says the search back, so it comes back by default, not only the brand.
     /// A record that names itself only by an id says what it is in its parts' text, which comes back with it.
@@ -1703,6 +1815,22 @@ mod tests {
         let d = defaults(&paths(&answer), "search products", &["towels".into()]);
         assert!(d.iter().any(|p| p == "zones[].modules[].items[].title"), "{d:?}");
         assert!(d.first().is_some_and(|p| p.starts_with("zones[].modules[].items[]")), "the products lead: {d:?}");
+    }
+
+    #[test]
+    fn a_wrapped_record_keeps_its_requested_text_and_handle() {
+        let rows: Vec<Value> = (0..8).map(|i| serde_json::json!({
+            "entryId": format!("post-{i}"),
+            "content": { "item": { "result": {
+                "legacy": { "display_text_range": [0, 200], "full_text": format!("Post {i}: {}", "a line of text. ".repeat(24)) },
+                "core": { "user": { "result": { "profile": { "screen_name": format!("reader{i}") } } } }
+            } } }
+        })).collect();
+        let answer = serde_json::json!({"data": {"saved": {"timeline": {"instructions": [{"add": {"entries": rows}}]}}}});
+        let d = defaults(&paths(&answer), "my saved posts: each post's text and author handle", &[]);
+        assert!(d.iter().any(|p| p.ends_with(".full_text")), "{d:?}");
+        assert!(d.iter().any(|p| p.ends_with(".screen_name")), "{d:?}");
+        assert!(!d.iter().any(|p| p.ends_with(".display_text_range")), "{d:?}");
     }
 
     /// A record with a price comes back with it, whatever the goal's words: its own price, the shallowest, once.

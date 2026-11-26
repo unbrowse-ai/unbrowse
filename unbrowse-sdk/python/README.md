@@ -58,7 +58,7 @@ unbrowse browser fetch off # never fetch it by itself: a goal that needs it rais
 
 ## Connect
 
-The node's owner makes a key for each agent in the Unbrowse app (Wallet, New agent key). Its setup carries the
+The node's owner makes a key for each agent with `unbrowse agent new <name>`, or in the Unbrowse app (Agents, Add agent, shown once Settings has Show advanced screens on). Its setup carries the
 node's address and the agent's token:
 
 ```bash
@@ -355,7 +355,7 @@ from unbrowse import Unbrowse, AuthenticationError, NodeConnectionError
 try:
     Unbrowse().do("search Hacker News stories", url="https://hn.algolia.com/?q=rust")
 except AuthenticationError:
-    print("make an agent key: Unbrowse app, Wallet, New agent key")
+    print("make an agent key: unbrowse agent new <name>")
 except NodeConnectionError:
     print("start the node: open the Unbrowse app")
 ```

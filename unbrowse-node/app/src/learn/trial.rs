@@ -923,7 +923,7 @@ mod tests {
     }
 
     fn walk_of(trace: &Trace, url: &str) -> Walk {
-        Walk { url: url.into(), trace: trace.clone(), probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None }
+        Walk { url: url.into(), trace: trace.clone().into(), probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None }
     }
 
     /// The page `url` walked, and the call it made: a list of records that say the word.
@@ -1112,5 +1112,24 @@ mod tests {
         assert!(said, "the route answers the word");
         assert_eq!((stood.id.as_str(), stood.heard.said_back.as_deref()), (route.id.as_str(), Some("kettle")), "the route stands, as it heard the word");
         assert_eq!(store::load_route(&route.id).and_then(|r| r.heard.said_back).as_deref(), Some("kettle"));
+    }
+    /// A walk a node kept, named on the command line as its owner names one, is read for the second words it offers: the
+    /// capture's folder and name are read, and the words a trial would ask are the ones the walk's page and answers
+    /// give, in the order they are asked.
+    #[test]
+    fn a_kept_walk_named_on_the_command_line_is_read_for_the_words_it_offers() {
+        let _offline = unbrowse_learn::http::offline();
+        let corpus = crate::learn::corpus::corpus_tests::a_shop_walked_twice();
+        let capture = agent_browser_core::session::capture_path(&corpus.join("a-lamps"), "learn_w");
+        std::env::set_var("UNBROWSE_WALK", &capture);
+        std::env::set_var("UNBROWSE_WALK_URL", "https://shop.example/search?q=brass");
+        what_a_kept_walk_offers();
+        std::env::remove_var("UNBROWSE_WALK");
+        std::env::remove_var("UNBROWSE_WALK_URL");
+        let trace = trace_from_walk(&corpus.join("a-lamps"), "learn_w").expect("the capture holds a walk");
+        let asked: Vec<String> = walk_inputs("https://shop.example/search?q=brass", &[], &[]).into_iter().map(|i| i.value).collect();
+        assert_eq!(asked, vec!["brass".to_string()]);
+        let offered = offered_words(&trace, "https://shop.example/search?q=brass", &asked);
+        assert!(["lamp", "knocker", "frame"].iter().all(|kind| offered.iter().any(|w| w == kind)), "the words the answer's records share are offered: {offered:?}");
     }
 }

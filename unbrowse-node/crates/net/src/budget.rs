@@ -581,3 +581,7 @@ mod tests {
         assert!(payers.paid[&a].len() <= 2, "older payments are forgotten");
     }
 }
+
+#[cfg(test)]
+#[path = "budget_tests.rs"]
+mod budget_tests;

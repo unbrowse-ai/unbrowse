@@ -22,21 +22,21 @@ const settings = @import("screens/settings.zig");
 const board = @import("screens/board.zig");
 const live_screen = @import("screens/live.zig");
 const hands_screen = @import("screens/hands.zig");
-const first_run = @import("screens/first_run.zig");
-const connect = @import("screens/connect.zig");
+const onboarding = @import("screens/onboarding.zig");
 const move_to_apps = @import("screens/move_to_apps.zig");
-const sign_in = @import("screens/sign_in.zig");
 
 /// What stands in front of the normal screens, in the order it is asked: the move to Applications while the window runs
-/// from a disk image, then the terms, then signing in (a new node only, skippable), then Connect your agents until it
-/// has been through.
-pub const Front = enum { none, move, terms, sign_in, connect };
+/// from a disk image, then setting up (screens/onboarding.zig): Welcome (a new node only), the terms, signing in (a new
+/// node only, skippable), the AI apps and ChatGPT and Claude until they have been through, and You're set.
+pub const Front = enum { none, move, welcome, terms, sign_in, connect, done };
 
 pub fn front(a: *App) Front {
     if (a.mustMove() != null) return .move;
-    if (a.termsDue()) return .terms;
+    a.noteNewNode();
+    if (a.termsDue()) return if (a.welcomeDue()) .welcome else .terms;
     if (a.signInDue()) return .sign_in;
     if (a.connectDue()) return .connect;
+    if (a.finish_due) return .done;
     return .none;
 }
 
@@ -52,9 +52,11 @@ pub fn view(a: *App, c: *ui.Context) void {
     if (stands != .none) {
         switch (stands) {
             .move => move_to_apps.view(a, c),
-            .terms => first_run.view(a, c),
-            .sign_in => sign_in.view(a, c),
-            .connect => connect.view(a, c),
+            .welcome => onboarding.view(a, c, .welcome),
+            .terms => onboarding.view(a, c, .terms),
+            .sign_in => onboarding.view(a, c, .sign_in),
+            .connect => onboarding.view(a, c, if (a.connect_step > 0) .web else .apps),
+            .done => onboarding.view(a, c, .done),
             .none => {},
         }
         a.toaster.view(c);
@@ -78,6 +80,9 @@ pub fn view(a: *App, c: *ui.Context) void {
             banners(a, c);
             if (a.screen == .activity) activity.view(a, c) else hands_screen.view(a, c);
         } else {
+            // Keyed by the screen, so each screen's boxes are its own: a screen opened rises in whole, never taking the
+            // place of one the screen before had at the same spot in its layout (`look.rise`).
+            ui.key(c, @tagName(a.screen));
             const sc = ui.div(c).column().sizeFull().scrollY().px(28).py(24).gap(18);
             defer sc.end();
             banners(a, c);
@@ -154,6 +159,7 @@ fn sidebar(a: *App, c: *ui.Context) void {
     }
     for (app_mod.screen_labels, 0..) |label, i| {
         const s: app_mod.Screen = @enumFromInt(i);
+        if (!a.listed(s)) continue;
         const on = a.screen == s;
         ui.key(c, label);
         var item = ui.div(c).row().wFull().h(32).px(8).gap(8).itemsCenter().rounded(7).control();
@@ -170,6 +176,11 @@ fn sidebar(a: *App, c: *ui.Context) void {
             const dot = ui.div(c).w(7).h(7).roundedFull().bg(x.run);
             dot.end();
         }
+    }
+    // The basic screens: the rest one click away, and Settings turns them off again.
+    if (!a.advanced()) {
+        ui.key(c, "more-screens");
+        if (look.ghost(c, "More screens", .{ .size = .sm })) a.saveSetting("advanced", .{ .bool = true });
     }
     ui.spacer(c);
     // The node's card: Uni showing what the node is doing, then the state in a word, its name, its version.
@@ -193,7 +204,8 @@ fn sidebar(a: *App, c: *ui.Context) void {
         w.end();
     } else ui.text(c, a.stateWord(), .{ .size = 13, .weight = .medium });
     look.mono(c, a.nodeName(), null);
-    wallet.shortAddress(a, c);
+    // The wallet's address is the advanced screens'; Money names it.
+    if (a.advanced()) wallet.shortAddress(a, c);
     const version = if (a.store.get(.node_info)) |i| i.version else "";
     if (version.len > 0) ui.text(c, c.print("Version {s}", .{version}), .{ .size = 11.5, .color = x.text3 });
 }
@@ -206,6 +218,10 @@ fn topbar(a: *App, c: *ui.Context) void {
     ui.text(c, "/", .{ .size = 13, .color = x.text3 });
     ui.text(c, app_mod.screen_labels[@intFromEnum(a.screen)], .{ .size = 13, .weight = .medium });
     ui.spacer(c);
+    // What the node can spend, on every screen, and the way to raise it: one control, as Money's Add funds.
+    if (a.store.get(.money)) |m| {
+        if (look.creditBadge(c, c.print("${s}", .{m.balance}), m.add_funds_url != null)) a.store.act(.generic, "add", "add_funds", "{}");
+    }
     if (a.paymentsWord()) |word| look.chip(c, word, a.chainError() != null);
     // An agent waits on the owner for a page, or the owner holds one: one click to it from anywhere.
     if (a.screen != .hands) {
@@ -222,7 +238,7 @@ fn banners(a: *App, c: *ui.Context) void {
     if (a.store.conn == .down) {
         const found = if (a.store.net) |n| n.found.load(.acquire) else false;
         const how = if (found) "This window found the node already running, so it waits for it to come back rather than start a second one" else "The window started unbrowse-node and keeps trying";
-        _ = kit.alert(c, .{ .status = .warning, .title = "Can't reach the node", .description = c.print("Nothing answers on 127.0.0.1:{d}. {s}; agents need it running.", .{ a.port(), how }) });
+        _ = kit.alert(c, .{ .status = .warning, .title = "Unbrowse isn't answering on this Mac", .description = c.print("Nothing answers on 127.0.0.1:{d}. {s}; agents need it running.", .{ a.port(), how }) });
     } else if (a.store.keychain) {
         _ = kit.alert(c, .{ .status = .info, .title = "Waiting for Keychain access: allow Unbrowse in the macOS dialog.", .description = "The node needs its key for the wallet, agent keys and passwords. Routes, activity and settings work meanwhile." });
     }

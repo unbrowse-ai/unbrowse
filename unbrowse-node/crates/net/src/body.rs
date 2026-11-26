@@ -290,3 +290,7 @@ mod tests {
         assert!(reason.len() <= MAX_REASON_BYTES && reason.chars().all(|c| c == 'é'));
     }
 }
+
+#[cfg(test)]
+#[path = "body_tests.rs"]
+mod body_tests;

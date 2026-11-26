@@ -245,7 +245,7 @@ export class UnbrowseNode {
     await this.ensureStarted();
     if (!this.line.token) {
       throw errorFor(
-        "no agent token: pass { token } or set UNBROWSE_AGENT_TOKEN (Unbrowse app, Wallet, New agent key)",
+        "no agent token: pass { token } or set UNBROWSE_AGENT_TOKEN (`unbrowse agent token` prints one; `unbrowse agent new <name>` makes a key of the agent's own)",
         401,
         "unauthorized",
       );
@@ -258,8 +258,13 @@ export class UnbrowseNode {
     }
   }
 
-  /** One agent primitive, as its `/v1` route takes it, answering the node's wire record. */
-  private async primitive<P extends keyof AgentPrimitives>(tool: P, args: PrimitiveArgs<P>, signal?: AbortSignal, timeoutMs?: number): Promise<PrimitiveResult<P>> {
+  /** One agent primitive, shared with the tool adapters. @internal */
+  async primitive<P extends keyof AgentPrimitives>(tool: P, args: PrimitiveArgs<P>, signal?: AbortSignal, timeoutMs?: number): Promise<PrimitiveResult<P>> {
+    if (tool === "unbrowse_call" && "browser" in args && args.browser === "never") {
+      if ((await this.primitive("unbrowse_whoami", {}, signal, timeoutMs)).call_browser !== true) {
+        throw errorFor("this node does not support browser: never on direct route calls. Update it or leave browser unset", 0, "unsupported");
+      }
+    }
     const req = primitiveRequest(tool, args);
     return this.request(req.method, req.path, req.body, signal, timeoutMs);
   }
@@ -275,6 +280,15 @@ export class UnbrowseNode {
       ...(typeof r.browser_fetch === "boolean" && { browserFetch: r.browser_fetch }),
       ...(r.owner !== undefined && { owner: r.owner }),
     };
+  }
+
+  /**
+   * The node's setup, step by step: each step done or not, a line saying where it stands, and the `setup` call that does
+   * it. `do` acts on one (`accept_terms`, `sign_in`, `connect_apps`, `web`, `connect_site` with `host`), asking the owner
+   * on their screen first. `person` in the answer is what to hand them (a link, a place in the app), never a command.
+   */
+  async setup(opts: { do?: "accept_terms" | "sign_in" | "connect_apps" | "web" | "connect_site"; host?: string } = {}) {
+    return this.primitive("unbrowse_setup", { ...(opts.do && { do: opts.do }), ...(opts.host && { host: opts.host }) });
   }
 
   /**
@@ -458,7 +472,7 @@ export class UnbrowseNode {
    * refused (`payment_required`), naming both.
    */
   async call<T = Json>(routeId: string, inputs: Record<string, string | number | boolean> = {}, opts: CallOptions = {}): Promise<CallResult<T>> {
-    return toCall<T>(await this.primitive("unbrowse_call", { route_id: routeId, inputs: inputStrings(inputs), ...(opts.fields?.length && { fields: opts.fields }) }, opts.signal));
+    return toCall<T>(await this.primitive("unbrowse_call", { route_id: routeId, inputs: inputStrings(inputs), ...(opts.fields?.length && { fields: opts.fields }), ...(opts.browser && { browser: opts.browser }) }, opts.signal));
   }
 
   /**

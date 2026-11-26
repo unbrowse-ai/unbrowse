@@ -5,6 +5,7 @@
 //! the node says something changed.
 const std = @import("std");
 const nanoui = @import("nanoui");
+const handoff = @import("handoff.zig");
 const types = @import("types.zig");
 const api = @import("api.zig");
 const Res = types.Res;
@@ -24,7 +25,7 @@ const Slot = struct {
 };
 
 /// What an action's answer is for, so the app can take it.
-pub const Tag = enum { generic, settings, cash_out, call_route, agent_create, remote_key, vault_reveal, vault_import, wallet_phrase, wallet_restore, open_link, card_limit, agent_clients, agent_connect, agent_undo, link_start, close };
+pub const Tag = enum { generic, settings, cash_out, call_route, agent_create, remote_key, vault_reveal, vault_import, wallet_phrase, wallet_restore, open_link, card_limit, agent_clients, agent_connect, agent_undo, link_start, site_connect, remote_link, close };
 
 /// An action's name while it runs. Long enough for the labels made of a site and an account.
 const Label = struct {
@@ -296,7 +297,7 @@ pub const Store = struct {
         const a = job.arena.allocator();
         job.cmd = a.dupe(u8, name) catch "";
         job.body = a.dupe(u8, data) catch "";
-        nanoui.App.onMain(job, Job.done);
+        handoff.toMain(job, Job.done);
     }
 
     /// On the main thread: the job's answer taken in.
@@ -409,7 +410,7 @@ const Job = struct {
         // What was sent may hold a password: gone before the answer is read.
         std.crypto.secureZero(u8, @constCast(job.body));
         if (job.kind == .fetch and job.reply.status == 200) job.value = parse(job.kind.fetch, a, job.reply.body) catch null;
-        nanoui.App.onMain(job, done);
+        handoff.toMain(job, done);
     }
 
     /// Reads the node's settings and saves them with this job's changes on them.

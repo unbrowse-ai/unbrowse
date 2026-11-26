@@ -51,6 +51,7 @@ mod open;
 mod peers;
 mod mcp;
 mod mcp_app;
+mod route_tools;
 mod signed;
 mod direct;
 pub(crate) use direct::Direct;
@@ -123,7 +124,7 @@ fn agent(node: &Node, headers: &HeaderMap) -> Result<Agent, Fail> {
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or((StatusCode::UNAUTHORIZED, "sign the request with your agent token (the SDKs and `unb` do): the token itself is never sent".into()))?;
+        .ok_or((StatusCode::UNAUTHORIZED, "sign the request with your agent token (the SDKs and the unb program do): the token itself is never sent".into()))?;
     if !node.unlocked() {
         return Err((StatusCode::SERVICE_UNAVAILABLE, node.locked_because()));
     }
@@ -141,7 +142,7 @@ fn agent(node: &Node, headers: &HeaderMap) -> Result<Agent, Fail> {
 /// What an agent whose key no longer opens the node hears: a key is made from the owner's root key, so one made before
 /// the root key changed (a restore, a new machine) is unknown here, as a revoked or expired one is. It says how to get
 /// a key that works, not only that this one doesn't.
-pub(crate) const STALE_KEY: &str = "unknown, revoked or expired agent key: a key made before the node's root key changed, or revoked, no longer opens it. Get a fresh one: run `unbrowse connect` on the node's machine, or make a new key in the node's window under Agent access and give the agent its token.";
+pub(crate) const STALE_KEY: &str = "unknown, revoked or expired agent key: a key made before the node's root key changed, or revoked, no longer opens it. Get a fresh one: its person connects this agent again from the Unbrowse app (Agents, Connect), or adds it there as a new agent (Agents, Add agent).";
 
 /// An input as a route listing says it: what a caller needs to set it, and what the page offers for it. One whose walked
 /// value the owner's own session gave (`Route::owners_own`) says no default and that the caller supplies it (`supply`).
@@ -433,7 +434,7 @@ pub(crate) static PRIMITIVES: &[Primitive] = &[
         method: "POST",
         path: "/v1/browse",
         renamed: &[],
-        description: "The node's browser by hand, only for unbrowse_do's how: browse; not to read a page it answered (called, learned) or one of that kind (unbrowse_do with its url calls the route). Use no other browser: every step is learned (named by goal), unasked. A call sending what you typed becomes a route when it lands; a page only read, when you leave. Replies list learned; opening with a goal a route does gives route_for_goal: call that, don't click. Your session's tab is yours alone; a popup, sign-in or 3-D Secure window it opens takes your commands until it closes; idle 30 min, it closes. Each site's browser (site; default the last used) keeps its logins. Password box: fill <ref> vault:<site>:<account> to sign in (fills the account name, submits: click nothing), vault:new:<site>:<account> to sign up, vault:ask:<site>:<account> for an account the vault lacks (see unbrowse_logins). A person check: try yourself first with unbrowse_challenge. Owner needed (a two-step code, a check unbrowse_challenge couldn't pass): ask_owner <what you need> shows it in their window; waits 5 min (--timeout <seconds>, max 1800), replying within wait_ms or still_working (collect with unbrowse_do ask); owner: done|declined|no_answer, then it's yours, signed in; you never see what they type. unbrowse_whoami's owner says if ask_owner can reach them (off: refused at once; tell the user what you need). A click that changed nothing, or a landing on a sign-in, gives needs_owner: true, next: ask_owner, never done: ask, don't click again. Not done either: outcome gone (error status, site not reached), challenge (a person check; next: the unbrowse_challenge call). An eval's own requests (fetch, XHR) are never learned; only click, fill and press teach. To pay: fill the checkout's other fields, then the card: fill <ref> vault:card:<label>:number|expiry|name (:cvv only if unbrowse_logins lists it); the first card fill on a page waits for the owner's yes; you never see the card. Then ask_owner \"submit the payment\": the owner checks the order and pays. Until they finish or dismiss it, every site takes only get url, get title and close, no route runs, and closing the tab doesn't end it. Fields in a frame (a hosted card form) get snapshot refs. Commands: open <url>, snapshot -i, click <ref>, fill <ref> <text>, type, press <key>, select, check, scroll, upload <ref> <file>, get url|title|text <ref>, frame <ref|selector>|main (back to the page), wait, back, reload, eval [--timeout <ms>] <js> (30 s, max 300000), screenshot, ask_owner, close (your tab).",
+        description: "The node's browser by hand, only for unbrowse_do's how: browse; not to read a page it answered (called, learned) or one of that kind (unbrowse_do with its url calls the route). Use no other browser: every step is learned (named by goal), unasked. A call sending what you typed becomes a route when it lands; a page only read, when you leave. Replies list learned; opening with a goal a route does gives route_for_goal: call that, don't click. Your session's tab is yours alone; a popup, sign-in or 3-D Secure window it opens takes your commands until it closes; idle 30 min, it closes. Each site's browser (site; default the last used) keeps its logins. Password box: fill <ref> vault:<site>:<account> to sign in (fills the account name, submits: click nothing), vault:new:<site>:<account> to sign up, vault:ask:<site>:<account> for an account the vault lacks (see unbrowse_logins). A person check: try yourself first with unbrowse_challenge. Owner needed (a two-step code, a check unbrowse_challenge couldn't pass): ask_owner <what you need> shows it in their window; waits 5 min (--timeout <seconds>, max 1800), replying within wait_ms or still_working (collect with unbrowse_do ask); owner: done|declined|no_answer, then it's yours, signed in; you never see what they type. unbrowse_whoami's owner says if ask_owner can reach them (off: refused at once; tell the user what you need). A click that changed nothing, or a landing on a sign-in, gives needs_owner: true, next: ask_owner, never done: ask, don't click again. Not done either: outcome gone (error status, site not reached), challenge (a person check; next: unbrowse_challenge). An eval's own requests (fetch, XHR) are never learned; only click, fill and press teach. To pay: fill the checkout's other fields, then the card: fill <ref> vault:card:<label>:number|expiry|name (:cvv only if unbrowse_logins lists it); the first card fill on a page waits for the owner's yes; you never see the card. Then ask_owner \"submit the payment\": the owner checks the order and pays. Until they finish or dismiss it, every site takes only get url, get title and close, no route runs, and closing the tab doesn't end it. A card form's frame fields get snapshot refs. do: one command, its words; one a call: open <url>, snapshot -i, click <ref>, fill <ref> <text>, type, press <key>, select, check, scroll, upload <ref> <file>, get url|title|text <ref>, frame <ref|selector>|main (the page), wait, back, reload, eval [--timeout <ms>] <js> (30 s, max 300 s), screenshot, ask_owner, close (your tab).",
         schema: || json!({
             "type": "object",
             "properties": {
@@ -582,12 +583,13 @@ pub(crate) static PRIMITIVES: &[Primitive] = &[
         method: "POST",
         path: "/v1/routes/{id}/call",
         renamed: &[("id", "route_id")],
-        description: "Call a route by id; the site's JSON at once. Only a call carrying a vault card waits, always, for the owner's yes (a route binds no amount or currency to its request; 5 min; a no is the error); they see the route and its non-secret inputs. Network routes (remote: true): the node fetches the body from a holder, pays the fee once itself, runs it here under the owner's session and reuses it free while it works; reply network: entry, server, cached. A fee over the owner's per-fetch max is refused, naming both, unpaid. A site that opted out (robots: a User-agent: Unbrowse group disallowing the path): 403 naming it, unpaid, not the route's failure. Inputs by the route's names, fields as in unbrowse_do; a file input is a path in the file root (~/.agent-browser/files, or AGENT_BROWSER_FILE_ROOT; relative from there), uploaded with a new upload id each call. Names no step sends aren't sent: ignored_inputs, beside the route's inputs. A failed write is never resent: read possible_commit; retry as_is (nothing reached the site), check_first (may have landed; look first), never (landed).",
+        description: "Replay a route by id. Inputs use the route's names. Unused inputs appear in ignored_inputs. Fields as in unbrowse_do. Files use paths under AGENT_BROWSER_FILE_ROOT (default ~/.agent-browser/files) and a fresh upload id. A vault card requires the owner's confirmation of the route and non-secret inputs within 5 min. The node pays once per network route, runs with the owner's session and caches the body. The reply's network object gives entry, server and cached. Fees above the owner's limit and robots opt-outs are refused unpaid. Failed writes are never resent automatically. Read possible_commit and retry (as_is, check_first, never) before retrying.",
         schema: || json!({
             "type": "object",
             "properties": {
                 "route_id": { "type": "string" },
                 "inputs": { "type": "object", "additionalProperties": { "type": "string" } },
+                "browser": { "type": "string", "enum": ["auto", "never"], "description": "Use never for replay only. Default auto allows browser fallback." },
                 "fields": { "type": "array", "items": { "type": "string" } }
             },
             "required": ["route_id"]
@@ -595,7 +597,14 @@ pub(crate) static PRIMITIVES: &[Primitive] = &[
         returns: || r("CallResult"),
         sdk: &["call"],
         cli: "call",
-        run: |node, a, args| plainly(async move { do_call_when_settled(node, a, text_arg(&args, "route_id"), strings(args.get("inputs")), list_arg(&args, "fields")).await }),
+        run: |node, a, args| plainly(async move {
+            let shut = match args.get("browser").map(Value::as_str) {
+                None | Some(Some("auto")) => false,
+                Some(Some("never")) => true,
+                _ => return Err((StatusCode::BAD_REQUEST, "browser must be auto or never".into())),
+            };
+            call::with_the_browser_shut(shut, do_call_when_settled(node, a, text_arg(&args, "route_id"), strings(args.get("inputs")), list_arg(&args, "fields"))).await
+        }),
     },
     Primitive {
         tool: "unbrowse_inspect",
@@ -674,7 +683,25 @@ pub(crate) static PRIMITIVES: &[Primitive] = &[
             plainly(async move {
                 let browser = tokio::task::spawn_blocking(crate::browsers::state).await.unwrap_or("missing");
                 let owner = crate::hands::owner_reach(node.events.watchers(), crate::browsers::headless_only());
-                Ok(json!({ "agent": a.name, "address": a.address, "node": node.info.name, "browser": browser, "browser_fetch": crate::browsers::fetch_allowed(), "owner": owner }))
+                Ok(json!({ "agent": a.name, "address": a.address, "node": node.info.name, "browser": browser, "browser_fetch": crate::browsers::fetch_allowed(), "call_browser": true, "owner": owner }))
+            })
+        },
+    },
+    Primitive {
+        tool: "unbrowse_setup",
+        method: "POST",
+        path: "/v1/setup",
+        renamed: &[],
+        description: "This node's setup, step by step (next). do: one step; the person says yes on their screen first. Hand them person, never a command.",
+        schema: || json!({ "type": "object", "properties": { "do": { "type": "string", "enum": crate::setup::DOES }, "host": { "type": "string" } } }),
+        returns: || r("Setup"),
+        sdk: &["setup"],
+        cli: "setup",
+        run: |node, a, args| {
+            plainly(async move {
+                let what = args.get("do").and_then(Value::as_str).unwrap_or("status").to_string();
+                let host = args.get("host").and_then(Value::as_str).map(str::to_string);
+                crate::setup::act(node, &a.name, &what, host.as_deref()).await.map_err(|e| (StatusCode::BAD_REQUEST, e))
             })
         },
     },
@@ -1027,7 +1054,7 @@ pub async fn serve(node: Arc<Node>, port: u16, owner: String) -> Result<(), Stri
         .route("/v1/remote/receipt", post(serve_remote_receipt))
         .route("/v1/remote/reserve/leaf", post(reserve_leaf))
         .route("/v1/remote/reserve/roots", get(reserve_roots))
-        .route("/mcp", post(mcp))
+        .route("/mcp", post(mcp_at))
         .layer(axum::middleware::from_fn(counted))
         // A probe, asked often: never a call a restart waits for.
         .route("/v1/health", get(health))

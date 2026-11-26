@@ -207,6 +207,10 @@ impl Relay {
         self.task.is_finished()
     }
 
+    pub(crate) fn has_pending(&self) -> bool {
+        !self.rx.is_empty()
+    }
+
     /// The next message, `Err` with how many went by unread, or None once the line has closed and all it said is read.
     pub async fn recv(&mut self) -> Option<Result<RawCdpMessage, u64>> {
         self.rx.recv().await
@@ -1609,5 +1613,153 @@ mod tests {
 
         drop(client);
         server.abort();
+    }
+
+    /// A browser or proxy on the far side: it answers one command and a client's own headers are what it saw.
+    async fn serve_one<F, Fut>(handler: F) -> (String, tokio::task::JoinHandle<()>)
+    where
+        F: FnOnce(tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>, std::collections::HashMap<String, String>) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let seen = std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+            let capture = seen.clone();
+            let ws = tokio_tungstenite::accept_hdr_async(stream, move |request: &tokio_tungstenite::tungstenite::handshake::server::Request, response| {
+                for (name, value) in request.headers() {
+                    capture.lock().unwrap().insert(name.as_str().to_string(), value.to_str().unwrap_or_default().to_string());
+                }
+                Ok(response)
+            })
+            .await
+            .unwrap();
+            let headers = seen.lock().unwrap().clone();
+            handler(ws, headers).await;
+        });
+        (url, task)
+    }
+
+    /// A remote CDP proxy may answer in binary frames; a frame that is no UTF-8 is read as what survived of it; the
+    /// headers a caller names go with the handshake (an unusable one is left out); a close ends the line.
+    #[tokio::test]
+    async fn a_proxy_that_answers_in_binary_frames_and_hangs_up_is_read_and_then_reported_closed() {
+        let guard = crate::test_utils::EnvGuard::new(&["AGENT_BROWSER_DEBUG"]);
+        guard.set("AGENT_BROWSER_DEBUG", "1");
+        let (url, server) = serve_one(|mut ws, headers| async move {
+            assert_eq!(headers.get("x-api-key").map(String::as_str), Some("k-1"));
+            assert!(!headers.contains_key("bad header name"));
+            let first = ws.next().await.unwrap().unwrap().into_text().unwrap();
+            let id = serde_json::from_str::<Value>(&first).unwrap()["id"].as_u64().unwrap();
+            ws.send(Message::Binary(json!({ "id": id, "result": { "via": "binary" } }).to_string().into_bytes())).await.unwrap();
+            let mut event = json!({ "method": "Page.loadEventFired", "params": { "note": "XXXX" } }).to_string().into_bytes();
+            let at = event.windows(4).position(|w| w == b"XXXX").unwrap();
+            event[at] = 0xFF;
+            ws.send(Message::Binary(event)).await.unwrap();
+            ws.send(Message::Ping(vec![1])).await.unwrap();
+            ws.send(Message::Close(None)).await.unwrap();
+            let _ = ws.next().await;
+        })
+        .await;
+        let client = CdpClient::connect_with_headers(
+            &url,
+            Some(vec![("x-api-key".into(), "k-1".into()), ("bad header name".into(), "v".into())]),
+        )
+        .await
+        .unwrap();
+        let mut events = client.subscribe();
+        let answer = client.send_command_no_params("Browser.getVersion", None).await.unwrap();
+        assert_eq!(answer["via"], "binary");
+        let event = tokio::time::timeout(Duration::from_secs(2), events.recv()).await.unwrap().unwrap();
+        assert_eq!(event.method, "Page.loadEventFired");
+        assert_eq!(event.params["note"], "\u{fffd}XXX");
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while client.send_raw("{}".into()).await.is_ok() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("the hang-up closes the line");
+        assert_eq!(client.send_command_no_params("Browser.getVersion", None).await.unwrap_err(), CONNECTION_CLOSED_ERROR);
+        client.close().await;
+        server.await.unwrap();
+    }
+
+    /// Typed commands say what they could not read; unanswered ones are written and not waited for; raw frames go
+    /// through as they are, from the client and from the handle the inspect proxy holds.
+    #[tokio::test]
+    async fn typed_untracked_and_raw_commands_each_reach_the_browser_as_they_were_written() {
+        #[derive(serde::Deserialize, Debug, PartialEq)]
+        struct Version {
+            product: String,
+        }
+        let (url, server) = serve_one(|mut ws, _| async move {
+            let mut got = Vec::new();
+            while got.len() < 4 {
+                let Some(Ok(Message::Text(text))) = ws.next().await else { break };
+                let command = serde_json::from_str::<Value>(&text).unwrap();
+                if let Some(id) = command["id"].as_u64().filter(|_| command["method"] == "Browser.getVersion") {
+                    let result = if got.is_empty() { json!({ "product": "Chrome/1" }) } else { json!({ "product": 7 }) };
+                    ws.send(Message::Text(json!({ "id": id, "result": result }).to_string())).await.unwrap();
+                }
+                got.push(command);
+            }
+            ws.send(Message::Text(json!({ "method": "Browser.said", "params": {} }).to_string())).await.unwrap();
+            let methods: Vec<String> = got.iter().map(|c| c["method"].as_str().unwrap_or("-").to_string()).collect();
+            let _ = ws.send(Message::Text(json!({ "method": "Test.done", "params": { "methods": methods, "session": got[2]["sessionId"] } }).to_string())).await;
+            let _ = ws.next().await;
+        })
+        .await;
+        let client = CdpClient::connect(&url).await.unwrap();
+        let mut raw = client.inspect_handle().subscribe_raw();
+        let mut events = client.subscribe();
+
+        let typed: Version = client.send_command_typed("Browser.getVersion", &json!({}), None).await.unwrap();
+        assert_eq!(typed, Version { product: "Chrome/1".into() });
+        let unreadable = client.send_command_typed::<_, Version>("Browser.getVersion", &json!({}), None).await.unwrap_err();
+        assert!(unreadable.starts_with("Failed to deserialize CDP response for Browser.getVersion"), "{unreadable}");
+        client.send_command_no_wait("Target.detachFromTarget", Some(json!({})), Some("S9")).await.unwrap();
+        client.inspect_handle().send_raw(json!({ "id": 99999, "method": "Inspect.raw" }).to_string()).await.unwrap();
+
+        let done = loop {
+            let event = tokio::time::timeout(Duration::from_secs(2), events.recv()).await.unwrap().unwrap();
+            if event.method == "Test.done" {
+                break event;
+            }
+        };
+        assert_eq!(done.params["methods"], json!(["Browser.getVersion", "Browser.getVersion", "Target.detachFromTarget", "Inspect.raw"]));
+        assert_eq!(done.params["session"], "S9", "an empty session id is none, a named one goes with the command");
+        let first_raw = tokio::time::timeout(Duration::from_secs(2), raw.recv()).await.unwrap().unwrap();
+        assert!(first_raw.text.contains("Chrome/1"), "the proxy sees every message: {}", first_raw.text);
+        client.close().await;
+        server.await.unwrap();
+    }
+
+    /// A page's in-flight calls are the client's to answer for, and a relay opened on it reads from that moment.
+    #[tokio::test]
+    async fn a_client_reports_the_calls_a_page_waits_on_and_hands_out_a_relay_of_what_comes_next() {
+        let (url, server) = serve_one(|mut ws, _| async move {
+            let _ = ws.next().await;
+            ws.send(Message::Text(json!({ "method": "Network.requestWillBeSent", "sessionId": "P", "params": { "requestId": "call", "type": "Fetch" } }).to_string())).await.unwrap();
+            let _ = ws.next().await;
+        })
+        .await;
+        let client = CdpClient::connect(&url).await.unwrap();
+        let mut relay = client.relay();
+        assert!(client.requests_in_flight("P").is_empty());
+        client.send_command_no_wait("Network.enable", None, Some("P")).await.unwrap();
+        let said = tokio::time::timeout(Duration::from_secs(2), relay.recv()).await.unwrap().unwrap().unwrap();
+        assert!(said.text.contains("requestWillBeSent"));
+        assert_eq!(client.requests_in_flight("P").into_iter().collect::<Vec<_>>(), ["call"]);
+        client.close().await;
+        server.abort();
+    }
+
+    #[test]
+    fn a_url_with_no_scheme_or_a_path_before_its_query_is_left_alone() {
+        assert_eq!(normalize_websocket_root_path("localhost:9222?x=1"), "localhost:9222?x=1");
+        assert_eq!(normalize_websocket_root_path("ws://h:1/devtools/browser/a?x=1"), "ws://h:1/devtools/browser/a?x=1");
+        assert_eq!(normalize_websocket_root_path("ws://h:1?x=1"), "ws://h:1/?x=1");
     }
 }

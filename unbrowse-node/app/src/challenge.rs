@@ -876,3 +876,7 @@ mod gate_tests {
         assert_eq!(picture("/etc/hosts"), None);
     }
 }
+
+#[cfg(test)]
+#[path = "challenge_cov_tests.rs"]
+mod challenge_cov_tests;

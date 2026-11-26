@@ -85,6 +85,20 @@ fn a_dotted_name(v: &str) -> bool {
     labels.len() >= 2 && labels.iter().all(|l| !l.is_empty() && l.split('-').all(part))
 }
 
+/// Whether a value, read as itself and with its address escapes undone, carries nothing a visitor was issued: shorter
+/// than [`SHORTEST`] (`%7B%7D` is `{}`), a site's setting ([`a_setting`]), a dotted name ([`a_dotted_name`]) or a
+/// cookie's domain written as one (`.allrecipes.com`, RFC 6265's leading dot), or a page's path of plain words under
+/// [`ANYWHERE`] (`/pricing`, `/en/help`, the page a visitor landed on). Cookies hold each (UNB-300), and each took the
+/// same text out of every answer that said it.
+fn carries_nothing(v: &str) -> bool {
+    let d = percent_encoding::percent_decode_str(v.trim()).decode_utf8_lossy().into_owned();
+    let page_path = |p: &str| {
+        p.len() > 1 && p.chars().count() < ANYWHERE && p.starts_with('/') && p[1..].split('/').all(|s| s.is_empty() || a_setting(s)) && p[1..].split('/').any(|s| !s.is_empty())
+    };
+    let nothing = |x: &str| x.chars().count() < SHORTEST || a_setting(x) || a_dotted_name(x.strip_prefix('.').unwrap_or(x)) || page_path(x);
+    nothing(v.trim()) || nothing(&d)
+}
+
 /// The most layers the mask is kept in ([`layered`]): each is read once for every text of an answer.
 const LAYERS_MOST: usize = 12;
 /// A build of at least twice this many values is split, each part built on a thread of its own ([`Layer::several`]).
@@ -137,17 +151,23 @@ impl Layer {
         values.dedup();
         let (mut anywhere, mut whole): (Vec<(String, u32)>, Vec<(String, u32)>) = (Vec::new(), Vec::new());
         for (i, v) in values.iter().enumerate() {
-            if v.trim().is_empty() || unbrowse_learn::slots::bound_by_key(v) || v.chars().count() < SHORTEST || a_setting(v) || a_dotted_name(v) {
+            if v.trim().is_empty() || unbrowse_learn::slots::bound_by_key(v) || carries_nothing(v) {
                 continue;
             }
             let long = v.chars().count() >= ANYWHERE;
             // The forms alone (`trace::written_forms`): a reader of one value (`trace::Written`) builds two finders of
             // its own for them, which nothing here reads.
             for (f, within) in unbrowse_learn::trace::written_forms(v) {
-                if f.chars().count() >= SHORTEST {
-                    let to = if long || within { &mut anywhere } else { &mut whole };
-                    to.push((f, i as u32));
+                let n = f.chars().count();
+                if n < SHORTEST {
+                    continue;
                 }
+                // A form found inside longer text by nature (a piece of base64) is a run of characters any long code
+                // holds by chance when it is short: the four-character piece of a short cookie of one site took the
+                // middle out of another site's image ids (Steve, UNB-300). A short one is matched where it stands
+                // whole, as a short value is.
+                let to = if long || (within && n >= ANYWHERE) { &mut anywhere } else { &mut whole };
+                to.push((f, i as u32));
             }
         }
         Ok(Layer { anywhere: Finder::of(anywhere)?, whole: Finder::of(whole)?, values })
@@ -462,9 +482,61 @@ pub(crate) fn note_trace(trace: &unbrowse_learn::Trace) {
         .flat_map(|ex| ex.url.path_segments().into_iter().flatten().map(|p| percent_encoding::percent_decode_str(p).decode_utf8_lossy().into_owned()).collect::<Vec<_>>())
         .collect();
     let in_a_path = |v: &str| pathed.iter().any(|p| p == v || p.contains(v));
-    let back: Vec<String> = unbrowse_learn::provenance::session_values(trace).into_iter().filter(|v| !own.contains(v) && !in_a_path(v) && unguessable(v)).collect();
+    // What the site's own scripts carry is its code, the same for every visitor who loads them: a query's operation
+    // name, a field's name, a host it calls. A credential is minted for one visitor and isn't in a script anyone fetches.
+    let scripts: Vec<&str> = trace.exchanges.iter().filter(|ex| shared_script(ex)).filter_map(|ex| ex.response_body.as_deref()).collect();
+    let in_a_script = |v: &str| scripts.iter().any(|s| s.contains(v));
+    let answers: Vec<Value> = trace.exchanges.iter().filter_map(unbrowse_learn::trace::Exchange::own_json).collect();
+    let listed = |v: &str| answers.iter().any(|a| listed_among_others(v, a));
+    let back: Vec<String> = unbrowse_learn::provenance::session_values(trace)
+        .into_iter()
+        .filter(|v| !own.contains(v) && !in_a_path(v) && unguessable(v) && !in_a_script(v) && !listed(v))
+        .collect();
     note(own);
     note(back);
+}
+
+/// Whether `ex` is a script the site serves alike to everyone who loads it: one a cache shared between visitors may
+/// keep (RFC 9111 §5.2.2: `private` and `no-store` say an answer is one visitor's) and that issues no cookie. A script
+/// written for one visitor (a `/session.js` setting a token) says so in the same headers, and its values stay held.
+fn shared_script(ex: &unbrowse_learn::trace::Exchange) -> bool {
+    let script = ex.resource_type.as_deref().is_some_and(|t| t.eq_ignore_ascii_case("script"));
+    let one_visitors = ex.response_header("cache-control").is_some_and(|c| {
+        c.split(',').map(|d| d.trim().split('=').next().unwrap_or("").to_ascii_lowercase()).any(|d| d == "private" || d == "no-store")
+    });
+    script && !one_visitors && ex.response_header("set-cookie").is_none()
+}
+
+/// Whether an answer listed `v` among others of its kind: a list of texts that holds it and another, or a list of
+/// records one of which holds it under a name another record holds something else under (each suggestion its own place
+/// id, each result its own item id). What a page sends back from such a list is the visitor's pick, which every visitor
+/// who picks the same gets; a credential is issued alone, not offered as one of a list (Steve, UNB-300: the place id of
+/// Osaka, from the site's own suggestions, read `place_id={session}`).
+/// A list under a name that says secret (`unbrowse_detector::secret_name`: a page of the visitor's own `api_keys`, each
+/// record's `token`) is a list of credentials, and stays held.
+fn listed_among_others(v: &str, answer: &Value) -> bool {
+    listed_under("", v, answer)
+}
+
+fn listed_under(name: &str, v: &str, answer: &Value) -> bool {
+    match answer {
+        Value::Array(items) => {
+            let texts: Vec<&str> = items.iter().filter_map(Value::as_str).collect();
+            if !unbrowse_detector::secret_name(name) && texts.contains(&v) && texts.iter().any(|t| *t != v) {
+                return true;
+            }
+            let records: Vec<&serde_json::Map<String, Value>> = items.iter().filter_map(Value::as_object).collect();
+            let named = records.iter().flat_map(|r| r.iter()).filter(|(k, x)| x.as_str() == Some(v) && !unbrowse_detector::secret_name(k)).map(|(k, _)| k);
+            for k in named {
+                if records.iter().any(|r| r.get(k).and_then(Value::as_str).is_some_and(|x| x != v)) {
+                    return true;
+                }
+            }
+            items.iter().any(|i| listed_under(name, v, i))
+        }
+        Value::Object(m) => m.iter().any(|(k, i)| listed_under(k, v, i)),
+        _ => false,
+    }
 }
 
 /// Whether the mask would leave `v` alone whoever held it: nothing to keep.
@@ -519,21 +591,29 @@ fn plain_text(v: &str) -> bool {
     runs.peek().is_some() && runs.all(|r| unbrowse_learn::provenance::a_plain_word(r) || (r.len() <= 6 && r.chars().all(|c| c.is_ascii_digit())))
 }
 
+/// The fewest characters of a text inside a page's stored record that is held without a name saying it is a secret:
+/// a token a page keeps under a plain name is a long one (a JWT, an access token).
+const STORED_TOKEN_SHORTEST: usize = 32;
+
 /// What of the page's stored `values` no one could have written ([`unguessable`]): a value itself, or, for one the page
-/// keeps as JSON, each text inside it (a token in a stored auth state); the JSON as a whole is the page's own record.
+/// keeps as JSON, each text inside it that sits in a credential's place: under a name that says it is a secret
+/// (`unbrowse_detector::secret_name`: a stored `accessToken`, a `session_token`), or long enough to be a token whatever
+/// it is called ([`STORED_TOKEN_SHORTEST`]). The rest of the record is the page's own state, the same words the site
+/// answers with: Booking keeps the type of the last page seen (`lastPageType: searchResults`), and holding it took that
+/// name out of every site's answers (Steve, UNB-300).
 fn stored_credentials(values: Vec<String>) -> Vec<String> {
-    fn texts(v: &Value, out: &mut Vec<String>) {
+    fn texts(name: &str, v: &Value, out: &mut Vec<String>) {
         match v {
-            Value::String(s) => out.push(s.clone()),
-            Value::Array(items) => items.iter().for_each(|i| texts(i, out)),
-            Value::Object(m) => m.values().for_each(|i| texts(i, out)),
+            Value::String(s) if unbrowse_detector::secret_name(name) || s.chars().count() >= STORED_TOKEN_SHORTEST => out.push(s.clone()),
+            Value::Array(items) => items.iter().for_each(|i| texts(name, i, out)),
+            Value::Object(m) => m.iter().for_each(|(k, i)| texts(k, i, out)),
             _ => {}
         }
     }
     let mut out = Vec::new();
     for v in values {
         match serde_json::from_str::<Value>(&v) {
-            Ok(parsed @ (Value::Object(_) | Value::Array(_))) => texts(&parsed, &mut out),
+            Ok(parsed @ (Value::Object(_) | Value::Array(_))) => texts("", &parsed, &mut out),
             _ => out.push(v),
         }
     }
@@ -623,6 +703,51 @@ mod tests {
             "dark".to_string(),
         ]);
         assert_eq!(sorted(stored), sorted(vec!["st0rageTok3n88291xQ".to_string(), "rEfr3shInsideJson55kw".to_string()]));
+    }
+
+    /// A page's stored record is its own state: the type of the last page it showed, a search's id, a count. What of it
+    /// is held is what sits in a credential's place, under a name that says secret, or a text long enough to be a token
+    /// whatever its name. Steve, UNB-300: Booking keeps `lastPageType: searchResults` in its session storage, and an
+    /// Airbnb answer's `results` then read `{session}`.
+    #[test]
+    fn a_pages_own_record_in_its_storage_is_not_its_session() {
+        let long = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI0MiJ9.Q2xQ8vA1zYp";
+        let stored = stored_credentials(vec![
+            r#"{"accommodations":{"lastPageType":"searchResults","lastSearch":"ParisHotelsLatest","pageTypes":["searchResults","hotelPage"]}}"#.to_string(),
+            r#"{"auth":{"accessToken":"aT0k3nQx9Zw2Lp7v","expires":1795315053212}}"#.to_string(),
+            format!(r#"{{"state":{{"blob":"{long}"}}}}"#),
+        ]);
+        assert_eq!(sorted(stored), sorted(vec!["aT0k3nQx9Zw2Lp7v".to_string(), long.to_string()]));
+    }
+
+    /// A short value's base64 is a run of four or five characters, the kind any long code holds by chance. Steve,
+    /// UNB-300: a four-character cookie of another site took `UwOD` out of the middle of every Airbnb photo's id
+    /// (`Hosting-U3RheVN1…MTI3Nj{session}g4OTIz…`), the piece `5088` makes. The short value is still masked where it
+    /// stands whole, and a long one wherever its base64 is.
+    #[test]
+    fn a_short_values_piece_of_base64_never_masks_another_sites_ids() {
+        let held = Held::of(["5088".to_string(), "Zq9xSessionToken77".to_string()]).unwrap();
+        let photo = "https://a0.muscache.com/im/pictures/hosting/Hosting-U3RheVN1cHBseUxpc3Rpbmc6MTI3NjUwODg4OTIzOTUwNzU3OQ%3D%3D/original/04d86abe.jpeg";
+        assert_eq!(held.text(photo), photo);
+        assert_eq!(held.text("code 5088 here"), "code {session} here", "the short value is still masked whole");
+        assert_eq!(held.text(r#"{"pin":"NTA4OA=="}"#), r#"{"pin":"{session}"}"#, "and so is its base64, where it stands whole");
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD.encode("xx Zq9xSessionToken77 yy");
+        assert!(held.text(&b64).contains("{session}"), "a long value inside base64 is still masked: {b64}");
+    }
+
+    /// A cookie that holds nothing a visitor was issued is left alone however it is written: an empty record
+    /// percent-encoded (`%7B%7D`, `{}`), the page a visitor landed on (`/pricing`), the domain a cookie is scoped to
+    /// (`.allrecipes.com`). Lewis's node held each in a jar, and the node's own list of routes read `variables={session}`,
+    /// `path: {session}` and `site: www{session}` (UNB-300). A path or a value that reads as a token is still masked.
+    #[test]
+    fn a_cookie_that_holds_a_page_a_domain_or_nothing_is_left_in_its_answers() {
+        let held = Held::of(["%7B%7D", "/pricing", "/singapore", ".allrecipes.com", "/aB3xZ9kQ", "Zq9xSessionToken77"].map(String::from)).unwrap();
+        for said in ["/graphql?variables=%7B%7D&extensions=%7B%7D", "/pricing", "/singapore/{path[1]}", "www.allrecipes.com"] {
+            assert_eq!(held.text(said), said);
+        }
+        assert_eq!(held.text("/aB3xZ9kQ"), "{session}", "a path that reads as a token is still masked");
+        assert_eq!(held.text("t=Zq9xSessionToken77"), "t={session}");
     }
 
     /// The words a call asked with are its goal, its address and the pieces of it, its inputs, a batch's pages, a query,

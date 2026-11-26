@@ -78,7 +78,7 @@ fn tx() -> Value {
 
 /// One MCP client as `agent_clients` answers it (`connect::Status`).
 fn client_status() -> Value {
-    json!({ "type": "object", "properties": { "id": s(), "name": s(), "found": yes(), "connected": yes(), "path": s(), "note": s(), "manual": yes() }, "required": ["id", "name", "found", "connected", "path"] })
+    json!({ "type": "object", "properties": { "id": s(), "name": s(), "found": yes(), "connected": yes(), "path": s(), "note": s(), "manual": yes(), "heard": num() }, "required": ["id", "name", "found", "connected", "path"] })
 }
 
 /// The arguments of the commands that name a login.
@@ -606,8 +606,26 @@ pub static OWNER_COMMANDS: &[OwnerCommand] = &[
         },
     },
     OwnerCommand {
+        name: "remote_link",
+        description: "Links this node to the owner's Unbrowse account, so ChatGPT and Claude signed in to Unbrowse reach it with no address to paste: turns the address on if it is off, lets a sign-in ask, and opens the gateway's link page in the owner's browser (url, opened). The node asks the owner before it is linked.",
+        input: none,
+        returns: || json!({ "type": "object", "properties": { "url": s(), "opened": yes() }, "required": ["url", "opened"] }),
+        sdk_ts: "linkAccount",
+        sdk_py: "remote_link",
+        run: |_, _| Box::pin(async move { out(tokio::task::spawn_blocking(crate::remote::link_account).await.map_err(|e| e.to_string())??) }),
+    },
+    OwnerCommand {
+        name: "setup_status",
+        description: "This node's setup as one list, the same an agent reads with unbrowse_setup: the terms, signing in, the agent apps on this machine, the address for ChatGPT and Claude on the web, the sites it holds a sign-in for, and whether an agent has called it. Each step: done, optional, a line saying where it stands, and the unbrowse_setup call that does it; left names the steps setup still needs.",
+        input: none,
+        returns: || r("SetupStatus"),
+        sdk_ts: "setupStatus",
+        sdk_py: "setup_status",
+        run: |node, _| Box::pin(async move { out(crate::setup::status(node)) }),
+    },
+    OwnerCommand {
         name: "agent_clients",
-        description: "The MCP clients this machine has (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI, opencode and the others Unbrowse connects): whether each is found and connected to this node, and its config file.",
+        description: "The MCP clients this machine has (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI, opencode and the others Unbrowse connects): whether each is found and connected to this node, its config file, and when it last reached this node (`heard`, unix seconds, by the name it gives at MCP initialize).",
         input: none,
         returns: || json!({ "type": "object", "properties": { "clients": { "type": "array", "items": client_status() } }, "required": ["clients"] }),
         sdk_ts: "agentClients",
@@ -617,7 +635,7 @@ pub static OWNER_COMMANDS: &[OwnerCommand] = &[
     OwnerCommand {
         name: "agent_connect",
         description: "Connects the named MCP clients to this node as its first agent: each gets `unb mcp --agent first` in its own config, checked to answer first, its file kept as it was beside it, and no token in it.",
-        input: || args(json!({ "clients": { "type": "array", "items": { "type": "string", "enum": ["claude_code", "claude_desktop", "cursor", "codex"] } } }), &["clients"]),
+        input: || args(json!({ "clients": { "type": "array", "items": { "type": "string", "enum": crate::connect::ALL.map(|c| c.id()) } } }), &["clients"]),
         returns: || {
             json!({ "type": "object", "properties": { "results": { "type": "array", "items": { "type": "object",
                 "properties": { "id": s(), "name": s(), "ok": yes(), "restart_needed": yes(), "error": { "type": ["string", "null"] } },
@@ -1604,7 +1622,7 @@ pub static OWNER_COMMANDS: &[OwnerCommand] = &[
     },
     OwnerCommand {
         name: "import_session",
-        description: "Takes a site's cookies from the browser the node uses into the node's session for it, answering how many it kept.",
+        description: "Takes a site's cookies from the owner's browsers on this machine (the Chromium browsers first, then Firefox and Safari, the first that holds the site's session kept whole) into the node's session for it, answering how many it kept.",
         input: || args(json!({ "host": s() }), &["host"]),
         returns: || json!({ "type": "object", "properties": { "cookies": { "type": "integer" } }, "required": ["cookies"], "additionalProperties": false }),
         sdk_ts: "importSession",
@@ -1876,6 +1894,7 @@ mod tests {
         // `hands_stop` below would stop the picture `hands::tests` keeps running.
         let _one = crate::hands::WATCH_FOR_TEST.locked();
         const UNEXERCISED: &[(&str, &str)] = &[
+            ("remote_link", "turns the remote on and opens the owner's browser at the gateway's link page: remote.rs tests it with no browser (link_account_opens_the_page_that_names_the_node)"),
             ("agent_clients", "reads the owner's real MCP client configs: connect.rs tests it on a made-up home, scripts/install-e2e.sh against a running node"),
             ("agent_connect", "starts `unb mcp` and writes client configs: connect.rs tests (connect_writes_each_client_and_keeps_everything_else) and scripts/install-e2e.sh"),
             ("agent_connect_undo", "puts back what agent_connect wrote: connect.rs tests (undo_puts_every_file_back) and scripts/install-e2e.sh"),
@@ -1981,6 +2000,7 @@ mod tests {
         let passphrase = ["a long ", "pass", "phrase"].concat();
         let backup = rt.block_on(owner(&node, "wallet_export", json!({ "passphrase": passphrase }))).ok().unwrap()["backup"].clone();
         let exercised: Vec<(&str, Value)> = vec![
+            ("setup_status", json!({})),
             ("open_link", json!({ "link": "unbrowse://example.com" })),
             ("reports_waiting", json!({})),
             ("checkout_holds", json!({})),

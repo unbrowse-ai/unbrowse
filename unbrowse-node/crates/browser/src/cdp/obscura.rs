@@ -674,4 +674,92 @@ mod tests {
             assert!(!stealth_flag_enabled(v), "{v:?} should not enable stealth");
         }
     }
+    #[cfg(unix)]
+    fn write_script(dir: &std::path::Path, name: &str, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let path = dir.join(name);
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_launched_obscura_reports_its_endpoint_and_dies_with_its_handle() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = write_script(dir.path(), "obscura", "exec sleep 30");
+        let port = unused_port();
+        tokio::spawn(serve_json_version_once_after_delay(
+            port,
+            50,
+            r#"{"webSocketDebuggerUrl":"ws://127.0.0.1:9333/devtools/browser/x"}"#,
+        ));
+        let mut process = launch_obscura(&ObscuraLaunchOptions {
+            executable_path: Some(script.to_string_lossy().into_owned()),
+            port: Some(port),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        assert_eq!(process.ws_url, format!("ws://127.0.0.1:{port}/devtools/browser/x"));
+        assert!(!process.has_exited());
+        process.kill();
+        assert!(process.has_exited());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_launch_picks_its_own_port_and_a_dying_engine_reports_what_it_printed() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = write_script(
+            dir.path(),
+            "obscura",
+            "echo \"args: $*\" >&2; echo said-out; exit 9",
+        );
+        let error = launch_obscura(&ObscuraLaunchOptions {
+            executable_path: Some(script.to_string_lossy().into_owned()),
+            proxy: Some("http://proxy.invalid:1".into()),
+            stealth: true,
+            ..Default::default()
+        })
+        .await
+        .err()
+        .expect("an engine that exits must not launch");
+        assert!(error.contains("exited before CDP became ready"), "{error}");
+        assert!(error.contains("--proxy http://proxy.invalid:1"), "{error}");
+        assert!(error.contains("--stealth"), "{error}");
+        assert!(error.contains("said-out"), "{error}");
+    }
+
+    #[test]
+    fn stealth_is_on_only_when_the_environment_asks_for_it() {
+        let guard = crate::test_utils::EnvGuard::new(&["AGENT_BROWSER_OBSCURA_STEALTH"]);
+        guard.remove("AGENT_BROWSER_OBSCURA_STEALTH");
+        assert!(!stealth_from_env());
+        guard.set("AGENT_BROWSER_OBSCURA_STEALTH", "yes");
+        assert!(stealth_from_env());
+        guard.set("AGENT_BROWSER_OBSCURA_STEALTH", "no");
+        assert!(!stealth_from_env());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn obscura_is_found_on_the_path_and_then_in_the_home_folders() {
+        let guard = crate::test_utils::EnvGuard::new(&["PATH", "HOME"]);
+        let bin = tempfile::tempdir().unwrap();
+        let on_path = write_script(bin.path(), "obscura", "exit 0");
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        guard.set("PATH", &format!("{}:{old_path}", bin.path().display()));
+        assert_eq!(find_obscura(), Some(on_path));
+
+        let home = tempfile::tempdir().unwrap();
+        guard.set("HOME", &home.path().to_string_lossy());
+        guard.set("PATH", "/usr/bin:/bin");
+        if find_obscura().is_none() {
+            std::fs::create_dir_all(home.path().join(".local/bin")).unwrap();
+            assert_eq!(find_obscura(), None);
+            let kept = write_script(&home.path().join(".local/bin"), "obscura", "exit 0");
+            assert_eq!(find_obscura(), Some(kept));
+        }
+    }
 }

@@ -1820,10 +1820,19 @@ const backstop = setTimeout(done, spec.settleMs + 64000);
 pub(crate) fn runtime() -> Option<String> {
     std::env::var("SIGNING_PROGRAM").ok().filter(|p| !p.trim().is_empty()).or_else(|| {
         // The owner's own JS runtime, when it is on the path: the same arrangement as the browser program.
-        let found = Command::new("sh").args(["-c", "command -v node"]).output().ok().filter(|o| o.status.success())?;
-        let path = String::from_utf8_lossy(&found.stdout).trim().to_string();
-        (!path.is_empty()).then_some(path)
+        node_on_path(&std::env::var_os("PATH")?)
     })
+}
+
+/// The first `node` (`node.exe` on Windows) in the folders `path` lists, read straight from the folders. A Unix shell
+/// was asked before (`sh -c 'command -v node'`): Windows has none, or Git's, which answers `/c/...`, a path no Windows
+/// program opens, so the sandbox never ran there and the page's values came from the browser instead.
+fn node_on_path(path: &std::ffi::OsStr) -> Option<String> {
+    std::env::split_paths(path)
+        .filter(|d| !d.as_os_str().is_empty())
+        .flat_map(|d| [d.join("node.exe"), d.join("node")])
+        .find(|c| c.is_file())
+        .map(|c| c.to_string_lossy().into_owned())
 }
 
 /// Whether this machine can run a bundle at all: a runtime, and one it can confine.
@@ -2686,6 +2695,8 @@ fn converse(child: &mut std::process::Child, mut net: Option<&mut Net<'_>>, page
     drop(stdin);
     let _ = child.kill();
     let _ = child.wait();
+    // A reader still holding lines the run said is waiting to hand one over: let it go before waiting for it.
+    drop(rx);
     let _ = reader.join();
     done
 }
@@ -3312,6 +3323,27 @@ pub(crate) fn sign_page(bundle: &Bundle, page_url: &str, cookies: &str, storage:
 
 #[cfg(test)]
 mod tests {
+
+    /// Windows, 22 Nov 2026: no Unix shell to ask, so no runtime was found and two answers came out wrong. The runtime
+    /// is read from the path's folders themselves: `node.exe` there, `node` elsewhere, the first folder that has one.
+    #[test]
+    fn the_runtime_is_found_in_the_paths_folders_with_no_shell() {
+        let root = std::env::temp_dir().join(format!("sandbox-path-{}", std::process::id()));
+        let (empty, win, unix) = (root.join("empty"), root.join("Program Files").join("nodejs"), root.join("bin"));
+        for d in [&empty, &win, &unix] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(win.join("node.exe"), b"").unwrap();
+        std::fs::write(unix.join("node"), b"").unwrap();
+        let path = std::env::join_paths([empty.clone(), win.clone(), unix.clone()]).unwrap();
+        let found = super::node_on_path(&path);
+        let later = super::node_on_path(&std::env::join_paths([empty.clone(), unix.clone()]).unwrap());
+        let none = super::node_on_path(&std::env::join_paths([empty]).unwrap());
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(found, Some(win.join("node.exe").to_string_lossy().into_owned()), "a folder with spaces, node.exe");
+        assert_eq!(later, Some(unix.join("node").to_string_lossy().into_owned()));
+        assert_eq!(none, None);
+    }
     use super::*;
 
     fn request(method: &str, url: &str, body: Option<&str>) -> Request {
@@ -4659,3 +4691,7 @@ mod tests {
         assert!(runtime, "the runtime itself may be started");
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "sandbox_cov_tests.rs"]
+mod sandbox_cov_tests;
