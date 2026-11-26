@@ -86,6 +86,85 @@ agent ── HTTP / MCP ──▶ unbrowse-node ──▶ the site's own API    
 
 Your sign-ins stay on your computer, in your system's own keystore.
 
+## What it can do
+
+Everything below runs on your machine unless a line says otherwise. The full command list is in
+[docs/CLI.md](docs/CLI.md); what each call costs, and where the money goes, is in [docs/MONEY.md](docs/MONEY.md).
+
+| Capability | What you get | Today |
+|---|---|---|
+| **A site's own API, without the browser** | Learn a route once, then call it over plain HTTP: about 67 ms cached, 950 ms uncached across 94 sites | Live |
+| **Password management** | Import from browsers and password managers, make derived passwords that are never stored, hold one-time codes and cards, and give an agent a reference instead of a secret | Live |
+| **Sessions** | Take one host's signed-in session from your browser or a cookie file, so calls and pages start signed in | Live |
+| **Passkeys** | Enrol a site's passkey when you sign in by hand, or import one from Bitwarden, CXF or KeePassXC, and the node answers the prompt | Live, on by default |
+| **Anti-bot without a browser** | Chrome's TLS and HTTP/2 fingerprint, Chrome's client hints and header order, clearance cookies reused for their life, and the page's own signing scripts run in a local sandbox | Live where the check is a fingerprint or a script; a check that needs a real page falls back to the browser |
+| **Captchas** | The agent's model reads a picture of the check a step at a time, or you take the page | No captcha is solved with no browser and no person; a solver transport is written but not wired |
+| **Local execution** | Node, vault, cookie jars, browser profiles and the page-code sandbox all on this machine; page code runs confined | Live on macOS and Linux; Windows runs no page code |
+| **A browser on demand** | The node's own Chromium through a fork of agent-browser: snapshots with refs, tabs, JavaScript eval, network and console, screenshots, recording | Live |
+| **Route sharing** | Share or sell a learned route on the peer network, at a per-call fee with a per-fetch maximum | Live |
+| **Payments and earnings** | A node balance pays other contributors' fees; contributing routes earn; staking, bounties, route coins and withdrawals are built in | Live |
+| **Agent identity** | One key per agent, a spending cap, an expiry, revocation, and a record of what each agent did | Live |
+| **A site's say** | A site can take its routes out by naming Unbrowse in its robots rules, and a wall the node cannot clear is `blocked`, never fake data | Live |
+
+### Passwords, sessions and passkeys
+
+The vault is a password manager for the node, not a file an agent can read. `unbrowse vault import` takes a CSV or
+JSON export from Chrome, Edge, Brave, Firefox, Safari, Apple Passwords, 1Password, Bitwarden, LastPass, Dashlane,
+Proton Pass or KeePassXC, and a TOTP column comes with it as the login's one-time code key. `unbrowse vault add`
+makes a password derived from the root key, so it is never stored; `--stored` keeps one you supply. Cards are
+separate: their security codes are off by default because PCI DSS forbids keeping one after a payment is authorised,
+and every card payment still asks you. An agent gets `vault:github:you`, never the password; the node fills the form,
+and the value is revealed only in the app. The vault works with no node running, on a server over SSH — see
+[sessions and passwords](docs/guides/sessions-and-passwords.md) and the [import list](unbrowse-node/README.md#imports-from-the-window-or-a-shell).
+
+Sessions come in per host: from the browser you already use, or from a cookie extension's JSON, a Netscape
+`cookies.txt`, a Playwright or Puppeteer storage state, or a bare `Cookie:` header. Passkeys are the third kind: one
+you make by hand is kept automatically, and one a manager can export is imported; iCloud Keychain, Google Password
+Manager, Windows Hello and security keys never let one out.
+
+### Anti-bot without a browser, and the truth about captchas
+
+Three layers get a call past a bot check with no browser:
+
+1. **The handshake is Chrome's.** A patched BoringSSL ClientHello with Chrome's TLS fingerprint, Chrome's HTTP/2
+   settings and frame order, its client hints and header order. A check that only fingerprints the connection sees
+   Chrome.
+2. **Clearance is kept.** The cookie a check issued — `cf_clearance`, `datadome`, `_abck` and the like — is stored
+   for the site and sent until it expires, so one real visit buys every call in its life.
+3. **The page's signing scripts run locally.** Where the page signs each request in JavaScript (an `x-signature`, a
+   sensor payload), the captured scripts run again in the node's confined sandbox, and the request they build is the
+   one sent. This is the part that earns "without a browser", and it is not universal: a bundle that needs a real
+   rendering or a proprietary SDK falls back to a browser page, and the node says so rather than pretending.
+
+Captchas are separate, and the honest answer is no: an image grid, a slider or a "verify you are human" page is not
+computed. The node streams a picture of the check to the agent's model and takes its clicks one step at a time
+(`unbrowse_challenge`), and a check only a person can pass waits for you in the app's Browser screen. A third-party
+solver transport exists in the code (the anti-captcha / capsolver / 2captcha protocol, set with
+`UNBROWSE_CAPTCHA_SOLVER`), but its token injection is deliberately unwired, so configuring it changes nothing
+today. No browserless captcha bypass is shipped.
+
+### Local execution
+
+The node is a local process. It listens on `127.0.0.1:7788`, keeps its root key in the operating system's keystore,
+and writes the vault, cookie jars and browser profiles under `~/.unbrowse`. There is no Unbrowse cloud in the call
+path. Page code runs only where the sandbox probe can confine it: landlock plus a seccomp filter on Linux,
+`sandbox-exec` on macOS, and no page code at all on Windows. The sandbox has no network of its own; a `fetch` the
+page makes while signing is answered by the node under the route's egress rule. Arbitrary shell commands are not part
+of the agent API: the browser's `eval` runs JavaScript in an isolated world, and a plugin is a local executable the
+owner installs.
+
+### Worth knowing
+
+- Calls carry real bodies: JSON, form data, protobuf, MessagePack and gRPC-web, with paging, and file uploads confined
+  to `AGENT_BROWSER_FILE_ROOT`.
+- A refused step is recorded, so a route can re-earn the session value it needs instead of walking the whole site
+  again.
+- The owner's hands: the app shows the node's browser live, you click and type on it, and a secret you type never
+  reaches the agent or the walk record.
+- A site can opt out by naming Unbrowse in its robots rules; `*` never opts a site out, and silence never blocks.
+- The same actions are on MCP at `127.0.0.1:7788/mcp`; the app, the CLI and an agent share one node.
+- Agent keys are separate identities, so one agent can be capped or revoked without touching the others.
+
 ## Choose a starting point
 
 | Goal | Start here |
