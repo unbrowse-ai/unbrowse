@@ -1,0 +1,15 @@
+fix(ci): the model CLI's own words are kept, and a child that dies is not a success (#884)
+
+Staging's QA failed in 1.6 s on the first real opencode run with nothing in the log: the wrapper sent the
+child's stderr to /dev/null, and a child that exited non-zero with no JSON events was reported as a success.
+Both are how a switch fails silently, which is the one thing a wrapper like this must never do.
+
+- stderr is merged into the stream and every line that isn't one of opencode's events goes to our stderr —
+  the workflow's log keeps it — and its last six lines ride in the answer's `agent_cli.said`;
+- a non-zero exit with no stop of ours is an error, named (`the model CLI exited N: <its last line>`), so a
+  missing provider or an unknown flag reads as one instead of "success, empty".
+
+Tests: 6/6, the new one standing a CLI that dies with `provider opencode-go is not configured` and asserting
+the words reach both the log and the answer.
+
+Co-authored-by: Lewistham <lewistham@users.noreply.github.com>

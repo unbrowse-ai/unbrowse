@@ -8,29 +8,32 @@
 // - Running totals, this session and all time, in a band above the prompt and the /unb pane.
 // - The node's local routes become tools Claude can call (`route_<site>_<what>`, deferred: Claude finds them with
 //   ToolSearch), and a short section of the system prompt names the sites they cover. Option `route_tools`.
-// - The /unb pane also shows the node's live activity (its own log) and the sites Claude wanted that had no route.
+// - The /unb pane also shows the node's live activity (its own log) and the sites Claude wanted that had no route. It
+//   is /unb, never /unbrowse: that name is the plugin's own skill, and a command beside it is picked in its place.
+// - The node's balance sits in the band and the pane with the node's own Add funds link: the same page the window's
+//   badge opens (`unbrowse-node money`, read by the CLI with the owner's token; the module never reads that token).
 // - A route that fails is learned afresh in the background when option `heal` is on; a page that needs hands says so.
+// - It draws in the host's own colours (theme names, never fixed hex), so it reads right in every /theme.
 //
 // Every call goes through the plugin's own MCP server (`unbrowse mcp`), which signs it with the agent's token: the
 // module never sees or sends the token. The module names no site.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Activity, Ledger, Receipt, RouteIndex } from '../types'
+import type { Activity, Ledger, Money, Receipt, RouteIndex } from '../types'
 import { describeWhen, evaluate, firePrompt, fmtEvery, isDue, parseEvery, parseThen, parseWhen } from './watch'
 import type { Watch, WatchFire } from './watch'
 
-const BLUE = '#1F5EFF'
-const FIELD = '#7AA2FF'
-const PAPER = '#F4F6FB'
-const MUTE = '#5B6680'
-const GREEN = '#4ADE80'
-const AMBER = '#FBBF24'
-const SIGNAL = '#22D3EE'
+// The host's theme names, so light, dark and every /theme draw it as they draw Claude Code's own rows.
+const NAME = 'suggestion'
+const TEXT = 'text'
+const GOOD = 'success'
+const WARN = 'warning'
 
 const PLUGIN = 'unbrowse'
 const SERVER_KEY = 'unbrowse'
 const PANE = 'unb'
+const MONEY_MS = 60_000
 const NODE_WAIT_MS = 15_000
 const HEAL_WAIT_MS = 300_000
 const MAX_CHARS = 60_000
@@ -50,6 +53,7 @@ const routesAtom = atom({ plugin: 'unbrowse', key: 'routes' } as const, null, { 
 const demandAtom = atom({ plugin: 'unbrowse', key: 'demand' } as const, {}, { shape: 'demand-1' })
 const watchesAtom = atom({ plugin: 'unbrowse', key: 'watches' } as const, [], { shape: 'watches-1' })
 const firesAtom = atom({ plugin: 'unbrowse', key: 'fires' } as const, [], { shape: 'fires-1' })
+const moneyAtom = atom({ plugin: 'unbrowse', key: 'money' } as const, null, { shape: 'money-1' })
 
 // ── reading the node (pure, tested) ─────────────────────────────────────
 type J = Record<string, unknown>
@@ -309,6 +313,30 @@ export function clip(s: string, n: number): string {
   return s.length <= n ? s : `${s.slice(0, Math.max(1, n - 1))}…`
 }
 
+/**
+ * `unbrowse-node money` as it prints it (`money_cli` in unbrowse-node/app/src/main.rs): the balance, what starts the
+ * node and the Add funds page the window's badge opens. Null when the output isn't that (no node, an older CLI).
+ */
+export function parseMoney(stdout: string): Money | null {
+  const lines = stdout.split('\n').map(l => l.trim())
+  const has = (p: string) => lines.some(l => l.startsWith(p))
+  const after = (re: RegExp) => lines.map(l => re.exec(l)?.[1]).find(v => v !== undefined) ?? null
+  const url = after(/^Add funds: (https?:\/\/\S+)$/)
+  const balance = after(/^Balance: \$([0-9.]+)/)
+  const state: Money['state'] | null = has("Payments aren't open") ? 'not_open' : has('Payments offline') ? 'offline'
+    : has('Starting:') ? 'starting' : balance !== null ? (lines.some(l => /^Balance: .*\(test mode\)/.test(l)) ? 'test' : 'open') : null
+  if (state === null) return null
+  return { state, balance, needed: after(/^Add \$([0-9.]+) to start\.$/), addFundsUrl: url }
+}
+
+/** The balance as the band and the pane say it, the way the window's badge does. */
+export function moneyText(m: Money): string {
+  if (m.state === 'not_open') return 'payments not open on this network'
+  if (m.state === 'offline') return 'balance offline'
+  if (m.state === 'starting') return 'node starting'
+  return `$${m.balance ?? '0.00'}${m.state === 'test' ? ' test' : ''}`
+}
+
 // ── the node ────────────────────────────────────────────────────────────
 let server: string | null = null
 let home = ''
@@ -346,6 +374,26 @@ async function readReply($: EngineInterface, content: unknown): Promise<unknown>
   if (path === null) return null
   const text = await $.fs.read(path).catch(() => null)
   return typeof text === 'string' ? parseOutput(text) : null
+}
+
+// The CLI reads the owner's token itself; this module only reads what it prints. `unbrowse` is tried when the node's
+// own command isn't on PATH. Polled at most once a minute: each read asks the chain, which rate-limits.
+let moneyBusy = false
+async function readMoney($: EngineInterface): Promise<void> {
+  if (moneyBusy) return
+  moneyBusy = true
+  try {
+    for (const argv of [['unbrowse-node', 'money'], ['unbrowse', 'money']]) {
+      const ran = await $.process.run(argv, { timeoutMs: 20_000 }).catch(() => null)
+      const m = ran !== null && ran.exitCode === 0 ? parseMoney(ran.stdout) : null
+      if (m !== null) {
+        await update($, moneyAtom, () => m)
+        return
+      }
+    }
+  } finally {
+    moneyBusy = false
+  }
 }
 
 async function storeGet<T>($: EngineInterface, key: string, fallback: T): Promise<T> {
@@ -407,6 +455,7 @@ async function afterReply($: EngineInterface, reply: unknown, id: string, url: s
   const r = receiptFrom(reply, url, via)
   if (r === null) return
   await record($, id, r, url, o.savings)
+  if (r.paidUsdc) void readMoney($)
   const rr = obj(reply)
   if (rr.how === 'browse') $.ui.toast(`unbrowse: ${r.site || 'the page'} needs hands: ${clip(str(rr.why) ?? 'clicks or typing', 80)}`)
   if (o.heal && failedRoute(reply) && url !== null && goal !== null) void heal($, goal, url)
@@ -652,7 +701,7 @@ export const register: Register = (on, options) => {
   on('session.start', async ($, e, next) => {
     const h = await $.process.run(['printenv', 'HOME']).catch(() => null)
     home = h?.stdout.trim() ?? ''
-    await $.command.register({ name: 'unb', description: 'Unbrowse: calls, payments and tokens saved, routes, live node activity, sites wanted' })
+    await $.command.register({ name: 'unb', description: 'Unbrowse: balance and Add funds, calls and tokens saved, routes, live node activity, sites wanted' })
     const all = await storeGet<Ledger | null>($, 'ledger', null)
     const demand = await storeGet<Record<string, number>>($, 'demand', {})
     await update($, allTimeLedger, () => all)
@@ -665,6 +714,8 @@ export const register: Register = (on, options) => {
     if (e.isInteractive) {
       void pollActivity($)
       $.clock.every(ACTIVITY_MS, () => void pollActivity($))
+      void readMoney($)
+      $.clock.every(MONEY_MS, () => void readMoney($))
       void watchTick($)
       $.clock.every(TICK_MS, () => void watchTick($))
     }
@@ -672,8 +723,9 @@ export const register: Register = (on, options) => {
   })
 
   on('command.run', { command: 'unb' }, async $ => {
-    await $.ui.open({ id: PANE, title: 'unbrowse' })
-    return { text: 'unbrowse pane open' }
+    void readMoney($)
+    await $.ui.open({ id: PANE, title: 'Unbrowse' })
+    return { text: 'Unbrowse pane open' }
   })
 
   on('prompt.compose', async ($, e, next) => {
@@ -735,14 +787,15 @@ export const register: Register = (on, options) => {
     const row = await next(e)
     const { Box, Text } = $.ui.resolve(e)
     const c = cardText(r)
+    // Under the row's own result line (`  ⎿  …`), indented to its text and dim, as Claude Code draws a result's
+    // second line.
     return (
       <Box flexDirection="column">
         {row}
         <Box>
-          <Text color={BLUE}>  ▌ </Text>
-          <Text color={FIELD} bold>unbrowse</Text>
-          <Text color={r.ok ? GREEN : AMBER}> {c.how}</Text>
-          <Text color={MUTE}> · {c.rest}</Text>
+          <Text dimColor>{'     '}Unbrowse </Text>
+          <Text color={r.ok ? GOOD : WARN}>{c.how}</Text>
+          <Text dimColor> · {c.rest}</Text>
         </Box>
       </Box>
     )
@@ -754,29 +807,34 @@ export const register: Register = (on, options) => {
     const index = await read($, routesAtom)
     const watching = await read($, watchesAtom)
     const lastFire = (await read($, firesAtom)).at(-1)
-    if (e.props.hasSurvey || (s.calls === 0 && index === null && watching.length === 0)) return next(e)
-    const { Box, Text } = $.ui.resolve(e)
+    const money = await read($, moneyAtom)
+    if (e.props.hasSurvey || (s.calls === 0 && index === null && watching.length === 0 && money === null)) return next(e)
+    const { Box, Text, Link } = $.ui.resolve(e)
     const saved = ledgerSaved(s)
     const recent = lastFire !== undefined && (await $.clock.now()) - lastFire.at < 15 * 60_000 ? lastFire : undefined
     return (
       <Box>
-        <Text color={BLUE}>▌ </Text>
-        <Text color={FIELD} bold>unb</Text>
-        <Text color={MUTE}> · {s.calls} call{s.calls === 1 ? '' : 's'}</Text>
-        {s.calls > 0 ? <Text color={GREEN}> · {s.browserless} no browser</Text> : null}
-        <Text color={MUTE}> · paid {fmtUsdc(s.paidUsdc)}</Text>
-        {saved > 0 ? <Text color={SIGNAL}> · ≈{fmtTokens(saved)} tokens saved</Text> : null}
-        {index !== null ? <Text color={MUTE}> · {index.count} routes</Text> : null}
-        {watching.length > 0 ? <Text color={FIELD}> · {watching.length} watching</Text> : null}
-        {recent !== undefined ? <Text color={AMBER} bold> · fired: {clip(recent.what, 30)}</Text> : null}
+        <Text color={NAME} bold>Unbrowse</Text>
+        {money !== null ? <Text color={money.needed !== null ? WARN : TEXT}> {moneyText(money)}</Text> : null}
+        {money?.needed != null ? <Text color={WARN}> · add ${money.needed} to start</Text> : null}
+        {money?.addFundsUrl != null ? <Text dimColor> · </Text> : null}
+        {money?.addFundsUrl != null ? <Link href={money.addFundsUrl}>Add funds</Link> : null}
+        <Text dimColor> · {s.calls} call{s.calls === 1 ? '' : 's'}</Text>
+        {s.calls > 0 ? <Text color={GOOD}> · {s.browserless} no browser</Text> : null}
+        <Text dimColor> · paid {fmtUsdc(s.paidUsdc)}</Text>
+        {saved > 0 ? <Text color={GOOD}> · ≈{fmtTokens(saved)} tokens saved</Text> : null}
+        {index !== null ? <Text dimColor> · {index.count} routes</Text> : null}
+        {watching.length > 0 ? <Text dimColor> · {watching.length} watching</Text> : null}
+        {recent !== undefined ? <Text color={WARN} bold> · fired: {clip(recent.what, 30)}</Text> : null}
       </Box>
     )
   })
 
   // ── /unb pane ──
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Text, Link } = $.ui.resolve(e)
     const w = Math.max(30, e.props.bodyColumns)
+    const money = await read($, moneyAtom)
     const s = await read($, sessionLedger)
     const all = await read($, allTimeLedger)
     const index = await read($, routesAtom)
@@ -786,54 +844,64 @@ export const register: Register = (on, options) => {
     const fires = await read($, firesAtom)
     const nowMs = await $.clock.now()
     const ago = (at: number | null) => (at === null ? 'not yet' : `${Math.max(0, Math.round((nowMs - at) / 60_000))}m ago`)
+    // Sentence-case headings in bold with a dim note, as Claude Code's own /status and /cost panes read.
     const kicker = (label: string, extra?: string) => (
       <Box>
-        <Text color={BLUE}>■ </Text>
-        <Text color={MUTE} bold>{label}</Text>
-        {extra !== undefined ? <Text color={MUTE}>  {extra}</Text> : null}
+        <Text bold>{label}</Text>
+        {extra !== undefined ? <Text dimColor>  {extra}</Text> : null}
       </Box>
     )
     const row = (label: string, l: Ledger | null) => (
-      <Text color={PAPER}>
+      <Text color={TEXT}>
         {label.padEnd(9)}
-        <Text color={MUTE}>{l === null ? '—' : `${l.calls} calls · ${l.browserless} no browser · paid ${fmtUsdc(l.paidUsdc)} · ≈${fmtTokens(ledgerSaved(l))} tokens saved`}</Text>
+        <Text dimColor>{l === null ? '—' : `${l.calls} calls · ${l.browserless} no browser · paid ${fmtUsdc(l.paidUsdc)} · ≈${fmtTokens(ledgerSaved(l))} tokens saved`}</Text>
       </Text>
     )
     return (
       <Box flexDirection="column">
-        {kicker('LEDGER', 'tokens ≈ characters ÷ 4, page against answer')}
+        {kicker('Balance', money === null ? 'not read yet: is the node running?' : 'USDC on Arc, what routes are paid from')}
+        {money !== null ? (
+          <Box>
+            <Text color={money.needed !== null ? WARN : TEXT}>{moneyText(money)}</Text>
+            {money.needed !== null ? <Text color={WARN}> · add ${money.needed} to start</Text> : null}
+            {money.addFundsUrl !== null ? <Text dimColor> · </Text> : null}
+            {money.addFundsUrl !== null ? <Link href={money.addFundsUrl}>Add funds</Link> : null}
+          </Box>
+        ) : null}
+        <Text> </Text>
+        {kicker('Ledger', 'tokens ≈ characters ÷ 4, page against answer')}
         {row('session', s)}
         {row('all time', all)}
         <Text> </Text>
-        {kicker('WATCHES', watching.length === 0 ? 'ask Claude to watch a site' : `${watching.length} · checked while a session is open`)}
+        {kicker('Watches', watching.length === 0 ? 'ask Claude to watch a site' : `${watching.length} · checked while a session is open`)}
         {watching.map(x => (
           <Box flexDirection="column">
-            <Text color={x.lastError ? AMBER : PAPER}>
-              ◉ {clip(`${x.what} · ${x.site}`, w - 30)} <Text color={MUTE}>every {fmtEvery(x.everyS)} · {ago(x.lastAt)} · fired {x.fires}×</Text>
+            <Text color={x.lastError ? WARN : TEXT}>
+              ◉ {clip(`${x.what} · ${x.site}`, w - 30)} <Text dimColor>every {fmtEvery(x.everyS)} · {ago(x.lastAt)} · fired {x.fires}×</Text>
             </Text>
-            <Text color={MUTE}>    when {clip(describeWhen(x.when), w - 30)} → {x.then.join(', ')}{x.lastError ? ` · ${clip(x.lastError, 40)}` : ''}</Text>
+            <Text dimColor>    when {clip(describeWhen(x.when), w - 30)} → {x.then.join(', ')}{x.lastError ? ` · ${clip(x.lastError, 40)}` : ''}</Text>
           </Box>
         ))}
         {fires.slice(-5).reverse().map(f => (
-          <Text color={AMBER}>⚡ <Text color={MUTE}>{clip(`${ago(f.at)} · ${f.what}: ${f.summary}`, w - 2)}</Text></Text>
+          <Text color={WARN}>⚡ <Text dimColor>{clip(`${ago(f.at)} · ${f.what}: ${f.summary}`, w - 2)}</Text></Text>
         ))}
         <Text> </Text>
-        {kicker('ROUTES', index === null ? 'not read yet' : `${index.count} on this node · ${index.sites.length} sites`)}
+        {kicker('Routes', index === null ? 'not read yet' : `${index.count} on this node · ${index.sites.length} sites`)}
         {(index?.sites ?? []).slice(0, 8).map(x => (
-          <Text color={MUTE}>{clip(`${x.site}: ${x.whats.slice(0, 3).join('; ')}`, w)}</Text>
+          <Text dimColor>{clip(`${x.site}: ${x.whats.slice(0, 3).join('; ')}`, w)}</Text>
         ))}
         <Text> </Text>
-        {kicker('LIVE', 'the node\'s own log, every agent')}
-        {live.length === 0 ? <Text color={MUTE}>nothing yet</Text> : null}
+        {kicker('Live', 'the node\'s own log, every agent')}
+        {live.length === 0 ? <Text dimColor>nothing yet</Text> : null}
         {live.slice(-12).reverse().map(a => (
-          <Text color={a.result === 'done' || a.result === 'ok' ? GREEN : a.result === 'failed' ? AMBER : MUTE}>
-            {a.kind === 'learn' ? '◆' : '●'} <Text color={MUTE}>{clip(`${a.site} · ${a.what}${a.ms !== null ? ` · ${a.ms} ms` : ''}${a.result !== 'done' ? ` · ${a.result}` : ''}`, w - 2)}</Text>
+          <Text color={a.result === 'done' || a.result === 'ok' ? GOOD : a.result === 'failed' ? WARN : TEXT} dimColor={a.result !== 'done' && a.result !== 'ok' && a.result !== 'failed'}>
+            {a.kind === 'learn' ? '◆' : '●'} <Text dimColor>{clip(`${a.site} · ${a.what}${a.ms !== null ? ` · ${a.ms} ms` : ''}${a.result !== 'done' ? ` · ${a.result}` : ''}`, w - 2)}</Text>
           </Text>
         ))}
         <Text> </Text>
-        {kicker('WANTED', 'sites Claude fetched that had no route')}
-        {demand.length === 0 ? <Text color={MUTE}>none yet</Text> : null}
-        {demand.map(([site, n]) => <Text color={AMBER}>{site} <Text color={MUTE}>×{n}</Text></Text>)}
+        {kicker('Wanted', 'sites Claude fetched that had no route')}
+        {demand.length === 0 ? <Text dimColor>none yet</Text> : null}
+        {demand.map(([site, n]) => <Text color={WARN}>{site} <Text dimColor>×{n}</Text></Text>)}
       </Box>
     )
   })

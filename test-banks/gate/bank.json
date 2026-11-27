@@ -1,6 +1,6 @@
 {
- "pick_rule": "(proposed for Lewis's approval, UNB-208):\n  A. unbrowse6 coverage bank (docs/qa/benchmark-harness/bank/bank.json, 276 tasks, unbrowse6 8b7ff88):\n     every task that is (1) not deferred (no login or live id needed), (2) checked by a deterministic rule only\n     (regex / contains / count>=N alternatives; no judge, no numeric-needs-ground-truth, no gate), (3) passed at\n     least once before (ever_passed), and (4) not expected to end at a wall (gate_expected false).\n  B. Lundy nightly regression set (unbrowse-core test-banks/popular-sites/regression.json, 13 sites): one task per\n     site, its search case's third (long-tail) value, scored by: at least 3 listed results that each name a\n     distinctive word of the value.\n  C. The staging criteria sites (Lewis, 18 Nov 2026: \"unbrowse staging is performing super fast browserlessly with\n     max coverage on sites like lazada carousell and ticketmaster\"; added to the bank 19 Nov 2026): one search task\n     per site, asking for the first 5 results with the fields the criteria name (name or title, price or date, link),\n     checked by the judge reading the answer: at least 5 items of that kind, each with those fields. A check a\n     pattern cannot make: on 19 Nov a rule that counted \"the largest list in the reply\" passed a reply whose largest\n     list was the page's advertising slots.",
- "count": 91,
+ "pick_rule": "(proposed for Lewis's approval, UNB-208):\n  A. unbrowse6 coverage bank (docs/qa/benchmark-harness/bank/bank.json, 276 tasks, unbrowse6 8b7ff88):\n     every task that is (1) not deferred (no login or live id needed), (2) checked by a deterministic rule only\n     (regex / contains / count>=N alternatives; no judge, no numeric-needs-ground-truth, no gate), (3) passed at\n     least once before (ever_passed), and (4) not expected to end at a wall (gate_expected false).\n  B. Lundy nightly regression set (unbrowse-core test-banks/popular-sites/regression.json, 13 sites): one task per\n     site, its search case's third (long-tail) value, scored by: at least 3 listed results that each name a\n     distinctive word of the value.\n  C. The staging criteria sites (Lewis, 18 Nov 2026: \"unbrowse staging is performing super fast browserlessly with\n     max coverage on sites like lazada carousell and ticketmaster\"; added to the bank 19 Nov 2026): one search task\n     per site, asking for the first 5 results with the fields the criteria name (name or title, price or date, link),\n     checked by the judge reading the answer: at least 5 items of that kind, each with those fields. A check a\n     pattern cannot make: on 19 Nov a rule that counted \"the largest list in the reply\" passed a reply whose largest\n     list was the page's advertising slots.\n  D. Steve's staging QA (Telegram, 24 Nov 2026 18:14 SGT; UNB-300): one task per site whose answer he found wrong or empty on staging and which the bank did not have (Airbnb, IMDb, Booking.com, ESPN, BBC Weather, Yahoo Finance, a second eBay search). Each is marked `known` with its ticket: it runs and its wrong answer refuses nothing until it is right, when the gate refuses until the mark is taken off (promotion_gate.py check_tasks).\n  D. Phases (Lewis, 25 Nov 2026: the slice tests cold, warm and authed calls, cold one at a time then warm in parallel, a warm answer judged against its cold one). A warm twin names its cold task (`after`), runs on the node that learned it, and is right only if the cold answer was, it matches it in kind, and its records changed with the value; a twin answered by anything but the learned route is `warm_browsed`, a fail. A `none:` twin asks a value the site has nothing for, and only on a site measured to say so: Lazada's search answers gibberish with thousands of matches (\"8637 items found for \\\"qzxvkjwpt\\\"\" in its own resultTips, 25 Nov 2026), so its nonsense twin was dropped once PR 935's slice run read its listed products as wrong. booking.com was driven by hand on staging 804627cd before it was added: cold learned in 55 s with the browser (Tokyo, prices in yen), warm called the same route in 5.2 s, no browser (Osaka).",
+ "count": 108,
  "tasks": [
   {
    "id": "u6:customs-broker-1",
@@ -62,7 +62,7 @@
    "id": "u6:airline-revenue-4",
    "source": "unbrowse6",
    "url": "https://www.flightradar24.com/",
-   "task": "Current live status of flight SQ321 (Singapore–London): scheduled, en route or landed, and its departure time",
+   "task": "Current live status of flight SQ321 (London Heathrow to Singapore): scheduled, en route or landed, and its departure time",
    "check": "regex:(?i)en route|landed|scheduled"
   },
   {
@@ -641,9 +641,147 @@
   {
    "id": "criteria:carousell.sg",
    "source": "criteria",
-   "url": "https://www.carousell.sg/search/nintendo%20switch",
+   "url": "https://www.carousell.sg/search/nintendo%20switch/?tab=marketplace",
    "task": "On carousell.sg, search Carousell listings for \"nintendo switch\" and list the first 5 results (title, price and link of each).",
    "check": "count>=5:Nintendo Switch listing, each with its title, its price and a link to it"
+  },
+  {
+   "id": "steve:airbnb-osaka-search",
+   "source": "steve-qa-2026-11-24",
+   "url": "https://www.airbnb.com/s/Osaka/homes",
+   "task": "On airbnb.com, search stays in Osaka and list the first 5 results (name, price and link of each).",
+   "check": "count>=5:Osaka stay, each with its name, its price and a link to it, none of them reading {session} where a value of the site's stood",
+   "known": "UNB-300"
+  },
+  {
+   "id": "steve:imdb-user-rating",
+   "source": "steve-qa-2026-11-24",
+   "url": "https://www.imdb.com/title/tt0111161/",
+   "task": "The IMDb user rating (out of 10) of The Shawshank Redemption.",
+   "check": "regex:\\b9\\.\\d\\b"
+  },
+  {
+   "id": "steve:booking-paris-hotels",
+   "source": "steve-qa-2026-11-24",
+   "url": "https://www.booking.com/searchresults.html?ss=Paris",
+   "task": "On booking.com, search hotels in Paris and list the first 5 results (name, price and review score of each).",
+   "check": "count>=5:Paris hotel, each with its name, its price and its review score, none of them reading {session} where a value of the site's stood",
+   "known": "UNB-300"
+  },
+  {
+   "id": "steve:espn-nba-final-scores",
+   "source": "steve-qa-2026-11-24",
+   "url": "https://www.espn.com/nba/scoreboard/_/date/20261123",
+   "task": "The NBA games played on 23 November 2026 (US date), each with both teams and its final score.",
+   "check": "count>=3:NBA game played on that date, each with both teams' names and its final score",
+   "known": "UNB-300"
+  },
+  {
+   "id": "steve:bbc-weather-london",
+   "source": "steve-qa-2026-11-24",
+   "url": "https://www.bbc.com/weather/2643743",
+   "task": "The BBC Weather forecast for London for the next 5 days: each day's date or weekday, high and low temperature, and conditions.",
+   "check": "count>=5:day of the London forecast, each with its date or weekday, its high and its low temperature, and its conditions",
+   "known": "UNB-300"
+  },
+  {
+   "id": "steve:yahoo-aapl-price",
+   "source": "steve-qa-2026-11-24",
+   "url": "https://finance.yahoo.com/quote/AAPL/",
+   "task": "The current share price of Apple (AAPL) on Yahoo Finance.",
+   "check": "regex:\\$?\\b\\d{2,4}\\.\\d{2}\\b",
+   "known": "UNB-300"
+  },
+  {
+   "id": "steve:ebay-a-second-search",
+   "source": "steve-qa-2026-11-24",
+   "url": "https://www.ebay.com/sch/i.html?_nkw=mechanical+keyboard",
+   "task": "On ebay.com, search for \"mechanical keyboard\" and then for \"film camera\", and list the first 3 listings of each search (title, price and link of each).",
+   "check": "count>=6:eBay listing, three from each of the two searches, each with its title, its price and a link to it",
+   "known": "UNB-300"
+  },
+  {
+   "id": "criteria:lazada.sg#warm",
+   "source": "criteria",
+   "phase": "warm",
+   "after": "criteria:lazada.sg",
+   "url": "https://www.lazada.sg/catalog/?q=rice+cooker",
+   "task": "On lazada.sg, search Lazada products for \"rice cooker\" and list the first 5 results (name, price and link of each).",
+   "check": "count>=5:rice cooker product, each with its name, its price and a link to it"
+  },
+  {
+   "id": "criteria:carousell.sg#warm",
+   "source": "criteria",
+   "phase": "warm",
+   "after": "criteria:carousell.sg",
+   "url": "https://www.carousell.sg/search/ipad%20mini/?tab=marketplace",
+   "task": "On carousell.sg, search Carousell listings for \"ipad mini\" and list the first 5 results (title, price and link of each).",
+   "check": "count>=5:iPad mini listing, each with its title, its price and a link to it"
+  },
+  {
+   "id": "criteria:carousell.sg#none",
+   "source": "criteria",
+   "phase": "warm",
+   "after": "criteria:carousell.sg",
+   "url": "https://www.carousell.sg/search/zzqxvkwj/?tab=marketplace",
+   "task": "On carousell.sg, search Carousell listings for \"zzqxvkwj\" and list the first 5 results (title, price and link of each).",
+   "check": "none:zzqxvkwj"
+  },
+  {
+   "id": "criteria:ticketmaster.com#warm",
+   "source": "criteria",
+   "phase": "warm",
+   "after": "criteria:ticketmaster.com",
+   "url": "https://www.ticketmaster.com/search?q=ed+sheeran",
+   "task": "On ticketmaster.com, search Ticketmaster events for \"ed sheeran\" and list the first 5 results (name, date, venue and link of each).",
+   "check": "count>=5:result of the site's own search for ed sheeran, in the site's order (a tribute or another act the search returns counts as a result), each with its name, its date, its venue and a link to it"
+  },
+  {
+   "id": "phases:booking.com",
+   "source": "phases",
+   "url": "https://www.booking.com/searchresults.html?ss=Tokyo&checkin={+16d}&checkout={+17d}&group_adults=2&no_rooms=1&nflt=ht_id%3D204",
+   "task": "On booking.com, search hotels in Tokyo for one night ({+16d} to {+17d}, 2 adults) and list the first 5 results (name, area, price and link of each).",
+   "check": "count>=5:Tokyo hotel, each with its name, its area, its price for the stay and a link to it"
+  },
+  {
+   "id": "phases:booking.com#warm",
+   "source": "phases",
+   "phase": "warm",
+   "after": "phases:booking.com",
+   "url": "https://www.booking.com/searchresults.html?ss=Osaka&checkin={+23d}&checkout={+24d}&group_adults=2&no_rooms=1&nflt=ht_id%3D204",
+   "task": "On booking.com, search hotels in Osaka for one night ({+23d} to {+24d}, 2 adults) and list the first 5 results (name, area, price and link of each).",
+   "check": "count>=5:Osaka hotel, each with its name, its area, its price for the stay and a link to it"
+  },
+  {
+   "id": "steve:hn-second-search",
+   "source": "steve-qa-2026-11-24",
+   "url": "https://hn.algolia.com/?q=rust",
+   "task": "On Hacker News search (hn.algolia.com), search stories for \"rust\", then for \"postgres\", and list the first 5 stories of the \"postgres\" search (title, points and link of each).",
+   "check": "count>=5:Hacker News story matching postgres, each with its title, its points and a link to it"
+  },
+  {
+   "id": "phases:automation-exercise#authed",
+   "source": "phases",
+   "phase": "authed",
+   "url": "https://automationexercise.com/login",
+   "task": "On this public automation test site, register a fresh synthetic account and read the signed-in username from the header. Leave the optional newsletter and partner offers unchecked.",
+   "check": "count>=1:new test account username visibly shown as signed in after signup"
+  },
+  {
+   "id": "phases:expandtesting-notes#authed",
+   "source": "phases",
+   "phase": "authed",
+   "url": "https://practice.expandtesting.com/notes/app/register",
+   "task": "Register a fresh test account on the Notes practice app, sign in and read the signed-in Profile page. Report the display name and email it shows for the account you just created. Leave notes untouched.",
+   "check": "count>=1:signed-in profile record showing the new test account’s name and email as displayed by the site"
+  },
+  {
+   "id": "phases:parabank#authed",
+   "source": "phases",
+   "phase": "authed",
+   "url": "https://parabank.parasoft.com/parabank/register.htm",
+   "task": "On the ParaBank simulator, register a fresh account using only synthetic test values, then read Accounts Overview. Report the account number and balance of its first demo account. Do not make any transactions.",
+   "check": "count>=1:account shown on the new demo user’s signed-in Accounts Overview with its account number and displayed balance"
   }
  ],
  "check_fixes": "18 Nov 2026 (UNB-208, approved by Lewis 18 Nov): six checks failed answers that a hand audit found right (programme 887958 step 7, BASELINE.md section 2). Lundy searches rank by relevance, so a title need not hold the value's distinctive word: those checks now ask for the most titles that name any word of the query that the site's own first 5 results met on audit (substack 2, the rest 3). GeBIZ had one open cleaning tender, so its check asks for at least one. Each task keeps its old check in check_before_2026_11_18. A GeBIZ answer of 'none open' fails this check: re-read it by hand."

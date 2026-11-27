@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@opencode/cli": "2.4.1"
+  }
+}

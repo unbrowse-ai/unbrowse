@@ -1137,8 +1137,10 @@ fn next_listing(book: &Book, route_id: &str, content_id: &str, terms: &Terms, ag
 async fn publish_as(chain: &chain::Chain, keys: &(dyn KeyStore + Sync), name: &str, route_id: &str, description: &str, recipe: &Recipe, fee: f64, again: bool) -> Result<Option<Proven>, String> {
     let d = chain.deployed()?;
     let domain = chain::domain(&d);
-    let bytes = recipe::canonical(recipe);
-    let content_id = recipe::save_body(&bytes)?;
+    let body = serde_json::to_value(recipe).map_err(|_| "the route body could not be serialized")?;
+    let response = bounded_shape(recipe.response.clone());
+    crate::vault::check_route_publication(keys, &body, &[route_id, description], response.as_ref())?;
+    let content_id = recipe::save_body(&recipe::canonical_json(&body))?;
     // A recipe calls a site, so it lists as a route, naming its site, never as a skill (a listing with no site): a
     // skill that calls a site is fraud (R6.15 (c), spec §76.2 item 7).
     if recipe.site.trim().is_empty() {
@@ -1151,7 +1153,7 @@ async fn publish_as(chain: &chain::Chain, keys: &(dyn KeyStore + Sync), name: &s
     let on_chain = d.usdc_f(chain::fee_of_wallet(chain, who.wallet).await?);
     let fee = if on_chain > 0.0 { on_chain } else { fee };
     let price = if fee > 0.0 { Price::listed(d.fee_units(fee)) } else { Price::default() };
-    let terms = Terms { description: description.into(), response: bounded_shape(recipe.response.clone()), price };
+    let terms = Terms { description: description.into(), response, price };
     let first = first_version(chain::owner_address(keys)?, who.key.is_none());
     let _held = BOOK.lock().await;
     let mut book: Book = store::read_json_strict(&book_path(&d), &unbrowse_files::LISTINGS)?;

@@ -34,7 +34,7 @@ TOOL_NAMES = (
 
 NO_SDK = (
     "the unbrowse Python SDK isn't installed where Hermes runs: install it into Hermes's Python with "
-    "pip install \"unbrowse @ git+https://github.com/unbrowse-ai/unbrowse-core#subdirectory=unbrowse-sdk/python\""
+    "pip install \"unbrowse @ git+https://github.com/unbrowse-ai/unbrowse#subdirectory=unbrowse-sdk/python\""
 )
 
 # One browsing session for every call this plugin makes, so the page an unbrowse_browse step opens is the one the

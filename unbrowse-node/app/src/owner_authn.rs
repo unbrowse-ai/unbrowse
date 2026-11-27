@@ -663,3 +663,7 @@ pub(crate) mod tests {
         assert!(rp_fits("app.localhost", "localhost"));
     }
 }
+
+#[cfg(test)]
+#[path = "owner_authn_cov_tests.rs"]
+mod owner_authn_cov_tests;

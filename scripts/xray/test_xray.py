@@ -132,6 +132,33 @@ class TheLogSaysWhyALearnBegan(unittest.TestCase):
 
 
 class PagesStayOutOfARepository(unittest.TestCase):
+    def test_the_doors_a_home_recorded_and_what_the_run_said_about_them(self):
+        """A home's doors.json is read as the class and earner it records (the credential by name, never its value), and
+        the node's own `[door]` lines are kept by the page they are about, so a door that did not open says why."""
+        import json, os, tempfile
+        with tempfile.TemporaryDirectory() as home:
+            with open(os.path.join(home, 'doors.json'), 'w') as f:
+                json.dump({'www.shop.example': {'kind': 'unknown', 'earn': 'recompute', 'credential': 'pass',
+                                                'ttl': 60, 'at': 'https://www.shop.example/hold'}}, f)
+            log = os.path.join(home, 'node.log')
+            with open(log, 'w') as f:
+                f.write('   [door] the walk\'s trace holds 6 exchange(s)\n')
+                f.write('   [door] https://www.shop.example/hold: its page\'s scripts are not run (UNBROWSE_DOOR_PASS=1 turns the door pass on)\n')
+                f.write('   [door] https://www.shop.example/hold earned 1 cookie(s) from its own page: ["pass"]\n')
+            spec = importlib.util.spec_from_file_location('wiring_doors', os.path.join(HERE, 'wiring.py'))
+            W = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(W)
+            recorded = W.doors_of(home)
+            assert recorded['www.shop.example']['kind'] == 'unknown'
+            assert recorded['www.shop.example']['earn'] == 'recompute'
+            assert recorded['www.shop.example']['credential'] == 'pass', 'the cookie is named'
+            said = W.door_lines(log)
+            assert 'the walk' in said and 'https://www.shop.example/hold' in said, said
+            assert any('not run' in l for l in said['https://www.shop.example/hold']), said
+            assert any('earned 1 cookie' in l for l in said['https://www.shop.example/hold']), said
+            # a line is the node's own words: no value of a cookie is written by this reader
+            assert not any('pass=' in l for l in said['https://www.shop.example/hold']), said
+
     def test_pages_are_never_written_into_a_repository(self):
         routes = tempfile.mkdtemp()
         try:

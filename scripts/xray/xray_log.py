@@ -2,7 +2,8 @@
 
 The node writes one line for each thing it decides (a scratch node, started with SIGN_DEBUG=1, writes them all):
 
-  eye {"kind": "started" | "seen" | "scored" | "picked" | "saved" | "failed", ...}   the walk, the candidate calls and
+  eye {"kind": "started" | "seen" | "door" | "scored" | "picked" | "saved" | "failed", ...}   the walk, the calls its door
+                                                                                    took and why, the candidate calls and
                                                                                     their scores, the pick and its reasons
   [held] ...     each candidate with why it was held back
   [trial] ...    the second walk: the word offered, and whether it was the same page
@@ -56,7 +57,7 @@ def read(path):
                 url = U.urlsplit(e.get('url') or '')
                 words = {v for _, v in U.parse_qsl(url.query) if len(v) >= 3}
                 now = {'walk': walk, 'goal': e.get('goal') or '', 'site': url.hostname or '', 'page': url.path, 'words': words, 'seen': [], 'candidates': [], 'held': [], 'picked': None, 'saved': None,
-                       'failed': None, 'builds': [[]], 'after': [], 'set_aside': aside}
+                       'failed': None, 'door': None, 'builds': [[]], 'after': [], 'set_aside': aside}
                 aside = None
                 learns.append(now)
                 by_walk[walk] = now
@@ -65,6 +66,8 @@ def read(path):
             if l is None: continue
             if kind == 'seen': l['seen'].append({k: e.get(k) for k in ('n', 'method', 'host', 'path', 'status', 'bytes', 'sort')})
             elif kind == 'scored': l['candidates'], l['exchanges'] = e.get('candidates') or [], e.get('exchanges')
+            elif kind == 'door': l['door'] = {'took': e.get('took') or 0, 'assets': e.get('assets') or 0,
+                                              'calls': [{k: c.get(k) for k in ('index', 'method', 'host', 'path', 'why', 'by')} for c in e.get('calls') or []]}
             elif kind == 'picked': l['picked'] = e
             elif kind == 'saved': l['saved'] = e
             elif kind == 'failed': l['failed'] = e.get('error') or ''
@@ -98,9 +101,28 @@ def read(path):
     return learns
 
 
+DOOR_WHY = {'refused': 'refused', 'another_site': "another site's page", 'went_past': 'a page of script the walk went past'}
+
+
+def door_said(l):
+    """What the walk's door took, in a line: how many calls, by why, and the assets it only counted. Empty with no door."""
+    d = l.get('door')
+    if not d or not d['took']: return ''
+    by = {}
+    for c in d['calls']: by[c.get('why') or '?'] = by.get(c.get('why') or '?', 0) + 1
+    parts = ['%d %s' % (n, DOOR_WHY.get(w, w)) for w, n in sorted(by.items(), key=lambda kv: -kv[1])]
+    return '%d call(s) taken before any was a candidate%s%s' % (d['took'], (': ' + ', '.join(parts)) if parts else '', ('; %d asset(s)' % d['assets']) if d['assets'] else '')
+
+
 def findings(l):
     """What the log itself says went wrong, as (finding id, more)."""
     out = []
+    failure = l.get('failed') or ''
+    if not l['saved'] and failure.startswith('the captured navigation did not reach the requested page'):
+        out.append(('browser-flow-landing', hush(failure, l['words'])))
+    taken = door_said(l)
+    if taken and (l.get('door') or {}).get('calls'):
+        out.append(('door-took-calls' if l['saved'] else 'door-took-the-walk', taken))
     if l['picked'] and l['candidates']:
         top = max(c.get('score') or 0 for c in l['candidates'])
         mine = next((c.get('score') for c in l['candidates'] if c.get('index') == l['picked'].get('index')), None)
@@ -137,6 +159,10 @@ def text(l, final=None):
     for s in l['seen']: sorts[s.get('sort') or '?'] = sorts.get(s.get('sort') or '?', 0) + 1
     out.append('    the walk: %d calls seen (%s)' % (len(l['seen']), ', '.join('%d %s' % (v, k) for k, v in sorted(sorts.items(), key=lambda kv: -kv[1])[:5])))
     if l['failed']: out.append('    the learn failed: %s' % hush(l['failed'], w))
+    if door_said(l):
+        out.append('    the door: %s' % door_said(l))
+        for c in l['door']['calls'][:8]:
+            out.append('      %s %s  (%s, held by the page at #%s)' % (c.get('method'), hush((c.get('host') or '') + (c.get('path') or ''), w), DOOR_WHY.get(c.get('why'), c.get('why')), c.get('by')))
     picked = (l['picked'] or {}).get('index')
     held = {(h['method'], h['host'], h['path']): h for h in l['held']}
     for c in sorted(l['candidates'], key=lambda c: -(c.get('score') or 0))[:8]:
@@ -192,6 +218,8 @@ def section(l, final=None):
     flow = ('<div class="flow"><div><b>%d</b>calls the walk made (%s)</div><div><b>%d</b>candidates scored</div><div><b>%s</b>the pick</div><div><b>%d</b>build(s) of the route</div><div><b>%d</b>line(s) after the pick</div></div>') % (
         len(l['seen']), E(', '.join('%d %s' % (v, k) for k, v in sorted(statuses.items()))), len(l['candidates']), E('by ' + str(l['picked'].get('by')) if l['picked'] else 'none'), builds, len(l['after']))
     failed = ('<p class="sub bad" style="color:var(--brk)">The learn failed: %s</p>' % E(hush(l['failed'], w))) if l['failed'] else ''
+    if door_said(l):
+        failed += '<p class="sub">The walk\'s door: %s (%s).</p>' % (E(door_said(l)), E('; '.join('%s %s, %s' % (c.get('method'), hush((c.get('host') or '') + (c.get('path') or ''), w), DOOR_WHY.get(c.get('why'), c.get('why'))) for c in l['door']['calls'][:8])))
     return ('<h2>What the engine surfaced, step by step</h2><p class="sub">Read from the node\'s own log of this learn (walk <span class="mono">%s</span>). The words the page was asked are written ‹word›; no value is shown.</p>%s%s'
             '<div class="card scroll"><b>1. Which call is the answer.</b> Every candidate the walk offered, as the engine scored it, and why each was held back.%s<table class="lg"><tr><th></th><th class="num">score</th><th>call</th><th>holds</th><th>why it was held back</th></tr>%s</table></div>'
             '%s<div class="card scroll"><b>3. What it asked of the site afterwards, and what it concluded.</b><table class="lg">%s</table></div>') % (

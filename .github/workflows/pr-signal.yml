@@ -1,0 +1,24 @@
+# A pull request's own signal: no credential, no permission, no code. It exists so the agents that do hold a model
+# credential can start on a pull request without a `pull_request` trigger, which this repository refuses to a workflow
+# holding one (test_workflow_security.py). OpenCode's Code review follows its completion; see opencode-review.yml.
+name: PR signal (no credential)
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+
+# A newer push cancels the older signal; the review has its own group.
+concurrency:
+  group: pr-signal-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  signal:
+    name: Signal
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 2
+    steps:
+      - name: Pass
+        run: echo "PR_SIGNAL_OK ${{ github.event.pull_request.number }} ${{ github.event.action }}"

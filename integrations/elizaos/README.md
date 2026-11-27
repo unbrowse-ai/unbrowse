@@ -36,7 +36,7 @@ on npm today is an older one, so until a current release reaches npm, install th
 ## Configure
 
 The node makes its first agent key itself on its first run, and `unbrowse agent token` prints that key's token. For
-a key of the agent's own, `unbrowse agent new <name>` (or the window's Money, Add agent) makes one and prints its
+a key of the agent's own, `unbrowse agent new <name>` (or the window's Agents, Add agent) makes one and prints its
 setup once. Two values:
 
 | Setting | Required | What it is |

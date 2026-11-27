@@ -1,5 +1,6 @@
 // The RPC gateway in production: rpc.unbrowse.ai. Deployed by the release train (.deploy/manifest.json), never by hand.
-// Secrets, never here: ALCHEMY_KEY (the "Unbrowse" team's app on Alchemy, Arc mainnet and testnet enabled).
+// Secrets, never here: ALCHEMY_KEY (the "Unbrowse" team's app on Alchemy, Arc mainnet and testnet enabled), GAS_KEY,
+// SOLVER_KEY (the captcha solver account, src/captcha.js).
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
   "name": "unbrowse-rpc",

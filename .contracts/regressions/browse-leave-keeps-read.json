@@ -1,0 +1,15 @@
+{
+  "claim": "Leaving a page saves its captured read route when another browse learn is running",
+  "test": [
+    "cargo",
+    "test",
+    "--locked",
+    "--manifest-path",
+    "unbrowse-node/Cargo.toml",
+    "-p",
+    "unbrowse-node-app",
+    "--bin",
+    "unbrowse-node",
+    "leaving_a_page_keeps_its_read_route_while_another_learn_is_running"
+  ]
+}

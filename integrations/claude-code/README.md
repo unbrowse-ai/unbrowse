@@ -7,7 +7,8 @@ A Claude Code plugin that connects Claude to the Unbrowse node on your machine. 
   [CLI.md §5](../../docs/CLI.md#5-the-agent-api-and-mcp-tools) lists them)
 - a hooks module ([`hooks/register.tsx`](hooks/register.tsx)) that makes the node part of Claude Code: `WebFetch`
   goes to the node first, every node answer carries a receipt (cost, and the tokens Claude did not read), running
-  totals sit above the prompt, the node's routes become tools, and `/unb` opens a pane with the ledger, the routes,
+  totals and the node's balance with its Add funds link sit above the prompt, the node's routes become tools, and
+  `/unb` opens a pane with the balance, the ledger, the routes,
   the node's live activity and the sites Claude wanted (all below)
 - the skill [`unbrowse`](../../skills/unbrowse/SKILL.md), linked from the repository's `skills/` so there is one copy
   (`unbrowse-map` isn't included: it works only from a checkout of this repository)
@@ -22,7 +23,7 @@ cashing out ([ONBOARDING.md](../../docs/ONBOARDING.md#2-linking-a-wallet-optiona
 ## Install
 
 ```
-/plugin marketplace add unbrowse-ai/unbrowse-core
+/plugin marketplace add unbrowse-ai/unbrowse
 /plugin install unbrowse@unbrowse
 ```
 
@@ -88,21 +89,36 @@ line from the node's reply: how it went (`called`, `network`, `learned`, `browse
 own time as the node measured it, whether the browser was used, what was paid, and the tokens Claude did not read:
 
 ```
-  ▌ unbrowse called · hn.algolia.com · hn-search · 84 ms · no browser · free · ≈96k tokens saved · in place of WebFetch
+⏺ WebFetch(https://hn.algolia.com/?q=rust)
+  ⎿  Received 1.2KB (200 OK)
+     Unbrowse called · hn.algolia.com · hn-search · 84 ms · no browser · free · ≈96k tokens saved · in place of WebFetch
 ```
+
+It sits under the row's own result line, dim, the way Claude Code draws a result's second line.
 
 Tokens saved is the page against the answer that stood for it, at about four characters a token: the plugin
 fetches the page once after the answer (cached per address for the session) and counts its characters. It's a
 measure of what reading the page would have cost, not of what any one tool would have sent Claude. Set Tokens saved
 to `off` to skip the fetch; the figure is then left out.
 
-Above the prompt, this session's totals, and the node's route count:
+Above the prompt, the node's balance with a link to add funds, this session's totals, and the node's route count:
 
 ```
-▌ unb · 12 calls · 11 no browser · paid $0.004 · ≈248k tokens saved · 286 routes
+Unbrowse $2.99715 · Add funds · 12 calls · 11 no browser · paid $0.004 · ≈248k tokens saved · 286 routes
 ```
 
-`/unb` opens a pane with the ledger for this session and all time (kept in the plugin's store), the node's routes by
+The balance is what `unbrowse-node money` prints (USDC on Arc, as the window's balance badge shows it; `test` after it
+on a test network), read when the session starts, once a minute, after a paid answer and when `/unb` opens. **Add
+funds** is a link to the node's own top-up page (`{site}/fund/#node=…`), the one the window's badge opens. The `money`
+command reads the owner's token itself; the plugin only reads what it prints. A node that can't start yet says how
+much to add (`add $1.90 to start`), in the theme's warning colour. With no node, or a CLI that has no `money`, the
+balance is left out.
+
+Everything the plugin draws uses the host's theme colours (`text`, `success`, `warning`, `suggestion`, dim), never
+fixed hex, so it reads the same as Claude Code's own rows in light, dark and every `/theme`.
+
+`/unb` opens a pane with the balance and Add funds, the ledger for this session and all time (kept in the plugin's
+store), the node's routes by
 site, the node's live activity read from its own log (`~/.unbrowse/activity.jsonl`, every agent's learns and calls),
 and the sites Claude fetched that had no route yet, most wanted first. That list stays on this machine.
 
@@ -168,8 +184,9 @@ nothing paid, and a toast says whether it works again.
 | `.mcp.json` | The node's MCP server: `unbrowse mcp`, given the node address and the agent token in its environment |
 | `skills/unbrowse` | A link to `skills/unbrowse` at the repository root |
 | `hooks/watch.ts` | Watches: reading a route's answer and deciding to fire |
-| `hooks/hooks.json`, `hooks/register.tsx` | The hooks module: WebFetch through the node, receipts, the ledger, route tools, the `/unb` pane |
-| `types/index.d.ts` | The module's state contract: receipts, ledgers, activity, routes, sites wanted |
+| `hooks/hooks.json`, `hooks/register.tsx` | The hooks module: WebFetch through the node, receipts, the ledger, the balance, route tools, the `/unb` pane |
+| `types/index.d.ts` | The module's state contract: receipts, ledgers, activity, routes, sites wanted, the balance |
+| `.claude-plugin/icon.png` | The plugin's icon in `/plugin` and the marketplace: the app's own (`unbrowse-node/app/icons/icon.png`) |
 | `tests/` | `claude plugin test ./integrations/claude-code` runs them |
 
 The marketplace is [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) at the repository root.

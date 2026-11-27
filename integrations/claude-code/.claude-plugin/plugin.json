@@ -2,16 +2,17 @@
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "unbrowse",
   "displayName": "Unbrowse",
-  "version": "0.2.1",
+  "icon": "./.claude-plugin/icon.png",
+  "version": "0.3.0",
   "description": "Use websites through the Unbrowse node on this machine: the site's own JSON, with no browser once a route is learned. WebFetch is answered from the node's routes, each node answer shows what it cost and the tokens it saved, and learned routes become tools.",
   "author": {
     "name": "Unbrowse",
     "url": "https://unbrowse.ai"
   },
   "homepage": "https://unbrowse.ai",
-  "repository": "https://github.com/unbrowse-ai/unbrowse-core",
+  "repository": "https://github.com/unbrowse-ai/unbrowse",
   "license": "Apache-2.0",
-  "privacyPolicyUrl": "https://github.com/unbrowse-ai/unbrowse-core/blob/main/PRIVACY.md",
+  "privacyPolicyUrl": "https://github.com/unbrowse-ai/unbrowse/blob/main/PRIVACY.md",
   "keywords": [
     "web",
     "browser",

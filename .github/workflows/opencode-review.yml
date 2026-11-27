@@ -1,0 +1,225 @@
+# Code review, the Claude Ship agent, without the Claude organization: OpenCode reads a pull request's change and posts
+# what it finds, inline, ranked by severity. A check named `Code review` carries the same table and the same last line
+# (`<!-- bughunter-severity: {...} -->`), so Claude Approvals and PR Steward read it, and so can any script that reads
+# Claude Code Review's.
+#
+# It starts on a credential-free signal (pr-signal.yml), never on the pull request: a workflow holding a model
+# credential takes no `pull_request` trigger here (test_workflow_security.py). What it may read is held to the same
+# envelope as pr-autofix.yml: staging's tree at the root is the only code that runs, the pull request is checked out at
+# `pr/` as data, and the agent may only read (`review` in .github/opencode/opencode.json: no shell, no edit, no web, no
+# subagent, .env files refused). The step that holds the key runs the CLI and nothing else; every step that posts runs
+# without it.
+#
+# Knobs, all repository settings, no org:
+#   var    OPENCODE_REVIEW       push (default) | manual (dispatch or the `review` label) | off
+#   label  no-review             leave this pull request alone; label `review` asks for one in manual mode
+# A draft and a fork's pull request get no automatic review; dispatch one for a draft with `gh workflow run`.
+#
+# Cost is in the run: the stream's result event reports it, and the summary says it.
+name: Code review
+
+on:
+  workflow_run:
+    workflows: ["PR signal (no credential)"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        required: true
+
+# One review per pull request at a time; a newer push supersedes the older review of the same pull request.
+concurrency:
+  group: code-review-${{ github.event.workflow_run.head_branch || inputs.pr }}
+  cancel-in-progress: true
+
+permissions: {}
+
+# Model calls use ChatGPT subscription OAuth through agent_cli.py.
+env:
+  AGENT_AUTH: chatgpt
+
+jobs:
+  place:
+    name: Where the agent job runs
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      review: ${{ steps.place.outputs.review }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/place_jobs.py
+          sparse-checkout-cone-mode: false
+      - id: place
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+          MAC_POOL: ${{ vars.MAC_RUNNER }}
+          LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
+        run: python3 -I .github/scripts/place_jobs.py review=linux
+
+  review:
+    needs: place
+    name: Code review
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    environment: opencode-review
+    runs-on: ${{ fromJSON(needs.place.outputs.review) }}
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      checks: write
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: staging
+          persist-credentials: false
+      # Which pull request, and whether it may be reviewed at all.
+      - name: The pull request to review
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          MODE: ${{ vars.OPENCODE_REVIEW || 'push' }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          PR: ${{ inputs.pr }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python3 -I .github/scripts/review_plan.py --repo "$REPO" --mode "$MODE" --dispatch --pr "$PR"
+          else
+            python3 -I .github/scripts/review_plan.py --repo "$REPO" --mode "$MODE" --run "$RUN_ID"
+          fi
+      # The pull request's own commit, as data, with its history so the merge base is here.
+      - if: steps.plan.outputs.act == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.plan.outputs.head }}
+          path: pr
+          fetch-depth: 0
+          persist-credentials: false
+      - name: The change to review
+        if: steps.plan.outputs.act == 'true'
+        env:
+          BASE: ${{ steps.plan.outputs.base }}
+          HEAD: ${{ steps.plan.outputs.head }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/review"
+          # The base is the root checkout's own commit (staging): fetched by path, so the pull request's clone needs no
+          # token of its own.
+          git -C pr fetch --no-tags "$GITHUB_WORKSPACE" HEAD
+          git -C pr diff --no-color --find-renames FETCH_HEAD...HEAD > review.diff
+          test -s review.diff || { echo "::error::The change is empty: nothing to review"; exit 1; }
+          echo "base $BASE, head $HEAD: $(wc -l < review.diff) diff lines" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$(wc -c < review.diff)" -gt 1572864 ]; then
+            head -c 1572864 review.diff > review.diff.cut && mv review.diff.cut review.diff
+            echo "The diff was over 1.5 MB and is cut; the agent reads the rest from pr/." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.plan.outputs.act == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - name: Install the pinned opencode CLI
+        if: steps.plan.outputs.act == 'true'
+        run: |
+          npm ci --ignore-scripts --prefix .github/tools/opencode
+          node .github/tools/opencode/node_modules/@opencode/cli/postinstall.mjs
+          .github/tools/opencode/node_modules/.bin/opencode --version
+          echo "$GITHUB_WORKSPACE/.github/tools/opencode/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Place the agent's config
+        if: steps.plan.outputs.act == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/opencode-home/.config/opencode"
+          cp -R .github/opencode/. "$RUNNER_TEMP/opencode-home/.config/opencode/"
+      - name: Review
+        id: agent
+        if: steps.plan.outputs.act == 'true'
+        env:
+          HOME: ${{ runner.temp }}/opencode-home
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+        run: |
+          # The wrapper applies these permissions in OpenCode. The agent reads anywhere in the
+          # checkout and changes nothing, runs no shell, fetches nothing and reads no .env.
+          timeout 30m python3 -I .github/scripts/agent_cli.py \
+            -p "Review the change in review.diff. Answer as your instructions say." \
+            --append-system-prompt "$(awk 'NR==1 && /^---$/ {f=1; next} f && /^---$/ {f=0; next} !f' .github/opencode/agents/review.md)" \
+            --output-format stream-json --verbose --strict-mcp-config --setting-sources project --no-session-persistence \
+            --tools Read,Grep,Glob --allowedTools "Read,Grep,Glob" \
+            --disallowedTools "Bash,Edit,Write,NotebookEdit,WebFetch,WebSearch,Read(**/.env),Read(**/.env.*)" \
+            --max-turns 60 \
+            > "$RUNNER_TEMP/review/events.jsonl" < /dev/null
+        # A non-zero exit (a refused key, a model that is gone) still leaves an answer file to read, and the check says
+        # what happened rather than the run hanging.
+        continue-on-error: true
+      # From here on no step holds a model credential.
+      - name: Read the answer
+        id: render
+        if: steps.plan.outputs.act == 'true'
+        env:
+          PR: ${{ steps.plan.outputs.pr }}
+          HEAD: ${{ steps.plan.outputs.head }}
+        run: |
+          python3 -I .github/scripts/code_review.py --events "$RUNNER_TEMP/review/events.jsonl" \
+            --diff review.diff --pr "$PR" --head "$HEAD" --tree pr --out "$RUNNER_TEMP/review"
+      - name: Post the review
+        if: steps.plan.outputs.act == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.plan.outputs.pr }}
+        run: |
+          if gh api -X POST "repos/$GITHUB_REPOSITORY/pulls/$PR/reviews" --input "$RUNNER_TEMP/review/review.json" > /dev/null; then
+            echo "Review posted on #$PR"
+          else
+            echo "::warning::The review could not be posted as a review; it goes on as a comment"
+            gh pr comment "$PR" --body-file "$RUNNER_TEMP/review/review.md"
+          fi
+      - name: The Code review check
+        if: steps.plan.outputs.act == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD: ${{ steps.plan.outputs.head }}
+          OK: ${{ steps.render.outputs.ok }}
+          IMPORTANT: ${{ steps.render.outputs.important }}
+        run: |
+          if [ "$OK" = "true" ]; then
+            TITLE="Code review complete — $IMPORTANT important"
+          else
+            TITLE="Code review could not be read"
+          fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+            -f name='Code review' -f head_sha="$HEAD" -f status=completed -f conclusion=neutral \
+            -f "output[title]=$TITLE" -F "output[summary]=@$RUNNER_TEMP/review/check.md" > /dev/null
+      - name: Findings for PR Steward
+        if: steps.plan.outputs.act == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: code-review
+          path: ${{ runner.temp }}/review/findings.json
+          retention-days: 3
+          if-no-files-found: ignore
+      - name: Summary
+        if: always() && steps.plan.outputs.act == 'true'
+        run: |
+          {
+            echo "## Code review of #${{ steps.plan.outputs.pr }}"
+            echo
+            cat "$RUNNER_TEMP/review/review.md" 2>/dev/null || echo "No review was written."
+            echo
+            echo "Cost: \$${{ steps.render.outputs.cost || 'unknown' }}"
+          } >> "$GITHUB_STEP_SUMMARY"

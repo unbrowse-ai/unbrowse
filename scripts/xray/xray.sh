@@ -116,6 +116,10 @@ case "${1:-}" in
   diff)
     shift
     exec python3 "$S/wiring.py" diff "$@" ;;
+  doors)
+    shift
+    # shellcheck disable=SC2086
+    exec python3 "$S/wiring.py" doors $where "$@" ;;
   graph|dependents|needs)
     # shellcheck disable=SC2086
     exec python3 "$S/wiring.py" "$@" $where ;;

@@ -1,0 +1,32 @@
+# Claude Approvals policy. Read from the default branch by .github/scripts/approvals.py on every pull request, and
+# reported as the `Claude Approvals` check. This file is where "how many people must look at what" lives; the branch
+# rules are still what merges.
+#
+# It starts in observe mode: the check is neutral and its title reports what the rules would decide, so the numbers can
+# be read for a week before anything is blocked. Delete `mode: observe` to enforce.
+#
+# Seats are counted for every rule that applies (one person can fill a seat in more than one), so "one more" below means
+# one more than the rule above. The checker evaluates the subset written here; anything it does not understand (locals,
+# teams, classifiers other than claude/code_review, nested policy files) is reported as Cannot evaluate, never guessed.
+# docs/CI-AGENTS.md says which.
+version: 1
+mode: observe
+
+rules:
+  - purpose: "A change takes one person; its author may be that person. Claude reads and comments, never approves."
+    paths: ["**"]
+    verdict:
+      claude: comments
+      seats: 1
+
+  - purpose: "A change to CI, the agent rules, the ledger or this policy takes one more person, and not the author."
+    paths:
+      - ".github/**"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "docs/REQUIREMENTS.md"
+      - "docs/COVERAGE-EXCLUSIONS.md"
+      - ".claude/**"
+    verdict:
+      claude: comments
+      seats: [{ count: 1, from: [humans, "!pr/authors"] }]

@@ -31,14 +31,17 @@ import os
 import re
 import select
 import shutil
+import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 NAME = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")  # spec: 1-128 characters, letters, digits, _ - .
 PNG = b"\x89PNG\r\n\x1a\n"
+PNG_END = b"\0\0\0\0IEND\xaeB`\x82"
 MAX_LIST_BYTES = 64_000  # a client holds the whole list in every turn's context
 
 
@@ -235,8 +238,11 @@ def schema_problem(error):
     return f"reply breaks its schema at {where}: {message[:240]} (schema {'/'.join(map(str, error.schema_path))})"
 
 
-def is_png(path):
-    return path.is_file() and path.read_bytes()[:8] == PNG
+def is_png(path, *, complete=False):
+    if not path.is_file():
+        return False
+    image = path.read_bytes()
+    return image.startswith(PNG) and (not complete or image.endswith(PNG_END))
 
 
 def draw_card(card, title, said, answer):
@@ -250,6 +256,65 @@ def draw_card(card, title, said, answer):
     return card.as_uri()
 
 
+CHROME_HEADLESS_FLAGS = (
+    "--headless=new",
+    "--disable-gpu",
+    "--hide-scrollbars",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-background-networking",
+    "--disable-sync",
+    "--disable-component-update",
+    "--disable-extensions",
+    "--metrics-recording-only",
+    "--use-mock-keychain",
+)
+
+
+def _stop_process_group(proc):
+    if proc.poll() is not None:
+        return
+    for sig, wait_s in ((signal.SIGTERM, 0.5), (signal.SIGKILL, 2.0)):
+        try:
+            os.killpg(proc.pid, sig)
+        except OSError:
+            try:
+                proc.send_signal(sig)
+            except OSError:
+                return
+        try:
+            proc.wait(timeout=wait_s)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+
+
+def _run_chrome_screenshot(command, screenshot, timeout=60):
+    """Run headless Chrome and stop it promptly once a complete PNG lands (Chrome on macOS can hang on exit)."""
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    deadline = time.monotonic() + timeout
+    try:
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                return
+            if is_png(screenshot, complete=True):
+                try:
+                    proc.wait(timeout=0.5)
+                except subprocess.TimeoutExpired:
+                    _stop_process_group(proc)
+                return
+            time.sleep(0.1)
+        _stop_process_group(proc)
+        raise subprocess.TimeoutExpired(command, timeout)
+    finally:
+        _stop_process_group(proc)
+
+
 def chrome_shot(chrome, url, target, profile):
     """A picture of `url` in Chrome for Testing, headless, on a profile of its own (nothing signed in)."""
     if not (chrome and url):
@@ -258,17 +323,22 @@ def chrome_shot(chrome, url, target, profile):
     unsandboxed = ["--no-sandbox"] if os.environ.get("QA_CHROME_NO_SANDBOX") == "1" else []
     # Twice: on a busy Mac a headless Chrome now and then exits with no picture of a local page (QA 44915399195,
     # do-data-url's card). A picture is not a verdict, so a second try changes no step's result but its picture.
-    for _ in range(2):
-        try:
-            subprocess.run(
-                [chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--window-size=1280,900",
-                 *unsandboxed, f"--user-data-dir={profile}", f"--screenshot={target}", url],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=90, check=False,
-            )  # fmt: skip
-        except subprocess.TimeoutExpired:
-            continue
-        if is_png(target):
-            return True
+    target.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory(dir=target.parent) as folder:
+        for attempt in range(2):
+            screenshot = Path(folder) / f"{attempt}.png"
+            command = [
+                chrome, *CHROME_HEADLESS_FLAGS, "--window-size=1280,900",
+                *unsandboxed, f"--user-data-dir={profile}", f"--screenshot={screenshot}", url,
+            ]
+            try:
+                _run_chrome_screenshot(command, screenshot, timeout=60)
+            except (subprocess.TimeoutExpired, OSError):
+                # Chrome can finish writing the screenshot before it gets stuck exiting.
+                pass
+            if is_png(screenshot, complete=True):
+                screenshot.replace(target)
+                return True
     return False
 
 
@@ -285,15 +355,19 @@ def shoot(mcp, chrome, shots, step, saved):
         url = fill(spec.get("url"), saved) if spec.get("url") else None
     why = None
     if session:
-        reply = mcp.request("tools/call", {"name": "unbrowse_browse", "arguments": {"do": ["screenshot", str(target)], "session": session}}, timeout=60)
-        text = reply_of(reply.get("result"))[2]
-        if not is_png(target):
-            for found in re.findall(r"(/[^\s\"']+\.png)", text):
-                if is_png(Path(found)):
-                    shutil.copyfile(found, target)
-                    break
-        if is_png(target):
-            return target, "the node's browser", None
+        target.unlink(missing_ok=True)
+        with tempfile.TemporaryDirectory(dir=shots) as folder:
+            screenshot = Path(folder) / target.name
+            reply = mcp.request("tools/call", {"name": "unbrowse_browse", "arguments": {"do": ["screenshot", str(screenshot)], "session": session}}, timeout=60)
+            text = reply_of(reply.get("result"))[2]
+            if not is_png(screenshot):
+                for found in re.findall(r"(/[^\s\"']+\.png)", text):
+                    if is_png(Path(found)):
+                        shutil.copyfile(found, screenshot)
+                        break
+            if is_png(screenshot):
+                screenshot.replace(target)
+                return target, "the node's browser", None
         if not url:
             got = mcp.request("tools/call", {"name": "unbrowse_browse", "arguments": {"do": ["get", "url"], "session": session}}, timeout=60)
             url = (re.findall(r"https?://[^\s\"'\\]+", reply_of(got.get("result"))[2]) or [None])[0]

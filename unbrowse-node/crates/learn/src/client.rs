@@ -447,6 +447,11 @@ impl RouteClient {
         use crate::refusal::Source;
         let mut asked_the_page = false;
         for source in wall.sources() {
+            // Held, only what the node holds against a wall is tried (each of those says itself what it may open): the
+            // client asks no page again and opens no engine of its own.
+            if self.heal_held && matches!(source, Source::Page | Source::Sandbox | Source::Engine) {
+                continue;
+            }
             let cleared = match source {
                 Source::Page | Source::Sandbox => {
                     if std::mem::replace(&mut asked_the_page, true) || !self.refresh_session() {
@@ -486,16 +491,11 @@ impl RouteClient {
                     let Some((_, clearer)) = self.clearers.iter_mut().find(|(s, _)| s == other) else { continue };
                     match clearer(wall) {
                         Some(pass) if !pass.cookies.is_empty() => {
-                            let (now, me) = (now_secs(), self.identity());
-                            for (k, v) in pass.cookies {
-                                let order = self.cookie_meta.values().map(|m| m.order).max().unwrap_or(0) + 1;
-                                let meta = self.cookie_meta.entry(k.clone()).or_insert_with(|| CookieMeta { path: "/".into(), expires: None, order, http_only: None, bound_to: None });
-                                meta.expires = pass.ttl.map(|ttl| now + ttl as f64);
-                                meta.bound_to = Some(pass.bound_to.clone().unwrap_or_else(|| me.clone()));
-                                self.jar.insert(k, v);
-                            }
+                            let browser = pass.browser;
+                            self.take_pass(pass, wall);
                             eprintln!("   [door] {wall:?}: cleared by {other:?}");
-                            said(&self.fell_back, format!("the site's check was cleared by {}", said_source(*other)));
+                            let how = if browser { ", in the node's browser" } else { "" };
+                            said(&self.fell_back, format!("the site's check was cleared by {}{how}", said_source(*other)));
                             true
                         }
                         _ => false,
@@ -515,6 +515,49 @@ impl RouteClient {
             }
         }
         None
+    }
+
+    /// Takes a pass a source handed back into the jar as this client's: each value with the life the source gave it,
+    /// bound to the client that earned it, and with the check it was earned at (`Wall::Check`), where it renews
+    /// (`renew_passes`). A pass earned in the node's browser makes this call one that used it.
+    fn take_pass(&mut self, pass: crate::refusal::Cleared, wall: &crate::refusal::Wall) {
+        let (now, me) = (now_secs(), self.identity());
+        let at = match wall {
+            crate::refusal::Wall::Check { url } => Some(url.clone()),
+            _ => None,
+        };
+        if pass.browser {
+            self.used_browser.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.made.reach(crate::rung::Rung::Browser);
+        }
+        for (k, v) in pass.cookies {
+            let order = self.cookie_meta.values().map(|m| m.order).max().unwrap_or(0) + 1;
+            let meta = self.cookie_meta.entry(k.clone()).or_insert_with(|| CookieMeta { path: "/".into(), expires: None, order, http_only: None, bound_to: None, earned_at: None });
+            meta.expires = pass.ttl.map(|ttl| now + ttl as f64);
+            meta.bound_to = Some(pass.bound_to.clone().unwrap_or_else(|| me.clone()));
+            meta.earned_at = at.clone().filter(|_| pass.ttl.is_some());
+            self.jar.insert(k, v);
+        }
+    }
+
+    /// Earns again, before the call, a pass the node's solver earned at a check and that runs out within
+    /// [`RENEW_BEFORE_SECS`]: the same source meets the same check, so the call goes out with a live pass rather than
+    /// meeting the wall first. Nothing when no pass is due or no solver was given; a renewal that earns nothing leaves
+    /// the call to meet the wall as it would have.
+    fn renew_passes(&mut self) {
+        let now = now_secs();
+        let Some(at) = self.cookie_meta.values().filter(|m| m.expires.is_some_and(|e| e - now < RENEW_BEFORE_SECS)).find_map(|m| m.earned_at.clone()) else { return };
+        let Some((_, clearer)) = self.clearers.iter_mut().find(|(s, _)| *s == crate::refusal::Source::Solver) else { return };
+        let wall = crate::refusal::Wall::Check { url: at };
+        match clearer(&wall) {
+            Some(pass) if !pass.cookies.is_empty() => {
+                self.take_pass(pass, &wall);
+                self.save_jar();
+                eprintln!("   [door] the pass earned at {wall:?} was earned again before it ran out");
+                said(&self.fell_back, "the site's pass was about to run out, so the configured solver earned it again first".to_string());
+            }
+            _ => eprintln!("   [door] the pass earned at {wall:?} runs out and wasn't earned again: the call meets the check if it stands"),
+        }
     }
 
     /// Takes in a session the browser earned since this client read its jar.
@@ -1239,6 +1282,7 @@ impl RouteClient {
         if let Some((refused, ledger)) = refused {
             return (Err(refused), ledger);
         }
+        self.renew_passes();
         // Target-first: the chain's job is to mint the session, and a warm jar
         // may already carry it. The target exchange runs alone; its fields that
         // derive from earlier steps fail fast (SourceMissing) and the full
@@ -1312,6 +1356,19 @@ impl RouteClient {
                 }
             }
         }
+        // A door is cleared by what its own answer says may clear it, in that order (`Wall::sources`): the page asked
+        // again is first on every list that has it, so a door whose answer was not read is still asked its page. A
+        // wall stands in front of the route, it is not the route gone wrong: what the node holds against it (the
+        // owner's session, a solver) is tried even where a heal is held, the client's own engine left closed (`clear`).
+        let wall = match &first {
+            Err(ReplayError::Door { wall, door, .. }) => Some((wall.clone().unwrap_or(crate::refusal::Wall::Refused), door.clone())),
+            _ => None,
+        };
+        if let Some((wall, door)) = &wall {
+            if let Some(cleared) = self.clear(wall, door, inputs) {
+                return cleared;
+            }
+        }
         // Held, nothing of the node's own mends the call: it fails as it failed (`holding_the_heal`).
         if self.heal_held {
             eprintln!("   [own-ask] held: heal at RouteClient::call_with_ledger");
@@ -1328,17 +1385,7 @@ impl RouteClient {
         // cookies it hands back into the jar, the chain run again. Only a page that hands back nothing new — or one
         // behind a wall — costs the browser a walk (the Eden report's Lazada call, which opened a browser for a
         // session cookie that the page itself had re-issued).
-        // A door is cleared by what its own answer says may clear it, in that order (`Wall::sources`): the page asked
-        // again is first on every list that has it, so a door whose answer was not read is still asked its page.
-        let wall = match &first {
-            Err(ReplayError::Door { wall, door, .. }) => Some((wall.clone().unwrap_or(crate::refusal::Wall::Refused), door.clone())),
-            _ => None,
-        };
-        if let Some((wall, door)) = &wall {
-            if let Some(cleared) = self.clear(wall, door, inputs) {
-                return cleared;
-            }
-        } else if first.as_ref().err().is_some_and(|e| e.is_stale()) && self.refresh_session() {
+        if wall.is_none() && first.as_ref().err().is_some_and(|e| e.is_stale()) && self.refresh_session() {
             let (again, ledger) = self.run(inputs);
             if again.is_ok() || ledger.retry(self.writes) != Retry::AsIs {
                 return (again, ledger);
@@ -2676,6 +2723,10 @@ pub struct CookieMeta {
     /// neither was seen (a jar written before this was kept): treated as HttpOnly, so a page's script never reads it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub http_only: Option<bool>,
+    /// The check a source earned this pass at (`Wall::Check`), where one did: met again before the pass runs out
+    /// (`RouteClient::renew_passes`), so a call doesn't meet the wall first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub earned_at: Option<String>,
 }
 
 impl CookieMeta {
@@ -2697,7 +2748,7 @@ fn note_facts(meta: &mut HashMap<String, CookieMeta>, facts: &HashMap<String, ag
         let same = before.get(name).is_some() && before.get(name) == jar.get(name);
         let had = meta.get(name).map(|m| m.http_only);
         let next = meta.values().map(|m| m.order).max().unwrap_or(0) + 1;
-        let m = meta.entry(name.clone()).or_insert_with(|| CookieMeta { path: root_path(), expires: None, order: next, http_only: None, bound_to: None });
+        let m = meta.entry(name.clone()).or_insert_with(|| CookieMeta { path: root_path(), expires: None, order: next, http_only: None, bound_to: None, earned_at: None });
         if f.path.starts_with('/') {
             m.path = f.path.clone();
         }
@@ -2750,7 +2801,7 @@ impl CookieMeta {
         // A cookie set again keeps the place it first had: a browser updates a cookie's value and life in place,
         // it does not move it to the end of the order.
         let order = meta.get(&change.name).map_or_else(|| meta.values().map(|m| m.order).max().unwrap_or(0) + 1, |m| m.order);
-        CookieMeta { path: change.path.clone(), expires: change.expires, order, http_only: Some(change.http_only), bound_to: None }
+        CookieMeta { path: change.path.clone(), expires: change.expires, order, http_only: Some(change.http_only), bound_to: None, earned_at: None }
     }
 }
 
@@ -2863,6 +2914,9 @@ pub fn secure_context(url: &url::Url) -> bool {    if matches!(url.scheme(), "ht
 pub type SignIn = Box<dyn FnMut() -> Option<HashMap<String, String>> + Send>;
 
 /// A way the node clears a wall for a call (`RouteClient::with_clearer`): given the wall, the pass it earned, or None.
+/// How long before it runs out a pass a solver earned is earned again (`RouteClient::renew_passes`).
+pub const RENEW_BEFORE_SECS: f64 = 600.0;
+
 pub type Clearer = Box<dyn FnMut(&crate::refusal::Wall) -> Option<crate::refusal::Cleared> + Send>;
 
 /// A source, as the agent is told of it.
@@ -4186,9 +4240,9 @@ mod tests {
     fn a_cookie_whose_life_ran_out_is_not_sent_by_name() {
         let mut r = runner("https://www.shop.example.com/");
         r.jar.insert("pass".to_string(), "spent".to_string());
-        r.cookie_meta.insert("pass".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() - 60.0), order: 1, http_only: None, bound_to: None });
+        r.cookie_meta.insert("pass".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() - 60.0), order: 1, http_only: None, bound_to: None, earned_at: None });
         r.jar.insert("fresh".to_string(), "alive".to_string());
-        r.cookie_meta.insert("fresh".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() + 600.0), order: 2, http_only: None, bound_to: None });
+        r.cookie_meta.insert("fresh".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() + 600.0), order: 2, http_only: None, bound_to: None, earned_at: None });
         assert_eq!(r.minted_cookie("pass", Some("www.shop.example.com")), None, "its life ran out");
         assert_eq!(r.minted_cookie("fresh", Some("www.shop.example.com")).as_deref(), Some("alive"));
         assert_eq!(r.minted_cookie("sid", Some("www.shop.example.com")).as_deref(), Some("host-only-secret"), "a cookie whose line gave no life");
@@ -4205,7 +4259,7 @@ mod tests {
     #[test]
     fn a_session_earned_again_is_sent_whatever_the_old_line_said() {
         let mut r = runner("https://www.shop.example.com/");
-        r.cookie_meta.insert("sid".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() - 60.0), order: 1, http_only: None, bound_to: None });
+        r.cookie_meta.insert("sid".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() - 60.0), order: 1, http_only: None, bound_to: None, earned_at: None });
         assert_eq!(r.minted_cookie("sid", Some("www.shop.example.com")), None, "the old session ran out");
         take_in(&mut r.jar, &mut r.cookie_meta, HashMap::from([("sid".to_string(), "signed-in-again".to_string())]));
         assert_eq!(r.minted_cookie("sid", Some("www.shop.example.com")).as_deref(), Some("signed-in-again"));
@@ -4451,7 +4505,7 @@ mod tests {
         c.graph.steps[0].url = "https://shop.example.com/api/list".into();
         c.root = Some("https://shop.example.com/search?q=lamp".into());
         c.egress = crate::egress::Egress::Foreign;
-        let meta = |path: &str, http_only: bool, order: u64| CookieMeta { path: path.into(), expires: None, order, http_only: Some(http_only), bound_to: None };
+        let meta = |path: &str, http_only: bool, order: u64| CookieMeta { path: path.into(), expires: None, order, http_only: Some(http_only), bound_to: None, earned_at: None };
         c.jar = HashMap::from([("sid".to_string(), "old".to_string()), ("pref".to_string(), "dark".to_string()), ("admin".to_string(), "a".to_string())]);
         c.cookie_meta = HashMap::from([("sid".to_string(), meta("/", true, 1)), ("pref".to_string(), meta("/", false, 2)), ("admin".to_string(), meta("/admin", false, 3))]);
         let owner = c.jar.clone();
@@ -4710,10 +4764,10 @@ mod tests {
         let mut r = runner("https://www.shop.example/");
         r.jar = jar_of(&[("a", "1"), ("b", "2"), ("c", "3"), ("old", "x")]);
         r.cookie_meta = HashMap::from([
-            ("a".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: None, bound_to: None }),
-            ("b".to_string(), CookieMeta { path: "/api".into(), expires: None, order: 2, http_only: None, bound_to: None }),
-            ("c".to_string(), CookieMeta { path: "/api/v1".into(), expires: None, order: 3, http_only: None, bound_to: None }),
-            ("old".to_string(), CookieMeta { path: "/".into(), expires: Some(1.0), order: 4, http_only: None, bound_to: None }),
+            ("a".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: None, bound_to: None, earned_at: None }),
+            ("b".to_string(), CookieMeta { path: "/api".into(), expires: None, order: 2, http_only: None, bound_to: None, earned_at: None }),
+            ("c".to_string(), CookieMeta { path: "/api/v1".into(), expires: None, order: 3, http_only: None, bound_to: None, earned_at: None }),
+            ("old".to_string(), CookieMeta { path: "/".into(), expires: Some(1.0), order: 4, http_only: None, bound_to: None, earned_at: None }),
         ]);
         let ask = r.with_session_cookies(&get("https://www.shop.example/api/v1/items"));
         let sent = cookie(&ask).unwrap_or_default();
@@ -4726,7 +4780,7 @@ mod tests {
     /// from another node, a cookie its step names by its own field is held to the same rule.
     #[test]
     fn a_cookie_goes_only_to_the_paths_its_line_covers() {
-        let meta = |path: &str, expires: Option<f64>, order: u64| CookieMeta { path: path.into(), expires, order, http_only: Some(true), bound_to: None };
+        let meta = |path: &str, expires: Option<f64>, order: u64| CookieMeta { path: path.into(), expires, order, http_only: Some(true), bound_to: None, earned_at: None };
         let mut r = runner("https://www.shop.example/");
         r.jar = jar_of(&[("sid", "s"), ("admin", "a"), ("old", "o")]);
         r.cookie_meta = HashMap::from([
@@ -4810,7 +4864,7 @@ mod tests {
         let before = jar.clone();
         merge_sighting(&mut jar, Some("shop.example"), "https://shop.example/", session, &HashSet::new(), &mut domains);
         assert_eq!((jar.get("pass").map(String::as_str), domains.get("pass")), (Some("new"), None));
-        let mut meta = HashMap::from([("pass".to_string(), CookieMeta { path: "/admin".into(), expires: None, order: 1, http_only: Some(false), bound_to: None })]);
+        let mut meta = HashMap::from([("pass".to_string(), CookieMeta { path: "/admin".into(), expires: None, order: 1, http_only: Some(false), bound_to: None, earned_at: None })]);
         note_facts(&mut meta, &HashMap::new(), &jar, &before);
         assert!(!meta.contains_key("pass"), "the old line's path and HttpOnly went with its value");
         // A walk whose browser was asked and holds nothing for the host: the site ended the session, and the jar's goes.
@@ -4900,7 +4954,7 @@ mod tests {
         assert_eq!(r.cookie_meta["legacy"].http_only, None);
         assert!(!r.page_cookies(&page).contains("legacy="));
         // And a browser's word is held to the same rule.
-        let mut meta = HashMap::from([("sid".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: Some(true), bound_to: None })]);
+        let mut meta = HashMap::from([("sid".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: Some(true), bound_to: None, earned_at: None })]);
         let jar = jar_of(&[("sid", "s")]);
         let facts = HashMap::from([("sid".to_string(), agent_browser_core::session::CookieFacts { path: "/".into(), http_only: false, expires: None })]);
         note_facts(&mut meta, &facts, &jar, &jar);
@@ -4930,7 +4984,7 @@ mod tests {
     /// the site are all kept from it.
     #[test]
     fn a_pages_script_sees_only_the_cookies_a_browser_shows_it() {
-        let meta = |path: &str, expires: Option<f64>, order: u64, http_only: Option<bool>| CookieMeta { path: path.into(), expires, order, http_only, bound_to: None };
+        let meta = |path: &str, expires: Option<f64>, order: u64, http_only: Option<bool>| CookieMeta { path: path.into(), expires, order, http_only, bound_to: None, earned_at: None };
         let mut r = runner("https://www.shop.example/");
         r.jar = jar_of(&[("sid", "secret"), ("pref", "dark"), ("legacy", "l"), ("admin", "a"), ("old", "o"), ("wide", "w")]);
         r.jar_domains.insert("wide".into(), ".shop.example".into());
@@ -5264,7 +5318,7 @@ mod tests {
             at: None,
         };
         let mut jar = HashMap::from([("_abck".to_string(), "v".to_string())]);
-        let mut meta = HashMap::from([("_abck".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() + 600.0), order: 0, http_only: None, bound_to: None })]);
+        let mut meta = HashMap::from([("_abck".to_string(), CookieMeta { path: "/".into(), expires: Some(now_secs() + 600.0), order: 0, http_only: None, bound_to: None, earned_at: None })]);
         assert!(holds_the_credential(&jar, &meta, &door), "alive");
         meta.get_mut("_abck").unwrap().expires = Some(now_secs() - 1.0);
         assert!(!holds_the_credential(&jar, &meta, &door), "lapsed");
@@ -6204,9 +6258,104 @@ mod strangers_tests {
         }
     }
 
+    /// A shop whose calls answer 200 with data that says the caller must pass a check, and names its page (as a shop's
+    /// results call did on 2026-11-25), until a request carries the pass.
+    struct NamesItsCheck;
+
+    impl Fetch for NamesItsCheck {
+        fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            self.fetch(req)
+        }
+
+        fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+            let cookie = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("cookie")).map(|(_, v)| v.clone()).unwrap_or_default();
+            let body = match (req.url.path(), cookie.contains("cleared=yes")) {
+                ("/api/list", false) => r#"{"ret":["FAIL_SYS_USER_VALIDATE","RGV587_ERROR::SM::busy"],"data":{"url":"https://shop.example.com/api/_check/punish?x5secdata=d1"}}"#,
+                (p, _) if p.starts_with("/api") => r#"{"items":[1]}"#,
+                _ => "<html></html>",
+            };
+            Ok(Exchange { method: req.method.clone(), url: req.url.clone(), request_headers: vec![], request_body: None, status: 200, response_headers: vec![], response_body: Some(body.into()), response_mime: "application/json".into(), resource_type: None, main_frame: None })
+        }
+    }
+
+    /// A call answered with data that names the check to pass meets a door, not a route gone wrong: the wall is the
+    /// check at that address, and what the node holds against it (here a solver) clears it even where a heal is held,
+    /// with no browser opened, and the call answers.
+    #[test]
+    fn a_check_named_in_a_calls_answer_is_a_door_cleared_even_where_a_heal_is_held() {
+        use crate::refusal::{Cleared, Source, Wall};
+        let told: std::sync::Arc<Mutex<Vec<Wall>>> = Default::default();
+        let heard = told.clone();
+        let pass = Cleared { browser: false, cookies: [("cleared".to_string(), "yes".to_string())].into(), ttl: Some(7000), bound_to: None, by: Some(Source::Solver) };
+        let solver: Clearer = Box::new(move |wall| {
+            heard.lock().unwrap().push(wall.clone());
+            Some(pass.clone())
+        });
+        let mut client = RouteClient::new(two_reads(false)).with_clearer(Source::Solver, solver);
+        client.root = Some("https://shop.example.com/".into());
+        client.target = Some(("GET".into(), "/api/list".into()));
+        client.wire = Some(|| Box::new(NamesItsCheck));
+        client.heal_held = true;
+        let (answer, _) = client.call_with_ledger(&HashMap::new());
+        assert!(answer.is_ok(), "the solver's pass opens the check: {answer:?}");
+        assert_eq!(*told.lock().unwrap(), [Wall::Check { url: "https://shop.example.com/api/_check/punish?x5secdata=d1".into() }]);
+        assert!(!client.used_browser.load(std::sync::atomic::Ordering::Relaxed), "no browser for it");
+
+        // With nothing to clear it, the call fails as the door it met, saying where the check is.
+        let mut bare = RouteClient::new(two_reads(false));
+        bare.root = Some("https://shop.example.com/".into());
+        bare.target = Some(("GET".into(), "/api/list".into()));
+        bare.wire = Some(|| Box::new(NamesItsCheck));
+        bare.heal_held = true;
+        let (answer, _) = bare.call_with_ledger(&HashMap::new());
+        assert!(matches!(&answer, Err(ReplayError::Door { wall: Some(Wall::Check { url }), status: 200, .. }) if url.ends_with("punish?x5secdata=d1")), "{answer:?}");
+    }
+
+    /// A pass the solver earned at a check, and that is about to run out, is earned again at that check before the
+    /// call, which then goes out with it and never meets the wall; one with long to live is left alone, and the call
+    /// meets the wall and clears it as before. A pass earned in the node's browser says the call used the browser.
+    #[test]
+    fn a_pass_about_to_run_out_is_earned_again_before_the_call() {
+        use crate::refusal::{Cleared, Source, Wall};
+        let check = "https://shop.example.com/api/_check/punish?x5secdata=d0";
+        let told: std::sync::Arc<Mutex<Vec<Wall>>> = Default::default();
+        let solver = |browser: bool| -> Clearer {
+            let heard = told.clone();
+            Box::new(move |wall| {
+                heard.lock().unwrap().push(wall.clone());
+                Some(Cleared { browser, cookies: [("cleared".to_string(), "yes".to_string())].into(), ttl: Some(7000), bound_to: None, by: Some(Source::Solver) })
+            })
+        };
+        let client_with = |life: f64, browser: bool| {
+            let mut c = RouteClient::new(two_reads(false)).with_clearer(Source::Solver, solver(browser));
+            c.root = Some("https://shop.example.com/".into());
+            c.target = Some(("GET".into(), "/api/list".into()));
+            c.wire = Some(|| Box::new(NamesItsCheck));
+            c.jar.insert("cleared".into(), "spent".into());
+            c.cookie_meta.insert("cleared".into(), CookieMeta { path: "/".into(), expires: Some(now_secs() + life), order: 1, http_only: None, bound_to: None, earned_at: Some(check.into()) });
+            c
+        };
+
+        let mut due = client_with(60.0, false);
+        let (answer, _) = due.call_with_ledger(&HashMap::new());
+        assert!(answer.is_ok(), "{answer:?}");
+        assert_eq!(*told.lock().unwrap(), [Wall::Check { url: check.into() }], "earned again at the check it was earned at, once, before the call");
+        assert!(due.fell_back().iter().any(|n| n.contains("about to run out")), "{:?}", due.fell_back());
+        let meta = &due.cookie_meta["cleared"];
+        assert!(meta.expires.is_some_and(|e| e > now_secs() + 6000.0) && meta.earned_at.as_deref() == Some(check), "the new pass keeps its life and where it renews: {meta:?}");
+
+        told.lock().unwrap().clear();
+        let mut alive = client_with(5000.0, true);
+        let (answer, _) = alive.call_with_ledger(&HashMap::new());
+        assert!(answer.is_ok(), "{answer:?}");
+        assert_eq!(*told.lock().unwrap(), [Wall::Check { url: "https://shop.example.com/api/_check/punish?x5secdata=d1".into() }], "not renewed early: cleared at the wall the call met");
+        assert!(alive.used_browser.load(std::sync::atomic::Ordering::Relaxed), "a pass earned in the browser is a call that used it");
+        assert!(alive.fell_back().iter().any(|n| n.contains("in the node's browser")), "{:?}", alive.fell_back());
+    }
+
     /// What is tried against a door is read from what the door's answer was, in that order, and stops at the first
-    /// thing that opens it: a check for a person asks for the owner's own browser session, then the solver, and the
-    /// owner is never asked once the solver's pass opened the door. The pass joins the jar as this client's, with the
+    /// thing that opens it: a check for a person asks the solver first (it asks nobody), so neither the owner's own
+    /// browser session nor the owner is asked once the solver's pass opened the door. The pass joins the jar as this client's, with the
     /// life the source gave it. A source the node did not give (here, the engine) is passed over.
     #[test]
     fn what_clears_a_door_is_read_from_the_wall_and_tried_in_its_order() {
@@ -6220,7 +6369,7 @@ mod strangers_tests {
                 pass.clone()
             })
         };
-        let pass = Cleared { cookies: [("cleared".to_string(), "yes".to_string())].into(), ttl: Some(600), bound_to: None, by: Some(Source::Solver) };
+        let pass = Cleared { browser: false, cookies: [("cleared".to_string(), "yes".to_string())].into(), ttl: Some(600), bound_to: None, by: Some(Source::Solver) };
         let mut graph = two_reads(false);
         graph.door = Some(crate::graph::Door { kind: crate::graph::DoorKind::Unknown, statuses: vec![403, 429, 503], credential: Some("cleared".into()), ttl: None, earn: crate::graph::Earn::BrowserOrOwner, at: None });
         let mut client = RouteClient::new(graph)
@@ -6233,7 +6382,7 @@ mod strangers_tests {
         let me = client.identity();
         let (answer, _) = client.call_with_ledger(&HashMap::new());
         assert!(answer.is_ok(), "the solver's pass opens the door: {answer:?}");
-        assert_eq!(*asked.lock().unwrap(), [Source::OwnerSession, Source::Solver], "in the wall's order, whatever order they were given in, and no further than what opened it");
+        assert_eq!(*asked.lock().unwrap(), [Source::Solver], "in the wall's order, whatever order they were given in, and no further than what opened it");
         let meta = client.cookie_meta.get("cleared").expect("the pass is kept with its record");
         assert_eq!(meta.bound_to.as_deref(), Some(me.as_str()), "the pass is this client's");
         assert!(meta.expires.is_some_and(|at| at > now_secs() + 500.0 && at < now_secs() + 700.0), "with the life its source gave: {meta:?}");
@@ -6693,7 +6842,7 @@ mod strangers_tests {
         // `sid` is a cookie (a line set it: its path is recorded); `x-csrf` is a token the session keeps for a header.
         let jar = HashMap::from([("sid".to_string(), "owners-session".to_string()), ("x-csrf".to_string(), "owners-token".to_string())]);
         std::fs::write(dir.join("shop.example.com.json"), unbrowse_files::JAR.to_vec_pretty(&jar).unwrap()).unwrap();
-        let meta = HashMap::from([("sid".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: Some(true), bound_to: None })]);
+        let meta = HashMap::from([("sid".to_string(), CookieMeta { path: "/".into(), expires: None, order: 1, http_only: Some(true), bound_to: None, earned_at: None })]);
         std::fs::write(meta_path(&dir, "shop.example.com"), unbrowse_files::JAR.to_vec_pretty(&meta).unwrap()).unwrap();
         let placing = |foreign: bool, fields: Vec<(Loc, &str)>| {
             let mut s = step(0, "/api/search", foreign);

@@ -1,0 +1,7 @@
+# Every text file is checked out with LF line endings, on Windows too. Tests compare files byte for byte (the agent API
+# manifest, shared routes, the update manifests); a Windows checkout with core.autocrlf turned them to CRLF and eight
+# tests failed there (Windows 11, 22 Nov 2026, staging c772f210). Git still detects binaries and leaves them alone.
+* text=auto eol=lf
+
+# Vendored third-party trees keep the bytes they came with.
+unbrowse-settlement/lib/** -text

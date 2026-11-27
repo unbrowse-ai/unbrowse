@@ -1,0 +1,13 @@
+{
+  "name": "unbrowse-ci-shots",
+  "private": true,
+  "description": "CI's pictures for a pull request's report: put with CI's key, read by anyone at an address that can't be guessed",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.3"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}

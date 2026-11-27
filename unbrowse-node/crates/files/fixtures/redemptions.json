@@ -1,0 +1,1 @@
+[{"method": "POST", "to": "validate", "content_type": "application/x-www-form-urlencoded;charset=UTF-8", "fields": [{"name": "x5secdata", "from": "address", "param": "x5secdata"}, {"name": "token", "from": "token_in", "key": "token", "with": {"b": 1}}], "earns": ["x5sec"]}]

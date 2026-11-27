@@ -365,3 +365,7 @@ mod tests {
         assert!(prove(&header, B256::repeat_byte(1), &txs, &receipts, me, None).is_err(), "a block of another hash");
     }
 }
+
+#[cfg(test)]
+#[path = "proof_cov_tests.rs"]
+mod proof_cov_tests;

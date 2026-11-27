@@ -75,11 +75,11 @@ pub fn batch(who: &str, site: &str, session: &str, steps: Vec<Act>) -> Result<Va
         let target = crate::browse::target_of(&site, &tab).ok_or("the session's tab isn't open in that browser")?;
         let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
         let opened = rt.block_on(open(&cdp, &target))?;
-        let mut page = CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title };
+        let mut page = CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title, told: None };
         let mut done = Vec::new();
         for a in &steps {
             match take(&mut page, a) {
-                Ok(()) => { note(&site, session, a.said()); done.push(a.said()); }
+                Ok(()) => { let line = page.told.take().unwrap_or_else(|| a.said()); note(&site, session, line.clone()); done.push(line); }
                 Err(e) => { note(&site, session, format!("{} failed: {e}", a.said())); done.push(format!("{} failed: {e}", a.said())); }
             }
         }
@@ -131,7 +131,7 @@ fn shown(_who: &str, site: &str, session: &str, act: Option<Act>, quick: bool) -
     let target = crate::browse::target_of(&site, &tab).ok_or("the session's tab isn't open in that browser")?;
     let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let opened = rt.block_on(open(&cdp, &target))?;
-    let mut page = CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title };
+    let mut page = CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title, told: None };
     let done = matches!(act, Some(Act::Done));
     let hand = act.as_ref().is_some_and(|a| !matches!(a, Act::Wait(_) | Act::Done));
     // A page holding a secret has no picture taken: the page policy above refused it, and the node's own read of what
@@ -143,7 +143,7 @@ fn shown(_who: &str, site: &str, session: &str, act: Option<Act>, quick: bool) -
     }
     if let Some(act) = &act {
         match take(&mut page, act) {
-            Ok(()) => note(&site, session, act.said()),
+            Ok(()) => note(&site, session, page.told.take().unwrap_or_else(|| act.said())),
             Err(e) => note(&site, session, format!("{} failed: {e}", act.said())),
         }
     }
@@ -197,6 +197,46 @@ fn shown(_who: &str, site: &str, session: &str, act: Option<Act>, quick: bool) -
     Ok(reply)
 }
 
+/// The tab the node meets a call's check in: its own, never an agent's.
+const CLEARANCE_SESSION: &str = "clearance";
+
+/// Meets the check at `url` in the node's own browser with its solver, for a call that met it and has no way of its
+/// own to redeem a token (`redeem::clearer`): the page is opened in a tab of the node's own, solved as `solve` solves
+/// it, and the cookies the site holds for its site afterwards are handed back, each with when it runs out. Solving
+/// keeps the request that redeemed the token (`redemption_heard`), so the next check on the site needs no browser.
+pub fn solve_in_the_nodes_browser(url: &str) -> Result<(String, Vec<(String, String, Option<f64>)>), String> {
+    crate::browse::act(&["open".to_string(), url.to_string()], None, "the node", CLEARANCE_SESSION)?;
+    let site = crate::browse::last_site(CLEARANCE_SESSION).ok_or("the check's page didn't open")?;
+    crate::browse::in_the_sites_turn(&site.clone(), "the node meeting a call's check".to_string(), || {
+        let tab = crate::browse::tab_of(CLEARANCE_SESSION);
+        let cdp = crate::browse::cdp_of(&site).ok_or_else(|| format!("{site}'s browser isn't open"))?;
+        let target = crate::browse::target_of(&site, &tab).ok_or("the node's tab isn't open in that browser")?;
+        let rt = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
+        let opened = rt.block_on(open(&cdp, &target))?;
+        let mut page = CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title, told: None };
+        let line = page.solve()?;
+        Ok((line, page.cookies_of(&site)))
+    })
+}
+
+impl CdpPage {
+    /// The cookies the browser holds for `site`, each with when it runs out (Unix seconds; None for one that ends with
+    /// the session).
+    fn cookies_of(&self, site: &str) -> Vec<(String, String, Option<f64>)> {
+        let Ok(said) = self.send("Network.getAllCookies", json!({})) else { return Vec::new() };
+        said["cookies"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|c| c["domain"].as_str().is_some_and(|d| unbrowse_learn::identity::same_site(d.trim_start_matches('.'), site)))
+            .filter_map(|c| {
+                let expires = c["expires"].as_f64().filter(|e| *e > 0.0);
+                Some((c["name"].as_str()?.to_string(), c["value"].as_str()?.to_string(), expires))
+            })
+            .collect()
+    }
+}
+
 /// Takes the step on the page.
 fn take(page: &mut CdpPage, act: &Act) -> Result<(), String> {
     match act {
@@ -208,6 +248,10 @@ fn take(page: &mut CdpPage, act: &Act) -> Result<(), String> {
         Act::Wait(ms) => page.settle(*ms),
         // `done` says what the agent thinks; the page is read after it, and says whether it asked still.
         Act::Done => {}
+        Act::Solve => {
+            let line = page.solve()?;
+            page.told = Some(line);
+        }
     }
     Ok(())
 }
@@ -391,6 +435,8 @@ struct CdpPage {
     viewport: View,
     url: String,
     title: String,
+    /// What the last step did, when it says more than its name (`Act::said`): a solve says what it handed over.
+    told: Option<String>,
 }
 
 impl CdpPage {
@@ -505,6 +551,130 @@ impl Page for CdpPage {
 }
 
 impl CdpPage {
+    /// Meets the check with the node's captcha solver: finds the check in the page or any frame it holds in its own
+    /// process (`solver::find_js`), asks the solver for a token (the owner's own, or Unbrowse's gateway for a node whose
+    /// owner signed in), and hands the token over in that document's main world, where the widget's code runs
+    /// (`solver::HAND_JS`). What it did, in a line; the page's own answer after it decides whether it passed.
+    fn solve(&mut self) -> Result<String, String> {
+        self.solve_with(crate::solver::configured())
+    }
+
+    fn solve_with(&mut self, solver: Option<crate::solver::Solver>) -> Result<String, String> {
+        let worlds = self.main_worlds();
+        let mut found = None;
+        for (frame, context) in &worlds {
+            let Ok(said) = self.send("Runtime.evaluate", json!({ "expression": crate::solver::find_js(), "returnByValue": true, "contextId": context })) else { continue };
+            let Some(seen) = said.pointer("/result/value").and_then(Value::as_str).and_then(|s| serde_json::from_str::<Value>(s).ok()) else { continue };
+            if let Some(check) = crate::solver::check_of(&seen) {
+                found = Some((frame.clone(), *context, check));
+                break;
+            }
+        }
+        let (_, context, check) = found.ok_or("no check the solver answers is on this page: no widget's public key beside a response field it fills")?;
+        let solver = solver.ok_or("no captcha solver: the owner configures one (UNBROWSE_CAPTCHA_SOLVER), or signs in on unbrowse.ai to use Unbrowse's")?;
+        let token = solver.token_for(&check)?;
+        // What the page sends once it has the token is heard, for the request that redeems it (`redeem`).
+        let mut heard = self.client.subscribe_methods(&["Network.requestWillBeSent", "Network.responseReceivedExtraInfo"]);
+        let from = self.url.clone();
+        let _ = self.send("Network.enable", json!({}));
+        let expression = format!("{}({})", crate::solver::HAND_JS, serde_json::to_string(&token).map_err(|e| e.to_string())?);
+        let said = self.send("Runtime.evaluate", json!({ "expression": expression, "returnByValue": true, "contextId": context }))?;
+        let what: Value = said.pointer("/result/value").and_then(Value::as_str).and_then(|s| serde_json::from_str(s).ok()).unwrap_or_default();
+        let mut line = crate::solver::handed(&what)?;
+        self.landed(&from);
+        if let Some(kept) = self.redemption_heard(&mut heard, &check, &token) {
+            line.push_str(&format!("; the request that redeemed it ({} {}) is kept, so a call that meets this check again passes it without a browser", kept.method, kept.to));
+        }
+        Ok(line)
+    }
+
+    /// The request the page sent with the token whose answer set cookies, read as the site's redemption of a token and
+    /// kept for its site (`redeem::propose`, `redeem::keep`). What was heard on this page's line since `heard` began.
+    fn redemption_heard(&self, heard: &mut tokio::sync::mpsc::UnboundedReceiver<unbrowse_learn::cdp::types::CdpEvent>, check: &crate::solver::Check, token: &str) -> Option<crate::redeem::Redemption> {
+        let mut sent: Vec<(String, Value)> = Vec::new();
+        let mut set: HashMap<String, Vec<String>> = HashMap::new();
+        while let Ok(event) = heard.try_recv() {
+            if event.session_id.as_deref() != Some(self.session.as_str()) {
+                continue;
+            }
+            let id = event.params["requestId"].as_str().unwrap_or_default().to_string();
+            if event.method == "Network.requestWillBeSent" {
+                sent.push((id, event.params["request"].clone()));
+            } else if let Some(headers) = event.params["headers"].as_object() {
+                let lines = headers.iter().filter(|(k, _)| k.eq_ignore_ascii_case("set-cookie")).filter_map(|(_, v)| v.as_str()).flat_map(|v| v.split('\n').map(String::from));
+                set.entry(id).or_default().extend(lines);
+            }
+        }
+        let _ = self.send("Network.disable", json!({}));
+        let check_url = url::Url::parse(&check.page_url).ok()?;
+        let probe = &token[..token.len().min(40)];
+        for (id, request) in sent {
+            let body = match request["postData"].as_str() {
+                Some(b) => b.to_string(),
+                None if request["hasPostData"].as_bool() == Some(true) => {
+                    self.send("Network.getRequestPostData", json!({ "requestId": id })).ok().and_then(|v| v["postData"].as_str().map(String::from)).unwrap_or_default()
+                }
+                None => continue,
+            };
+            if !body.contains(probe) {
+                continue;
+            }
+            let Ok(url) = url::Url::parse(request["url"].as_str().unwrap_or_default()) else { continue };
+            let content_type = request["headers"].as_object().and_then(|h| h.iter().find(|(k, _)| k.eq_ignore_ascii_case("content-type"))).and_then(|(_, v)| v.as_str()).unwrap_or_default();
+            let names = crate::redeem::names_set(set.get(&id).map(Vec::as_slice).unwrap_or_default());
+            let method = request["method"].as_str().unwrap_or("POST");
+            if let Some(r) = crate::redeem::propose(&check_url, token, method, &url, content_type, &body, &names) {
+                crate::redeem::keep(&unbrowse_learn::identity::site_of(check_url.host_str().unwrap_or_default()), r.clone());
+                return Some(r);
+            }
+        }
+        None
+    }
+
+    /// Waits, up to ten seconds, for the page the token led to: away from `from`, the check's own page, loaded and
+    /// showing words. Read sooner, a check that sends the page on is either still the check (seen on a shop's wall,
+    /// 2026-11-25: the page redeemed the token a second after it, and moved on three seconds after it) or a blank page
+    /// on its way, and either reads as asking still; and what the page sends on its way (its redemption of the token)
+    /// is not heard yet. A page that takes the token where it stands is read once the wait is over.
+    fn landed(&mut self, from: &str) {
+        self.settle(LANDED_FIRST_MS);
+        let end = std::time::Instant::now() + std::time::Duration::from_millis(LANDED_MOST_MS);
+        while std::time::Instant::now() < end {
+            let said = self.send("Runtime.evaluate", json!({ "expression": LANDED_JS, "returnByValue": true }));
+            let at: Value = said.ok().and_then(|v| v.pointer("/result/value").and_then(Value::as_str).and_then(|s| serde_json::from_str(s).ok())).unwrap_or_default();
+            if at["ready"] == true && at["url"].as_str().is_some_and(|u| u != from) {
+                return;
+            }
+            self.settle(500);
+        }
+    }
+
+    /// Each document's main world (the page's own, and each frame's in this process), by frame, the page's first: the
+    /// browser names them all again when the runtime is turned back on.
+    fn main_worlds(&self) -> Vec<(String, i64)> {
+        let mut told = self.client.subscribe_methods(&["Runtime.executionContextCreated"]);
+        let _ = self.send("Runtime.disable", json!({}));
+        let _ = self.send("Runtime.enable", json!({}));
+        let session = self.session.clone();
+        let mut worlds: Vec<(String, i64)> = Vec::new();
+        self.rt.block_on(async {
+            let end = tokio::time::Instant::now() + std::time::Duration::from_millis(400);
+            while let Ok(Some(event)) = tokio::time::timeout_at(end, told.recv()).await {
+                if event.session_id.as_deref() != Some(session.as_str()) {
+                    continue;
+                }
+                let ctx = &event.params["context"];
+                let aux = &ctx["auxData"];
+                if let (Some(true), Some(frame), Some(id)) = (aux["isDefault"].as_bool(), aux["frameId"].as_str(), ctx["id"].as_i64()) {
+                    worlds.push((frame.to_string(), id));
+                }
+            }
+        });
+        let top = self.send("Page.getFrameTree", json!({})).ok().and_then(|t| t.pointer("/frameTree/frame/id").and_then(Value::as_str).map(String::from));
+        worlds.sort_by_key(|(frame, _)| Some(frame) != top.as_ref());
+        worlds
+    }
+
     /// Each frame of the page's own site, at any depth, read as the page is (`READ_JS`). A check is often drawn in a
     /// frame the site serves from another of its hosts over its page, and the page under it reads as a page of the
     /// site. Another site's frame runs apart from the page (its own process) and isn't read here: what it shows is
@@ -535,6 +705,12 @@ impl CdpPage {
             .collect()
     }
 }
+
+/// Where the page is, and whether it is loaded and shows words (`CdpPage::landed`).
+const LANDED_JS: &str = "JSON.stringify({url:location.href,ready:document.readyState==='complete'&&!!document.body&&document.body.innerText.trim().length>0})";
+/// How long a solve lets the page take the token on before it looks, and the most it then waits for the page to land.
+const LANDED_FIRST_MS: u64 = 1000;
+const LANDED_MOST_MS: u64 = 9000;
 
 /// The most frames of the site read per step: a page of the site frames a few of its own; more is not a check.
 const FRAMES_MOST: usize = 12;
@@ -686,7 +862,7 @@ mod hold_tests {
         let (ws, heard) = devtools();
         let rt = tokio::runtime::Runtime::new().unwrap();
         let opened = rt.block_on(open(&ws, "T1")).unwrap();
-        let mut page = CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title };
+        let mut page = CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title, told: None };
         take(&mut page, &Act::Hold(664.0, 494.0, 700)).unwrap();
         let heard = heard.locked().clone();
         let kinds: Vec<&str> = heard.iter().map(|(p, _)| p["type"].as_str().unwrap_or_default()).collect();

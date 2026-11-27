@@ -2,6 +2,13 @@
 # pull request starts one, so the runs of a pull request that merged or closed went on waiting for a machine: on 21 Nov
 # 2026 the local pool held 146 waiting jobs, most of them for pull requests already merged. Nothing a closed pull
 # request's run says is read: a merge into staging runs staging's own checks on the push.
+#
+# A merge into staging made while any of the pull request's checks failed, was cancelled or was still running is taken
+# back out (UNB-248). On 23-24 Nov 2026 ten pull requests merged that way while the Claude CI account was out of quota;
+# the organisation is on GitHub's free plan, so branch protection and rulesets answer 403 and nothing refuses the merge.
+# This opens a revert pull request (the same one staging-revert.yml would), says on the merged pull request who merged
+# it and which agent and model its merge commit names (the `Agent:` and `Agent-Model:` trailers), and merges nothing.
+# It sends no message anywhere else. A revert is never itself reverted.
 name: Closed pull request
 
 on:
@@ -36,3 +43,56 @@ jobs:
             echo "cancel $id ($name)"
             gh api -X POST "repos/$REPO/actions/runs/$id/cancel" > /dev/null || echo "::warning::run $id ($name) did not cancel"
           done
+
+  red-merge:
+    name: A merge with checks not green is reverted
+    if: >-
+      github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'staging' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      # The merged pull request's statusCheckRollup is what it judges, and GitHub gives it only with these two: without
+      # them every merge failed here before judging ("Resource not accessible by integration", 45449059793).
+      checks: read
+      statuses: read
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: staging
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/checks_green.py
+            .github/scripts/open-revert.sh
+          sparse-checkout-cone-mode: false
+      # The checks as they stood at the merge. This workflow's own jobs are left out: they run because it closed.
+      - name: Were the checks green at the merge
+        id: read
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          MERGE: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          gh pr view "$NUMBER" --repo "$REPO" \
+            --json number,title,mergedAt,mergedBy,mergeCommit,headRefName,headRefOid,baseRefName,statusCheckRollup \
+            > "$RUNNER_TEMP/pr.json"
+          gh api "repos/$REPO/commits/$MERGE" --jq .commit.message > "$RUNNER_TEMP/message.txt"
+          python3 -I .github/scripts/checks_green.py red-merge --pr-json "$RUNNER_TEMP/pr.json" \
+            --message "$RUNNER_TEMP/message.txt" --ignore-workflow "$GITHUB_WORKFLOW" --body "$RUNNER_TEMP/body.md"
+      - name: Open the revert and say why
+        if: steps.read.outputs.red == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          MERGE: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          url=$(bash .github/scripts/open-revert.sh "$MERGE" "revert: #$NUMBER merged with checks not green" \
+            "#$NUMBER merged into staging while checks on its head were failed, cancelled or still running (the merged pull request's comment lists them). This takes it back out. Merge it, or fix forward and close it.")
+          printf '\nRevert opened: %s\n' "${url:-not opened, see $GITHUB_SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID}" >> "$RUNNER_TEMP/body.md"
+          gh pr comment "$NUMBER" --repo "$REPO" --body-file "$RUNNER_TEMP/body.md"
+          echo "Revert of #$NUMBER: ${url:-not opened}" >> "$GITHUB_STEP_SUMMARY"

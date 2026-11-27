@@ -200,9 +200,15 @@ def eye(**e):
     return 'eye ' + json.dumps(e)
 
 
-def learn(walk, route, goal=GOAL, scores=(9,), picked=1, reasons=('its answer holds 40 records with prices',), after=()):
+# What a walk's door took, as the node logs it (`Eye::Door`): the refused page and a check's call beside it.
+DOOR = dict(took=3, assets=1, calls=[{'index': 0, 'method': 'GET', 'host': 'www.shop.example', 'path': '/find', 'why': 'refused', 'by': 0},
+                                      {'index': 1, 'method': 'POST', 'host': 'www.shop.example', 'path': '/.check/ping', 'why': 'refused', 'by': 0}])
+
+
+def learn(walk, route, goal=GOAL, scores=(9,), picked=1, reasons=('its answer holds 40 records with prices',), after=(), door=None):
     """One learn as the node logs it: the walk began, its candidates were scored, one was picked and its route saved."""
-    return [eye(kind='started', walk=walk, url='https://www.shop.example/find?q=lamps', goal=goal, agent='t'),
+    return [eye(kind='started', walk=walk, url='https://www.shop.example/find?q=lamps', goal=goal, agent='t')] + (
+        [eye(kind='door', walk=walk, **door)] if door else []) + [
             eye(kind='scored', walk=walk, candidates=[{'index': n + 1, 'score': s, 'method': 'GET', 'host': 'www.shop.example', 'path': '/find'} for n, s in enumerate(scores)]),
             eye(kind='picked', walk=walk, index=picked, method='GET', host='www.shop.example', path='/find', by='the rule', reasons=list(reasons))] + list(after) + [
             eye(kind='saved', walk=walk, route=route, what=goal, site='www.shop.example', steps=1, inputs=['q'])]
@@ -215,6 +221,7 @@ SET_ASIDE = "[goal] GET www.shop.example was called and its answer not taken: it
 # name: the log's lines, ending with the learn that saved the route `r`.
 LOG_SEEDS = {
     'picked-below-top': learn('w1', 'r', scores=(5, 9), picked=1),
+    'door-took-calls': learn('w1', 'r', door=DOOR),
     'picked-without-fields': learn('w1', 'r', reasons=(NONE_OF_THE_FIELDS,)),
     'connection-as-refusal': learn('w1', 'r', after=('[call] GET www.shop.example/find error sending request', '[links] the second word was not kept')),
     'kept-unanswered': learn('w1', 'r', after=(UNANSWERED,)),
@@ -224,6 +231,17 @@ LOG_SEEDS = {
     'learned-after-set-aside': learn('w0', 'r0', goal='list the shop opening hours') + [SET_ASIDE] + learn('w1', 'r'),
     # The route of this goal was called, its answer set aside, and the route this learn kept is no longer beside it.
     'replaced-a-route': learn('w0', 'r-gone') + [SET_ASIDE] + learn('w1', 'r'),
+}
+
+# name: the log's lines for a learn that kept no route: its findings are the pick's, with no route to sit on.
+PICK_SEEDS = {
+    'browser-flow-landing': [eye(kind='started', walk='w8', url='https://www.shop.example', goal=GOAL, agent='t'),
+                             eye(kind='failed', walk='w8', error='the captured navigation did not reach the requested page (3 exchanges, main document statuses [200, 404])')],
+    # The door took the walk's calls before any was scored, and the learn kept nothing (hn.algolia.com on staging
+    # c1907d01b: a shell read as a check, every call taken, "a check asks a person").
+    'door-took-the-walk': [eye(kind='started', walk='w9', url='https://www.shop.example/find?q=lamps', goal=GOAL, agent='t'),
+                           eye(kind='door', walk='w9', **DOOR), eye(kind='scored', walk='w9', exchanges=4, candidates=[]),
+                           eye(kind='failed', walk='w9', error='loading the page sends no call that answers the goal: it needs clicks or typing')],
 }
 
 # ---------------------------------------------------------------------------------------------- faults in the tree
@@ -327,6 +345,15 @@ class EachFaultRaisesItsFindingAlone(Seeded):
                 d = self.routes(clean(rid='r'))
                 got = run_xray(d, '--log', self.file(name + '.log', lines))['routes']
                 self.assertEqual([ids(x) for x in got], [self.wanted(name)])
+
+    def test_each_fault_in_a_learn_that_kept_nothing_raises_its_finding_and_no_other(self):
+        import xray_log as G
+        details = {'door-took-the-walk': '2 refused', 'browser-flow-landing': 'main document statuses [200, 404]'}
+        for name, lines in PICK_SEEDS.items():
+            with self.subTest(finding=name):
+                learned, = G.read(self.file(name + '.log', lines))
+                self.assertEqual([f for f, _ in G.findings(learned)], [name])
+                self.assertIn(details[name], dict(G.findings(learned))[name])
 
     def test_each_fault_the_tree_says_raises_its_finding_and_no_other(self):
         for name, said in TREE_SEEDS.items():
@@ -495,7 +522,7 @@ class TheCostStripFlagsEachBudgetAlone(unittest.TestCase):
 
 class EveryFindingHasASeed(unittest.TestCase):
     def test_every_finding_has_a_seed(self):
-        seeded_ids = set(ROUTE_SEEDS) | set(LOG_SEEDS) | set(TREE_SEEDS) | set(WALK_SEEDS)
+        seeded_ids = set(ROUTE_SEEDS) | set(LOG_SEEDS) | set(PICK_SEEDS) | set(TREE_SEEDS) | set(WALK_SEEDS)
         self.assertEqual(sorted(set(X.CATALOGUE) - seeded_ids), [], 'a finding with no planted fault: add one here')
         self.assertEqual(sorted(seeded_ids - set(X.CATALOGUE)), [], 'a seed for a finding the catalogue no longer has')
 

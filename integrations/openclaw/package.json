@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/unbrowse-ai/unbrowse-core",
+    "url": "https://github.com/unbrowse-ai/unbrowse",
     "directory": "integrations/openclaw"
   },
   "type": "module",

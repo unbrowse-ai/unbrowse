@@ -6380,6 +6380,50 @@ fn a_browser_step_on_a_node_with_no_browser_says_what_it_lacks_and_asks_nobody()
     let _ = std::fs::remove_dir_all(&home);
 }
 
+#[test]
+fn a_window_connecting_after_an_ask_hears_it_once() {
+    use futures_util::StreamExt;
+    use std::time::Duration;
+    let home = store::scratch_home("window-after-ask");
+    let (rt, mut node, _) = agent_node(&home);
+    Arc::get_mut(&mut node).unwrap().events = Events(tokio::sync::broadcast::channel(2).0);
+    let site = "owner-reconnect.example";
+    rt.block_on(async {
+        let (ready, waiting) = tokio::sync::oneshot::channel();
+        let asking = tokio::spawn(crate::hands::ask_alone(site, None, "Please sign in", "qa", Duration::from_secs(10), |ask| {
+            let _ = ready.send(ask.clone());
+        }));
+        let ask = waiting.await.unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert("authorization", "Bearer test-owner-token".parse().unwrap());
+        let door = super::window::Door { node: node.clone(), owner: Arc::new("test-owner-token".into()) };
+        let response = super::window::owner_events(State(door), headers, None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let mut events = response.into_body().into_data_stream().filter_map(|chunk| {
+            let event = String::from_utf8(chunk.unwrap().to_vec()).unwrap();
+            std::future::ready(event.contains(site).then_some(event))
+        });
+        let event = tokio::time::timeout(Duration::from_secs(2), events.next()).await.unwrap().unwrap();
+        assert!(event.contains("event: hands") && event.contains(&ask.id) && event.contains("Please sign in"), "{event}");
+
+        node.events.emit("hands", json!({ "kind": "ask", "site": site, "ask": ask }));
+        node.events.emit("hands", json!({ "kind": "lapsed", "site": site }));
+        let event = tokio::time::timeout(Duration::from_secs(2), events.next()).await.unwrap().unwrap();
+        assert!(event.contains("lapsed"), "{event}");
+        assert_eq!(crate::hands::answer(site, crate::hands::Answer::Done), 1);
+        assert_eq!(asking.await.unwrap(), Some(crate::hands::Answer::Done));
+
+        for sequence in 0..3 {
+            node.events.emit("activity", json!({ "sequence": sequence }));
+        }
+        node.events.emit("hands", json!({ "kind": "taken", "site": site }));
+        drop(node);
+        let event = tokio::time::timeout(Duration::from_secs(2), events.next()).await.unwrap().unwrap();
+        assert!(event.contains("taken"), "{event}");
+        assert!(tokio::time::timeout(Duration::from_secs(2), events.next()).await.unwrap().is_none());
+    });
+}
+
 /// An agent's ask of the owner, which may wait minutes on a person, is answered within the caller's wait (`wait_ms`):
 /// still working, with the ask `unbrowse_do` collects, since an MCP client hangs up after about a minute. The owner's
 /// wait goes on behind that reply for as long as the agent asked, past the wall other work meets; the owner answering

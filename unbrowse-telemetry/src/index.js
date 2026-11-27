@@ -10,7 +10,7 @@
 // headers, its country or the exact time. An event's row holds its own fields and the hour it arrived, and is deleted
 // KEEP_DAYS after that hour: each batch that is kept deletes, in the same transaction, every row past that age.
 
-import { checkBatch, MAX_BODY_BYTES } from "./schema.js";
+import { checkBatch, isVersion, MAX_BODY_BYTES } from "./schema.js";
 import * as report from "./report.js";
 import { bindings, namedQueries } from "./sql.js";
 
@@ -70,6 +70,7 @@ export async function handle(request, env, now = Date.now(), fetcher = (url, ini
   const { pathname } = new URL(request.url);
   if (pathname === "/healthz") return answer(200, { status: "ok" });
   if (pathname === "/v1/reports") return relay(request, env, now, fetcher);
+  if (pathname === "/v1/ours") return oursList(request, env, now);
   if (pathname.startsWith("/v1/stats/")) return stats(request, env, pathname.slice("/v1/stats/".length), new URL(request.url).searchParams);
   if (pathname !== "/v1/events") return answer(404, { error: "not found" });
   if (request.method !== "POST") return answer(405, { error: "POST a batch of events" });
@@ -332,9 +333,7 @@ function same(a, b) {
 }
 
 async function stats(request, env, name, search = new URLSearchParams()) {
-  const token = env.ADMIN_TOKEN || "";
-  const given = (request.headers.get("authorization") || "").replace(/^Bearer /, "");
-  if (token.length < 16 || !same(given, token)) return answer(404, { error: "not found" });
+  if (!admin(request, env)) return answer(404, { error: "not found" });
   if (request.method !== "GET") return answer(405, { error: "GET a named question" });
   const queries = namedQueries(env.QUERIES || "");
   if (!name) return answer(200, { names: Object.keys(queries) });
@@ -347,6 +346,53 @@ async function stats(request, env, name, search = new URLSearchParams()) {
   } catch {
     return answer(503, { error: "the store didn't answer" });
   }
+}
+
+/** Whether the request carries the admin token; with no ADMIN_TOKEN secret, nothing does. */
+function admin(request, env) {
+  const token = env.ADMIN_TOKEN || "";
+  const given = (request.headers.get("authorization") || "").replace(/^Bearer /, "");
+  return token.length >= 16 && same(given, token);
+}
+
+// ---- our own installs (UNB-303) ----
+//
+//   POST   /v1/ours  {"kind": "install" | "version", "value": "…", "why": "…"}   Authorization: Bearer <ADMIN_TOKEN>
+//   DELETE /v1/ours  {"kind": …, "value": …}
+//
+// An install of ours (a team member's node, a test box) or a version never offered to anyone (a device test build):
+// the counts leave it out from then on, and `ours` shows what was left out. 404 without the token, as the stats door.
+
+const OURS_SHAPE = { install: (v) => /^[0-9a-f]{32}$/.test(v), version: (v) => isVersion(v) };
+/** A reason in plain words: no address, path or markup can be one. */
+const WHY = /^[A-Za-z0-9][A-Za-z0-9 .,'()-]{0,79}$/;
+const OURS_ADD = "INSERT INTO ours_list (kind, value, why, added_hour) VALUES (?, ?, ?, ?) ON CONFLICT (kind, value) DO UPDATE SET why = excluded.why";
+const OURS_REMOVE = "DELETE FROM ours_list WHERE kind = ? AND value = ?";
+
+async function oursList(request, env, now) {
+  if (!admin(request, env)) return answer(404, { error: "not found" });
+  if (request.method !== "POST" && request.method !== "DELETE") return answer(405, { error: "POST or DELETE one of ours" });
+  if (!isJson(request)) return answer(415, { error: "send JSON" });
+  const text = await readCapped(request, 1024);
+  if (text === null) return answer(413, { error: "at most 1024 bytes" });
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return answer(400, { error: "not JSON" });
+  }
+  const { kind, value, why } = body ?? {};
+  if (!Object.hasOwn(OURS_SHAPE, kind)) return answer(400, { error: "kind is install or version" });
+  if (typeof value !== "string" || !OURS_SHAPE[kind](value)) return answer(400, { error: `value is not an ${kind}` });
+  const add = request.method === "POST";
+  if (add && (typeof why !== "string" || !WHY.test(why.trim()))) return answer(400, { error: "why: up to 80 letters, digits, spaces and . , ' ( ) -" });
+  try {
+    const stmt = add ? env.TELEMETRY_DB.prepare(OURS_ADD).bind(kind, value, why.trim(), hourOf(now)) : env.TELEMETRY_DB.prepare(OURS_REMOVE).bind(kind, value);
+    await stmt.run();
+  } catch {
+    return answer(503, { error: "the store didn't answer" });
+  }
+  return answer(204);
 }
 
 export default {

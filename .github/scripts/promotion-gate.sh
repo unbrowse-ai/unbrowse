@@ -4,18 +4,19 @@
 #
 #   promotion-gate.sh <tree> <folder>
 #
-# Reads two artifacts of this repository by name: `coverage-summary-<tree>` (coverage.yml, on the push of the release
-# branch) and `gate-bank-full-<tree>` (gate-bank.yml, the whole bank on that push). A missing one is UNMEASURED, which
-# the gate refuses. Needs GH_TOKEN with actions: read, and gh, unzip and python3; installs nothing and runs nothing it
-# downloads: the artifacts are JSON and text, read by promotion_gate.py from the checkout. Exits 1 when the gate
-# refuses, printing each rule unmet.
+# Reads three artifacts of this repository by name: `coverage-summary-<tree>` (coverage.yml, on the push of the release
+# branch), `gate-bank-full-<tree>` (gate-bank.yml, the whole bank on that push) and `gate-1k-<tree>` (gate-1k.yml, the
+# top 1,000 sites on that push, UNB-307: its results, the runner it ran on, and the regressions to re-read). A missing
+# one is UNMEASURED, which the gate refuses. Needs GH_TOKEN with actions: read, and gh, unzip and python3; installs
+# nothing and runs nothing it downloads: the artifacts are JSON and text, read by promotion_gate.py from the checkout.
+# Exits 1 when the gate refuses, printing each rule unmet.
 set -eu
 
 tree=$1
 dir=$2
 mkdir -p "$dir"
 
-for name in "coverage-summary-$tree" "gate-bank-full-$tree"; do
+for name in "coverage-summary-$tree" "gate-bank-full-$tree" "gate-1k-$tree"; do
   id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=20" \
     --jq '[.artifacts[] | select(.expired | not)][0].id // empty')
   if [ -z "$id" ]; then
@@ -27,18 +28,10 @@ for name in "coverage-summary-$tree" "gate-bank-full-$tree"; do
   echo "read artifact $name ($id)"
 done
 
-# A coverage waiver names one version and why, in .github/promotion-waivers (`<version> coverage <reason>`): that
-# release is gated on the task bank alone, and the waiver is printed. Any other version still needs 90%.
-only=""
-if [ -n "${VERSION:-}" ] && [ -f .github/promotion-waivers ]; then
-  waiver=$(awk -v v="$VERSION" '$1 == v && $2 == "coverage" { $1 = ""; $2 = ""; sub(/^ +/, ""); print; exit }' .github/promotion-waivers)
-  if [ -n "$waiver" ]; then
-    echo "::warning::code coverage waived for $VERSION: $waiver"
-    only="--tasks-only"
-  fi
-fi
-
-python3 -I .github/scripts/promotion_gate.py check $only \
+python3 -I .github/scripts/promotion_gate.py check \
   --coverage "$dir/coverage-summary-$tree/coverage-summary.json" \
   --bank-results "$dir/gate-bank-full-$tree/results.jsonl" \
+  --top1k-results "$dir/gate-1k-$tree/results.jsonl" \
+  --top1k-meta "$dir/gate-1k-$tree/meta.json" \
+  --top1k-rereads "$dir/rereads.json" \
   --md "$dir/verdict.md"

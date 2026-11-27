@@ -475,3 +475,7 @@ mod tests {
         assert_eq!(src.singles.load(std::sync::atomic::Ordering::SeqCst), 1, "only the header the batch named otherwise");
     }
 }
+
+#[cfg(test)]
+#[path = "anchor_cov_tests.rs"]
+mod anchor_cov_tests;

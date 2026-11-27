@@ -137,15 +137,26 @@ class EveryMergeIsMeasuredAgain(unittest.TestCase):
         self.assertTrue(what_skips_the_slice_on_a_push(qa.replace('--event "$GITHUB_EVENT_NAME"', "--event push", 1)))
         self.assertTrue(what_skips_the_slice_on_a_push(qa.replace("hit: ${{ steps.look.outputs.hit }}", "hit: 'true'", 1)))
         # And the lookup itself: a hit only for a successful pull request run of pr-agent-checks.yml, from this
-        # repository, on this tree; a merge past its checks (a failed, cancelled or unfinished run, or none) is no hit.
+        # repository, on this tree, whose commit also passed pr-check.yml (the MCP check runs only there since #828);
+        # a merge past its checks (a failed, cancelled or unfinished run, or none) is no hit.
         pp = passed_on_pr()
-        repo, tree = "unbrowse-ai/unbrowse-core", "3219fc34c3190108030b7c024ea564b6c030b460"
+        repo, tree, sha = "unbrowse-ai/unbrowse-core", "3219fc34c3190108030b7c024ea564b6c030b460", "9" * 40
 
-        def answers(**changed):
+        def answers(check=None, **changed):
             run = {"id": 7, "path": ".github/workflows/pr-agent-checks.yml", "event": "pull_request", "status": "completed", "conclusion": "success",
-                   "repository": {"full_name": repo}, "head_repository": {"full_name": repo}, **changed}  # fmt: skip
+                   "head_sha": sha, "repository": {"full_name": repo}, "head_repository": {"full_name": repo}, **changed}  # fmt: skip
+            mcp = {"id": 8, "path": ".github/workflows/pr-check.yml", "event": "pull_request", "status": "completed", "conclusion": "success",
+                   "head_sha": sha, "repository": {"full_name": repo}, "head_repository": {"full_name": repo}, **(check or {})}  # fmt: skip
             listed = {"artifacts": [{"name": f"gate-bank-slice-{tree}", "expired": False, "workflow_run": {"id": 7, "repository_id": 1, "head_repository_id": 1}}]}
-            return lambda path: listed if "/actions/artifacts?" in path else run
+
+            def get(path):
+                if "/actions/artifacts?" in path:
+                    return listed
+                if "/actions/runs?" in path:
+                    return {"workflow_runs": [mcp] if f"head_sha={sha}" in path else []}
+                return run
+
+            return get
 
         def hit(get, event="push", ref="refs/heads/staging"):
             return pp.find(repo, event, ref, tree, get)[0] is not None
@@ -158,6 +169,8 @@ class EveryMergeIsMeasuredAgain(unittest.TestCase):
         self.assertFalse(hit(answers(head_repository={"full_name": "someone/unbrowse-core"})), "a fork")
         self.assertFalse(hit(answers(), event="schedule"), "the nightly run runs everything")
         self.assertFalse(hit(answers(), event="workflow_dispatch"), "a run by hand runs everything")
+        for no_mcp_check in ({"conclusion": "failure"}, {"status": "in_progress", "conclusion": None}, {"head_sha": "8" * 40}):
+            self.assertFalse(hit(answers(check=no_mcp_check)), f"the MCP check didn't pass on that commit: {no_mcp_check}")
 
     def test_the_task_slice_check_can_fail(self):
         # Positive and negative controls for the slice's half of the test above, on made-up workflows.

@@ -67,6 +67,11 @@ pub fn read(a: &Answer) -> Option<Wall> {
         return Some(Wall::Check { url });
     }
     let html = a.body.trim_start().starts_with('<');
+    // An answer that is only a script sending the reader to another page of the site names its check there, as an
+    // answer in data does above (`page::sent_on`).
+    if let Some(url) = html.then(|| crate::page::sent_on(a.body, a.url)).flatten() {
+        return Some(Wall::Check { url: url.to_string() });
+    }
     if html {
         let door = crate::page::a_door(200, a.body, a.url);
         if crate::challenge::shows_a_widget(a.body, a.url) && (!crate::challenge::a_page_with_a_check(a.body, a.url) || stands_in_front(a)) {
@@ -128,7 +133,10 @@ impl Wall {
             Wall::Session => &[Page, OwnerSession, SignIn, Owner],
             Wall::Script => &[Page, Sandbox, Engine],
             Wall::Refused => &[Page, OwnerSession, Engine],
-            Wall::Check { .. } | Wall::Person | Wall::Puzzle => &[OwnerSession, Engine, Solver, Owner],
+            // A check for a person is one the engine's own visit passes only when it passes itself; a solver the node
+            // has answers it outright and asks nobody, so it goes first, before the owner's session (which asks the
+            // owner, and waits on them) and the engine.
+            Wall::Check { .. } | Wall::Person | Wall::Puzzle => &[Solver, OwnerSession, Engine, Owner],
         }
     }
 
@@ -144,6 +152,9 @@ impl Wall {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Cleared {
     pub cookies: std::collections::BTreeMap<String, String>,
+    /// Whether earning it opened the node's browser: the call that took it says it did (`browser: true`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub browser: bool,
     /// Seconds the pass lasts, where the site said.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ttl: Option<u64>,
@@ -207,6 +218,20 @@ mod tests {
         read(&Answer { status, body, url: &asked, asked: Some(&asked) })
     }
 
+    /// An answer that is only a script sending the page on to another address of its own site stands at that address:
+    /// the call asked for the site's data and was handed a page that leaves for a check. Captured 2026-11-25 from a
+    /// shop's results call (`tests/fixtures/answers/a-script-that-sends-the-page-to-its-check.html`).
+    #[test]
+    fn a_script_that_sends_the_page_on_to_its_check_is_a_wall_at_that_address() {
+        let body = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/answers/a-script-that-sends-the-page-to-its-check.html")).unwrap();
+        let asked = at("https://www.lazada.sg/tag/air-fryer/?ajax=true&catalog_redirect_tag=true&isFirstRequest=true&page=1&q=air+fryer");
+        let w = read(&Answer { status: 200, body: &body, url: &asked, asked: Some(&asked) });
+        assert!(matches!(&w, Some(Wall::Check { url }) if url.starts_with("https://www.lazada.sg//tag/air-fryer//_____tmd_____/punish?x5secdata=")), "{w:?}");
+        // The same script sending the page to another site is not a check of this one.
+        let away = body.replace("//www.lazada.sg//tag", "//elsewhere.example//tag").replace("https://www.lazada.sg//tag", "https://elsewhere.example//tag");
+        assert!(!matches!(read(&Answer { status: 200, body: &away, url: &asked, asked: Some(&asked) }), Some(Wall::Check { .. })));
+    }
+
     /// A check shown at another address, carrying the asked one to continue to, stands in front of the page however
     /// much of a page it is itself (a form, links around the site): it is a check for a person. The same page at the
     /// address that was asked for is that address's own page.
@@ -259,8 +284,10 @@ mod tests {
     }
 
     /// What is tried against a wall is read from the wall: a page that earns its own pass never asks a person, time
-    /// alone clears a site out of asks, and a check for a person tries the owner's own session and the engine before
-    /// a solver, and the owner last.
+    /// alone clears a site out of asks, and a check for a person tries the node's solver first (it asks nobody), then
+    /// the owner's own session (which asks the owner, and waits on them) and the engine, and the owner last. Until
+    /// 2026-11-25 the owner's session came first, and a call on a node nobody watched waited out its two-minute
+    /// question before the solver was tried.
     #[test]
     fn what_clears_a_wall_is_read_from_the_wall() {
         use Source::*;
@@ -270,7 +297,8 @@ mod tests {
         assert!(!Wall::Rate.clears_alone());
         let person = Wall::Person.sources();
         assert_eq!(person.last(), Some(&Owner), "the owner is asked last");
-        assert!(person.iter().position(|s| *s == OwnerSession) < person.iter().position(|s| *s == Solver));
+        assert_eq!(person.first(), Some(&Solver), "the solver, which asks nobody, first");
+        assert!(person.iter().position(|s| *s == Solver) < person.iter().position(|s| *s == OwnerSession));
         assert_eq!(Wall::Check { url: String::new() }.sources(), person, "a named check and a widget are cleared the same ways");
     }
 

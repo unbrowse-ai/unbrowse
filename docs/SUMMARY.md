@@ -13,10 +13,6 @@
 * [Identity and the vault](concepts/identity-and-vault.md)
 * [Decentralised from launch](concepts/decentralised.md)
 * [The papers](concepts/papers.md)
-* [Spec status](SPEC-STATUS.md)
-  * [Part 1: chapters 0 to 5](spec-status/part-1.md)
-  * [Part 2: chapters 6 to 11 and Annex A](spec-status/part-2.md)
-* [Roadmap](ROADMAP.md)
 * [Browserless: the plan](BROWSERLESS.md)
 
 ## Start
@@ -55,4 +51,3 @@
 
 * [Operations](OPERATIONS.md)
 * [Testing](TESTING.md)
-* [The agents on a pull request](CI-AGENTS.md)

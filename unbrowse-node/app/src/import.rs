@@ -98,6 +98,23 @@ pub struct Kept {
     pub profile_error: Option<String>,
 }
 
+/// The cookie stores of the browsers this node doesn't drive (Firefox, Safari), under the user's home.
+fn other_stores() -> Vec<other::Store> {
+    std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(|h| other::stores(Path::new(&h))).unwrap_or_default()
+}
+
+/// Whether this machine has an ordinary browser that could hold a session at all: its stores are listed, nothing in
+/// them is read.
+fn a_browser_is_here() -> bool {
+    !cookie_sources().is_empty() || !other_stores().is_empty()
+}
+
+fn no_browser_here(host: &str) -> String {
+    format!(
+        "no ordinary browser here to read a session from (the node's own downloaded browser holds no sign-in). Sign in to {host} in a normally installed Chrome, Firefox, Safari, Brave or Edge, or export its cookies to a file with a cookie extension and import that file"
+    )
+}
+
 /// Imports the owner's browser session for `host`: the cookies any browser on this machine would send to it. Every
 /// real browser the node can drive is read, not only the one it browses with, so the session is found whichever
 /// browser the owner signed in with. Each browser's cookies are read by that same browser (it holds the key that
@@ -110,11 +127,9 @@ pub fn session(host: &str) -> Result<Kept, String> {
     }
     let host = host_arg(host)?;
     let sources = cookie_sources();
-    let others = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(|h| other::stores(Path::new(&h))).unwrap_or_default();
+    let others = other_stores();
     if sources.is_empty() && others.is_empty() {
-        return Err(format!(
-            "no ordinary browser here to read a session from (the node's own downloaded browser holds no sign-in). Sign in to {host} in a normally installed Chrome, Firefox, Safari, Brave or Edge, or export its cookies to a file with a cookie extension and import that file"
-        ));
+        return Err(no_browser_here(&host));
     }
 
     let import = store::home().join("import");
@@ -233,11 +248,11 @@ const SIGNED_OUT_AGAIN: Duration = Duration::from_secs(10 * 60);
 /// At most once per site in [`SIGNED_OUT_AGAIN`] (`None` when it was reached for within that), whatever the owner or
 /// the import answered, so a site costs one question and one headless open of their browser, not one per page.
 pub fn when_signed_out(host: &str, who: &str, ask: impl FnOnce(String) -> Result<(), String>) -> Option<Result<Kept, String>> {
-    reach_for(host, who, ask, session)
+    reach_for(host, who, ask, session, a_browser_is_here)
 }
 
-/// [`when_signed_out`], reading the session with `read`.
-fn reach_for(host: &str, who: &str, ask: impl FnOnce(String) -> Result<(), String>, read: impl FnOnce(&str) -> Result<Kept, String>) -> Option<Result<Kept, String>> {
+/// [`when_signed_out`], reading the session with `read`, where `there` says whether any browser could hold one.
+fn reach_for(host: &str, who: &str, ask: impl FnOnce(String) -> Result<(), String>, read: impl FnOnce(&str) -> Result<Kept, String>, there: impl FnOnce() -> bool) -> Option<Result<Kept, String>> {
     static TRIED: std::sync::Mutex<BTreeMap<String, std::time::Instant>> = std::sync::Mutex::new(BTreeMap::new());
     let site = site_of(host);
     if !reach_again(&mut TRIED.lock().unwrap_or_else(|p| p.into_inner()), &site, std::time::Instant::now()) {
@@ -246,6 +261,12 @@ fn reach_for(host: &str, who: &str, ask: impl FnOnce(String) -> Result<(), Strin
     // A public peer reads no one's browser: its owner isn't asked for what it would refuse anyway.
     if crate::remote::public_home() {
         return Some(read(host));
+    }
+    // With no ordinary browser on this machine there is no session to take: the owner isn't asked (and the call
+    // doesn't wait on a question nobody can usefully answer) for what isn't there. Until 2026-11-25 the question came
+    // first, and a node nobody watched held the call two minutes on it.
+    if !there() {
+        return Some(Err(no_browser_here(host)));
     }
     Some(owner_lets(&site, who, ask).and_then(|()| read(host)))
 }
@@ -1402,6 +1423,7 @@ done
                     reached.set(reached.get() + 1);
                     Ok(kept(h))
                 },
+                || true,
             )
         };
         let not_sent = again_signed_in("browse", None, "app.no-yes.example", |h| reach(h, true), || "again");
@@ -1419,6 +1441,16 @@ done
         let before = asked.borrow().len();
         assert_eq!(owner_lets("yes.example", "another-agent", |_| -> Result<(), String> { unreachable!("asked again for a site the owner let in") }), Ok(()));
         assert_eq!(asked.borrow().len(), before);
+    }
+
+    /// With no ordinary browser on the machine there is no session to take, and the owner is not asked for one: the
+    /// reach says so at once, and nothing is read.
+    #[test]
+    fn with_no_browser_here_the_owner_is_not_asked_for_its_session() {
+        store::scratch_home("import-no-browser");
+        let unasked = |_: String| -> Result<(), String> { unreachable!("asked the owner for a session no browser here holds") };
+        let said = reach_for("www.no-browser.example", "agent", unasked, |_| unreachable!("read a browser that isn't here"), || false).expect("reached for once");
+        assert!(said.unwrap_err().contains("no ordinary browser here"));
     }
 
     /// A cookie with no name is no cookie, a cookies.txt line short of its fields is skipped, a work folder's name is made
@@ -1440,3 +1472,7 @@ done
         let _ = std::fs::remove_dir_all(dir);
     }
 }
+
+#[cfg(test)]
+#[path = "import_cov_tests.rs"]
+mod import_cov_tests;

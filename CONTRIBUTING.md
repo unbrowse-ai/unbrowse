@@ -26,7 +26,7 @@ Each part builds and tests on its own. CI runs the same commands ([.github/workf
 | Window | `cd unbrowse-node/window && zig build test` (Zig 0.17; native on macOS, Linux, Windows) |
 | TypeScript SDK | `cd unbrowse-sdk/typescript && npm ci && npm test` |
 | Python SDK | `cd unbrowse-sdk/python && python -m unittest discover -s tests` |
-| Settlement | `cd unbrowse-settlement && forge test` (the contracts live in a private repository; maintainers only) |
+| Settlement | `cd unbrowse-settlement && forge test` |
 | Telemetry worker | `cd unbrowse-telemetry && node --test test/*.test.mjs` |
 
 ## Writing code
@@ -80,21 +80,30 @@ through pull requests like the code. Where a paper and the code differ, the code
 isn't built says so in a line. Write plainly: say what a thing does, read from its own behaviour, with no promise
 of returns and no claim the code doesn't make good.
 
-## Review and QA by Claude
+## Review and QA by agents
 
-Every pull request that isn't a draft gets two more checks, beside CI:
+Every pull request gets three checks beside CI, the three Claude Ship agents rebuilt on GitHub Actions and
+[OpenCode](https://opencode.ai) — no Claude organization, no GitHub App, no plan. `docs/CI-AGENTS.md` (in unbrowse-core)
+has the knobs and the envelope; the short version:
 
-- **Claude review** ([claude-review.yml](.github/workflows/claude-review.yml)) reads the change for bugs once it is
-  merged into staging, and posts what it finds as one comment on the pull request. It reads code; it doesn't run it.
-- **Claude QA** ([qa.yml](.github/workflows/qa.yml)) runs it. A node built from the pull request starts on a Mac, and
-  Claude uses it as an agent would, through its MCP tools, working through
-  [.github/qa/checklist.md](.github/qa/checklist.md). It learns and calls a route, browses a page that needs hands,
-  signs in from the vault without seeing the password, and tries what the node must refuse. The report goes on the
-  pull request, and a failing check fails the job. When a change adds something an agent can do, add a check for it.
+- **Code review** ([opencode-review.yml](.github/workflows/opencode-review.yml)) reads the change against staging
+  before the merge and posts its findings inline, ranked 🔴 Important / 🟡 Nit / 🟣 Pre-existing. It reports only
+  findings it verified; it never approves, blocks or merges. `no-review` keeps it off a pull request; in `manual` mode
+  the `review` label asks for one. One by hand: `gh workflow run opencode-review.yml -f pr=12`.
+- **PR Steward** ([opencode-steward.yml](.github/workflows/opencode-steward.yml)) fixes a red check, a review's
+  Important finding, or a person's ask, as one commit on the pull request's branch. `autofix.py guard` refuses a fix
+  that changes what only a person changes or loosens a check, and it never forces a push, approves or merges.
+  `no-steward` keeps it off; one by hand: `gh workflow run opencode-steward.yml -f pr=12`.
+- **Claude Approvals** ([opencode-approvals.yml](.github/workflows/opencode-approvals.yml)) reads
+  [`.claude/approvals.yml`](.claude/approvals.yml) and reports who still has to approve, as the `Claude Approvals`
+  check. It starts in observe mode. It asks no model, so it is exact and cheap.
 
-Both need a Claude credential as a repository secret (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`) and the Claude
-GitHub App; `/install-github-app` in Claude Code sets up both. For a deeper review before a big merge, run
-`/code-review ultra <PR#>` from Claude Code.
+The first two need `OPENCODE_API_KEY` as a repository secret (an OpenCode Console key). **Claude QA**
+([qa.yml](.github/workflows/qa.yml)) is separate and unchanged: it builds the node and uses it as an agent would,
+through its MCP tools, working through [.github/qa/checklist.md](.github/qa/checklist.md), and it needs
+`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`. It learns and calls a route, browses a page that needs hands, signs
+in from the vault without seeing the password, and tries what the node must refuse. The report goes on the pull
+request, and a failing check fails the job. When a change adds something an agent can do, add a check for it.
 
 ## Branches and releases
 

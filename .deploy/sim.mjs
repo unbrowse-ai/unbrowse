@@ -399,7 +399,7 @@ async function main() {
       for (let n = 2; !firstFailure.ok && n <= attempts; n++) {
         console.log(`     failed once (${(firstFailure.failed ?? []).join("; ").slice(0, 160)}); try ${n} of ${attempts}`);
         // A journey writes to fixed places (a client's folder), so what the try before left is still there and its
-        // oracles "already hold before the agent acts": a second try in the same world can never pass (client
+        // oracles "already hold before the agent acts": a second try in the same world can never pass (a client's
         // staging, 2026-11-13). Each later try of a journey gets the world built again from nothing.
         if (Array.isArray(s.steps)) {
           if (!c.world || !c.teardown) { console.log(`     a journey needs a world it can rebuild to be tried again (sims.world and sims.teardown): the first failure stands`); break; }

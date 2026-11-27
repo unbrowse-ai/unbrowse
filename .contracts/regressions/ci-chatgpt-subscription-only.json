@@ -1,0 +1,13 @@
+{
+  "claim": "Every Unbrowse CI model job uses OpenCode GPT-6.2 Sol with ChatGPT subscription OAuth and fails closed without it",
+  "test": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    ".github/scripts/test",
+    "-p",
+    "test_agent_*.py"
+  ]
+}

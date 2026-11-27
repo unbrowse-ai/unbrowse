@@ -32,8 +32,6 @@ code is what runs, and these docs describe the code.
 | | [Identity and the vault](concepts/identity-and-vault.md) | The wallet, the root key, agent keys, and sign-ins held by reference |
 | | [Decentralised from launch](concepts/decentralised.md) | Admission by identity, changing a network nobody runs, and the chain |
 | | [The papers](concepts/papers.md) | The papers, and where the code differs from each concept |
-| | [Spec status](SPEC-STATUS.md) | The protocol's chapters, and Annex A's parameters, against the code |
-| | [Roadmap](ROADMAP.md) | Ten designs borrowed from systems that work (watchtowers, TUF updates, choking, finality, gossip, GC, reputation, ACME, versioning, rollouts), in build order |
 | **Start** | [Install and run](start/install.md) | Installing on each platform, what the node needs, running and pausing it |
 | | [Your first call](start/your-first-call.md) | An agent key, then `unbrowse do`, from a shell, an agent or code |
 | | [The app](start/the-app.md) | The window's screens, and what the node asks the owner |
@@ -54,7 +52,6 @@ code is what runs, and these docs describe the code.
 | | [MONEY.md](MONEY.md) | Every action that needs gas or tokens, measured; where a fee goes; paying its own way; decimals; known gaps |
 | **Operating** | [OPERATIONS.md](OPERATIONS.md) | The operator's runbook: build flags, releases, deploying a network, the landing site, CI, running a node as a service, go-live checklists |
 | | [TESTING.md](TESTING.md) | Every test suite and how to run it: cargo, the Anvil tests, forge and gas scripts, the SDKs, the UI, zig, the landing worker, the Antithesis harness |
-| | [CI-AGENTS.md](CI-AGENTS.md) | The three agents on a pull request, Claude Ship's, built on GitHub Actions and OpenCode with no Claude organization: what each may touch, when it runs, the knobs, the cost, and what is not built |
 
 ## Elsewhere in the repository
 

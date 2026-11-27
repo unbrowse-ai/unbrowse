@@ -29,7 +29,7 @@ In Codex, the Unbrowse plugin (or `integrations/codex/install.sh`) adds the node
 `unbrowse mcp` command (`npm install -g unbrowse`), which reaches the node at `UNBROWSE_NODE` (default
 `http://127.0.0.1:7788`). It reads your key's token from `UNBROWSE_AGENT_TOKEN` and signs each request with it, never
 sending it, so the token must be set where Codex starts. `unbrowse agent token` prints the token of the key the node made on its
-first run; the owner makes another with `unbrowse agent new <name>` or in the app (Money, Add agent):
+first run; the owner makes another with `unbrowse agent new <name>` or in the app (Agents, Add agent):
 
 ```sh
 export UNBROWSE_NODE=http://127.0.0.1:7788 UNBROWSE_AGENT_TOKEN="$(unbrowse agent token)"
@@ -44,7 +44,7 @@ OPENCLAW_CONNECT = """## Connect (once)
 The Unbrowse plugin gives you the node's tools (`unbrowse_do`, `unbrowse_browse`, `unbrowse_search`, `unbrowse_call`,
 `unbrowse_logins`, `unbrowse_judge`, `unbrowse_report` and the rest). They reach the node with your key's token, from
 the plugin's `agentToken` setting or `UNBROWSE_AGENT_TOKEN`. `unbrowse agent token` prints the token of the key the
-node made on its first run; the owner makes another with `unbrowse agent new <name>` or in the app (Money, Add agent).
+node made on its first run; the owner makes another with `unbrowse agent new <name>` or in the app (Agents, Add agent).
 """
 
 HERMES_CONNECT = """## Connect (once)
@@ -53,7 +53,7 @@ The Unbrowse plugin gives you the node's tools in the `unbrowse` toolset (`unbro
 `unbrowse_search`, `unbrowse_call`, `unbrowse_logins`, `unbrowse_judge`, `unbrowse_report` and the rest). They reach
 the node with your key's token, from `UNBROWSE_AGENT_TOKEN` in `~/.hermes/.env`. `unbrowse agent token` prints the
 token of the key the node made on its first run; the owner makes another with `unbrowse agent new <name>` or in the
-app (Money, Add agent).
+app (Agents, Add agent).
 """
 
 # No env the skill asks for: an add-on takes its own agent token from its plugin config (`agentToken`), never a token
@@ -71,20 +71,20 @@ metadata:
 """
 
 # Where each copy goes, the front matter it adds, its Connect section, and the root skill's sections it leaves out:
-# OpenClaw and Hermes call the node through their own tools, so the install, shell and SDK sections aren't theirs.
+# OpenClaw and Hermes call the node through their own tools, so the shell and SDK sections aren't theirs.
 TARGETS = [
     (HERE / "codex" / "plugins" / "unbrowse" / "skills" / "unbrowse" / "SKILL.md", "", CODEX_CONNECT, ()),
     (
         HERE / "openclaw" / "skills" / "unbrowse" / "SKILL.md",
         OPENCLAW_META,
         OPENCLAW_CONNECT,
-        ("## Install (once)", "## CLI", "## TypeScript and Python"),
+        ("## CLI", "## TypeScript and Python"),
     ),
     (
         HERE / "hermes" / "skills" / "unbrowse" / "SKILL.md",
         HERMES_META,
         HERMES_CONNECT,
-        ("## Install (once)", "## CLI", "## TypeScript and Python"),
+        ("## CLI", "## TypeScript and Python"),
     ),
 ]
 

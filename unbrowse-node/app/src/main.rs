@@ -32,6 +32,7 @@ mod connect;
 #[allow(dead_code)]
 mod legacy;
 mod signed_client;
+mod redeem;
 mod solver;
 mod applinks;
 mod arc;

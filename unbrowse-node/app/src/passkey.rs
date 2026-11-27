@@ -2967,3 +2967,7 @@ const signin = (n = 5) => tries(n, async (signal) => {
         assert!(site_arg("intranet").is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "passkey_cov_tests.rs"]
+mod passkey_cov_tests;

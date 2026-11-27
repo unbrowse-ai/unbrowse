@@ -68,10 +68,14 @@ const after = await stat("gate");
 const n0 = before.body.rows?.[0]?.events ?? -1;
 const n1 = after.body.rows?.[0]?.events ?? -1;
 check(n1 === n0 + 2, `the events sent were kept, the tagged start among them (gate count ${n0} -> ${n1})`);
-for (const name of ["funnel", "funnel_by_from", "arms"]) {
+for (const name of ["funnel", "funnel_by_from", "arms", "ours"]) {
   const q = await stat(name);
   check(q.status === 200 && Array.isArray(q.body.rows), `the ${name} question answers (got ${q.status})`);
 }
+
+// The list of our own installs takes no change without the admin token (UNB-303).
+const stranger = await fetch(`${base}/v1/ours`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "install", value: "0".repeat(32), why: "a stranger" }) });
+check(stranger.status === 404, `the ours list refuses a change with no token (got ${stranger.status})`);
 
 // One install by its id, as the site's /admin Journey asks it: the gate's own, which just made a good call.
 const one = await stat(`install?id=${GATE}`);

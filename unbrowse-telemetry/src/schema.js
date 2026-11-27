@@ -67,7 +67,7 @@ export function urlLike(s) {
   return labels.length === 4 && labels.every((l) => /^[0-9]+$/.test(l));
 }
 
-function isVersion(s) {
+export function isVersion(s) {
   return s.length <= 32 && /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$/.test(s);
 }
 

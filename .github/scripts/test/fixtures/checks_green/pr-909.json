@@ -1,0 +1,520 @@
+{
+  "baseRefName": "staging",
+  "headRefName": "fix/a-quick-tunnel-refused-is-asked-again-2026-11-24",
+  "headRefOid": "a53af909eaa28572bfae4bd81846d8359011af60",
+  "mergeCommit": {
+    "oid": "6443f61290f164e79bcb32d69a703187133327b3"
+  },
+  "mergedAt": "2026-11-24T10:47:33Z",
+  "mergedBy": {
+    "id": "MDQ6VXNlcjM4ODc5NDY=",
+    "is_bot": false,
+    "login": "lekt9",
+    "name": "lekt9"
+  },
+  "number": 909,
+  "state": "MERGED",
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:22Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362705949",
+      "name": "What this change reaches",
+      "startedAt": "2026-11-24T09:59:13Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:26Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339182/job/138362704235",
+      "name": "Claude Approvals",
+      "startedAt": "2026-11-24T09:59:12Z",
+      "status": "COMPLETED",
+      "workflowName": "Claude Approvals"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:47:55Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45378127108/job/138389743374",
+      "name": "Stop the closed pull request's checks",
+      "startedAt": "2026-11-24T10:47:48Z",
+      "status": "COMPLETED",
+      "workflowName": "Closed pull request"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:20Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138362704734",
+      "name": "What this change reaches (coverage)",
+      "startedAt": "2026-11-24T09:59:12Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:43Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138362704799",
+      "name": "Where the agent jobs run",
+      "startedAt": "2026-11-24T09:59:12Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:09:55Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339247/job/138362704970",
+      "name": "MCP check (no model)",
+      "startedAt": "2026-11-24T09:59:38Z",
+      "status": "COMPLETED",
+      "workflowName": "PR check (no credential)"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:11Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339132/job/138362704641",
+      "name": "Signal",
+      "startedAt": "2026-11-24T09:59:08Z",
+      "status": "COMPLETED",
+      "workflowName": "PR signal (no credential)"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:26Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339522/job/138362707776",
+      "name": "Promotion gate, harness",
+      "startedAt": "2026-11-24T09:59:14Z",
+      "status": "COMPLETED",
+      "workflowName": "Promotion gate"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:06Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339522/job/138362710230",
+      "name": "Promotion gate, release",
+      "startedAt": "2026-11-24T09:59:07Z",
+      "status": "COMPLETED",
+      "workflowName": "Promotion gate"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:00:37Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362705699",
+      "name": "Papers are copies",
+      "startedAt": "2026-11-24T09:59:13Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:48Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138362704714",
+      "name": "Coverage, TypeScript SDK",
+      "startedAt": "2026-11-24T09:59:12Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:21Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138362704672",
+      "name": "Workflow security test",
+      "startedAt": "2026-11-24T09:59:11Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:22Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339247/job/138362705709",
+      "name": "Journey coverage",
+      "startedAt": "2026-11-24T09:59:13Z",
+      "status": "COMPLETED",
+      "workflowName": "PR check (no credential)"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:50Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362705491",
+      "name": "SDK (TypeScript)",
+      "startedAt": "2026-11-24T09:59:12Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:00:19Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138362703954",
+      "name": "Coverage, Python SDK",
+      "startedAt": "2026-11-24T09:59:12Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:01:50Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138362704001",
+      "name": "Build the node once",
+      "startedAt": "2026-11-24T09:59:29Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:10:06Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339247/job/138368760759",
+      "name": "PR check (no credential)",
+      "startedAt": "2026-11-24T10:10:01Z",
+      "status": "COMPLETED",
+      "workflowName": "PR check (no credential)"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:00:35Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362704957",
+      "name": "Short checks",
+      "startedAt": "2026-11-24T09:59:12Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:19:48Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138362841136",
+      "name": "Coverage, node",
+      "startedAt": "2026-11-24T09:59:26Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:00:00Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138363041123",
+      "name": "Skill triggers",
+      "startedAt": "2026-11-24T09:59:50Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:00:00Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362705618",
+      "name": "SDK (Python 3.9.25)",
+      "startedAt": "2026-11-24T09:59:12Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:02:56Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138362841169",
+      "name": "Coverage, browser (core)",
+      "startedAt": "2026-11-24T09:59:25Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:05:20Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138364243808",
+      "name": "Claude QA (1)",
+      "startedAt": "2026-11-24T10:02:16Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:00:23Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362705660",
+      "name": "SDK (Python 3.13.18)",
+      "startedAt": "2026-11-24T09:59:13Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:14:52Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138362841241",
+      "name": "Coverage, browser (cli)",
+      "startedAt": "2026-11-24T09:59:25Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:08:42Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138364243465",
+      "name": "Claude QA (2)",
+      "startedAt": "2026-11-24T10:02:14Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:05:37Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138364243519",
+      "name": "Claude QA (3)",
+      "startedAt": "2026-11-24T10:02:20Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:08:06Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138364243399",
+      "name": "Claude QA (4)",
+      "startedAt": "2026-11-24T10:02:15Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:22Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362863409",
+      "name": "Browser engine (${{ matrix.part }})",
+      "startedAt": "2026-11-24T09:59:23Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:20Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138362843476",
+      "name": "Coverage, settlement (reported apart)",
+      "startedAt": "2026-11-24T09:59:21Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:06:37Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138364243330",
+      "name": "Gate bank (slice)",
+      "startedAt": "2026-11-24T10:02:11Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:20Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138362844106",
+      "name": "Coverage, window (reported apart)",
+      "startedAt": "2026-11-24T09:59:21Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:09:15Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362860905",
+      "name": "Node",
+      "startedAt": "2026-11-24T09:59:45Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:09:16Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138368084766",
+      "name": "QA report",
+      "startedAt": "2026-11-24T10:08:51Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:01:14Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362860797",
+      "name": "Node lint (clippy)",
+      "startedAt": "2026-11-24T09:59:44Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:20:06Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138374307270",
+      "name": "Coverage, behaviour",
+      "startedAt": "2026-11-24T10:19:54Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:09:28Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339011/job/138368400835",
+      "name": "PR agent checks",
+      "startedAt": "2026-11-24T10:09:22Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:06:05Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362860913",
+      "name": "Builds on Linux",
+      "startedAt": "2026-11-24T09:59:30Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:20:07Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138374307154",
+      "name": "Coverage, per part",
+      "startedAt": "2026-11-24T10:19:54Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:07:11Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362860988",
+      "name": "Builds on Windows",
+      "startedAt": "2026-11-24T09:59:34Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:23Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362863956",
+      "name": "Window (nanoui)",
+      "startedAt": "2026-11-24T09:59:23Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:20:32Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138374490751",
+      "name": "Coverage, ratchet",
+      "startedAt": "2026-11-24T10:20:12Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:23Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362863976",
+      "name": "Settlement contracts",
+      "startedAt": "2026-11-24T09:59:23Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:20:43Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138374736543",
+      "name": "Coverage verdict",
+      "startedAt": "2026-11-24T10:20:38Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:23Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362862818",
+      "name": "Route-coin spec, part ${{ matrix.part }}${{ (((matrix.shard != '1/1') && format(' ({0})', matrix.shard)) || '') }}",
+      "startedAt": "2026-11-24T09:59:23Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:20:54Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339071/job/138374736320",
+      "name": "Coverage, on the pull request",
+      "startedAt": "2026-11-24T10:20:38Z",
+      "status": "COMPLETED",
+      "workflowName": "Coverage"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:01:14Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138363903224",
+      "name": "Lint fixed on the branch",
+      "startedAt": "2026-11-24T10:01:14Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T09:59:34Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/actions/runs/45370339098/job/138362861535",
+      "name": "Route-coin spec",
+      "startedAt": "2026-11-24T09:59:29Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T11:08:49Z",
+      "conclusion": "NEUTRAL",
+      "detailsUrl": "https://github.com/unbrowse-ai/unbrowse-core/runs/138401263163",
+      "name": "Claude Approvals",
+      "startedAt": "2026-11-24T11:08:49Z",
+      "status": "COMPLETED",
+      "workflowName": "PR agent checks"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-11-24T10:04:02Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://dashboardbackend.blacksmith.sh/track/run-proof?expires=1798106642&installation_model_id=440349&pr_number=909&ref=codesmith_check&repository=unbrowse-ai%2Funbrowse-core&return_to=https%3A%2F%2Fgithub.com%2Funbrowse-ai%2Funbrowse-core%2Fpull%2F909&utm_campaign=unbrowse-ai%2Funbrowse-core&utm_source=codesmith-check&variant=check&signature=540ebc87bd4954db1dae45031d391c48c44f21369c1e8d1f1f033da9b18557eb",
+      "name": "Proof",
+      "startedAt": "2026-11-24T10:04:02Z",
+      "status": "COMPLETED",
+      "workflowName": ""
+    }
+  ],
+  "title": "fix(ci): a quick tunnel the service refused is asked for again"
+}

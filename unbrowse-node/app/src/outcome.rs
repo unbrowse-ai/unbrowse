@@ -473,3 +473,7 @@ mod unheld_tests {
         assert_eq!(done.from, "sandbox.not_confined");
     }
 }
+
+#[cfg(test)]
+#[path = "outcome_cov_tests.rs"]
+mod outcome_cov_tests;

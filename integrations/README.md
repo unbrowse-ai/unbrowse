@@ -10,15 +10,15 @@ two values: the node's address (`UNBROWSE_NODE`, default `http://127.0.0.1:7788`
 The node needs no account and no sign-in: it joins the network with its own wallet (spec §86), and linking a wallet
 of yours is optional, only for cashing out or several nodes sharing a deposit
 ([ONBOARDING.md](../docs/ONBOARDING.md#2-linking-a-wallet-optional)). It makes its first agent key itself on its first
-run: `unbrowse agent token` prints that key's token, and `unbrowse agent new <name>` (or the window's Money, Add agent)
+run: `unbrowse agent token` prints that key's token, and `unbrowse agent new <name>` (or the window's Agents, Add agent)
 makes another and prints its setup once.
 
 | Agent | Directory | What it is | Install |
 |---|---|---|---|
-| Claude Code | [`claude-code/`](claude-code) | Plugin: the node's MCP server and the skill; asks for the token when enabled | `/plugin marketplace add unbrowse-ai/unbrowse-core`, then `/plugin install unbrowse@unbrowse` (or, without the plugin, `unbrowse connect`) |
-| Codex | [`codex/`](codex) | Plugin: the node's MCP server and the skill, or `install.sh` for `config.toml` | `codex plugin marketplace add unbrowse-ai/unbrowse-core`, then `codex plugin add unbrowse@unbrowse` |
+| Claude Code | [`claude-code/`](claude-code) | Plugin: the node's MCP server and the skill; asks for the token when enabled | `/plugin marketplace add unbrowse-ai/unbrowse`, then `/plugin install unbrowse@unbrowse` (or, without the plugin, `unbrowse connect`) |
+| Codex | [`codex/`](codex) | Plugin: the node's MCP server and the skill, or `install.sh` for `config.toml` | `codex plugin marketplace add unbrowse-ai/unbrowse`, then `codex plugin add unbrowse@unbrowse` |
 | OpenClaw | [`openclaw/`](openclaw) | Plugin: the node's tools as native agent tools, and the skill | `openclaw plugins install npm:@unbrowse/openclaw-plugin --accept-capabilities` (once published; [README](openclaw/README.md) installs it from here) |
-| Hermes Agent | [`hermes/`](hermes) | Plugin: the node's tools in an `unbrowse` toolset, and the skill | `hermes plugins install unbrowse-ai/unbrowse-core/integrations/hermes --enable`, with the Python SDK ([README](hermes/README.md)) |
+| Hermes Agent | [`hermes/`](hermes) | Plugin: the node's tools in an `unbrowse` toolset, and the skill | `hermes plugins install unbrowse-ai/unbrowse/integrations/hermes --enable`, with the Python SDK ([README](hermes/README.md)) |
 | ElizaOS | [`elizaos/`](elizaos) | Plugin: a service, an action for each of the node's tools, and two providers | [README](elizaos/README.md) |
 
 The marketplaces live at the repository root: [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)

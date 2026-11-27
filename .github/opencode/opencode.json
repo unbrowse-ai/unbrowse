@@ -1,0 +1,30 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "update": "disable",
+  "snapshots": false,
+  "formatter": false,
+  "mcp": { "servers": {} },
+  "permissions": [
+    { "action": "*", "resource": "*", "effect": "deny" },
+    { "action": "external_directory", "resource": "*", "effect": "deny" },
+    { "action": "read", "resource": "*", "effect": "allow" },
+    { "action": "glob", "resource": "*", "effect": "allow" },
+    { "action": "grep", "resource": "*", "effect": "allow" },
+    { "action": "read", "resource": "*.env", "effect": "deny" },
+    { "action": "read", "resource": "*.env.*", "effect": "deny" }
+  ],
+  "agents": {
+    "review": {
+      "description": "Reads a pull request's diff and reports the bugs it adds, as JSON, without changing anything",
+      "mode": "primary"
+    },
+    "steward": {
+      "description": "Fixes what failed on a pull request's own branch, inside pr/ only",
+      "mode": "primary",
+      "permissions": [
+        { "action": "edit", "resource": "pr/*", "effect": "allow" },
+        { "action": "edit", "resource": "pr/**", "effect": "allow" }
+      ]
+    }
+  }
+}

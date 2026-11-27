@@ -1,0 +1,13 @@
+// CI's pictures in production. Deployed by the release train (.deploy/manifest.json), never by hand. The key CI puts
+// pictures with is a secret, never here: SHOTS_KEY (README).
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "unbrowse-ci-shots",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "preview_urls": false,
+  "r2_buckets": [{ "binding": "SHOTS", "bucket_name": "unbrowse-ci-shots" }],
+  // A request's URL names a picture and nothing else; logs would keep each address, which is all that guards one.
+  "observability": { "enabled": false }
+}

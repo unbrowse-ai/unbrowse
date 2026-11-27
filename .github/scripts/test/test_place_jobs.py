@@ -88,6 +88,25 @@ class PoolState(unittest.TestCase):
         self.assertEqual(free, 0)
         self.assertIn("waited", why)
 
+    def test_hosted_only_workflows_skip_jobs_queries(self):
+        queried = []
+        def get(path):
+            queried.append(path)
+            if "/actions/runs?status=in_progress" in path:
+                return {"workflow_runs": [
+                    {"id": 10, "path": ".github/workflows/pr-report.yml"},
+                    {"id": 11, "path": ".github/workflows/ci.yml"},
+                    {"id": 12, "path": ".github/workflows/pr-agent-checks.yml"},
+                ]}
+            if "/actions/runs?status=queued" in path:
+                return {"workflow_runs": []}
+            if "/actions/runs/12/jobs" in path:
+                return {"jobs": [{"status": "in_progress", "labels": MAC}]}
+            raise AssertionError(f"should not query hosted-only run: {path}")
+        free, _ = pj.pool_state(MAC, get, REPO, 1, NOW, None, slots=1)
+        self.assertEqual(free, 0)
+        self.assertEqual([p for p in queried if "/jobs" in p], [f"/repos/{REPO}/actions/runs/12/jobs?filter=latest&per_page=100"])
+
 
 class Place(unittest.TestCase):
     def test_one_free_mac_takes_the_first_job_asked_and_the_rest_go_to_blacksmith(self):

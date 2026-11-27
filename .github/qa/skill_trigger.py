@@ -24,6 +24,7 @@ without the Skill tool or the skills), 0 otherwise: `pass` in skill-trigger.json
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -41,7 +42,9 @@ INPUTS = (
     ".github/qa/skill_trigger.py",
     ".github/qa/costs.py",
     ".github/qa/tool_choice.py",
+    ".github/scripts/agent_cli.py",
     ".github/tools/claude-cli",
+    ".github/tools/opencode",
     ".github/workflows/qa.yml",
     ".github/workflows/pr-agent-checks.yml",
 )
@@ -55,6 +58,9 @@ def inputs_key(root=HERE.parents[1]):
     for wanted in INPUTS:
         if not any(p == wanted or p.startswith(wanted + "/") for p in paths):
             raise RuntimeError(f"{wanted} is not in the commit: the key would leave an input out")
+    auth = os.environ.get("AGENT_AUTH") or ""
+    if auth.casefold() == "chatgpt":
+        listed += "\nagent-auth=chatgpt"
     return "passed-skill-triggers-" + hashlib.sha256(listed.encode()).hexdigest()
 
 

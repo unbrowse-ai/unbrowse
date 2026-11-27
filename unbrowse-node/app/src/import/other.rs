@@ -382,3 +382,7 @@ pub mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 }
+
+#[cfg(test)]
+#[path = "other_cov_tests.rs"]
+mod other_cov_tests;

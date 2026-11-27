@@ -1,5 +1,5 @@
 {
- "about": "The short slice a pull request to staging runs (UNB-208). Six bank tasks that were right on staging on 17 Nov 2026, each answered in one or two tool calls in under two minutes, on six different sites; and, since 19 Nov 2026, one search task for each of the three sites Lewis's staging criteria name (lazada.sg, carousell.sg, ticketmaster.com), which a fresh node has to learn first, so they take several calls and up to six minutes each. A slice task right on the reference that is not right on the pull request fails the check as changed, to be re-read by hand; a confident wrong answer fails it; a wall is set aside.",
+ "about": "The twenty tasks the PR and staging slice runs (UNB-208). Keep the existing staging reads and criteria searches, measure the criteria warm searches and the Carousell no-results case, retain the measured IMDb and Hacker News regressions, and exercise fresh signup and signed-in reads on three public automation practice sites. Warm twins use the cold task’s node and are held to browserless replay.",
  "ids": [
   "u6:customs-broker-1",
   "lundy:pypi.org",
@@ -9,10 +9,21 @@
   "u6:airline-revenue-4",
   "criteria:lazada.sg",
   "criteria:carousell.sg",
-  "criteria:ticketmaster.com"
+  "criteria:ticketmaster.com",
+  "criteria:lazada.sg#warm",
+  "phases:booking.com",
+  "phases:booking.com#warm",
+  "criteria:carousell.sg#warm",
+  "criteria:carousell.sg#none",
+  "criteria:ticketmaster.com#warm",
+  "steve:imdb-user-rating",
+  "steve:hn-second-search",
+  "phases:automation-exercise#authed",
+  "phases:expandtesting-notes#authed",
+  "phases:parabank#authed"
  ],
  "reference": {
-  "build": "staging 7071ae02 (17 Nov 2026, debug, Claude Sonnet); the three criteria tasks: staging 98cfffb9 (19 Nov 2026, debug, Claude Sonnet)",
+  "build": "staging 7071ae02 (17 Nov 2026, debug, Claude Sonnet); the three criteria tasks: staging 98cfffb9 (19 Nov 2026, debug, Claude Sonnet); the phase tasks: staging 804627cd (25 Nov 2026, debug), driven by hand one site at a time, the data read: booking.com cold learned with the browser (Tokyo hotels with yen prices), its warm twin called the same route with no browser (Osaka hotels with prices); Lazada's warm twin met its punish page (set aside); IMDb and Hacker News: PR #927 f73e0194b, QA runs 45459644193 and 45459913864, right in both. The Expand Testing Notes authenticated case was right in PR gate run 45741959787. Ticketmaster cold and warm both passed together in PR gate run 45765337915 on 26 Nov 2026. The warm twin also returned the site's ordered events from the cold route by ID with browser false on the 885eb4fce PR build driven through MCP. Carousell's warm iPad mini search returned the site's listings, prices and links from the cold Nintendo Switch route with browser false on the 779f60e5d build from PR agent checks 45748554390, driven through MCP on 26 Nov 2026. Automation Exercise signup visibly showed the fresh test username in the header on the same build driven through MCP on 26 Nov 2026. ParaBank confirmed creation, signed in under the newly registered synthetic name, and showed an account number and balance in Accounts Overview on the same build driven through MCP on 26 Nov 2026. The Carousell no-results case on the same hosted build returned the requested query, empty listing arrays, zero results, pending false and no error through the same cold route, using a browserless MCP replay with those fields requested explicitly. The explicit Marketplace URLs were then verified on 792cf17e7 on 26 Nov 2026. Nintendo Switch, iPad mini and the zero-results query used route 3d96b6c9d992103f, one Chrome launch total and browser false on both warm calls.",
   "verdicts": {
    "u6:customs-broker-1": "right",
    "lundy:pypi.org": "right",
@@ -22,7 +33,18 @@
    "u6:airline-revenue-4": "right",
    "criteria:lazada.sg": "right",
    "criteria:carousell.sg": "right",
-   "criteria:ticketmaster.com": "set_aside"
+   "criteria:ticketmaster.com": "right",
+   "criteria:lazada.sg#warm": "set_aside",
+   "phases:booking.com": "right",
+   "phases:booking.com#warm": "right",
+   "criteria:carousell.sg#warm": "right",
+   "criteria:carousell.sg#none": "right",
+   "criteria:ticketmaster.com#warm": "right",
+   "steve:imdb-user-rating": "right",
+   "steve:hn-second-search": "right",
+   "phases:automation-exercise#authed": "right",
+   "phases:expandtesting-notes#authed": "right",
+   "phases:parabank#authed": "right"
   }
  }
 }

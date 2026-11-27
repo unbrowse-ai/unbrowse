@@ -476,11 +476,11 @@ pub(crate) static PRIMITIVES: &[Primitive] = &[
         method: "POST",
         path: "/v1/challenge",
         renamed: &[],
-        description: "Pass a person check by eye. Each reply: address, title, text (secrets the vault filled or the owner typed said by name), asks (does it still ask); a picture (image, w x h CSS px, also saved at that path) only of a page that asks and may hold no such secret (as unbrowse_browse's screenshot), else note says why. One step per call: look, click x y, drag x y to_x to_y, hold x y ms (press and hold; 10000 unsaid), type text (into the focused field), press key, wait ms (default 1000, max 20000), done (you think it passed); x, y: CSS px of the picture. Go on until asks is false. site, session as in unbrowse_browse. For a check you can see (checkbox, image grid, slider, hold, queue) when unbrowse_browse says the owner is needed; sign-ins and codes stay ask_owner.",
+        description: "Pass a person check by eye. Each reply: address, title, text (secrets the vault filled or the owner typed said by name), asks (does it still ask); a picture (image, w x h CSS px, also saved at that path) only of a page that asks and may hold no such secret, else note says why. One step per call: look, click x y, drag x y to_x to_y, hold x y ms (10000 unsaid), type text (focused field), press key, wait ms (default 1000, max 20000), done (you think it passed), solve (the node's solver answers it; try first); x, y: CSS px of the picture. Go on until asks is false. site, session as in unbrowse_browse. For a check you can see (checkbox, image grid, slider, hold, queue) when unbrowse_browse says the owner is needed; sign-ins and codes stay ask_owner.",
         schema: || json!({
             "type": "object",
             "properties": {
-                "action": { "type": "string", "enum": ["look", "click", "drag", "hold", "type", "press", "wait", "done"] },
+                "action": { "type": "string", "enum": ["look", "click", "drag", "hold", "type", "press", "wait", "done", "solve"] },
                 "url": { "type": "string", "description": "Opened first; omit for the open page." },
                 "site": { "type": "string" },
                 "session": { "type": "string" },

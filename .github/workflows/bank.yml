@@ -6,7 +6,11 @@
 # 17 to 21 Nov were cancelled by the next push after a median 17.5 minutes, 1,350 runner-minutes for 6 reads that
 # finished (the CI audit of 21 Nov 2026, U6). The nightly run reads the same 30 sites on staging's head.
 #
-# The node is built once (`build`: one archive the jobs below check by its SHA-256 and unpack).
+# The node is built once per platform the jobs run on (`build` for the Mac's writes, `build-linux` for the hard sites:
+# one archive each, which the jobs below check by its SHA-256 and unpack).
+# The hard sites are read from Lewis's Steam Machine (the Linux pool) while a slot is free: a home connection, the one a
+# user has. Every read of 20 to 21 Nov ran on Blacksmith's data-centre Macs, and 16 of the 30 sites came back walled
+# (Etsy, eBay, Stack Overflow and Reddit refuse data-centre addresses on sight), which says nothing about a user's.
 # Reads: ten jobs side by side, three sites each, through the agent API (run_bank.py, one site per call so each site's
 # time is measured); the report job sorts every site into right, wrong, needs a browser, walled or unknown
 # (hard_sites.py) and puts the table in the run's summary. A site that answers wrong is a finding, not a red run: the
@@ -21,20 +25,46 @@ on:
   schedule:
     - cron: '17 19 * * *'
   workflow_dispatch:
+    inputs:
+      # `hard` (the default) is the nightly check by hand. `top1000` reads the top web-facing sites of a Tranco list
+      # (test-banks/popular-sites/top-1000.json, UNB-260) on Lewis's own runners and nothing else: a benchmark run,
+      # report-only, never a gate.
+      scope:
+        description: "hard (the 30 hardest sites) or top1000 (the top web-facing sites)"
+        type: choice
+        options: [hard, top1000]
+        default: hard
+      limit:
+        description: "top1000: read only the first N sites in rank order (0 = all)"
+        type: string
+        default: "0"
+      shards:
+        description: "top1000: jobs the sites are split over"
+        type: string
+        default: "50"
+      parallel:
+        description: "top1000: jobs at once (the pool has 4 slots; fewer if the machine runs short of memory)"
+        type: string
+        default: "4"
 
-# A run started by hand on a branch replaces the one before it there; the nightly run has its own group, so a run by
-# hand never cancels it.
+# A run started by hand on a branch replaces the one before it there, of the same scope; the nightly run has its own
+# group, so a run by hand never cancels it.
 concurrency:
-  group: bank-${{ github.ref }}-${{ github.event_name }}
+  group: bank-${{ github.ref }}-${{ github.event_name }}-${{ inputs.scope || 'hard' }}
   cancel-in-progress: true
 
 permissions: {}
+
+# Model calls use ChatGPT subscription OAuth through agent_cli.py.
+env:
+  AGENT_AUTH: chatgpt
 
 jobs:
   # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
   # machine that starts at once, so a Mac that is asleep or busy never holds a run up. The summary says why for each
   # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
   place:
+    if: inputs.scope != 'top1000'
     name: Where the agent jobs run
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
@@ -56,14 +86,15 @@ jobs:
           RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
           MAC_POOL: ${{ vars.MAC_RUNNER }}
           LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
-        run: python3 -I .github/scripts/place_jobs.py hard_sites=mac writes=mac
+        run: python3 -I .github/scripts/place_jobs.py hard_sites=linux writes=mac
 
   # The node and its browser, built once with no secret and no write permission, and packed into one archive whose
   # SHA-256 every job below checks before it unpacks it (as pr-agent-checks.yml's build job does). Before this each of
   # the ten shards and the writes job built the same commit: a median 88 s a shard, 17 to 21 Nov 2026 (the CI audit of
   # 21 Nov, U8).
   build:
-    if: github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch'
+    # For the writes job only, which runs on staging only.
+    if: github.ref == 'refs/heads/staging' && inputs.scope != 'top1000'
     name: Build the node once
     # A plain build, no agent: on Blacksmith (#787), so the one Mac slot stays for an agent job. Lewis's Mac and
     # Blacksmith's are both Apple-silicon macOS, so the archive runs on whichever the place job picks.
@@ -136,11 +167,83 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
+  # The same build for Linux, for the hard sites: the Steam Machine's slots, or Blacksmith's Ubuntu when none is free.
+  # On Blacksmith, not the pool: a cold build there fills the Steam Machine's data drive, the pool's scarce thing (the
+  # slots stop taking jobs under 8 GB free, 21 Nov 2026). Ubuntu 24.04 on both, as the pool's image is.
+  build-linux:
+    if: github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch'
+    name: Build the node once (Linux)
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.pack.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build tools
+        run: dpkg -s build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl > /dev/null; }
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          toolchain: 1.99.1
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: vendor
+        with:
+          path: unbrowse-node/vendor
+          key: btls-sys-${{ runner.os }}-${{ hashFiles('unbrowse-node/scripts/apply-tls-patch.sh', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-ext.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-pss.patch', 'unbrowse-node/crates/learn/assets/chrome-clienthello/chrome-grease-sigalg.patch') }}
+      - if: steps.vendor.outputs.cache-hit != 'true'
+        working-directory: unbrowse-node
+        run: sh scripts/apply-tls-patch.sh
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: build-cache
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            unbrowse-node/target
+            unbrowse-browser/cli/target
+          key: bank-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}
+          restore-keys: bank-${{ runner.os }}-rust-1.99.1-
+      - name: Build the node and its browser
+        run: |
+          cargo build --locked --manifest-path unbrowse-browser/cli/Cargo.toml
+          cargo build --locked --manifest-path unbrowse-node/Cargo.toml --bin unbrowse-node --bin unb
+      - name: Save the build's folders before anything else runs
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            unbrowse-node/target
+            unbrowse-browser/cli/target
+          key: bank-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}
+      - name: Pack the build
+        id: pack
+        run: |
+          tar -cf "$RUNNER_TEMP/node-build.tar" \
+            unbrowse-node/target/debug/unbrowse-node unbrowse-node/target/debug/unb \
+            unbrowse-browser/cli/target/debug/agent-browser
+          digest=$(shasum -a 256 "$RUNNER_TEMP/node-build.tar" | cut -d' ' -f1)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          ls -l "$RUNNER_TEMP/node-build.tar"
+          echo "sha256 $digest"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bank-node-build-linux
+          path: ${{ runner.temp }}/node-build.tar
+          retention-days: 3
+          if-no-files-found: error
+
   hard-sites:
-    needs: [place, build]
+    needs: [place, build-linux]
     # By hand on any branch too (gh workflow run bank.yml --ref <branch>), as QA is: these jobs hold no secret and
     # write nothing. The writes job, which holds the model credential, stays on staging.
-    if: github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch'
+    if: (github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch') && inputs.scope != 'top1000'
     name: Hard sites ${{ matrix.shard }}
     runs-on: ${{ fromJSON(needs.place.outputs.hard_sites) }}
     timeout-minutes: 100
@@ -161,21 +264,19 @@ jobs:
           node-version: 26
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: bank-node-build
+          name: bank-node-build-linux
           path: ${{ runner.temp }}/node-build
       - name: Unpack the build this run made
         env:
-          DIGEST: ${{ needs.build.outputs.digest }}
+          DIGEST: ${{ needs.build-linux.outputs.digest }}
         run: |
           echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
           tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
-          # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
-          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
-          # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
+          # A debug node looks for its browser where it was built (browse.rs binary()); name the one unpacked here.
           browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
           test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
           echo "UNBROWSE_BROWSER=$browser" >> "$GITHUB_ENV"
-      # A person's Mac keeps what an earlier job left running (a node on the port this job wants): stop it.
+      # A person's machine keeps what an earlier job left running (a node on the port this job wants): stop it.
       - name: Stop what an earlier job left running
         run: sh .github/qa/stop-left-nodes.sh
       - name: Start a scratch node
@@ -229,7 +330,7 @@ jobs:
           if-no-files-found: ignore
 
   report:
-    if: always() && (github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch')
+    if: always() && (github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch') && inputs.scope != 'top1000'
     needs: hard-sites
     name: Hard sites, report
     runs-on: blacksmith-2vcpu-ubuntu-2404
@@ -262,9 +363,173 @@ jobs:
             ${{ runner.temp }}/hard-sites.json
           if-no-files-found: ignore
 
+  # The top web-facing sites (UNB-260), by hand only: `gh workflow run bank.yml --ref <branch> -f scope=top1000
+  # [-f limit=20]`. Every read runs on Lewis's own runners (the steam-machine labels, no Blacksmith fallback: a home
+  # connection, and no paid minutes for hours of reads). The jobs hold no secret, run no agent and write nothing: the
+  # node is a scratch one with no decision model, asked through the agent API by run_bank.py, one site a call. A site
+  # that answers wrong is a finding; the run is red only when no site has a record at all.
+  top-plan:
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'top1000'
+    name: Top sites, the shards
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - id: plan
+        env:
+          SHARDS: ${{ inputs.shards }}
+        run: |
+          case "$SHARDS" in ''|*[!0-9]*) echo "::error::shards is a number, not $SHARDS"; exit 1 ;; esac
+          [ "$SHARDS" -ge 1 ] && [ "$SHARDS" -le 250 ] || { echo "::error::shards is 1 to 250"; exit 1; }
+          echo "shards=$(python3 -c "import json, sys; print(json.dumps(list(range(int(sys.argv[1])))))" "$SHARDS")" >> "$GITHUB_OUTPUT"
+
+  top-sites:
+    needs: [top-plan, build-linux]
+    if: github.event_name == 'workflow_dispatch' && inputs.scope == 'top1000'
+    name: Top sites ${{ matrix.shard }}
+    runs-on: [self-hosted, Linux, X64, steam-machine]
+    # 20 sites a job by default, each SITE_SECS at most: the 30 hardest sites took 134 s a site on average on 22 Nov.
+    timeout-minutes: 420
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.parallel) }}
+      matrix:
+        shard: ${{ fromJSON(needs.top-plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bank-node-build-linux
+          path: ${{ runner.temp }}/node-build
+      - name: Unpack the build this run made
+        env:
+          DIGEST: ${{ needs.build-linux.outputs.digest }}
+        run: |
+          echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
+          tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
+          # The pool's data drive is the scarce thing (its slots stop a job under 1.5 GB free): the archive goes once
+          # it is unpacked.
+          rm -f "$RUNNER_TEMP/node-build/node-build.tar"
+          browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
+          test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
+          echo "UNBROWSE_BROWSER=$browser" >> "$GITHUB_ENV"
+      - name: Stop what an earlier job left running
+        run: sh .github/qa/stop-left-nodes.sh
+      - name: Start a scratch node
+        run: |
+          dir="$RUNNER_TEMP/b"
+          echo "SCRATCH=$dir" >> "$GITHUB_ENV"
+          sh test-banks/popular-sites/scratch-node.sh "$dir"
+          echo "::add-mask::$(cat "$dir/token")"
+      - name: Reads
+        timeout-minutes: 400
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: ${{ inputs.shards }}
+          LIMIT: ${{ inputs.limit }}
+          SEED: ${{ github.run_id }}
+          SITE_SECS: 900
+        run: |
+          out="$RUNNER_TEMP/top"
+          mkdir -p "$out"
+          cd test-banks/popular-sites
+          case "$LIMIT" in ''|*[!0-9]*) echo "::error::limit is a number, not $LIMIT"; exit 1 ;; esac
+          sites=$(python3 top_sites.py shard --list top-1000.json --shard "$SHARD" --of "$SHARDS" --limit "$LIMIT")
+          echo "Shard $SHARD: $sites"
+          IFS=,
+          for site in $sites; do
+            start=$(date +%s)
+            perl -e 'alarm shift; exec @ARGV' "$SITE_SECS" python3 run_bank.py run --node http://127.0.0.1:17810 --token-file "$SCRATCH/token" --cases top-1000.json \
+              --sites "$site" --seed "$SEED" --out "$out/reads-$SHARD.json" --node-home "$SCRATCH/home/node" \
+              --node-log "$SCRATCH/node.log" --guard-log "$SCRATCH/guard.log" || echo "::warning::$site stopped short"
+            jq -nc --arg site "$site" --argjson seconds "$(( $(date +%s) - start ))" --argjson cap "$SITE_SECS" \
+              '{site: $site, seconds: $seconds, capped: ($seconds >= $cap)}' >> "$out/times-$SHARD.jsonl"
+          done
+      # The most memory this job's runner held (its systemd unit's cgroup, which an ephemeral runner starts afresh for
+      # each job): what says whether four jobs at once fit the machine.
+      - name: Memory
+        if: always()
+        continue-on-error: true
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          cg="/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup | head -1)"
+          while [ "$cg" != /sys/fs/cgroup ] && ! { [ -f "$cg/memory.peak" ] && case "$cg" in *gh-runner*|*runner*.service) true ;; *) false ;; esac; }; do cg=$(dirname "$cg"); done
+          peak=$(cat "$cg/memory.peak" 2> /dev/null || echo 0)
+          mkdir -p "$RUNNER_TEMP/top"
+          jq -nc --arg shard "$SHARD" --arg cgroup "${cg#/sys/fs/cgroup}" --argjson peak "$peak" --arg runner "$RUNNER_NAME" \
+            '{shard: $shard, runner: $runner, cgroup: $cgroup, peak_mb: (($peak / 1048576) | floor)}' | tee "$RUNNER_TEMP/top/memory-$SHARD.json"
+      - name: Census
+        if: always()
+        continue-on-error: true
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          python3 test-banks/popular-sites/run_bank.py census --node-home "$SCRATCH/home/node" --out "$RUNNER_TEMP/top/reads-$SHARD.json" \
+            --commit "$GITHUB_SHA" --census "$RUNNER_TEMP/top/census-$SHARD.json" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Stop the scratch node
+        if: always()
+        run: sh .github/qa/stop-left-nodes.sh || true
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: top-sites-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/top/
+            ${{ runner.temp }}/b/guard.log
+          if-no-files-found: ignore
+
+  top-report:
+    if: always() && github.event_name == 'workflow_dispatch' && inputs.scope == 'top1000'
+    needs: top-sites
+    name: Top sites, report
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: test-banks/popular-sites
+      # Data only: the reads files are JSON this job parses, never runs.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: top-sites-*
+          path: ${{ runner.temp }}/top
+      - name: The report's own tests
+        run: python3 -m unittest discover -s test-banks/popular-sites -p 'test_*_sites.py' -v
+      - name: Report
+        env:
+          LIMIT: ${{ inputs.limit }}
+        run: |
+          python3 test-banks/popular-sites/top_sites.py report --list test-banks/popular-sites/top-1000.json --limit "$LIMIT" \
+            --reads "$RUNNER_TEMP/top" --md "$RUNNER_TEMP/top-sites.md" --json "$RUNNER_TEMP/top-sites.json" > /dev/null
+          # Answers are a site's words: nothing of the node's or a person's goes out with them.
+          perl -pi -e 's/\bunb_[A-Za-z0-9_.-]+/[redacted]/g; s/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})/[redacted]/g; s/\bsk-ant-[A-Za-z0-9_-]+/[redacted]/g;' \
+            "$RUNNER_TEMP/top-sites.md" "$RUNNER_TEMP/top-sites.json"
+          { echo "### The top web-facing sites ($GITHUB_SHA)"; cat "$RUNNER_TEMP/top-sites.md"; } >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: top-sites-report
+          path: |
+            ${{ runner.temp }}/top-sites.md
+            ${{ runner.temp }}/top-sites.json
+          if-no-files-found: ignore
+
   writes:
     needs: [place, build]
-    if: github.ref == 'refs/heads/staging'
+    if: github.ref == 'refs/heads/staging' && inputs.scope != 'top1000'
     name: Writes
     runs-on: ${{ fromJSON(needs.place.outputs.writes) }}
     timeout-minutes: 90
@@ -314,39 +579,27 @@ jobs:
             '{mcpServers: {unbrowse: {command: $unb, args: ["mcp"], env: {UNBROWSE_NODE: "http://127.0.0.1:17810", UNBROWSE_AGENT_TOKEN: $token}}}}' \
             > "$RUNNER_TEMP/mcp.json"
 
-      # The Claude CLI the credential is asked with: the locked one, its lifecycle scripts off, in a step with no secret.
-      - name: Install the pinned Claude CLI
+      - name: The model CLI (opencode)
         run: |
-          npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
-          # The CLI is a stub until its own install.cjs, from the same locked package, links in the native binary of
-          # the platform's locked optional package; skipped, every ask says "claude native binary not installed" (UNB-235).
-          node .github/tools/claude-cli/node_modules/@anthropic-ai/claude-code/install.cjs
-          .github/tools/claude-cli/node_modules/.bin/claude --version
-      # A token that is set can still refuse (a weekly limit): the Writes use the first one that answers.
-      - name: Pick the Claude credential that answers
-        id: credential
-        env:
-          CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
-          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+          npm i --silent --no-audit --no-fund --prefix "$RUNNER_TEMP/agent-cli" @opencode/cli@2.4.1
+          echo "$RUNNER_TEMP/agent-cli/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Writes
         id: writes
         continue-on-error: true
-        uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_code_oauth_token: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ github.token }}
-          prompt: |
-            Read .github/qa/writes.md and do what it says. RUN: ${{ github.run_id }}.
-          claude_args: >-
-            --mcp-config ${{ runner.temp }}/mcp.json
-            --allowedTools "mcp__unbrowse__unbrowse_do,mcp__unbrowse__unbrowse_browse,mcp__unbrowse__unbrowse_search,mcp__unbrowse__unbrowse_call,mcp__unbrowse__unbrowse_judge,mcp__unbrowse__unbrowse_report,Read,Write"
-            --disallowedTools "Bash,WebFetch,WebSearch,Edit,NotebookEdit,Glob,Grep,Read(/${{ runner.temp }}/**)"
-            --max-turns 80
+        env:
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+          PROMPT: 'Read .github/qa/writes.md and do what it says. RUN: ${{ github.run_id }}.'
+        run: |
+          "$GITHUB_WORKSPACE/.github/scripts/agent_cli.py" -p "$PROMPT" --output-format stream-json --verbose \
+            --strict-mcp-config --mcp-config "$RUNNER_TEMP/mcp.json" --setting-sources project \
+            --tools Read,Write \
+            --allowedTools "mcp__unbrowse__unbrowse_do,mcp__unbrowse__unbrowse_browse,mcp__unbrowse__unbrowse_search,mcp__unbrowse__unbrowse_call,mcp__unbrowse__unbrowse_judge,mcp__unbrowse__unbrowse_report,Read,Write" \
+            --disallowedTools "Bash,WebFetch,WebSearch,Edit,NotebookEdit,Glob,Grep,Read(/$RUNNER_TEMP/**),Write(/$RUNNER_TEMP/**)" \
+            --max-turns 80 --no-session-persistence \
+            > "$RUNNER_TEMP/writes-execution.jsonl" < /dev/null
 
       - name: Scrub the report
         if: always()

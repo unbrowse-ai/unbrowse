@@ -10,8 +10,8 @@ reach websites; never fetch a site any other way.
 
 This run does only the checks the prompt names as `CHECKS` (for example `1,2,3`), in that order, and reports only
 those: other runs, each with a node and a machine of its own, do the rest at the same time. A check that leans on an
-earlier one is always in the same run. Where a check says "No window is open yet", none is: the window opens only in
-the run given checks 25 to 27.
+earlier one is always in the same run. Where a check says "No window is open yet", none is: a window opens only at
+check 25, or at check 27, which runs after check 7 and opens its own.
 
 Each check walks one or more of the journeys in `.github/qa/journeys.json` (its `Journeys:` line): what the product
 promises a person. Judge whether the promise held, as that person would.
@@ -48,10 +48,12 @@ is `blocked` too, with the tool's own words. Anything else that doesn't work is 
      on the signed-in site before leaving it, or on the login page right after filling: refused, or no password in
      the reply.
     Journeys: refuse-unsafe-commands.
-7. **asking the owner reaches them, or says at once it can't.** No window is open yet (checks 25 to 27 open it). With the login page from check 4 open, `unbrowse_browse` with
+7. **asking the owner reaches them, or says at once it can't.** No window is open yet (check 25 or 27 opens one, later).
+   Start a fresh browser session `qa-no-window` and open `https://the-internet.herokuapp.com/login` in it.
+   In that session, call `unbrowse_browse` with
    `["ask_owner", "qa: no one will answer this", "--timeout", "10"]`. Within a few seconds (well before the ten) the
    reply is an error saying no Unbrowse window is open and that nothing was asked; it is not a ten-second wait, an
-   `owner: no_answer`, or a hang. Then `["snapshot", "-i"]` works again.
+   `owner: no_answer`, or a hang. Then `["snapshot", "-i"]` works in that session. Take its check picture there before closing it.
     Journeys: ask-owner-no-window.
 8. **an unknown goal without a page.** `unbrowse_do` with goal `qa check a goal no route has` and no url: a clear
    error that says what's missing, not a crash or a hang.
@@ -162,19 +164,26 @@ is `blocked` too, with the tool's own words. Anything else that doesn't work is 
     what it prints.
     Journeys: install-npm-finds-programs, skill-install, connect-claude-code.
 25. **the window opens on the node.** `window` `open`: the window is open and its picture shows Unbrowse (its first-run
-    screen with the terms, or the Node screen with this node). Look at the picture and say what it shows.
+    screen, Welcome, or the Node screen with this node). Look at the picture and say what it shows.
     Journeys: window-opens-on-node.
 26. **every screen of the window draws.** With the window open, `window` `click` with `text` set to each name in its
-    sidebar in turn: Live, Browser, My routes, Money, Vault, Agent access, Activity, Leaderboard, Settings, then Node
+    sidebar in turn: Live, Browser, My routes, Money, Vault, Agents, Activity, Leaderboard, Settings, then Node
     (one call each, `name` the screen). Each picture shows that screen (its name in the top bar after "this node /"),
-    a different one each time and none blank. A new node first shows its terms (Open my node), then, in that same
-    window only, a sign-in (Skip for now), then, when it finds agent apps here, Connect your agents (Skip): click
-    through what shows as its owner would, and say so. A click whose text isn't drawn comes back as an error naming it: that screen is missing, `fail`.
+    a different one each time and none blank. A new node first shows setting up, one step at a time: Welcome (Get
+    started), its terms (Agree and continue), then, in that same window only, a sign-in (Skip for now), then the AI
+    apps found here (Skip, or Next when none is found), ChatGPT and Claude on the web (Not now) and You're set (Open
+    Unbrowse): click through the controls the pictures show. The snapshot process can reopen after an onboarding
+    transition has been saved. If a setup click reports `TextNotFound`, inspect the current picture attached to the
+    error, or use `window` `shot` if the reply has no picture. Report the error and record the picture. Continue only
+    if the picture shows the next setup step or app screen. If it still shows the same step, report `fail`.
+    A new node then lists Agents, Money, Vault and Settings. Click More screens to reveal the full sidebar.
+    A required sidebar click that errors or fails to picture its named screen makes the check `fail`.
     Journeys: window-screens.
-27. **an agent that needs the owner asks in the window.** With the window open: `unbrowse_browse` in session `qa-w`
-    with `["open", "https://the-internet.herokuapp.com/login"]`, then `window` `shot` with `after_s` `12` and `name`
-    `ask` (drawn twelve seconds on, while the ask waits), then at once `unbrowse_browse` in `qa-w` with `["ask_owner", "qa: please sign in (no one will answer)",
-    "--timeout", "15"]`. The ask reaches the window: its reply is `owner: no_answer` after about fifteen seconds (no one
+27. **an agent that needs the owner asks in the window.** `window` `open` first if no window is open (this check runs
+    in a shard of its own, apart from 25 and 26): then `unbrowse_browse` in session `qa-w`
+    with `["open", "https://the-internet.herokuapp.com/login"]`, then `window` `shot` with `when_owner_asks` `true` and
+    `name` `ask` (drawn when the node reports a pending owner request), then at once `unbrowse_browse` in `qa-w` with `["ask_owner", "qa: please sign in (no one will answer)",
+    "--timeout", "30"]`. The ask reaches the window: its reply is `owner: no_answer` after about thirty seconds (no one
     pressed anything), not check 7's "no Unbrowse window is open". The picture taken while it waited shows the window
     with the agent's ask: a note naming the agent and the site (`qa needs you on the-internet.herokuapp.com`). Then `["close"]` in `qa-w` and `window` `close`.
     Journeys: ask-owner-in-window.

@@ -36,6 +36,18 @@ export type Ledger = {
 /** One line of the node's activity log (~/.unbrowse/activity.jsonl), as the pane shows it. */
 export type Activity = { at: number; who: string; site: string; what: string; kind: string; result: string; ms: number | null; note: string }
 
+/** The node's balance as `unbrowse-node money` prints it: what the band and the pane show, and the Add funds page. */
+export type Money = {
+  /** test: a test network's money; not_open: payments aren't open on this network; offline or starting: no balance */
+  state: 'open' | 'test' | 'not_open' | 'offline' | 'starting'
+  /** USDC, a decimal string as the node gives it; null when it has none to say */
+  balance: string | null
+  /** The smallest top-up that starts the node, when it can't start yet */
+  needed: string | null
+  /** The node's own Add funds page (`{site}/fund/#node=…`), the one the window's balance badge opens */
+  addFundsUrl: string | null
+}
+
 /** The node's local routes, as the band, the prompt section and the route tools read them. */
 export type RouteIndex = { count: number; sites: { site: string; whats: string[] }[] }
 
@@ -81,6 +93,7 @@ declare module 'claude-code' {
       demand: Shaped<Record<string, number>>
       watches: Shaped<Watch[]>
       fires: Shaped<WatchFire[]>
+      money: Shaped<Money | null>
     }
   }
 }

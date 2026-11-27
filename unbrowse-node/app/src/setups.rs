@@ -1154,3 +1154,7 @@ pub(crate) mod tests {
         assert_eq!(counted(""), 0);
     }
 }
+
+#[cfg(test)]
+#[path = "setups_cov_tests.rs"]
+mod setups_cov_tests;

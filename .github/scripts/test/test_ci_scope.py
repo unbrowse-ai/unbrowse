@@ -216,5 +216,33 @@ class PassedTest(unittest.TestCase):
         self.assertIn("needs.coins-spec.result == 'success'", jobs["coins-spec-all"]["steps"][-1]["if"])
 
 
+class QaScopeTest(unittest.TestCase):
+    def test_non_runtime_folders_only_skip_pr_qa(self):
+        for paths in (["docs/README.md"], ["papers/params.toml", "unbrowse-settlement/src/Pool.sol"],
+                      ["unbrowse-dashboard/app.ts", "unbrowse-telemetry/schema.json", "unbrowse-rpc/index.ts", "antithesis/Dockerfile"]):
+            runs_qa, _ = module.qa_scope(paths, "pull_request")
+            self.assertFalse(runs_qa, paths)
+
+    def test_any_runtime_skill_workflow_or_unknown_file_runs_pr_qa(self):
+        for path in ("unbrowse-node/app/src/main.rs", "unbrowse-browser/cli/src/main.rs", "unbrowse-node/window/src/main.zig",
+                     "skills/unbrowse/SKILL.md", "unbrowse-sdk/typescript/src/index.ts", ".github/workflows/pr-check.yml",
+                     ".github/qa/mcp_check.py", "test-banks/gate/slice.json", "AGENTS.md", "new-folder/file.txt"):
+            runs_qa, _ = module.qa_scope(["docs/README.md", path], "pull_request")
+            self.assertTrue(runs_qa, path)
+
+    def test_empty_incomplete_or_non_pr_runs_qa(self):
+        self.assertTrue(module.qa_scope([], "pull_request")[0])
+        for event in ("push", "workflow_dispatch", "schedule"):
+            self.assertTrue(module.qa_scope(["docs/README.md"], event)[0], event)
+        out = io.StringIO()
+        with patch.object(sys, "stdin", io.StringIO("docs/README.md\n")), redirect_stdout(out), redirect_stderr(io.StringIO()):
+            module.main(["--event", "pull_request", "--complete", "false", "--qa"])
+        self.assertEqual(out.getvalue().strip(), "qa=true")
+        out = io.StringIO()
+        with patch.object(sys, "stdin", io.StringIO("docs/README.md\n")), redirect_stdout(out), redirect_stderr(io.StringIO()):
+            module.main(["--event", "pull_request", "--complete", "true", "--qa"])
+        self.assertEqual(out.getvalue().strip(), "qa=false")
+
+
 if __name__ == "__main__":
     unittest.main()

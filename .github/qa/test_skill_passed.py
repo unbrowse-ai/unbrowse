@@ -9,12 +9,14 @@ itself (a second job, with no secret and no checkout, does).
 
 Read as text: the check's venv has no YAML library (test_qa_workflow.py).
 """
+import os
 import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import skill_trigger  # noqa: E402
@@ -25,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github/workflows"
 MISS = "steps.passed.outputs.cache-hit != 'true'"
 KEY_STEP = 'key=$(python3 .github/qa/skill_trigger.py --key)\n          echo "key=$key" >> "$GITHUB_OUTPUT"'
-SPENDS = re.compile(r"claude-cli|claude-credential\.sh|\"\$cli\" -p|skill_trigger\.py --(?:plan|score)|secrets\.")
+SPENDS = re.compile(r"@opencode/cli|claude-cli|claude-credential\.sh|\"\$cli\" -p|skill_trigger\.py --(?:plan|score)|secrets\.")
 
 
 def condition(step):
@@ -81,6 +83,16 @@ class Key(unittest.TestCase):
         repo.write("skills/new-skill/SKILL.md", "a new skill")
         self.assertNotIn(repo.commit(), seen, "a new skill changes the key")
 
+    def test_subscription_auth_and_inference_settings_invalidate_the_skill_verdict(self):
+        repo = Repo()
+        with patch.dict(os.environ, {"AGENT_AUTH": "console"}):
+            console = skill_trigger.inputs_key(repo.root)
+        with patch.dict(os.environ, {"AGENT_AUTH": "ChatGPT"}):
+            subscription = skill_trigger.inputs_key(repo.root)
+            self.assertNotEqual(subscription, console)
+            repo.write(".github/scripts/agent_cli.py", "changed model or authorization settings")
+            self.assertNotEqual(repo.commit(), subscription)
+
     def test_a_missing_input_is_an_error_never_a_shorter_key(self):
         repo = Repo()
         repo.git("rm", "-q", ".github/qa/skill-evals.json")
@@ -116,12 +128,18 @@ class Workflows(unittest.TestCase):
                 self.assertIn("key: ${{ steps.inputs.outputs.key }}", steps[look])
                 self.assertIn("lookup-only: true", steps[look])
                 self.assertNotIn("restore-keys", steps[look], "only an exact match is a pass")
-                self.assertFalse(any(SPENDS.search(code(s)) for s in steps[1:key]), "nothing is spent before the lookup")
+                preflight = [s for s in steps[1:key] if "name: Check the subscription OAuth grant" in s]
+                self.assertEqual(len(preflight), 1)
+                self.assertEqual(condition(preflight[0]), "")
+                self.assertEqual(preflight[0].strip().splitlines()[-1].strip(),
+                                 "run: python3 -I .github/scripts/agent_cli.py --check-subscription")
+                self.assertFalse(any(SPENDS.search(code(s)) for s in steps[1:key] if s not in preflight),
+                                 "nothing is spent before the lookup")
                 self.assertEqual(unguarded(steps), [])
 
     def test_the_guard_check_can_fail(self):
         steps = jobs(self.qa)["skills"]["steps"]
-        broken = [s.replace(" && " + MISS, "") if "name: Run skill trigger sessions" in s else s for s in steps]
+        broken = [s.replace("        if: " + MISS + "\n", "") if "name: Run skill trigger sessions" in s else s for s in steps]
         self.assertEqual(unguarded(broken), ["- name: Run skill trigger sessions"])
         broken = [s.replace(" && " + MISS, "") if "name: Verdict" in s else s for s in steps]
         self.assertEqual(unguarded(broken), ["- name: Verdict"])
@@ -129,7 +147,7 @@ class Workflows(unittest.TestCase):
     def test_the_nightly_run_asks_the_model_whatever_was_kept(self):
         steps = jobs(self.qa)["skills"]["steps"]
         look = condition(next(s for s in steps if "id: passed" in s))
-        self.assertEqual(look, "steps.auth.outputs.ok == 'true' && github.event_name != 'schedule'")
+        self.assertEqual(look, "github.event_name != 'schedule'")
         ok = {"steps": {"auth": {"outputs": {"ok": "true"}}}}
         self.assertFalse(evaluate(look, {**NIGHTLY, **ok}))
         self.assertTrue(evaluate(look, {**PUSH, **ok}))

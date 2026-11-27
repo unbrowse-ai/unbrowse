@@ -342,7 +342,7 @@ class ChainStatus(TypedDict):
 
 
 class _ChallengeArgsRequired(TypedDict):
-    action: Literal["look", "click", "drag", "hold", "type", "press", "wait", "done"]
+    action: Literal["look", "click", "drag", "hold", "type", "press", "wait", "done", "solve"]
 
 
 class ChallengeArgs(_ChallengeArgsRequired, total=False):

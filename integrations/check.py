@@ -185,10 +185,19 @@ if r.returncode:
 
 # ---- links in the READMEs, and words that are no longer true ----
 
+# Where an agent key is made: `unbrowse agent new <name>` on any install, or the window's Agents screen, whose Add agent
+# shows once Settings has Show advanced screens on (window/src/screens/access.zig). Money has no Add agent of its own.
+KEY_PLACE = "`unbrowse agent token` prints the first key's token; `unbrowse agent new <name>` makes another, as the app's Agents screen does (Add agent)"
 STALE = {
-    "Wallet, New agent key": "the window's agent keys are under Money (Add agent); `unbrowse agent token` prints the first",
-    "pays_usd": "the node pays a route's fee itself; no tool takes pays_usd",
+    "Wallet, New agent key": f"there is no Wallet screen: {KEY_PLACE}",
+    "Money, Add agent": f"Money has no Add agent: {KEY_PLACE}",
+    "Money (Add agent": f"Money has no Add agent: {KEY_PLACE}",
+    "window's New agent key": f"the window's button is Add agent, on Agents: {KEY_PLACE}",
+    # unbrowse-core is private: its releases answer 404 to everyone outside the org. Releases are public on unbrowse-ai/unbrowse.
+    "unbrowse-core/releases": "unbrowse-core is private, so outsiders get a 404: link https://github.com/unbrowse-ai/unbrowse/releases",
 }
+# The plugins only: the SDKs still accept pays_usd from older code, and ignore it with a warning.
+STALE_HERE = {"pays_usd": "the node pays a route's fee itself; no tool takes pays_usd"}
 for md in [*HERE.glob("**/*.md")]:
     if SKIP & set(md.relative_to(HERE).parts):
         continue
@@ -199,11 +208,15 @@ for md in [*HERE.glob("**/*.md")]:
         path = target.split("#", 1)[0]
         if path and not (md.parent / path).exists():
             fail(f"{rel(md)}: link to {target} doesn't resolve")
-for p in walk(HERE):
+# What a developer reads on the way to a first call: the integrations, the SDKs, the README, the docs, the skill and the
+# installers' notes.
+WORDED = [HERE, REPO / "unbrowse-sdk", REPO / "docs", REPO / "skills", REPO / "README.md", REPO / ".github" / "scripts"]
+for p in (q for root in WORDED for q in (walk(root) if root.is_dir() else [root])):
     # The tests name the stale words to check they're gone.
     if p.is_file() and p.suffix in {".md", ".json", ".ts", ".py", ".yaml", ".sh", ".toml"} and p.name != "check.py" and not {"test", "tests"} & set(p.parts):
         text = p.read_text(encoding="utf-8")
-        for words, why in STALE.items():
+        stale = {**STALE, **STALE_HERE} if HERE in p.parents else STALE
+        for words, why in stale.items():
             if words in text:
                 fail(f"{rel(p)}: says {words!r}, which is no longer true: {why}")
 

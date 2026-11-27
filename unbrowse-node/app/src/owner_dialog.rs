@@ -994,3 +994,7 @@ mod tests {
         assert_eq!(plain("a\tb\nc\u{7f}\u{feff}"), "a b\nc");
     }
 }
+
+#[cfg(test)]
+#[path = "owner_dialog_cov_tests.rs"]
+mod owner_dialog_cov_tests;

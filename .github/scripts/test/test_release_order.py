@@ -5,6 +5,9 @@ release.
 """
 
 import pathlib
+import shlex
+import subprocess
+import tempfile
 import unittest
 
 import yaml
@@ -25,6 +28,7 @@ class ReleaseOrder(unittest.TestCase):
 
     def test_no_github_release_before_npm_has_the_release(self):
         self.assertIn("npm", needs(self.jobs, "release"))
+        self.assertIn("needs.npm.result == 'success'", self.jobs["release"]["if"])
         self.assertNotIn("release", needs(self.jobs, "npm"))
 
     def test_only_the_last_job_makes_a_github_release(self):
@@ -35,6 +39,73 @@ class ReleaseOrder(unittest.TestCase):
         self.assertEqual(self.jobs["version"]["outputs"]["version"], "${{ steps.free.outputs.version }}")
         ids = [s.get("id") for s in self.jobs["version"]["steps"]]
         self.assertLess(ids.index("next"), ids.index("free"))
+
+    def test_only_the_public_release_repository_can_publish(self):
+        public = "github.repository == 'unbrowse-ai/unbrowse' && toJSON(github.event.repository.private) == 'false'"
+        for job in ("npm", "npm-next"):
+            with self.subTest(job=job):
+                self.assertIn(public, self.jobs[job]["if"])
+                self.assertEqual(self.jobs[job]["environment"], "release")
+        publish = (RELEASE.parents[2] / ".github/scripts/npm-publish.sh").read_text()
+        self.assertIn('--provenance', publish)
+
+    def test_private_and_dry_run_artifacts_get_the_same_checks_as_public_packages(self):
+        checks = self.jobs["verify-packages"]
+        self.assertEqual(checks["needs"], self.jobs["npm"]["needs"])
+        self.assertEqual(checks["permissions"], {"contents": "read"})
+        self.assertNotIn("environment", checks)
+        self.assertIn("github.repository != 'unbrowse-ai/unbrowse'", checks["if"])
+        self.assertIn("inputs.dry_run == true", checks["if"])
+        self.assertEqual(checks["steps"], self.jobs["npm"]["steps"][:-2])
+        self.assertNotIn("npm-publish.sh", "\n".join(s.get("run", "") for s in checks["steps"]))
+
+    def test_the_runbook_dispatches_publication_in_the_public_repository(self):
+        operations = (RELEASE.parents[2] / "docs/OPERATIONS.md").read_text()
+        self.assertIn("gh workflow run release.yml --repo unbrowse-ai/unbrowse --ref release/X.Y", operations)
+        self.assertNotIn("gh workflow run release.yml --repo unbrowse-ai/unbrowse-core --ref release/X.Y", operations)
+        variable_commands = [line for line in operations.splitlines() if line.startswith("gh variable ")]
+        self.assertEqual(len(variable_commands), 3)
+        for command in variable_commands:
+            words = shlex.split(command)
+            self.assertEqual(words[words.index("--repo") + 1], "unbrowse-ai/unbrowse")
+
+    def test_public_ci_dispatches_from_the_checked_branch_and_commit(self):
+        dispatch = self.jobs["hand-over"]
+        self.assertEqual(dispatch["permissions"], {"actions": "write"})
+        self.assertNotIn("environment", dispatch)
+        self.assertIn("github.event.workflow_run.event == 'push'", dispatch["if"])
+        self.assertIn("github.event.workflow_run.head_repository.full_name == github.repository", dispatch["if"])
+        self.assertIn("github.event.workflow_run.conclusion == 'success'", dispatch["if"])
+        self.assertIn("github.repository != 'unbrowse-ai/unbrowse'", self.jobs["version"]["if"])
+        step, = dispatch["steps"]
+        self.assertEqual(step["env"]["SOURCE_REF"], "${{ github.event.workflow_run.head_branch }}")
+        self.assertEqual(step["env"]["SOURCE_SHA"], "${{ github.event.workflow_run.head_sha }}")
+        with tempfile.TemporaryDirectory() as folder:
+            gh = pathlib.Path(folder) / "gh"
+            gh.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
+            gh.chmod(0o700)
+            commit = "a" * 40
+            run = subprocess.run(["/bin/bash", "-e", "-c", step["run"]], text=True, capture_output=True, env={
+                "PATH": folder + ":/usr/bin:/bin", "GITHUB_REPOSITORY": "unbrowse-ai/unbrowse",
+                "SOURCE_REF": "staging", "SOURCE_SHA": commit,
+            }, check=True)
+        self.assertEqual(run.stdout.splitlines(), ["workflow", "run", "release.yml", "--repo", "unbrowse-ai/unbrowse",
+                                                  "--ref", "staging", "-f", f"sha={commit}"])
+
+    def test_release_refuses_to_attest_a_different_commit(self):
+        steps = self.jobs["version"]["steps"]
+        step = steps[0]
+        self.assertEqual(step["name"], "The checked commit is still the branch tip")
+        self.assertEqual(step["if"], "inputs.sha != ''")
+        self.assertEqual(step["env"]["WANT"], "${{ inputs.sha }}")
+        self.assertEqual(steps[1]["with"]["ref"], "${{ github.event.workflow_run.head_sha || github.sha }}")
+        approved = "a" * 40
+        for branch_tip, code in ((approved, 0), ("b" * 40, 1)):
+            with self.subTest(branch_tip=branch_tip):
+                result = subprocess.run(["/bin/bash", "-e", "-c", step["run"]], text=True, capture_output=True,
+                                        env={"PATH": "/usr/bin:/bin", "GITHUB_SHA": branch_tip, "WANT": approved})
+                self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+        self.assertIn("branch moved after CI", result.stdout)
 
     def test_every_published_file_is_checked_against_the_job_that_made_it(self):
         # The program archives and browser programs are recorded by `platforms`, which runs nothing from a package
@@ -54,15 +125,33 @@ class ReleaseOrder(unittest.TestCase):
             return "\n".join(s.get("run", "") for s in steps[:publish])
 
         release = checks("release")
-        self.assertIn('verify-files dist --expected "$FILES" --expected "$PROGRAMS"', release)
+        self.assertIn('verify-files dist --expected "$FILES" --expected "$PROGRAMS" --expected "$INSTALLERS"', release)
         env = next(s["env"] for s in self.jobs["release"]["steps"] if "verify-files" in s.get("run", ""))
         self.assertEqual(env["PROGRAMS"], "${{ needs.platforms.outputs.programs }}")
         self.assertEqual(env["FILES"], "${{ needs.sdks.outputs.files }}")
+        self.assertEqual(env["INSTALLERS"], "${{ needs.installers.outputs.installers }}")
         npm = checks("npm")
         self.assertIn('verify-files dist --expected "$FILES"', npm)
         self.assertIn('verify-files updates --expected "$UPDATES"', npm)
         env = next(s["env"] for s in self.jobs["npm"]["steps"] if "verify-files" in s.get("run", ""))
         self.assertEqual(env["UPDATES"], "${{ needs.pack-updates.outputs.updates }}")
+
+    def test_one_release_carries_every_installer_and_waits_for_its_device_test(self):
+        # One release is the whole download page (Lewis, 2026-11-23: two families of releases, an installer one and a
+        # disk image one, and a site that pointed at an old one). The Windows setup and the Linux packages are packed
+        # into the release beside the Mac disk image, from the archives the machines made, and npm publishes nothing
+        # before all three installed on a fresh machine of their kind.
+        installers = self.jobs["installers"]
+        self.assertIn("platforms", needs(self.jobs, "installers"))
+        packs = "\n".join(s.get("run", "") for s in installers["steps"])
+        self.assertIn("package-windows-installer.sh", packs)
+        self.assertIn("package-linux-deb.sh", packs)
+        self.assertIn("record-files installers --key installers", next(s for s in installers["steps"] if s.get("id") == "files")["run"])
+        self.assertEqual(self.jobs["installer-device-test"]["uses"], "./.github/workflows/installers-device-test.yml")
+        self.assertIn("installers", needs(self.jobs, "installer-device-test"))
+        for job in ("npm", "release"):
+            self.assertIn("installer-device-test", needs(self.jobs, job), f"{job} publishes before the installers installed")
+        self.assertIn("installers", needs(self.jobs, "release"))
 
     def test_the_python_build_tools_install_only_from_hashes(self):
         # The wheels and sdist are built by `build` and the project's backend: installed from pinned hashes, with no

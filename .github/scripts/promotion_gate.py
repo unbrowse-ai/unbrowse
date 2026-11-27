@@ -6,7 +6,11 @@
   promotion_gate.py check [--coverage summary.json] [--bank-results results.jsonl] [--bank test-banks/gate/bank.json]
                           [--baseline test-banks/gate/promoted.json] [--rereads test-banks/gate/rereads.json]
                           [--slice test-banks/gate/slice.json] [--coverage-only | --tasks-only] [--md verdict.md]
+                          [--top1k-results results.jsonl --top1k-meta meta.json [--top1k-floor promoted-1k.json]
+                           [--top1k-rereads rereads.json] [--top1k-only]]
   promotion_gate.py record --bank-results results.jsonl --bank bank.json --build vX.Y.Z --out promoted.json
+  promotion_gate.py record-1k --top1k-results results.jsonl --top1k-meta meta.json --build vX.Y.Z
+                              --out test-banks/gate/promoted-1k.json
   promotion_gate.py ratchet --head summary.json [--base staging-summary.json ...] --diff pr.diff
                             [--lcov PART=lcov.info ...] [--istanbul PART=coverage.json ...] [--coveragepy PART=coverage.json ...]
                             [--exclusions docs/COVERAGE-EXCLUSIONS.md] [--root .] [--md ratchet.md]
@@ -28,6 +32,19 @@ set aside now, or has left bank.json, is a regression, named. With --slice, only
 read, against the slice's reference verdicts when promoted.json has none for them, and there is no floor: that is the
 check a pull request gets.
 
+With --top1k-results, `check` also judges the bench (UNB-307): the top 1,000 sites of
+test-banks/popular-sites/top-1000.json, cold and warm, 2,000 tasks, run by gate-bank.yml (gate-1k.yml on a release
+branch's push). Lewis, 25 Nov 2026, chose rates, not every task. It refuses:
+  - fewer tasks right than the floor (promoted-1k.json, the last promoted build's run, `record-1k`);
+  - a higher confidently wrong rate (confidently wrong over answered: every answer the judge read) than the floor's;
+  - a run not measured: a task with no result, or one still infra or error after its run again; a task whose first
+    verdict measured nothing or was not the floor's that was never run again (a changed verdict is rerun once before
+    it counts, and the second verdict is the one counted); a run on another kind of runner than the floor's (a data
+    centre's address is walled where another is not); a run that does not say where it ran; no floor at all.
+A task the site blocked (set_aside) is counted apart and never a pass. A task right on the floor and still not right
+after its run again does not refuse by itself (the rates do): it is written to --top1k-rereads, for a person to re-read
+that site by hand, one at a time.
+
 `ratchet` is the check every pull request to staging gets, and it blocks the merge (Lewis, 18 Nov 2026: a hard block,
 not a report). It refuses:
   - a gated part whose line coverage falls below staging's by RATCHET_TOLERANCE points or more, naming the files that
@@ -44,7 +61,8 @@ the first RATCHET_BASES that measured it, so a staging run that lost a job, or w
 request's did not, is not held against it. Staging is read with the pull request's exclusions, so a newly approved row is not a fall.
 
 `record` writes the promoted.json a promotion leaves behind: every task's verdict and the pass count, which is the
-next promotion's floor.
+next promotion's floor. `record-1k` writes the bench's floor the same way, from a run's results and its meta.json (the
+runner it ran on, the tree, the node it built).
 
 Standard library only: the release workflow runs this beside its signing keys, where nothing is installed.
 """
@@ -495,49 +513,77 @@ def _reread(rereads, res):
     return None
 
 
-def check_tasks(bank_ids, results, baseline, rereads, slice_mode=False):
+def check_tasks(bank_ids, results, baseline, rereads, slice_mode=False, known=None):
     """Returns (problems, stats). results: id -> result (or a list, the last per id winning); baseline: promoted.json's
-    shape."""
+    shape. known: id -> ticket, the tasks bank.json marks expected to fail (`known`): a bug someone saw and nobody has
+    fixed yet. Such a task must still run; its wrong answer is counted apart and refuses nothing, and a right answer
+    refuses until the mark is taken off, so a fix is seen and the task joins the bank's ordinary rules."""
     if isinstance(results, list):
         results = {r["id"]: r for r in results}
+    known = known or {}
     problems, stats = [], {"right": 0, "set_aside": 0, "confidently_wrong": 0, "honest_fail": 0, "error": 0,
-                           "unfinished": 0, "not_run": 0, "changed": 0, "regressed": 0, "check_fault": 0}
+                           "unfinished": 0, "not_run": 0, "changed": 0, "regressed": 0, "check_fault": 0,
+                           "known_failing": 0, "warm_browsed": 0}
     verdicts = baseline.get("verdicts") or {}
     if not verdicts and not slice_mode:
         problems.append("task baseline: none recorded (test-banks/gate/promoted.json). Run the full bank on the last "
                         "promoted build and record it (promotion_gate.py record) before the first promotion")
-    not_run, wrong, changed, regressed = [], [], [], []
+    not_run, wrong, changed, regressed, known_right, browsed = [], [], [], [], [], []
+    # A task the model answered nothing on (no final block: a spent credential, a provider that refused) says nothing
+    # about the site. It refuses the promotion — that run measured nothing for the task — but it is not "changed",
+    # which asks a person to re-read a site that was never asked about (nine tasks, "Credit balance is too low",
+    # staging QA 24 Nov 2026).
+    unmeasured = []
     # A task right on the baseline that the site now blocks, or that left the bank, answers nothing it answered before:
     # a regression, named, not a gap only the floor might notice. A slice reads a few tasks, so the rest are not dropped.
     blocked = []
     dropped = [] if slice_mode else sorted(t for t, v in verdicts.items() if v == "right" and t not in set(bank_ids))
     for tid in bank_ids:
         res = results.get(tid)
+        # Browser use is an independent finding. A failed, blocked or unmeasured answer can still have opened one.
+        warm_used_browser = res and (res.get("outcome") == "warm_browsed" or
+                                      (res.get("phase") == "warm" and res.get("warm_browser")))
+        if warm_used_browser:
+            browsed.append(tid)
         if not res or res.get("outcome") == "infra":
             not_run.append(tid)
             continue
         out = res["outcome"]
+        if warm_used_browser and out == "right":
+            out = "warm_browsed"
+        if tid in known:
+            if out == "right":
+                known_right.append(tid)
+            else:
+                stats["known_failing"] += 1
+            continue
         finding = _reread(rereads, res)
         if out == "confidently_wrong" and finding == "check_fault":
             stats["check_fault"] += 1
-        elif out in stats:
+        elif out in stats and out != "warm_browsed":
             stats[out] += 1
         if out == "confidently_wrong" and finding != "check_fault":
             wrong.append(tid)
         if verdicts.get(tid) == "right" and out == "set_aside":
             blocked.append(tid)
+        elif out == "error" and (slice_mode or verdicts.get(tid) == "right"):
+            unmeasured.append(tid)
         elif verdicts.get(tid) == "right" and out != "right":
             if finding == "regression" or finding == "confirmed_wrong":
                 regressed.append(tid)
             elif finding not in ("not_a_regression", "check_fault"):
                 changed.append(tid)
     stats["not_run"] = len(not_run)
+    stats["warm_browsed"] = len(browsed)
     stats["changed"], stats["regressed"] = len(changed), len(regressed) + len(blocked) + len(dropped)
     if not_run:
         problems.append(f"task bank: {len(not_run)} of {len(bank_ids)} tasks not run or only hit infrastructure "
                         f"trouble: {', '.join(not_run[:12])}{' …' if len(not_run) > 12 else ''}")
     if wrong:
         problems.append(f"task bank: {len(wrong)} answer(s) confidently wrong (must be 0): {', '.join(wrong)}")
+    if browsed:
+        problems.append(f"task bank: {len(browsed)} warm ask(s) needed the browser again instead of the route the cold ask "
+                        f"learned (must be 0): {', '.join(browsed)}")
     if regressed:
         problems.append(f"task bank: {len(regressed)} task(s) right on {baseline.get('build') or 'the reference'} "
                         f"regressed (re-read by hand): {', '.join(regressed)}")
@@ -551,11 +597,187 @@ def check_tasks(bank_ids, results, baseline, rereads, slice_mode=False):
         problems.append(f"task bank: {len(changed)} task(s) right on {baseline.get('build') or 'the reference'} are not "
                         f"right now: changed, to be re-read by hand one site at a time (rereads.json): "
                         f"{', '.join(changed)}")
+    if unmeasured:
+        scope = "in the slice" if slice_mode else f"right on {baseline.get('build') or 'the reference'}"
+        problems.append(f"task bank: {len(unmeasured)} task(s) {scope} "
+                        f"could not be measured: the model answered nothing (its own words are in the run's log — a "
+                        f"spent credential, a refused provider), so nothing is known about these sites: "
+                        f"{', '.join(unmeasured)}")
+    if known_right:
+        problems.append(f"task bank: {len(known_right)} task(s) marked expected to fail are right now: take the "
+                        f"`known` mark off in bank.json, so the task counts: "
+                        f"{', '.join(f'{t} ({known[t]})' for t in known_right)}")
     floor = baseline.get("pass_count")
     if not slice_mode and floor is not None and stats["right"] < floor:
         problems.append(f"task bank: {stats['right']} right is below the floor of {floor} "
                         f"(the pass count of {baseline.get('build')})")
     return problems, stats
+
+
+# ------------------------------------------------------------------------------------------------ the 1k release gate
+
+TOP1K_SITES = "test-banks/popular-sites/top-1000.json"
+TOP1K_FLOOR = "test-banks/gate/promoted-1k.json"
+# A run that measured nothing for the task: rerun once, and refused as not measured if it is still one of these.
+NOT_MEASURED = ("infra", "error")
+# Outcomes the judge read an answer for: the confidently wrong rate's denominator.
+ANSWERED = ("right", "confidently_wrong", "unfinished", "warm_browsed")
+MEASURED = ANSWERED + ("set_aside", "honest_fail")
+# The verdict line's order, the slice's ("right N, set aside N, confidently wrong N, honest fail N, error N"): the
+# dashboard's parseVerdict reads it by that shape.
+COUNTED_IN_ORDER = ("right", "set_aside", "confidently_wrong", "honest_fail", "error", "unfinished", "warm_browsed",
+                    "infra")
+
+
+def top1k_ids(cases):
+    """The bench's task ids, by run_gate.bench_tasks' rule (each site's cold task, then its #warm twin, in rank order),
+    read here so the release job runs none of the bench's own code; a test holds the two to one answer."""
+    out = []
+    for c in sorted(cases, key=lambda c: c.get("tranco_rank", 0)):
+        out += ["top1k:" + c["site"], "top1k:" + c["site"] + "#warm"]
+    return out
+
+
+def load_attempts(path):
+    """Every result line for each task, in the order written: its first run, then its run again."""
+    out = {}
+    with open(path) as f:
+        for line in f:
+            if line.strip():
+                r = json.loads(line)
+                out.setdefault(r["id"], []).append(r)
+    return out
+
+
+def top1k_counts(final):
+    """{outcome: n} over each task's last verdict, with `answered` and `not_measured` (an outcome nobody knows counts as
+    not measured, never as a pass)."""
+    stats = {k: 0 for k in COUNTED_IN_ORDER}
+    for out in final.values():
+        stats[out if out in stats else "error"] += 1
+    stats["answered"] = sum(stats[k] for k in ANSWERED)
+    stats["not_measured"] = sum(stats[k] for k in NOT_MEASURED)
+    return stats
+
+
+def unmeasured_top1k_count(ids, verdicts):
+    return sum(verdicts.get(tid) not in MEASURED for tid in ids)
+
+
+def _rate(n, d):
+    return Fraction(n, d) if d else Fraction(0)
+
+
+def check_top1k(ids, attempts, floor, meta):
+    """(problems, stats, rereads). ids: the bench's task ids; attempts: id -> its result lines in order; floor:
+    promoted-1k.json's shape ({} when none); meta: the run's meta.json ({} when none)."""
+    problems, rereads = [], []
+    verdicts = floor.get("verdicts") or {}
+    final, missing, unrerun = {}, [], []
+    for tid in ids:
+        runs = attempts.get(tid) or []
+        if not runs:
+            missing.append(tid)
+            continue
+        first, last = runs[0]["outcome"], runs[-1]["outcome"]
+        final[tid] = last
+        if len(runs) == 1 and (first in NOT_MEASURED or (tid in verdicts and verdicts[tid] != first)):
+            unrerun.append(tid)
+        # A regression that survived its run again: right on the floor, not right at first, and not right again.
+        if verdicts.get(tid) == "right" and len(runs) > 1 and first != "right" and \
+                last not in ("right", "set_aside") + NOT_MEASURED:
+            res = runs[-1]
+            rereads.append({"id": tid, "floor": "right", "first": first, "again": last, "answer_sha": answer_sha(res),
+                            "why": str((res.get("judge") or {}).get("why") or res.get("fail_reason") or "")[:300]})
+    stats = top1k_counts(final)
+    stats["not_run"], stats["not_rerun"], stats["rereads"] = len(missing), len(unrerun), len(rereads)
+    unmeasured = sorted(t for t, o in final.items() if o not in MEASURED)
+
+    def few(xs):
+        return ", ".join(xs[:12]) + (" …" if len(xs) > 12 else "")
+
+    if missing:
+        problems.append(f"bench: NOT MEASURED: {len(missing)} of {len(ids)} tasks have no result (a shard that did not run, "
+                        f"a run of only some sites): {few(missing)}")
+    if unmeasured:
+        problems.append(f"bench: NOT MEASURED: {len(unmeasured)} task(s) still measured nothing after their run again "
+                        f"(infra, error): {few(unmeasured)}")
+    if unrerun:
+        problems.append(f"bench: NOT MEASURED: {len(unrerun)} task(s) whose verdict measured nothing or changed from the "
+                        f"floor were never run again (a changed verdict is rerun once before it counts): {few(unrerun)}")
+    if not verdicts or floor.get("right") is None:
+        problems.append(f"bench: no floor recorded ({TOP1K_FLOOR}). Run the bench on the last promoted build and record "
+                        f"it (promotion_gate.py record-1k) before the first promotion")
+        return problems, stats, rereads
+    unmeasured_floor = unmeasured_top1k_count(ids, verdicts)
+    if unmeasured_floor:
+        problems.append(f"bench: floor has {unmeasured_floor} of {len(ids)} tasks missing or unmeasured")
+        return problems, stats, rereads
+    if not meta.get("runner"):
+        problems.append("bench: NOT MEASURED: the run does not say which runner it ran on (meta.json), so it cannot be "
+                        "held to a floor")
+    elif meta["runner"] != floor.get("runner"):
+        problems.append(f"bench: NOT MEASURED against this floor: the run ran on {meta['runner']}, the floor on "
+                        f"{floor.get('runner')} (a site walls one kind of address and not another)")
+    if stats["right"] < floor["right"]:
+        problems.append(f"bench: {stats['right']} right is below the floor's {floor['right']} ({floor.get('build')})")
+    rate, floor_rate = _rate(stats["confidently_wrong"], stats["answered"]), \
+        _rate(floor.get("confidently_wrong", 0), floor.get("answered", 0))
+    if rate > floor_rate:
+        problems.append(f"bench: confidently wrong {stats['confidently_wrong']} of {stats['answered']} answered "
+                        f"({float(rate) * 100:.2f}%) is above the floor's {floor.get('confidently_wrong', 0)} of "
+                        f"{floor.get('answered', 0)} ({float(floor_rate) * 100:.2f}%, {floor.get('build')})")
+    return problems, stats, rereads
+
+
+def _top1k(a):
+    """The bench's lines and problems for `check`, and its rereads written where --top1k-rereads says."""
+    cases = _load_json(a.top1k_sites)["cases"]
+    ids = top1k_ids(cases)
+    if not os.path.exists(a.top1k_results):
+        return [], [f"bench: no results at {a.top1k_results}: UNMEASURED"]
+    floor = _load_json(a.top1k_floor, {}) or {}
+    meta = _load_json(a.top1k_meta, {}) or {}
+    problems, stats, rereads = check_top1k(ids, load_attempts(a.top1k_results), floor, meta)
+    if a.top1k_rereads:
+        with open(a.top1k_rereads, "w") as f:
+            json.dump(rereads, f, indent=1)
+            f.write("\n")
+    lines = [f"bench, the top {len(cases)} sites ({len(ids)} tasks; run on {meta.get('runner') or 'UNMEASURED'}, tree "
+             f"{str(meta.get('tree') or '?')[:12]}; floor {floor.get('build') or 'none'}: right {floor.get('right')}, "
+             f"confidently wrong {floor.get('confidently_wrong')} of {floor.get('answered')} answered, on "
+             f"{floor.get('runner')}):",
+             "  " + ", ".join(f"{k.replace('_', ' ')} {v}" for k, v in stats.items())]
+    if rereads:
+        lines.append(f"  right on the floor, still not right after the run again (re-read by hand, "
+                     f"{a.top1k_rereads or 'rereads.json'}): " + ", ".join(r["id"] for r in rereads))
+    return lines, problems
+
+
+def cmd_record_1k(a):
+    cases = _load_json(a.top1k_sites)["cases"]
+    attempts = load_attempts(a.top1k_results)
+    meta = _load_json(a.top1k_meta, {}) or {}
+    if not meta.get("runner"):
+        raise SystemExit("record-1k: the run's meta.json names no runner; a floor must say where it was taken")
+    ids = top1k_ids(cases)
+    verdicts = {i: attempts[i][-1]["outcome"] for i in ids if i in attempts}
+    unmeasured = unmeasured_top1k_count(ids, verdicts)
+    if not ids or unmeasured:
+        raise SystemExit(f"record-1k: refusing an incomplete floor: {unmeasured} of {len(ids)} tasks "
+                         "missing or unmeasured")
+    stats = top1k_counts(verdicts)
+    record = {"build": a.build, "recorded": time.strftime("%Y-%m-%d", time.gmtime()), "runner": meta["runner"],
+              "tree": meta.get("tree"), "commit": meta.get("commit"), "node_ref": meta.get("node_ref"),
+              "run": meta.get("run"), "right": stats["right"], "answered": stats["answered"],
+              "confidently_wrong": stats["confidently_wrong"], "set_aside": stats["set_aside"],
+              "not_measured": stats["not_measured"], "verdicts": verdicts}
+    with open(a.out, "w") as f:
+        json.dump(record, f, indent=1, sort_keys=True)
+        f.write("\n")
+    print(f"recorded {a.build} on {meta['runner']}: {record['right']} right, {record['confidently_wrong']} confidently "
+          f"wrong of {record['answered']} answered, {record['not_measured']} not measured")
+    return 0
 
 
 def _load_json(path, default=None):
@@ -567,7 +789,7 @@ def _load_json(path, default=None):
 
 def cmd_check(a):
     lines, problems = [], []
-    if not a.tasks_only:
+    if not a.tasks_only and not a.top1k_only:
         summary = _load_json(a.coverage)
         if summary is None:
             problems.append(f"code coverage: no summary at {a.coverage}: UNMEASURED")
@@ -582,19 +804,24 @@ def cmd_check(a):
                     p = summary["parts"][name]
                     lines.append(f"  {name:20} {p['pct']:6.2f}%  {p['covered']}/{p['total']}  (reported apart)")
             problems += check_coverage(summary)
-    if not a.coverage_only:
-        bank_ids = [t["id"] for t in _load_json(a.bank)["tasks"]]
+    if a.top1k_results or a.top1k_only:
+        tl, tp = _top1k(a) if a.top1k_results else ([], ["bench: no results given: UNMEASURED"])
+        lines += tl
+        problems += tp
+    if not a.coverage_only and not a.top1k_only:
+        bank_tasks = _load_json(a.bank)["tasks"]
+        bank_ids = [t["id"] for t in bank_tasks]
+        known = {t["id"]: t["known"] for t in bank_tasks if t.get("known")}
         baseline = _load_json(a.baseline, {}) or {}
         rereads = _load_json(a.rereads, []) or []
         if a.slice:
             sl = _load_json(a.slice)
             bank_ids = [i for i in bank_ids if i in set(sl["ids"])]
-            known = baseline.get("verdicts") or {}
-            if not any(i in known for i in bank_ids):
-                baseline = {"build": sl.get("reference", {}).get("build"),
-                            "verdicts": sl.get("reference", {}).get("verdicts", {})}
+            reference = sl.get("reference") or {}
+            baseline = {**baseline, "build": baseline.get("build") or reference.get("build"),
+                        "verdicts": {**(reference.get("verdicts") or {}), **(baseline.get("verdicts") or {})}}
         results = load_results(a.bank_results) if a.bank_results and os.path.exists(a.bank_results) else {}
-        tp, stats = check_tasks(bank_ids, results, baseline, rereads, slice_mode=bool(a.slice))
+        tp, stats = check_tasks(bank_ids, results, baseline, rereads, slice_mode=bool(a.slice), known=known)
         problems += tp
         lines.append(f"task bank ({'slice of ' if a.slice else ''}{len(bank_ids)} tasks, baseline "
                      f"{baseline.get('build') or 'none'}, floor {baseline.get('pass_count')}):")
@@ -703,6 +930,16 @@ def main(argv=None):
     k.add_argument("--coverage-only", action="store_true")
     k.add_argument("--tasks-only", action="store_true")
     k.add_argument("--md")
+    k.add_argument("--top1k-only", action="store_true", help="judge the bench alone")
+    r1 = sub.add_parser("record-1k")
+    r1.add_argument("--build", required=True)
+    r1.add_argument("--out", required=True)
+    for p in (k, r1):
+        p.add_argument("--top1k-results", required=p is r1, help="the bench run's results.jsonl (gate-1k-<tree>)")
+        p.add_argument("--top1k-meta", required=p is r1, help="the bench run's meta.json: where it ran, on which tree")
+        p.add_argument("--top1k-sites", default=TOP1K_SITES)
+    k.add_argument("--top1k-floor", default=TOP1K_FLOOR)
+    k.add_argument("--top1k-rereads", help="write the regressions that survived their run again here")
     r = sub.add_parser("record")
     r.add_argument("--bank", default="test-banks/gate/bank.json")
     r.add_argument("--bank-results", required=True)
@@ -719,7 +956,8 @@ def main(argv=None):
     t.add_argument("--not-reached", action="append", metavar="PART")
     t.add_argument("--md")
     a = ap.parse_args(argv)
-    return {"coverage": cmd_coverage, "check": cmd_check, "record": cmd_record, "ratchet": cmd_ratchet}[a.cmd](a)
+    return {"coverage": cmd_coverage, "check": cmd_check, "record": cmd_record, "ratchet": cmd_ratchet,
+            "record-1k": cmd_record_1k}[a.cmd](a)
 
 
 if __name__ == "__main__":

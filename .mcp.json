@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "xray": {
+      "command": "sh",
+      "args": ["-c", "exec python3 -I \"$(git rev-parse --show-toplevel)/scripts/xray/xray_mcp.py\""]
+    }
+  }
+}

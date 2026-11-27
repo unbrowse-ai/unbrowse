@@ -6,6 +6,12 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 PR_AGENT_CHECKS = ROOT / ".github/workflows/pr-agent-checks.yml"
+# Claude Ship's agents, run on OpenCode and GitHub Actions without the Claude organization (docs/CI-AGENTS.md). The two
+# that hold a model credential work on a pull request's files, so each has its own envelope and its own rules below.
+REVIEW = ROOT / ".github/workflows/opencode-review.yml"
+STEWARD = ROOT / ".github/workflows/opencode-steward.yml"
+APPROVALS = ROOT / ".github/workflows/opencode-approvals.yml"
+OPENCODE_CONFIG = ROOT / ".github/opencode/opencode.json"
 # The pull request check with no credential (UNB-235): every pull request, draft or ready, with nothing to steal.
 PR_CHECK = ROOT / ".github/workflows/pr-check.yml"
 # Every job of pr-agent-checks.yml but its verdict opens its `if` with this: a draft or a fork's pull request is false.
@@ -55,10 +61,10 @@ PLACED = re.compile(r"^\$\{\{ fromJSON\(needs\.place\.outputs(?:\.(\w+)|\[format
 HOSTED = re.compile(r"^(blacksmith-\d+vcpu-(ubuntu-\d{4}(-arm)?|macos-[\w.]+|windows-\d{4})|ubuntu-[\d.]+(-arm)?|macos-[\d.]+|windows-\d{4})$")
 # Environments holding the keys that sign what users install, or publish it.
 SHIP_ENVIRONMENTS = {"release", "targets-cosign"}
-# Workflows whose builds users install (installers.yml: the draft release's installers; installers-device-test.yml:
-# installs them on fresh machines before the draft), held to the release rules: a
-# fresh GitHub-hosted machine for every job, never the pool, and no shared cache.
-SHIPS_TO_USERS = ("release.yml", "updates.yml", "installers.yml", "installers-device-test.yml")
+# Workflows whose builds users install (release.yml: the programs, the installers and the Mac app; updates.yml: the
+# metadata nodes update from; installers-device-test.yml: installs the installers on fresh machines before a release),
+# held to the release rules: a fresh GitHub-hosted machine for every job, never the pool, and no shared cache.
+SHIPS_TO_USERS = ("release.yml", "updates.yml", "installers-device-test.yml")
 
 
 def _runners(job):
@@ -148,6 +154,104 @@ def _credential_free_problems(doc, text):
     return problems
 
 
+BY_HAND = re.compile(r"^\s*github\.event_name\s*==\s*'workflow_dispatch'\s*(&&|$)")
+
+
+def _by_hand_on_the_pool(job, runner):
+    """A job only a person's dispatch runs, naming the pool's own labels: nothing automatic ever waits on it."""
+    return isinstance(runner, list) and "self-hosted" in runner and bool(BY_HAND.match(str(job.get("if", ""))))
+
+
+OPENCODE_INSTALL = re.compile(r"npm ci (?:--silent )?--ignore-scripts --prefix \.github/tools/opencode\b")
+CLAUDE_INSTALL = re.compile(r"npm ci (?:--silent )?--ignore-scripts --prefix \.github/tools/claude-cli\b")
+
+
+def _opencode_agent_problems(text, kind):
+    """What lets an OpenCode agent's model key near anything the pull request controls, or lets its fix past a check.
+    `kind` is `review` or `steward`; each rule is a line, and the workflow as it should be has none."""
+    doc = yaml.safe_load(text) or {}
+    problems = []
+    env = f"opencode-{kind}"
+    allowed = {"review": {"PR signal (no credential)"},
+               "steward": {"CI", "Coverage", "PR check (no credential)", "Code review"}}[kind]
+    triggers = _triggers(doc)
+    if not set(triggers) <= {"workflow_run", "workflow_dispatch"}:
+        problems.append(f"starts from {sorted(triggers)}, not workflow_run and a person's dispatch")
+    run = triggers.get("workflow_run") or {}
+    if not set(run.get("workflows") or []) <= allowed or run.get("types") != ["completed"]:
+        problems.append("follows a workflow or event it shouldn't")
+    if doc.get("permissions") != {}:
+        problems.append("the workflow grants permissions to every job")
+    guard = "github.event.workflow_run.head_repository.full_name == github.repository"
+    for name, job in (doc.get("jobs") or {}).items():
+        cond = " ".join(str(job.get("if", "")).split())
+        if guard not in cond:
+            problems.append(f"job {name}: its `if` doesn't hold it to a pull request from this repository")
+        if any(k in yaml.safe_dump(job) for k in ("secrets.OPENCODE_API_KEY", "secrets.OPENCODE_CHATGPT_ACCESS_TOKEN", "secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY", "secrets.CLAUDE_CODE_OAUTH_TOKEN", "secrets.ANTHROPIC_API_KEY")) \
+                and job.get("environment") != env:
+            problems.append(f"job {name}: the model key outside the {env} environment")
+        steps = [s for s in (job.get("steps") or []) if isinstance(s, dict)]
+        for st in steps:
+            if not str(st.get("uses", "")).startswith("actions/checkout@"):
+                continue
+            w = st.get("with") or {}
+            if str(w.get("persist-credentials")).lower() != "false":
+                problems.append(f"job {name}: a checkout keeps its token")
+            if w.get("path") is None and w.get("ref") not in (None, "staging"):
+                problems.append(f"job {name}: the work tree at the root isn't staging's")
+            if w.get("path") is not None and (w.get("path") != "pr" or "outputs.head" not in str(w.get("ref"))):
+                problems.append(f"job {name}: the pull request is checked out somewhere other than pr/, or at another commit")
+        for st in steps:
+            run_text = str(st.get("run", ""))
+            where = str(st.get("working-directory", ""))
+            if re.search(r"(?:python3?|sh|bash|node)\s+(?:-\w+\s+)*(?:\.\./|\./)?pr/", run_text) or (
+                    where == "pr" and re.search(r"(?m)^\s*(?:python3?|sh|bash|node|npm|npx|make|cargo|zig)\b", run_text)):
+                problems.append(f"job {name}: step {st.get('name', st.get('id', '?'))} runs the pull request's code")
+            if re.search(r"git\s+push\b[^\n]*(?:\s--force|\s-f\b|\s\+)", run_text):
+                problems.append(f"job {name}: a push that can overwrite the author's")
+            if "opencode run" in run_text:
+                if f"--agent {kind}" not in run_text:
+                    problems.append(f"job {name}: the agent isn't `{kind}`")
+                if "--standalone" not in run_text:
+                    problems.append(f"job {name}: the agent isn't in standalone mode")
+                step_env = st.get("env") or {}
+                if "runner.temp" not in str(step_env.get("HOME", "")):
+                    problems.append(f"job {name}: the agent runs in the runner's own home")
+                if any("github.token" in str(v) for v in step_env.values()):
+                    problems.append(f"job {name}: the agent holds a GitHub token")
+            through_switch = "agent_cli.py" in run_text and "--which-model" not in run_text
+            if through_switch:
+                # The agent through agent_cli.py (Claude Code, or opencode on the switch): its own home, no GitHub
+                # token, no shell, no web, and edits only where its job needs them.
+                step_env = st.get("env") or {}
+                if "runner.temp" not in str(step_env.get("HOME", "")):
+                    problems.append(f"job {name}: the agent runs in the runner's own home")
+                if any("github.token" in str(v) for v in step_env.values()):
+                    problems.append(f"job {name}: the agent holds a GitHub token")
+                flags = dict(re.findall(r'--(tools|allowedTools|disallowedTools)\s+"?([^"\s]+)"?', run_text))
+                tools = set(flags.get("tools", "").split(","))
+                allowed = [x for x in flags.get("allowedTools", "").split(",") if x]
+                denied = set(flags.get("disallowedTools", "").split(","))
+                if not {"Bash", "WebFetch", "WebSearch"} <= denied or "Bash" in tools:
+                    problems.append(f"job {name}: the agent may run a shell or fetch the web")
+                edits = [x for x in allowed if x.split("(")[0] in ("Edit", "Write")]
+                if kind == "review" and (tools & {"Edit", "Write", "NotebookEdit"} or edits):
+                    problems.append(f"job {name}: the reviewer can edit")
+                if kind == "steward" and (not edits or any(not re.fullmatch(r"(Edit|Write)\(pr/\*\*\)", x) for x in edits)):
+                    problems.append(f"job {name}: the steward may edit outside pr/")
+            keys = ("secrets.OPENCODE_API_KEY", "secrets.OPENCODE_CHATGPT_ACCESS_TOKEN", "secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY", "secrets.CLAUDE_CODE_OAUTH_TOKEN", "secrets.ANTHROPIC_API_KEY")
+            if any(k in str(st.get("env") or {}) for k in keys) and "opencode run" not in run_text \
+                    and not through_switch and str(st.get("id")) not in ("auth", "credential"):
+                problems.append(f"job {name}: step {st.get('name', st.get('id', '?'))} holds the model key")
+        names = [str(s.get("id") or s.get("name", "")) for s in steps]
+        pushes = [i for i, s in enumerate(steps) if "git push" in str(s.get("run", ""))]
+        if pushes and ("guard" not in names[: pushes[0]] or "steps.guard.outputs.ok == 'true'" not in str(steps[pushes[0]].get("if", ""))):
+            problems.append(f"job {name}: it pushes without the guard's yes")
+        if kind == "review" and pushes:
+            problems.append(f"job {name}: the reviewer can push")
+    return problems
+
+
 class WorkflowSecurityTest(unittest.TestCase):
     def test_no_job_with_id_token_or_a_secret_executes_a_file_from_an_artifact(self):
         workflows = [
@@ -228,7 +332,8 @@ class WorkflowSecurityTest(unittest.TestCase):
             # (test_pr_agent_checks_*): a ready pull request into staging from a branch of this repository (UNB-248).
             if workflow == PR_AGENT_CHECKS:
                 continue
-            # Secret-bearing automation is post-merge/manual on staging; reject PR triggers and explicit PR checkouts.
+            # Secret-bearing automation is post-merge/manual on staging, or an OpenCode agent after a pull request's run
+            # (held to `_opencode_agent_problems`); reject PR triggers and explicit PR checkouts.
             self.assertNotRegex(text, r"(?m)^\s*pull_request(?:_[a-z_]+)?:", str(workflow))
             self.assertNotRegex(text, r"(?i)pull_request\.head|refs/pull/|github\.event\.pull_request\.head")
         qa = (ROOT / ".github/workflows/qa.yml").read_text()
@@ -251,7 +356,7 @@ class WorkflowSecurityTest(unittest.TestCase):
         workflows = [
             *sorted((ROOT / ".github/workflows").glob("*.y*ml")),
         ]
-        secret_names = ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN")
+        secret_names = ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "OPENCODE_API_KEY", "OPENCODE_CHATGPT_ACCESS_TOKEN", "OPENCODE_CHATGPT_CREDENTIAL_KEY")
         for workflow in workflows:
             for step in workflow.read_text().split("      - ")[1:]:
                 if not any(f"secrets.{name}" in step for name in secret_names):
@@ -259,10 +364,9 @@ class WorkflowSecurityTest(unittest.TestCase):
                 self.assertNotRegex(step, r"(?m)^\s*run:.*(?:test-banks/|\.github/qa/|npm install)", str(workflow))
                 self.assertNotIn("npm install", step, str(workflow))
         qa = (ROOT / ".github/workflows/qa.yml").read_text()
-        self.assertIn("npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli", qa)
         self.assertIn("name: Run tool choice sessions", qa)
         model_step = qa.split("      - name: Run tool choice sessions\n", 1)[1].split("      - name:", 1)[0]
-        self.assertIn("secrets.ANTHROPIC_API_KEY", model_step)
+        self.assertIn("secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY", model_step)
         self.assertNotIn("python3", model_step)
         self.assertNotIn("test-banks/", model_step)
 
@@ -273,7 +377,7 @@ class WorkflowSecurityTest(unittest.TestCase):
         installs = re.compile(
             r"\b(?:npm\s+(?:install|i|ci|exec|update)|npx|pnpm\s+(?:install|i|add|dlx)|yarn(?:\s+(?:install|add|dlx))?|bunx?(?:\s+(?:install|add|x))?|pip3?\s+install|python3?\s+-m\s+pip|pipx|uvx?|cargo\s+install|brew\s+install|apt(?:-get)?\s+install|curl|wget)\b"
         )
-        model = re.compile(r"secrets\s*\.\s*(?:ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN\w*)", re.IGNORECASE)
+        model = re.compile(r"secrets\s*\.\s*(?:ANTHROPIC_API_KEY|CLAUDE_CODE_OAUTH_TOKEN\w*|OPENCODE_API_KEY|OPENCODE_CHATGPT_ACCESS_TOKEN|OPENCODE_CHATGPT_CREDENTIAL_KEY)", re.IGNORECASE)
         workflows = [*sorted((ROOT / ".github/workflows").glob("*.y*ml"))]
         for path in workflows:
             doc = yaml.safe_load(path.read_text()) or {}
@@ -302,7 +406,7 @@ class WorkflowSecurityTest(unittest.TestCase):
                     continue
                 self.assertIn("CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude", step, str(workflow))
                 before = steps[:n]
-                installs = [s for s in before if "npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli" in s]
+                installs = [s for s in before if CLAUDE_INSTALL.search(s)]
                 self.assertTrue(installs, f"{workflow}: the locked CLI is installed before the picker runs")
                 self.assertTrue(all("secrets." not in s for s in installs), f"{workflow}: the CLI is installed with no secret")
 
@@ -310,10 +414,9 @@ class WorkflowSecurityTest(unittest.TestCase):
         # With lifecycle scripts off, the CLI's bin is a stub that answers every ask with "claude native binary not
         # installed": three nights of QA and every agent job failed on it, read as refused tokens (UNB-235). The CLI's
         # own install.cjs, from the locked package, links the binary in; `--version` proves it runs before any secret.
-        install = "npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli"
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             for step in workflow.read_text().split("      - ")[1:]:
-                if install not in step:
+                if not CLAUDE_INSTALL.search(step):
                     continue
                 self.assertIn("node .github/tools/claude-cli/node_modules/@anthropic-ai/claude-code/install.cjs", step, str(workflow))
                 self.assertIn(".github/tools/claude-cli/node_modules/.bin/claude --version", step, str(workflow))
@@ -324,9 +427,14 @@ class WorkflowSecurityTest(unittest.TestCase):
         polish = workflow.split("  polish:\n", 1)[1]
         self.assertIn("permissions: {}", workflow)
         self.assertIn("persist-credentials: false", polish)
-        self.assertNotRegex(polish, r"(?m)^\s*run:.*\b(?:npm|pnpm|pip|cargo)\s+(?:ci|install|add)\b")
-        self.assertNotIn("npm ci", polish)
-        self.assertIn("Do not install dependencies", polish)
+        before, model = polish.split("      - name: Draft the hand-written SDK changes\n", 1)
+        self.assertNotIn("secrets.", before)
+        for line in before.splitlines():
+            if "npm ci" in line:
+                self.assertIn("npm ci --ignore-scripts --prefix .github/tools/", line)
+        self.assertNotRegex(model, r"(?m)^\s*run:.*\b(?:npm|pnpm|pip|cargo)\s+(?:ci|install|add)\b")
+        self.assertNotIn("npm ci", model)
+        self.assertIn("Do not install dependencies", model)
 
     def test_release_secret_jobs_use_immutable_action_refs(self):
         from importlib.util import spec_from_file_location
@@ -370,14 +478,108 @@ class WorkflowSecurityTest(unittest.TestCase):
             self.assertIn(cosign_name, consumer.get("needs", []), str(path))
             self.assertIn("updates-cosigned", str(consumer), str(path))
 
-    def test_claude_secret_workflows_require_trusted_authors(self):
+    def test_no_workflow_answers_a_comment_with_a_model_credential(self):
         # claude.yml ("Claude Code", by hand on staging) is gone (UNB-166): 506 runs, every one skipped, none by hand.
-        # No workflow answers a comment or an issue with a model credential in reach.
+        # No workflow holding a model credential answers a comment, an issue or a review. The one workflow that answers
+        # a review is Claude Approvals, which is a check and names no secret at all.
         for path in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
-            self.assertFalse({"issue_comment", "issues", "pull_request_review", "pull_request_review_comment"} & set(_triggers(yaml.safe_load(path.read_text()))), path.name)
-        review = (ROOT / ".github/workflows/claude-review.yml").read_text()
-        self.assertIn("branches: [staging]", review)
-        self.assertIn("persist-credentials: false", review)
+            text = path.read_text()
+            triggers = set(_triggers(yaml.safe_load(text)))
+            self.assertFalse({"issue_comment", "issues", "pull_request_review_comment"} & triggers, path.name)
+            if "pull_request_review" in triggers:
+                self.assertEqual(path, APPROVALS, f"{path.name} answers a review")
+                self.assertNotRegex(text, r"\$\{\{\s*secrets\.", f"{path.name} answers a review and names a secret")
+            if "secrets." in text:
+                self.assertNotIn("pull_request_review", triggers, f"{path.name} holds a secret and answers a review")
+
+    def test_the_steward_keeps_its_credential_off_the_pull_requests_code(self):
+        self.assertEqual(_opencode_agent_problems(STEWARD.read_text(), "steward"), [])
+        self.assertEqual(_opencode_agent_problems(REVIEW.read_text(), "review"), [])
+        # Each environment is named by its own workflow and no other.
+        for workflow, env in ((STEWARD, "opencode-steward"), (REVIEW, "opencode-review")):
+            for other in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
+                if other == workflow:
+                    continue
+                for name, job in (yaml.safe_load(other.read_text()).get("jobs") or {}).items():
+                    named = (job.get("environment") or {}).get("name") if isinstance(job.get("environment"), dict) else job.get("environment")
+                    self.assertNotIn(env, str(named or ""), f"{other.name}: job {name}")
+
+    def test_the_opencode_checker_can_fail(self):
+        guard = "github.event.workflow_run.head_repository.full_name == github.repository"
+        broken = {
+            "steward": (STEWARD, {
+                "a pull_request trigger": ("on:\n  workflow_run:", "on:\n  pull_request:\n  workflow_run:"),
+                "a fork let in": (guard, "true"),
+                "the key outside its environment": ("    environment: opencode-steward\n", ""),
+                "the root checked out at the pull request": ("          ref: staging\n", "          ref: ${{ steps.who.outputs.head_sha }}\n"),
+                "the pull request somewhere else": ("          path: pr\n", "          path: prsrc\n"),
+                "a shell for the agent": ("--tools Read,Grep,Glob,Edit,Write ", "--tools Read,Grep,Glob,Edit,Write,Bash "),
+                "edits outside pr/": ("Edit(pr/**)", "Edit(**)"),
+                "the web for the agent": ("--disallowedTools \"Bash,NotebookEdit,WebFetch,", "--disallowedTools \"Bash,NotebookEdit,"),
+                "the agent in the runner's home": ("          HOME: ${{ runner.temp }}/opencode-home\n", ""),
+                "the agent holding a GitHub token": ("          HOME: ${{ runner.temp }}/opencode-home\n",
+                                                     "          HOME: ${{ runner.temp }}/opencode-home\n          GH_TOKEN: ${{ github.token }}\n"),
+                "a forced push": ('git push "https', 'git push --force "https'),
+                "a push without the guard": ("steps.plan.outputs.act == 'true' && steps.guard.outputs.ok == 'true'", "steps.plan.outputs.act == 'true'"),
+                "a token kept": ("          path: pr\n          persist-credentials: false", "          path: pr\n          persist-credentials: true"),
+            }),
+            "review": (REVIEW, {
+                "a pull_request trigger": ("on:\n  workflow_run:", "on:\n  pull_request:\n  workflow_run:"),
+                "a fork let in": (guard, "true"),
+                "the key outside its environment": ("    environment: opencode-review\n", ""),
+                "the root checked out at the pull request": ("          ref: staging\n", "          ref: ${{ steps.plan.outputs.head }}\n"),
+                "the pull request somewhere else": ("          path: pr\n", "          path: prsrc\n"),
+                "an editing reviewer": ("--tools Read,Grep,Glob ", "--tools Read,Grep,Glob,Edit "),
+                "a shell for the reviewer": ("--disallowedTools \"Bash,", "--disallowedTools \""),
+                "the Claude key in another step": ("        run: |\n          python3 -I .github/scripts/code_review.py",
+                                                   "          T: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}\n        run: |\n          python3 -I .github/scripts/code_review.py"),
+                "the agent in the runner's home": ("          HOME: ${{ runner.temp }}/opencode-home\n", ""),
+                "the agent holding a GitHub token": ("          HOME: ${{ runner.temp }}/opencode-home\n",
+                                                     "          HOME: ${{ runner.temp }}/opencode-home\n          GH_TOKEN: ${{ github.token }}\n"),
+            }),
+        }
+        for kind, (workflow, cases) in broken.items():
+            text = workflow.read_text()
+            for what, (find, replace) in cases.items():
+                with self.subTest(f"{kind}: {what}"):
+                    self.assertIn(find, text, f"{what}: the breakage didn't apply")
+                    self.assertTrue(_opencode_agent_problems(text.replace(find, replace, 1), kind), f"{what} went unnoticed")
+
+    def test_the_opencode_agents_can_only_do_what_their_job_needs(self):
+        config = yaml.safe_load(OPENCODE_CONFIG.read_text())
+        self.assertEqual(config.get("mcp", {}).get("servers"), {})
+        rules = config["permissions"]
+        self.assertEqual(rules[0], {"action": "*", "resource": "*", "effect": "deny"})
+        for allow in ({"action": "read", "resource": "*", "effect": "allow"},
+                      {"action": "glob", "resource": "*", "effect": "allow"},
+                      {"action": "grep", "resource": "*", "effect": "allow"}):
+            self.assertIn(allow, rules)
+        # The reviewer edits nothing; the steward edits pr/ and nothing else.
+        self.assertNotIn("permissions", config["agents"]["review"])
+        edits = [r for r in config["agents"]["steward"]["permissions"] if r["action"] == "edit"]
+        self.assertTrue(edits)
+        self.assertTrue(all(r["resource"].startswith("pr/") and r["effect"] == "allow" for r in edits), edits)
+        # Neither leaves the checkout, and a .env is refused whatever else allows it.
+        self.assertIn({"action": "external_directory", "resource": "*", "effect": "deny"}, rules)
+        self.assertIn({"action": "read", "resource": "*.env", "effect": "deny"}, rules)
+        review = (ROOT / ".github/opencode/agents/review.md").read_text()
+        steward = (ROOT / ".github/opencode/agents/steward.md").read_text()
+        self.assertIn('"findings"', review)
+        self.assertIn("only files under", steward)
+        self.assertIn(".autofix/summary.md", steward)
+
+    def test_opencode_is_installed_from_its_lockfile_and_proven_before_a_key(self):
+        # As the Claude CLI is: the lockfile's own install script links the platform binary (--ignore-scripts leaves a
+        # stub that answers every ask with "postinstall script was not run"), and --version proves it before any secret.
+        for workflow in (REVIEW, STEWARD):
+            text = workflow.read_text()
+            install = [s for s in text.split("      - ") if OPENCODE_INSTALL.search(s)]
+            self.assertEqual(len(install), 1, workflow.name)
+            self.assertIn("node .github/tools/opencode/node_modules/@opencode/cli/postinstall.mjs", install[0])
+            self.assertIn(".github/tools/opencode/node_modules/.bin/opencode --version", install[0])
+            self.assertNotIn("secrets.", install[0])
+        lock = (ROOT / ".github/tools/opencode/package-lock.json").read_text()
+        self.assertIn('"@opencode/cli"', lock)
 
     def test_qa_does_not_run_secret_bearing_pr_code_from_untrusted_forks(self):
         qa = (ROOT / ".github/workflows/qa.yml").read_text()
@@ -395,12 +597,11 @@ class WorkflowSecurityTest(unittest.TestCase):
                 if re.search(r"\bzig build\b", line) and "test" not in line:
                     found += 1
                     self.assertIn("-Dcpu=baseline", line, f"{name}: {line.strip()}")
-        self.assertGreaterEqual(found, 4, "the shipped window builds were found")
+        self.assertGreaterEqual(found, 2, "the shipped window builds (release.yml's Mac app and window) were found")
 
     def test_release_builds_do_not_restore_shared_caches(self):
         release_workflows = [
             ROOT / ".github/workflows/release.yml",
-            ROOT / ".github/workflows/installers.yml",
         ]
         for path in release_workflows:
             text = path.read_text()
@@ -419,7 +620,7 @@ class WorkflowSecurityTest(unittest.TestCase):
             for name, job in (yaml.safe_load(path.read_text()).get("jobs") or {}).items():
                 steps = [s for s in job.get("steps", []) if isinstance(s, dict)]
                 # An agent runs through the action or the pinned CLI (Claude QA moved to the CLI: the action takes no push).
-                if not any(str(s.get("uses", "")).startswith("anthropics/claude-code-action@") or ".github/tools/claude-cli/node_modules/.bin/claude\" -p" in str(s.get("run", "")) or "\"$cli\" -p" in str(s.get("run", "")) for s in steps):
+                if not any(str(s.get("uses", "")).startswith("anthropics/claude-code-action@") or ".github/tools/claude-cli/node_modules/.bin/claude\" -p" in str(s.get("run", "")) or "agent_cli.py -p" in str(s.get("run", "")) or "agent_cli.py\" -p" in str(s.get("run", "")) or "\"$cli\" -p" in str(s.get("run", "")) for s in steps):
                     continue
                 where = f"{path.name}: job {name}"
                 agents += 1
@@ -574,55 +775,22 @@ class WorkflowSecurityTest(unittest.TestCase):
         self.assertIn('if [ "$DRAFT" != false ]; then', run)
         self.assertIn('if [ "$SAME_REPO" != true ]; then', run)
         self.assertIn(f'length == {len(others)} and (to_entries | all(.value.result == "success"))', run)
+        self.assertIn(f'length == {len(others)} and .scope.result == "success" and .security.result == "success"', run)
         env = verdict["steps"][0]["env"]
         self.assertEqual(env["DRAFT"], "${{ github.event.pull_request.draft }}")
         self.assertEqual(env["SAME_REPO"], "${{ github.event.pull_request.head.repo.full_name == github.repository }}")
+        self.assertEqual(env["QA_SCOPE"], "${{ needs.scope.outputs.qa }}")
         self.assertEqual(env["RESULTS"], "${{ toJSON(needs) }}")
 
-    def test_pr_agent_checks_use_the_selected_oauth_token(self):
-        jobs = self._pr_doc()["jobs"]
-        selected = (
-            "${{ steps.credential.outputs.name == 'TOKEN' && "
-            "secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}"
-        )
-        for name in ("qa", "skills", "slice"):
-            with self.subTest(job=name):
-                job = jobs[name]
-                self.assertNotIn("secrets.ANTHROPIC_API_KEY", str(job))
-                self.assertEqual(job.get("env", {}).get("ANTHROPIC_API_KEY"), "")
-                steps = job["steps"]
-                picker = next(step for step in steps if step.get("id") == "credential")
-                self.assertEqual(picker["run"], "sh .github/scripts/claude-credential.sh TOKEN TOKEN_2")
-                self.assertEqual(picker["env"]["TOKEN"], "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}")
-                self.assertEqual(picker["env"]["TOKEN_2"], "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}")
-                clients = [
-                    step["env"]["CLAUDE_CODE_OAUTH_TOKEN"]
-                    for step in steps
-                    if "CLAUDE_CODE_OAUTH_TOKEN" in (step.get("env") or {})
-                ]
-                self.assertTrue(clients, "no Claude client receives OAuth")
-                self.assertTrue(all(token == selected for token in clients))
-
-    def test_pr_window_builds_patch_zig_after_setup_and_before_building(self):
-        for workflow in (PR_AGENT_CHECKS, PR_CHECK):
-            with self.subTest(workflow=workflow.name):
-                jobs = yaml.safe_load(workflow.read_text())["jobs"]
-                steps = jobs["build" if workflow == PR_AGENT_CHECKS else "check"]["steps"]
-                setup = next(i for i, step in enumerate(steps) if step.get("uses", "").startswith("mlugg/setup-zig@"))
-                build = next(i for i, step in enumerate(steps) if step.get("name") == "Build the window")
-                scripts = [step.get("run", "") for step in steps[setup + 1:build]]
-                self.assertTrue(any(".github/scripts/patch_zig_std.py" in run for run in scripts))
-
     def test_pr_agent_checks_a_missing_credential_fails_rather_than_passes(self):
-        # qa.yml warns and passes with no credential; a required check that passed that way would prove nothing.
         jobs = self._pr_doc()["jobs"]
         for name in ("qa", "skills"):
-            auth = jobs[name]["steps"][0]
-            self.assertEqual(auth.get("id"), "auth")
-            self.assertIn("exit 1", str(auth["run"]), f"job {name}")
-            self.assertNotIn("::warning::", str(auth["run"]), f"job {name}")
-            for step in jobs[name]["steps"][1:]:
-                self.assertNotIn("steps.auth.outputs.ok", str(step.get("if", "")), f"job {name}: a step skipped for want of a credential")
+            steps = jobs[name]["steps"]
+            auth = next(step for step in steps if step.get("name") == "Check the subscription OAuth grant")
+            self.assertEqual(auth["run"], "python3 -I .github/scripts/agent_cli.py --check-subscription")
+            self.assertNotIn("if", auth)
+            self.assertFalse(auth.get("continue-on-error"))
+            self.assertEqual(steps.index(auth), 1, f"{name}: check the grant immediately after checkout")
 
     def test_no_fork_pull_request_reaches_a_local_pool_slot(self):
         # UNB-166. The repository is private, forking is off and fork pull requests run no workflow (repo settings,
@@ -646,13 +814,18 @@ class WorkflowSecurityTest(unittest.TestCase):
                 cond = str(job.get("if", ""))
                 self.assertTrue(_opens_with(cond, SAME_REPO_GUARD) or _opens_with(cond, PR_GUARD), f"{where}: its `if` opens with the same-repository guard")
                 self.assertFalse(_runs_for_a_fork(cond), f"{where} runs for a fork's pull request")
-        self.assertGreaterEqual(checked, 4, "the pull-request workflows' pool jobs were found")
+        # Three since pr-agent-checks.yml's copy of the MCP check went (22 Nov 2026): qa, skills and slice.
+        self.assertGreaterEqual(checked, 3, "the pull-request workflows' pool jobs were found")
 
     def test_no_job_waits_on_a_local_runner_without_a_fallback(self):
         # A job named for a local runner waits for ever when that runner is asleep, offline or busy, and the run never
         # ends: 0 of 43 pull requests into staging went green on the pool (20 to 21 Nov 2026, UNB-166). Every job runs
         # on a hosted machine, or is placed by its workflow's `place` job, which falls back to Blacksmith.
-        placed = 0
+        # One exception: a job only a person starts by hand (its `if` opens with the workflow_dispatch guard) may
+        # name the pool's own labels. No pull request, push or deploy waits on it, so it holds nothing up, and a
+        # benchmark that must read from a home connection is what it is for (UNB-260, Lewis, 22 Nov 2026: the top
+        # 1,000 sites "on Lewis's own CI runners ... never on paid Blacksmith machines for the site reads").
+        placed, by_hand = 0, 0
         for path in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             if path.name in SHIPS_TO_USERS:
                 continue
@@ -671,6 +844,8 @@ class WorkflowSecurityTest(unittest.TestCase):
                             self.assertIn(out, outputs, f"{where}: its workflow's place job has no output for it")
                         needs = job.get("needs") or []
                         self.assertIn("place", [needs] if isinstance(needs, str) else needs, f"{where}: needs place")
+                    elif _by_hand_on_the_pool(job, runner):
+                        by_hand += 1
                     else:
                         self.assertRegex(str(runner), HOSTED, f"{where} runs on {runner}, which has no fallback")
             if "place" in jobs:
@@ -679,15 +854,24 @@ class WorkflowSecurityTest(unittest.TestCase):
                 self.assertEqual(place.get("permissions"), {"actions": "read", "contents": "read"}, f"{path.name}: place reads only")
         self.assertGreaterEqual(placed, 11, "the placed agent jobs were found")
 
+    def test_only_a_job_started_by_hand_names_the_pool_without_a_fallback(self):
+        bank = yaml.safe_load((ROOT / ".github/workflows/bank.yml").read_text())["jobs"]
+        self.assertTrue(_by_hand_on_the_pool(bank["top-sites"], bank["top-sites"]["runs-on"]))
+        for cond in ("always()", "github.ref == 'refs/heads/staging'", "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'",
+                     "github.event_name != 'workflow_dispatch'"):
+            self.assertFalse(_by_hand_on_the_pool({"if": cond}, ["self-hosted", "Linux", "X64", "steam-machine"]), cond)
+        self.assertFalse(_by_hand_on_the_pool({"if": "github.event_name == 'workflow_dispatch'"}, "blacksmith-2vcpu-ubuntu-2404"))
+
     def test_every_agent_job_is_placed(self):
         # The agent and simulation jobs (a model, a simulated user, the task bank) are the ones that may use Lewis's
         # runners; build, unit, lint and coverage run on Blacksmith, side by side.
         agents = {
-            "pr-agent-checks.yml": {"check", "qa", "skills", "slice"},
+            "pr-agent-checks.yml": {"qa", "skills", "slice"},
             "qa.yml": {"check", "qa", "skills"},
             "bank.yml": {"hard-sites", "writes"},
             "gate-bank.yml": {"bank"},
-            "claude-review.yml": {"review"},
+            "opencode-review.yml": {"review"},
+            "opencode-steward.yml": {"steward"},
             "sdk-polish.yml": {"polish"},
         }
         for name, ids in agents.items():
@@ -742,15 +926,18 @@ class WorkflowSecurityTest(unittest.TestCase):
         self.assertTrue(doc["concurrency"]["cancel-in-progress"])
         self.assertIn("github.event.pull_request.number", doc["concurrency"]["group"])
         jobs = doc["jobs"]
-        self.assertEqual(set(jobs), {"check", "coverage", "verdict"})
+        self.assertEqual(set(jobs), {"scope", "check", "coverage", "verdict"})
         # A draft is the point: no job waits for ready, so nothing is held back for want of a credential.
-        for name in ("check", "coverage"):
+        for name in ("scope", "coverage"):
             self.assertNotIn("if", jobs[name], f"job {name} is skipped for some pull requests")
+        self.assertIn("needs.scope.result != 'success' || needs.scope.outputs.qa == 'true'", jobs["check"]["if"])
+        self.assertNotIn("draft", jobs["check"]["if"])
         self.assertEqual(jobs["verdict"]["if"], "always()")
-        self.assertEqual(jobs["verdict"]["needs"], ["check", "coverage"])
+        self.assertEqual(jobs["verdict"]["needs"], ["scope", "check", "coverage"])
         run = jobs["verdict"]["steps"][-1]["run"]
-        self.assertIn("length == 2", run)
+        self.assertIn("length == 3", run)
         self.assertIn('all(.value.result == "success")', run)
+        self.assertIn('.scope.result == "success" and .coverage.result == "success"', run)
         self.assertIn("PR_CHECK_OK", run.splitlines()[-1], "the marker prints last, after both results were read")
 
     def test_pr_check_holds_no_credential(self):
@@ -773,8 +960,9 @@ class WorkflowSecurityTest(unittest.TestCase):
             self.assertTrue(_credential_free_problems(yaml.safe_load(bad), bad), f"{what} went unnoticed")
 
     def test_pr_check_runs_the_same_steps_as_the_checks_it_stands_for(self):
-        # Copies drift; these can't. The MCP check is pr-agent-checks.yml's `check` (its build, then its steps from the
-        # checks' own tests on), the coverage is qa.yml's `coverage`, step for step.
+        # Copies drift; these can't. The MCP check builds as pr-agent-checks.yml's `build` does, step for step, and the
+        # coverage is qa.yml's `coverage`. pr-agent-checks.yml no longer runs the MCP check a second time (22 Nov 2026):
+        # this is the only copy a pull request runs, and qa.yml skips a push only when it passed (passed_on_pr.py).
         mine = yaml.safe_load(PR_CHECK.read_text())["jobs"]
         agent = yaml.safe_load(PR_AGENT_CHECKS.read_text())["jobs"]
         qa = yaml.safe_load((ROOT / ".github/workflows/qa.yml").read_text())["jobs"]
@@ -784,9 +972,7 @@ class WorkflowSecurityTest(unittest.TestCase):
         build = agent["build"]["steps"]
         built = [s.get("name") for s in build].index("Build the window") + 1
         self.assertEqual(steps[:split], build[:built])
-        tests = names.index("Test the checks")
-        theirs = agent["check"]["steps"]
-        self.assertEqual(steps[tests:], theirs[[s.get("name") for s in theirs].index("Test the checks"):])
+        self.assertNotIn("check", agent, "the MCP check runs once, in pr-check.yml")
         self.assertEqual(mine["coverage"]["steps"], qa["coverage"]["steps"])
         self.assertEqual(mine["coverage"]["runs-on"], qa["coverage"]["runs-on"])
 
@@ -834,48 +1020,6 @@ class WorkflowSecurityTest(unittest.TestCase):
             self.assertFalse(any(t.startswith("pull_request") for t in _triggers(doc)), name)
             self.assertEqual(doc["jobs"]["dashboard"]["uses"], "./.github/workflows/dashboard-post.yml", name)
             self.assertEqual(doc["jobs"]["dashboard"]["permissions"], {"actions": "read", "contents": "read"}, name)
-
-
-class ReleaseRunsOnItsBranch(unittest.TestCase):
-    """A CI run that passes on staging or a release branch hands the release to that branch (UNB-224). A workflow_run run
-    runs on main's ref, which the `release` environment refuses: runs 45103689530 and 45174816274 (23 Nov 2026) failed
-    "Branch main is not allowed to deploy to release" at the Mac signing job, and no staging or rc build reached npm."""
-
-    def setUp(self):
-        self.doc = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
-        self.jobs = self.doc["jobs"]
-
-    def needs(self, name):
-        n = self.jobs[name].get("needs", [])
-        return [n] if isinstance(n, str) else n
-
-    def reaches_version(self, name, seen=()):
-        return name == "version" or any(self.reaches_version(n, seen + (name,)) for n in self.needs(name) if n not in seen)
-
-    def test_no_job_with_an_environment_runs_on_a_workflow_run(self):
-        self.assertNotIn("workflow_run", self.jobs["version"]["if"])
-        for name, job in self.jobs.items():
-            if "environment" in job:
-                self.assertTrue(self.reaches_version(name), f"{name} holds an environment and does not wait on version")
-                self.assertNotIn("workflow_run", str(job.get("if", "")), name)
-
-    def test_ci_passing_on_a_branch_dispatches_the_release_on_that_branch_and_commit(self):
-        hand = self.jobs["hand-over"]
-        self.assertNotIn("environment", hand)
-        self.assertEqual(hand["permissions"], {"actions": "write"})
-        for part in ("github.event.workflow_run.conclusion == 'success'", "github.event.workflow_run.event == 'push'",
-                     "github.event.workflow_run.head_repository.full_name == github.repository"):
-            self.assertIn(part, hand["if"])
-        step = hand["steps"][0]
-        self.assertEqual(step["env"]["BRANCH"], "${{ github.event.workflow_run.head_branch }}")
-        self.assertEqual(step["env"]["SHA"], "${{ github.event.workflow_run.head_sha }}")
-        self.assertIn('--ref "$BRANCH" -f sha="$SHA"', step["run"])
-
-    def test_the_handed_over_commit_is_released_only_from_its_own_branch(self):
-        steps = self.jobs["version"]["steps"]
-        self.assertEqual(steps[0]["with"]["ref"], "${{ inputs.sha || github.sha }}")
-        guard = next(s for s in steps if s.get("name") == "The commit is the branch's")
-        self.assertIn('merge-base --is-ancestor "$WANT" "$GITHUB_SHA"', guard["run"])
 
 
 if __name__ == "__main__":

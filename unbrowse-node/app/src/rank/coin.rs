@@ -401,3 +401,7 @@ mod tests {
         assert_eq!(p.order, vec![b, a]);
     }
 }
+
+#[cfg(test)]
+#[path = "coin_cov_tests.rs"]
+mod coin_cov_tests;

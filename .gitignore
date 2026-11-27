@@ -46,3 +46,4 @@ LOCAL-USE.md
 .deploy/.*
 .wrangler.preview.*
 unbrowse-telemetry/.wrangler/
+unbrowse-ci-shots/.wrangler/

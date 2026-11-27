@@ -64,5 +64,53 @@ class Site(unittest.TestCase):
             server.shutdown()
 
 
+
+class Tunnels(unittest.TestCase):
+    """The quick tunnel service refuses a second tunnel asked too soon from one address, with no tunnel at all
+    ("failed to parse quick Tunnel ID: invalid UUID length: 0", PR check 45350260674): the program ends at once. That
+    is asked again after a wait, not waited on for minutes and called "no public address"."""
+
+    def fake(self, d, refusals):
+        count = os.path.join(d, "count")
+        program = os.path.join(d, "cloudflared")
+        with open(program, "w") as f:
+            f.write(f"""#!/bin/sh
+n=$(cat {count} 2>/dev/null || echo 0); n=$((n + 1)); echo $n > {count}
+echo "INF Requesting new quick Tunnel on trycloudflare.com..."
+if [ $n -le {refusals} ]; then echo "failed to parse quick Tunnel ID: invalid UUID length: 0"; exit 1; fi
+echo "INF |  https://quiet-river-{refusals}.trycloudflare.com  |"
+echo "INF Registered tunnel connection connIndex=0"
+sleep 30
+""")
+        os.chmod(program, 0o755)
+        return program
+
+    def tunnels(self, program, d):
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".github", "qa"))
+        import run_attack
+        from pathlib import Path
+        t = run_attack.Tunnels(program, Path(d))
+        t.published_wait, t.poll, t.again_after = 0, 0.05, 0.1
+        return t
+
+    def test_a_refused_quick_tunnel_is_asked_again(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            t = self.tunnels(self.fake(d, 2), d)
+            try:
+                self.assertEqual(t("http://127.0.0.1:1"), "https://quiet-river-2.trycloudflare.com")
+            finally:
+                t.close()
+
+    def test_a_service_that_keeps_refusing_still_says_so(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            t = self.tunnels(self.fake(d, 99), d)
+            try:
+                with self.assertRaisesRegex(RuntimeError, "no public address"):
+                    t("http://127.0.0.1:1")
+            finally:
+                t.close()
+
 if __name__ == "__main__":
     unittest.main()

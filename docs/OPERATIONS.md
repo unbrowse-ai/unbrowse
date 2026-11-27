@@ -112,8 +112,8 @@ To ship from the public release repository:
 2. Raise [`unbrowse-node/MIN_VERSION`](../unbrowse-node/MIN_VERSION) (now `13.0.0`) in a change on the release branch if
    older nodes must leave the network: it goes into the signed manifest and, once stable runs that version, into the
    update targets as `min_version` (below).
-3. After promotion approval, sync the approved core tree through the public mirror's pull request, applying
-   `.github/public-tree-exclude` as described below. In a checkout of `unbrowse-ai/unbrowse`, squash-merge the
+3. After promotion approval, merge the public mirror's sync pull request (`public-sync.yml`, below) holding the
+   approved core tree. In a checkout of `unbrowse-ai/unbrowse`, squash-merge the
    `release/X.Y` pull request into `main`, then tag its commit and push the tag:
 
    ```sh
@@ -172,8 +172,23 @@ with `dry_run`: every job up to the publish runs with the keys, npm lacking a pa
 npm or a GitHub release: `gh workflow run release.yml --repo unbrowse-ai/unbrowse --ref staging -f dry_run=true`.
 
 The public repository `unbrowse-ai/unbrowse` gets an approved core tree as one squashed commit per sync, through a pull request,
-without the paths in `.github/public-tree-exclude`. Today that is `unbrowse-settlement/`: the contracts' sources,
-tests and deploy scripts stay private, in `unbrowse-ai/unbrowse-settlement` and here. The node's compiled contracts
+without the paths in `.github/public-tree-exclude`. `public-sync.yml` proposes it on every push to staging (or by
+hand, `gh workflow run public-sync.yml --ref staging`), and merging that pull request is the approval:
+`.github/scripts/public_tree.py check` refuses a tree that names a client, a home folder or the owner's account (the
+patterns are in `.github/public-tree-forbidden`, which is itself left out), or links to a path it leaves out, and `sync` replaces the public tree with core's on the public branch
+`sync/core-staging`, leaving the public repository's own files (`.github/public-tree-keep`: `CHANGELOG.md`,
+`.github/promotion-waivers`) alone. One pull request from that branch into public staging is opened, then updated by
+each later push; its body lists the files it removes and any change made on the public repository that it replaces
+(bring that to core first). The token is `PUBLIC_SYNC_TOKEN` in core's `public-sync` environment: a fine-grained token
+on `unbrowse-ai/unbrowse` alone with Contents, Pull requests and Workflows read and write. Without it the run is red
+and says so.
+
+What the tree leaves out: `unbrowse-settlement/` (the contracts' sources, tests and deploy scripts stay private, in
+`unbrowse-ai/unbrowse-settlement` and here), and the internal ledgers and the agents' and CI's process docs
+(`docs/REQUIREMENTS.md`, `REBUILD.md`, `ROADMAP.md`, `SPEC-STATUS.md`, `spec-status/`, `CI-AGENTS.md`, `HARNESS.md`,
+`PERFORMANCE.md`; Lewis, 27 November 2026). A doc public CI reads stays public (`OPERATIONS.md`, `GENERALITY.md`,
+`COVERAGE-EXCLUSIONS.md`). Leaving out another path is one line in the list; a public page that links to it loses the
+link in the same change, or the check refuses the sync. The node's compiled contracts
 (`unbrowse-node/app/contracts/`) stay in the public tree, since the node deploys and checks deployments from them.
 The contracts' CI jobs run only in unbrowse-core, and `papers/params_check.py` reports their sites as PRIVATE where
 the folder is absent.
@@ -697,8 +712,9 @@ triggers, the gate bank and its slice, Bank, Code review, PR Steward, SDK polish
 | `pr-signal.yml` (PR signal, no credential) | every pull request event | one hosted job that says the pull request moved, so the agents that hold a key can start; no secret, no permission |
 | `opencode-review.yml` (Code review) | after `pr-signal`, by hand | placed (below); reviews the change, posts the findings inline, writes the `Code review` check; holds `OPENCODE_API_KEY` in the `opencode-review` environment |
 | `opencode-steward.yml` (PR Steward) | after CI, Coverage, the PR check or Code review, or by hand | placed (below); fixes what failed or what was found, one commit on the branch; holds `OPENCODE_API_KEY` in the `opencode-steward` environment |
-| `opencode-approvals.yml` (Claude Approvals) | every pull request event, every review, after Code review, by hand | reads `.claude/approvals.yml` and writes the `Claude Approvals` check; no secret. [CI-AGENTS.md](CI-AGENTS.md) |
+| `opencode-approvals.yml` (Claude Approvals) | every pull request event, every review, after Code review, by hand | reads `.claude/approvals.yml` and writes the `Claude Approvals` check; no secret. `docs/CI-AGENTS.md` (in unbrowse-core) |
 | `pr-closed.yml` | a pull request closes or merges | cancels that pull request's runs still waiting or running |
+| `public-sync.yml` (Public sync) | every push to `staging`, by hand | checks the public tree and opens or updates the sync pull request into `unbrowse-ai/unbrowse` staging (above); holds `PUBLIC_SYNC_TOKEN` in the `public-sync` environment; runs only in unbrowse-core |
 
 **Agent jobs on Lewis's runners (UNB-166).** From 20 to 21 Nov 2026 every job ran on the local pool (four slots on
 the Steam Machine, one MacBook). It was asked for about twice what it could do, and 0 of 43 pull requests into staging

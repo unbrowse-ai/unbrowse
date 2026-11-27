@@ -31,14 +31,15 @@ class SdkPolish(unittest.TestCase):
         model_jobs = []
         for name, job in jobs.items():
             text = yaml.safe_dump(job)
-            has_model = "anthropics/claude-code-action@" in text or re.search(r"secrets\.\w*(?:CLAUDE|ANTHROPIC)", text, re.I)
+            has_model = "anthropics/claude-code-action@" in text or re.search(r"secrets\.\w*(?:CLAUDE|ANTHROPIC|OPENCODE_CHATGPT)", text, re.I)
             if has_model:
                 model_jobs.append(name)
                 self.assertFalse(writes(job), f"{name}: the model's job can write")
                 self.assertNotIn("id-token", job.get("permissions") or {}, f"{name}: the model's job can mint a token")
-                action = next(s for s in job["steps"] if str(s.get("uses", "")).startswith("anthropics/claude-code-action@"))
-                self.assertEqual(action["with"].get("github_token"), "${{ github.token }}", f"{name}: the action uses the job's read-only token")
-                tools = re.search(r'--allowedTools "([^"]*)"', action["with"]["claude_args"]).group(1).split(",")
+                action = next(s for s in job["steps"] if "agent_cli.py" in s.get("run", ""))
+                self.assertNotIn("github.token", str(action), f"{name}: the model step holds no GitHub token")
+                self.assertIn("--output-format stream-json --verbose", action["run"])
+                tools = re.search(r'--allowedTools "([^"]*)"', action["run"]).group(1).split(",")
                 self.assertEqual(sorted(tools), ["Edit", "Glob", "Grep", "Read", "Write"], f"{name}: the model has file tools only")
                 after = job["steps"][job["steps"].index(action) + 1 :]
                 self.assertIn("rm -rf .git", after[0].get("run", ""), f"{name}: nothing runs git in the tree the model wrote")

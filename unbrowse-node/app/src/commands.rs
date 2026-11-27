@@ -2741,3 +2741,7 @@ mod tests {
         assert_eq!(run("coin_rank", json!({ "entries": ["not an entry", " "] })), json!({}), "an id that isn't one names no rank");
     }
 }
+
+#[cfg(test)]
+#[path = "commands_cov_tests.rs"]
+mod commands_cov_tests;

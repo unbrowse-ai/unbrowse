@@ -126,6 +126,32 @@ pub fn failed_by_code(body: &Value) -> Option<String> {
     (!lists_things(body, 0)).then(|| cut(&code, 80))
 }
 
+/// The page an answer points to in place of data: an object of a few members, every one a short word or number but
+/// one, which is a web address. A call that asked for the site's data and got only this was sent to a page instead
+/// (a check to pass, or the site's word that it won't answer); what that page is, is read from the page. None for an
+/// answer that carries anything more. Read only against a route's recorded shape (`replay`): a route whose own answer
+/// is a link keeps its link.
+pub fn pointer_url(body: &Value) -> Option<String> {
+    let o = body.as_object()?;
+    if o.is_empty() || o.len() > 4 {
+        return None;
+    }
+    let mut url = None;
+    for v in o.values() {
+        match v {
+            Value::String(s) if s.starts_with("http://") || s.starts_with("https://") => {
+                if url.replace(s.clone()).is_some() {
+                    return None;
+                }
+            }
+            Value::String(s) if s.len() <= 32 => {}
+            Value::Number(_) | Value::Bool(_) | Value::Null => {}
+            _ => return None,
+        }
+    }
+    url
+}
+
 /// The address of the site's check that a failed answer points to: the page the site hands back beside a failure
 /// code ([`failed_by_code`]) instead of records — its validate/punish page (Alibaba baxia puts it under `data.url`;
 /// others name a top-level `url`/`redirect`). The clearance flow opens this page; once it is passed (by a person, or
@@ -1275,5 +1301,19 @@ mod tests {
         let list = "<results><row><name>lamp</name></row><row><name>jar</name></row></results>";
         assert_eq!(markup_records(list).unwrap()["records"][1]["name"], "jar");
         assert!(markup_records(r#"<?xml version="1.0"?><rss><channel><title>nothing - News</title></channel></rss>"#).is_none());
+    }
+
+    /// An answer that is only a pointer to a page names that page; one with a second address, a long value or anything
+    /// structured carries more than a pointer, and names none.
+    #[test]
+    fn an_answer_that_only_points_to_a_page_names_it() {
+        let p = |v: Value| pointer_url(&v);
+        assert_eq!(p(serde_json::json!({ "rgv587_flag": "sm", "url": "https://deny.example/t.html?action=deny" })).as_deref(), Some("https://deny.example/t.html?action=deny"));
+        assert_eq!(p(serde_json::json!({ "go": "http://a.example/", "n": 3, "ok": true, "x": null })).as_deref(), Some("http://a.example/"));
+        assert!(p(serde_json::json!({ "a": "https://a.example/", "b": "https://b.example/" })).is_none(), "two addresses");
+        assert!(p(serde_json::json!({ "url": "https://a.example/", "why": "a sentence longer than any short word or flag would be" })).is_none(), "a long value");
+        assert!(p(serde_json::json!({ "url": "https://a.example/", "items": [] })).is_none(), "something structured");
+        assert!(p(serde_json::json!({ "flag": "sm" })).is_none() && p(serde_json::json!({})).is_none() && p(serde_json::json!([1])).is_none(), "no address");
+        assert!(p(serde_json::json!({ "a": 1, "b": 2, "c": 3, "d": 4, "url": "https://a.example/" })).is_none(), "too many members");
     }
 }

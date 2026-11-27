@@ -3,17 +3,22 @@
 # node up by itself and the node's MCP answers (.github/scripts/installer-device-test.sh, DEVICE_TEST_OK). Screenshots
 # of the window go up as the device-<os> artifact.
 #
-# installers.yml calls it with its own run before it makes the draft, so a draft is only made from installers that
-# passed. Push a branch named installers-test/<anything> to test the newest successful Installers run's files again.
+# release.yml calls it for every production release and every dry run, with its own run, before npm publishes anything:
+# a release is only made from installers that passed. Dispatch it with a release run's id to test that run's files
+# again; with none, it tests the newest successful Release run.
 name: Installers device test
 
 on:
-  push:
-    branches: ["installers-test/**"]
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: The Release run whose installers artifact to test, or none for the newest successful one
+        type: string
+        required: false
   workflow_call:
     inputs:
       run-id:
-        description: The Installers run whose installers artifact to test
+        description: The Release run whose installers artifact to test
         type: string
         required: true
 
@@ -47,14 +52,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GIVEN: ${{ inputs.run-id }}
         run: |
-          id=${GIVEN:-$(gh run list --repo "$GITHUB_REPOSITORY" --workflow installers.yml --status success -L 1 --json databaseId --jq '.[0].databaseId')}
+          id=${GIVEN:-$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --status success -L 1 --json databaseId --jq '.[0].databaseId')}
           test -n "$id"
           echo "id=$id" >> "$GITHUB_OUTPUT"
           echo "Testing the installers of run $id"
+      # The installers, and the Mac disk image `mac-sign` signed: one folder, so each machine finds the file it installs.
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: installers
+          pattern: "{installers,programs-darwin-arm64}"
           path: ${{ runner.temp }}/installers
+          merge-multiple: true
           run-id: ${{ steps.run.outputs.id }}
           github-token: ${{ github.token }}
       - name: Install, open, check

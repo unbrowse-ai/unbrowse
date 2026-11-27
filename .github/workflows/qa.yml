@@ -28,10 +28,7 @@
 #   QA report        the agent's report, one picture per check and per terminal and window step, each journey's result
 #                    across every job, the gate bank's verdict, and what every model run cost, into the run's summary.
 #
-# Every run's report, pictures and costs go in the run's summary and its artifacts; a failed step fails its job. The
-# agent jobs need a Claude credential as a repository secret: ANTHROPIC_API_KEY, or CLAUDE_CODE_OAUTH_TOKEN /
-# CLAUDE_CODE_OAUTH_TOKEN_2 (a subscription, from `claude setup-token`). Without one they say so and pass; the MCP
-# check needs none and always runs.
+# Reports, pictures and costs go into the run summary and artifacts. The MCP check needs no model credential.
 #
 # The agents read pages anyone can write, so a job holding a credential holds nothing it could hand on: a read-only
 # token, kept off the disk, no OIDC, no shell or file reads outside the work tree, no cache saved (the build job, which
@@ -73,11 +70,17 @@ on:
         type: boolean
         default: true
 
+# Per event: a newer push cancels the older push's run, and the nightly run never cancels a push's (QA 45328263663, the
+# push of 6e7d47b73, was cancelled at 05:01 by the scheduled run that started at 05:00).
 concurrency:
-  group: qa-${{ github.ref }}
+  group: qa-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions: {}
+
+# Model calls use ChatGPT subscription OAuth through agent_cli.py.
+env:
+  AGENT_AUTH: chatgpt
 
 jobs:
   # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
@@ -213,9 +216,14 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.17.0
+      # Zig 0.17's std aborts on a connect a signal interrupted ("programmer bug caused syscall error: ISCONN"): patched
+      # in place before anything builds (.github/scripts/patch_zig_std.py; Zig 0.17.1 and master read it the same way).
+      - name: Patch Zig's std (an interrupted connect settles)
+        shell: bash
+        run: if command -v python3 >/dev/null; then python3 -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; else python -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; fi
       - name: Build the window
         working-directory: unbrowse-node/window
-        run: zig build
+        run: zig build -Doptimize=ReleaseSafe
       # One archive, at the paths the build left them: a debug node finds its browser program by the path it was built
       # at, which is the same work folder on every runner of this label. tar keeps the programs executable.
       - name: Pack the build
@@ -304,15 +312,15 @@ jobs:
           shots="$RUNNER_TEMP/check/shots"
           mkdir -p "$shots"
           drew=fail; python3 -I .github/qa/qa_tools.py --picture "$shots/window.png" > "$RUNNER_TEMP/check/window.log" 2>&1 && drew=pass
-          # A new node opens on its terms; Open my node, and the same window asks its owner to sign in (Skip for now).
-          opened=fail; python3 -I .github/qa/qa_tools.py --picture "$shots/window-open-my-node.png" "click:Open my node;live:4" >> "$RUNNER_TEMP/check/window.log" 2>&1 && opened=pass
-          # The sign-in shows only in the window that pressed Open my node (window/src/app.zig acceptTerms), so a window
-          # opened after it goes on to Connect your agents when it finds agent apps here (Skip, which the node
-          # remembers), else to the node. Skip on Connect goes on to ChatGPT and Claude on the web, whose Not now ends it
-          # (screens/connect.zig webStep).
-          # With no agent installed here the sheet's button is Next, not Skip.
+          # A new node opens on setting up (window/src/screens/onboarding.zig): Welcome, whose Get started shows its
+          # terms; Agree and continue, and the same window asks its owner to sign in (Skip for now).
+          opened=fail; python3 -I .github/qa/qa_tools.py --picture "$shots/window-first-run.png" "click:Get started;live:2;click:Agree and continue;live:4" >> "$RUNNER_TEMP/check/window.log" 2>&1 && opened=pass
+          # The sign-in shows only in the window that agreed (window/src/app.zig acceptTerms), so a window opened after
+          # it goes on to the AI apps step: Skip there (Next when no agent app is installed here) shows ChatGPT and
+          # Claude on the web, whose Not now ends on You're set, and Open Unbrowse opens the node. A node with an app
+          # connected already skips all of it.
           clicked=fail
-          for script in "click:Skip;live:2;click:Not now;live:2;click:Vault;live:2" "click:Next;live:2;click:Not now;live:2;click:Vault;live:2" "click:Skip;live:2;click:Vault;live:2" "click:Vault;live:2"; do
+          for script in "click:Next;live:2;click:Not now;live:2;click:Open Unbrowse;live:2;click:Vault;live:2" "click:Skip;live:2;click:Not now;live:2;click:Open Unbrowse;live:2;click:Vault;live:2" "click:Vault;live:2"; do
             python3 -I .github/qa/qa_tools.py --picture "$shots/window-vault.png" "$script" >> "$RUNNER_TEMP/check/window.log" 2>&1 && { clicked=pass; break; }
           done
           size=$(wc -c < "$shots/window.png" 2>/dev/null || echo 0)
@@ -322,8 +330,8 @@ jobs:
             echo "| Step | Result | Note |"
             echo "| --- | --- | --- |"
             echo "| opens on this node and draws | $drew | window.png, $size bytes |"
-            echo "| its terms, then Open my node opens the node | $opened | window-open-my-node.png |"
-            echo "| opened again: Skip on Connect your agents if it shows, then Vault shows the Vault screen | $clicked | window-vault.png |"
+            echo "| Get started shows its terms, then Agree and continue asks the owner to sign in | $opened | window-first-run.png |"
+            echo "| opened again: the AI apps, ChatGPT and Claude and You're set if they show, then Vault shows the Vault screen | $clicked | window-vault.png |"
           } > "$RUNNER_TEMP/check/window.md"
           cat "$RUNNER_TEMP/check/window.md" "$RUNNER_TEMP/check/window.log"
           [ "$drew" = pass ] && [ "$opened" = pass ] && [ "$clicked" = pass ]
@@ -382,67 +390,35 @@ jobs:
             checks: "1,2,3,8,9,12,13,17"
             choice: true
           - shard: 2
-            checks: "4,5,6,7,10,11,18"
+            checks: "4,5,6,7,10,11,18,27"
           - shard: 3
             checks: "14,15,16,19,20,21,22,23,24"
           - shard: 4
-            checks: "25,26,27"
+            checks: "25,26"
     runs-on: ${{ fromJSON(needs.place.outputs[format('qa{0}', matrix.shard)]) }}
     timeout-minutes: 40
     permissions:
       contents: read
-    outputs:
-      ran: ${{ steps.auth.outputs.ok }}
     steps:
-      - id: auth
-        env:
-          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          if [ -n "$API_KEY$OAUTH_TOKEN" ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::Claude QA didn't run: add ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN as a repository secret (/install-github-app in Claude Code)"
-          fi
-
-      - if: steps.auth.outputs.ok == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       # The page sandbox and scratch-node.sh need Node 25 or later (26 is the LTS): older Nodes let a page's scripts reach the network
       # under --permission.
-      - if: steps.auth.outputs.ok == 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
-      # A token that is set can still refuse (a weekly limit): the job runs on the first one that answers.
-      # The Claude CLI the credential is asked with: the locked one, its lifecycle scripts off, in a step with no secret.
-      - name: Install the pinned Claude CLI
-        if: steps.auth.outputs.ok == 'true'
+      - name: The model CLI (opencode)
         run: |
-          npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
-          # The CLI is a stub until its own install.cjs, from the same locked package, links in the native binary of
-          # the platform's locked optional package; skipped, every ask says "claude native binary not installed" (UNB-235).
-          node .github/tools/claude-cli/node_modules/@anthropic-ai/claude-code/install.cjs
-          .github/tools/claude-cli/node_modules/.bin/claude --version
-      - name: Pick the Claude credential that answers
-        id: credential
-        if: steps.auth.outputs.ok == 'true'
-        env:
-          CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
-          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+          npm i --silent --no-audit --no-fund --prefix "$RUNNER_TEMP/agent-cli" @opencode/cli@2.4.1
+          echo "$RUNNER_TEMP/agent-cli/node_modules/.bin" >> "$GITHUB_PATH"
       # The build this run's `build` job made, checked against the SHA-256 that job gave before it is unpacked. This job
       # builds nothing and saves no cache: the tree it ends with has been in reach of the agent's Write.
-      - if: steps.auth.outputs.ok == 'true'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: qa-node-build
           path: ${{ runner.temp }}/node-build
       - name: Unpack the build this run made
-        if: steps.auth.outputs.ok == 'true'
         env:
           DIGEST: ${{ needs.build.outputs.digest }}
         run: |
@@ -457,7 +433,6 @@ jobs:
       # The npm package as npm ships it (pack-sdks.sh's steps, with no release manifest): built and packed from this
       # commit, unpacked where `npm install -g` would put it.
       - name: Pack the npm package
-        if: steps.auth.outputs.ok == 'true'
         run: |
           ts=unbrowse-sdk/typescript
           rm -rf "$ts/skill" && cp -R skills/unbrowse "$ts/skill"
@@ -473,7 +448,6 @@ jobs:
       # SHOTS, where the step that takes them looks. With the default root (~/.agent-browser/files) every one was
       # refused and the report fell back to pictures of each check's page (run 44656967013, UNB-235).
       - name: Start the node
-        if: steps.auth.outputs.ok == 'true'
         env:
           AGENT_BROWSER_FILE_ROOT: ${{ github.workspace }}/qa-shots
         run: mkdir -p qa-shots && sh .github/qa/start-node.sh unbrowse-node/target/debug/unbrowse-node "$GITHUB_WORKSPACE/unbrowse-node/target/debug/unb" "$RUNNER_TEMP/unbrowse"
@@ -482,13 +456,13 @@ jobs:
       # temp folder first, where the agent can't Write: the programs, the window, the npm package and the tool itself,
       # so nothing the agent writes in the work tree is ever run.
       - name: The terminal and the window, for the agent
-        if: steps.auth.outputs.ok == 'true'
         run: |
           kit="$RUNNER_TEMP/qa-kit"
           mkdir -p "$kit/bin" qa-work
           cp unbrowse-node/target/debug/unbrowse-node unbrowse-node/target/debug/unb "$kit/bin/"
           cp unbrowse-node/window/zig-out/bin/unbrowse-window "$kit/bin/" 2>/dev/null || echo "::warning::the window didn't build: checks 25 to 27 are blocked"
-          cp .github/qa/qa_tools.py "$kit/"
+          cp .github/qa/qa_tools.py .github/qa/owner_watch.py "$kit/"
+          cp -R unbrowse-sdk/python/src/unbrowse "$kit/"
           cp -R .github/qa/fixtures "$kit/fixtures"
           jq --arg py "$(command -v python3)" --arg kit "$kit" --arg ws "$GITHUB_WORKSPACE" --arg home "$UNBROWSE_HOME" \
             --arg chrome "$QA_CHROME" --arg npm "$RUNNER_TEMP/npm/global/package/dist/cli.js" --arg display "${DISPLAY:-}" \
@@ -507,7 +481,7 @@ jobs:
       # runs several times (tool-choice.json `trials`): one session's choice is a sample, not a rate.
       - name: Tool choice setup
         id: choice-setup
-        if: steps.auth.outputs.ok == 'true' && matrix.choice
+        if: matrix.choice
         continue-on-error: true
         run: |
           scratch="$RUNNER_TEMP/tc"
@@ -524,13 +498,14 @@ jobs:
       # without secrets; CLI dependencies are locked in .github/tools/claude-cli and lifecycle scripts are disabled.
       # Three sessions at a time, each capped in turns and dollars.
       - name: Run tool choice sessions
-        if: steps.auth.outputs.ok == 'true' && matrix.choice
+        if: matrix.choice
         continue-on-error: true
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
         run: |
-          cli="$GITHUB_WORKSPACE/.github/tools/claude-cli/node_modules/.bin/claude"
+          cli="$GITHUB_WORKSPACE/.github/scripts/agent_cli.py"
           out="$RUNNER_TEMP/tool-choice"
           while IFS= read -r line; do
             record=$(jq -r .record <<< "$line")
@@ -539,14 +514,14 @@ jobs:
               --mcp-config "$RUNNER_TEMP/tc/mcp.json" --setting-sources project \
               --tools WebFetch,WebSearch --allowedTools mcp__unbrowse,WebFetch,WebSearch \
               --max-turns 12 --max-budget-usd 0.75 --no-session-persistence \
-              > "$out/$record" 2>/dev/null < /dev/null &
+              > "$out/$record" 2> "$out/$record.err" < /dev/null &
             while [ "$(jobs -rp | wc -l)" -ge 3 ]; do sleep 1; done
           done < "$out/plan.jsonl"
           wait
 
       - name: Score tool choice
         id: choice
-        if: steps.auth.outputs.ok == 'true' && matrix.choice
+        if: matrix.choice
         continue-on-error: true
         run: |
           python3 .github/qa/tool_choice.py --score-only --mcp-config "$RUNNER_TEMP/tc/mcp.json" --out "$RUNNER_TEMP/tool-choice"
@@ -564,14 +539,14 @@ jobs:
       # in turns, and the job in minutes. Its stream (the result event says what it cost) goes to the temp folder.
       - name: QA
         id: claude
-        if: steps.auth.outputs.ok == 'true'
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
           PROMPT: 'Read .github/qa/checklist.md and do what it says. CHECKS: ${{ matrix.checks }}. VAULT_READY: ${{ env.VAULT_READY }}. SHOTS: ${{ github.workspace }}/qa-shots. WORK: ${{ github.workspace }}/qa-work. FIXTURES: ${{ env.QA_FIXTURES }}'
         run: |
           echo "execution_file=$RUNNER_TEMP/qa-execution.jsonl" >> "$GITHUB_OUTPUT"
-          "$GITHUB_WORKSPACE/.github/tools/claude-cli/node_modules/.bin/claude" -p "$PROMPT" --output-format stream-json --verbose \
+          "$GITHUB_WORKSPACE/.github/scripts/agent_cli.py" -p "$PROMPT" --output-format stream-json --verbose \
             --strict-mcp-config --mcp-config "$RUNNER_TEMP/unbrowse/qa-mcp.json" --setting-sources project \
             --tools Read,Write \
             --allowedTools "mcp__unbrowse__unbrowse_do,mcp__unbrowse__unbrowse_browse,mcp__unbrowse__unbrowse_search,mcp__unbrowse__unbrowse_call,mcp__unbrowse__unbrowse_judge,mcp__unbrowse__unbrowse_report,mcp__qa__terminal,mcp__qa__window,Read,Write" \
@@ -583,7 +558,7 @@ jobs:
       # and Anthropic keys by their shape. From here on this job runs only shell, jq and perl: the agent could write
       # to the work tree, so nothing in it is run.
       - name: Scrub the report
-        if: always() && steps.auth.outputs.ok == 'true'
+        if: always()
         env:
           EXECUTION: ${{ steps.claude.outputs.execution_file }}
           SHARD: ${{ matrix.shard }}
@@ -624,7 +599,7 @@ jobs:
       # The agent's screenshots, by the paths its verdict names: only a PNG, only from the shots folder, the node's
       # home or the temp folders, and only under the check's number.
       - name: Take the agent's screenshots
-        if: always() && steps.auth.outputs.ok == 'true'
+        if: always()
         run: |
           jq -r '.checks[]? | select(.shot != null) | "\(.n) \(.shot)"' "$RUNNER_TEMP/qa-out/qa-verdict.json" 2>/dev/null |
           while read -r n shot; do
@@ -636,21 +611,21 @@ jobs:
             cp "$shot" "$RUNNER_TEMP/qa-out/shots/check-$(printf '%02d' "$n").png"
           done
           ls "$RUNNER_TEMP/qa-out/shots"
-      - if: always() && steps.auth.outputs.ok == 'true'
+      - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qa-report-${{ matrix.shard }}
           path: ${{ runner.temp }}/qa-out/
       - name: Verdict
-        if: always() && steps.auth.outputs.ok == 'true'
+        if: always()
         run: jq -e '.pass == true' "$RUNNER_TEMP/qa-out/qa-verdict.json" > /dev/null || { echo "::error::Claude QA found a failing check, or wrote no verdict"; exit 1; }
       - name: Tool choice verdict
-        if: always() && steps.auth.outputs.ok == 'true' && matrix.choice
+        if: always() && matrix.choice
         env:
           CHOSE: ${{ steps.choice.outputs.pass }}
         run: '[ "$CHOSE" = true ] || { echo "::error::An agent with other web tools on hand did not reach for the node: see the report"; exit 1; }'
 
-      - if: always() && steps.auth.outputs.ok == 'true'
+      - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qa-node-log-${{ matrix.shard }}
@@ -669,33 +644,27 @@ jobs:
       key: ${{ steps.inputs.outputs.key }}
       pass: ${{ steps.score.outputs.pass }}
     steps:
-      - id: auth
-        env:
-          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          if [ -n "$API_KEY$OAUTH_TOKEN" ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::Skill triggers didn't run: no Claude credential is set"
-          fi
-      - if: steps.auth.outputs.ok == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Check the subscription OAuth grant
+        env:
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+        run: python3 -I .github/scripts/agent_cli.py --check-subscription
       # The verdict depends on the skills, the queries, the scripts, the locked CLI and these workflows (and on the
       # model): `skill_trigger.py --key` hashes git's record of them. When a run with the same inputs already passed,
       # an empty cache entry is kept under that key and the sessions are not run again. The nightly run does not
       # look, so a model that drifts is seen within a day. `lookup-only`: nothing is downloaded, the entry is a name.
       - name: What the verdict depends on
         id: inputs
-        if: steps.auth.outputs.ok == 'true'
         run: |
           key=$(python3 .github/qa/skill_trigger.py --key)
           echo "key=$key" >> "$GITHUB_OUTPUT"
       - name: Whether these inputs already passed
         id: passed
-        if: steps.auth.outputs.ok == 'true' && github.event_name != 'schedule'
+        if: github.event_name != 'schedule'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .skill-triggers-passed
@@ -707,43 +676,32 @@ jobs:
           KEY: ${{ steps.inputs.outputs.key }}
         run: |
           { echo "## Skill triggers"; echo; echo "Not run again: a run with the same skills, queries, scripts, CLI and workflows already passed (\`$KEY\`). The nightly run asks the model again."; } >> "$GITHUB_STEP_SUMMARY"
-      - if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+      - if: steps.passed.outputs.cache-hit != 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
-      - name: Install the pinned Claude CLI
-        if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+      - name: The model CLI (opencode)
+        if: steps.passed.outputs.cache-hit != 'true'
         run: |
-          npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
-          # The CLI is a stub until its own install.cjs, from the same locked package, links in the native binary of
-          # the platform's locked optional package; skipped, every ask says "claude native binary not installed" (UNB-235).
-          node .github/tools/claude-cli/node_modules/@anthropic-ai/claude-code/install.cjs
-          .github/tools/claude-cli/node_modules/.bin/claude --version
-      - name: Pick the Claude credential that answers
-        id: credential
-        if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
-        env:
-          CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
-          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+          npm i --silent --no-audit --no-fund --prefix "$RUNNER_TEMP/agent-cli" @opencode/cli@2.4.1
+          echo "$RUNNER_TEMP/agent-cli/node_modules/.bin" >> "$GITHUB_PATH"
       # A project holding the repository's skills, as an agent that installed them has them, and the sessions to run.
       - name: Prepare the sessions
-        if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        if: steps.passed.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/skill-project/.claude/skills"
           cp -R skills/*/ "$RUNNER_TEMP/skill-project/.claude/skills/"
           python3 .github/qa/skill_trigger.py --plan "$RUNNER_TEMP/skill-runs/plan.jsonl"
       # Only the pinned CLI receives the credential: the Skill tool beside the web tools, a few turns and cents each.
       - name: Run skill trigger sessions
-        if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        if: steps.passed.outputs.cache-hit != 'true'
         continue-on-error: true
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
         run: |
-          cli="$GITHUB_WORKSPACE/.github/tools/claude-cli/node_modules/.bin/claude"
+          cli="$GITHUB_WORKSPACE/.github/scripts/agent_cli.py"
           out="$RUNNER_TEMP/skill-runs"
           cd "$RUNNER_TEMP/skill-project"
           while IFS= read -r line; do
@@ -752,22 +710,22 @@ jobs:
             "$cli" -p "$prompt" --output-format stream-json --verbose --setting-sources project \
               --tools Skill,WebFetch,WebSearch --allowedTools Skill \
               --max-turns 3 --max-budget-usd 0.25 --no-session-persistence \
-              > "$out/$record" 2>/dev/null < /dev/null &
+              > "$out/$record" 2> "$out/$record.err" < /dev/null &
             while [ "$(jobs -rp | wc -l)" -ge 4 ]; do sleep 1; done
           done < "$out/plan.jsonl"
           wait
       - name: Score
         id: score
-        if: steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        if: steps.passed.outputs.cache-hit != 'true'
         continue-on-error: true
         run: |
           python3 .github/qa/skill_trigger.py --score "$RUNNER_TEMP/skill-runs"
           echo "pass=$(jq -r .pass "$RUNNER_TEMP/skill-runs/skill-trigger.json")" >> "$GITHUB_OUTPUT"
       - name: Summary
-        if: always() && steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        if: always() && steps.passed.outputs.cache-hit != 'true'
         run: |
           { echo "## Skill triggers"; echo; cat "$RUNNER_TEMP/skill-runs/skill-trigger.md" 2>/dev/null || echo "**Skill triggers: didn't finish.** See the steps' logs."; } >> "$GITHUB_STEP_SUMMARY"
-      - if: always() && steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+      - if: always() && steps.passed.outputs.cache-hit != 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qa-skill-triggers
@@ -775,7 +733,7 @@ jobs:
             ${{ runner.temp }}/skill-runs/skill-trigger.*
           if-no-files-found: ignore
       - name: Verdict
-        if: always() && steps.auth.outputs.ok == 'true' && steps.passed.outputs.cache-hit != 'true'
+        if: always() && steps.passed.outputs.cache-hit != 'true'
         env:
           PASSED: ${{ steps.score.outputs.pass }}
         run: '[ "$PASSED" = true ] || { echo "::error::A shipped skill was not chosen when it should be, or was chosen for a near miss: see the summary"; exit 1; }'
@@ -838,9 +796,8 @@ jobs:
       build_digest: ${{ needs.build.outputs.digest }}
       runs_on: ${{ needs.place.outputs.slice }}
     secrets:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      CLAUDE_CODE_OAUTH_TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
+      OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+      OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
       RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
 
   # The run's summary, from a job that holds no secret and only reads: a fresh checkout of the pushed commit's scripts
@@ -850,7 +807,7 @@ jobs:
   report:
     name: QA report
     needs: [check, qa, skills, coverage, bank]
-    if: always() && needs.qa.outputs.ran == 'true'
+    if: always() && needs.qa.result != 'skipped'
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: read
@@ -902,7 +859,7 @@ jobs:
           mkdir -p "$qa/shots"
           chrome=$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || command -v chromium-browser || true)
           python3 -I .github/qa/collect_shots.py --verdict "$qa/qa-verdict.json" --shots "$qa/shots" --chrome "$chrome" || true
-          python3 -I .github/qa/costs.py --label "Claude QA (claude CLI)" "$qa"/qa-cost-*.json > "$qa/cost.md" || true
+          python3 -I .github/qa/costs.py --label "QA (OpenCode, ChatGPT subscription)" "$qa"/qa-cost-*.json > "$qa/cost.md" || true
       - id: upload
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

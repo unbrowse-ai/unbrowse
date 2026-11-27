@@ -26,6 +26,7 @@ A fork's pull request is never placed on a pool (FORK=true). Anything this canno
 a wrong guess here costs money, never a hung check.
 """
 
+import concurrent.futures
 import json
 import os
 import sys
@@ -35,6 +36,21 @@ from datetime import datetime, timezone
 FALLBACK = {"mac": "blacksmith-6vcpu-macos-latest", "linux": "blacksmith-2vcpu-ubuntu-2404"}
 DEFAULT_SLOTS = {"mac": 1, "linux": 4}
 MAX_RUNS_READ = 40
+# Workflows that only ever run on hosted runners: skipping their `/jobs` queries cuts API calls per placement.
+HOSTED_ONLY_WORKFLOWS = frozenset({
+    ".github/workflows/pr-report.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/coverage.yml",
+    ".github/workflows/pr-check.yml",
+    ".github/workflows/promotion-gate.yml",
+    ".github/workflows/opencode-approvals.yml",
+    ".github/workflows/pr-signal.yml",
+    ".github/workflows/pr-closed.yml",
+    ".github/workflows/dashboard.yml",
+    ".github/workflows/dashboard-post.yml",
+    ".github/workflows/fresh-seeds.yml",
+    ".github/workflows/main-source-guard.yml",
+})
 
 
 def _labels(spec):
@@ -66,26 +82,55 @@ def _age_minutes(stamp, now):
     return (now - then).total_seconds() / 60
 
 
-def pool_state(pool, get, repo, this_run, now, runner_token_get=None, slots=None, stale_minutes=10, idle_minutes=2):
+def _collect_active_jobs(get, repo, this_run):
+    """Fetch jobs across queued and in-progress runs once, skipping hosted-only workflows, in parallel."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        pages = list(pool.map(
+            lambda s: get(f"/repos/{repo}/actions/runs?status={s}&per_page=100").get("workflow_runs", []),
+            ("queued", "in_progress"),
+        ))
+    run_ids, seen = [], set()
+    for runs in pages:
+        for run in runs:
+            rid = run.get("id")
+            if rid == this_run or rid in seen:
+                continue
+            if run.get("path") in HOSTED_ONLY_WORKFLOWS:
+                continue
+            seen.add(rid)
+            run_ids.append(rid)
+            if len(run_ids) >= MAX_RUNS_READ:
+                break
+        if len(run_ids) >= MAX_RUNS_READ:
+            break
+    if not run_ids:
+        return []
+    if len(run_ids) == 1:
+        return get(f"/repos/{repo}/actions/runs/{run_ids[0]}/jobs?filter=latest&per_page=100").get("jobs", [])
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(run_ids))) as pool:
+        batches = list(pool.map(
+            lambda rid: get(f"/repos/{repo}/actions/runs/{rid}/jobs?filter=latest&per_page=100").get("jobs", []),
+            run_ids,
+        ))
+    return [job for batch in batches for job in batch]
+
+
+def pool_state(pool, get, repo, this_run, now, runner_token_get=None, slots=None, stale_minutes=10, idle_minutes=2,
+               active_jobs=None, runners=None):
     """(free slots, why) for one pool's label set. `get(path)` reads the repository API with the job's token."""
     waiting, running, oldest_wait = 0, 0, 0.0
-    read = 0
-    for status in ("queued", "in_progress"):
-        runs = get(f"/repos/{repo}/actions/runs?status={status}&per_page=100").get("workflow_runs", [])
-        for run in runs:
-            if run.get("id") == this_run or read >= MAX_RUNS_READ:
-                continue
-            read += 1
-            for job in get(f"/repos/{repo}/actions/runs/{run['id']}/jobs?filter=latest&per_page=100").get("jobs", []):
-                if not _wants(job.get("labels"), pool):
-                    continue
-                if job.get("status") == "queued":
-                    waiting += 1
-                    oldest_wait = max(oldest_wait, _age_minutes(job.get("created_at"), now))
-                elif job.get("status") == "in_progress":
-                    running += 1
-    if runner_token_get is not None:
-        runners = runner_token_get(f"/repos/{repo}/actions/runners?per_page=100").get("runners", [])
+    jobs = _collect_active_jobs(get, repo, this_run) if active_jobs is None else active_jobs
+    for job in jobs:
+        if not _wants(job.get("labels"), pool):
+            continue
+        if job.get("status") == "queued":
+            waiting += 1
+            oldest_wait = max(oldest_wait, _age_minutes(job.get("created_at"), now))
+        elif job.get("status") == "in_progress":
+            running += 1
+    if runner_token_get is not None or runners is not None:
+        if runners is None:
+            runners = runner_token_get(f"/repos/{repo}/actions/runners?per_page=100").get("runners", [])
         mine = [r for r in runners if _runner_is_pool([label["name"] for label in r.get("labels", [])], pool)]
         idle = sum(1 for r in mine if r.get("status") == "online" and not r.get("busy"))
         online = sum(1 for r in mine if r.get("status") == "online")
@@ -147,13 +192,24 @@ def main(argv, env):
         get = _http(env["GH_TOKEN"])
         runner_get = _http(env["RUNNER_READ_TOKEN"]) if env.get("RUNNER_READ_TOKEN") else None
         now = datetime.now(timezone.utc)
+        needed = [k for k in sorted({k for _, k in requests}) if pools.get(k) is not None and not fork]
+        active_jobs, runners_list = None, None
+        if needed:
+            if runner_get is not None:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool_ex:
+                    jobs_fut = pool_ex.submit(_collect_active_jobs, get, repo, this_run)
+                    runners_fut = pool_ex.submit(lambda: runner_get(f"/repos/{repo}/actions/runners?per_page=100").get("runners", []))
+                    active_jobs, runners_list = jobs_fut.result(), runners_fut.result()
+            else:
+                active_jobs = _collect_active_jobs(get, repo, this_run)
         for kind in sorted({k for _, k in requests}):
             if pools.get(kind) is None or fork:
                 states[kind] = (0, "not read")
                 continue
             slots = int(env.get(f"POOL_SLOTS_{kind.upper()}", DEFAULT_SLOTS[kind]))
             states[kind] = pool_state(pools[kind], get, repo, this_run, now, runner_get, slots,
-                                      float(env.get("STALE_MINUTES", "10")))
+                                      float(env.get("STALE_MINUTES", "10")),
+                                      active_jobs=active_jobs, runners=runners_list)
     except Exception as error:  # noqa: BLE001: anything unread sends the job to Blacksmith, said in the summary
         print(f"::warning::Could not read the local runners ({type(error).__name__}: {error}); every job goes to Blacksmith")
         pools, states = {}, {}

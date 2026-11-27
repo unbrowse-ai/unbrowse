@@ -25,6 +25,10 @@ pub enum Act {
     Wait(u64),
     /// The agent believes it is done: the page is read once more and says so, or doesn't.
     Done,
+    /// The node meets the check itself: it reads the check's public key from the page, asks the captcha solver it has
+    /// (the owner's, or Unbrowse's for a signed-in owner) for a token, and hands the token to the page as the check
+    /// would. The page's own answer still decides whether it passed.
+    Solve,
 }
 
 impl Act {
@@ -43,7 +47,8 @@ impl Act {
             "press" => Self::Press(key.ok_or("a press names key")?.to_string()),
             "wait" => Self::Wait(ms.unwrap_or(1000).min(20_000)),
             "done" => Self::Done,
-            other => return Err(format!("the challenge takes look, click, drag, hold, type, press, wait or done, not {other:?}")),
+            "solve" => Self::Solve,
+            other => return Err(format!("the challenge takes look, click, drag, hold, type, press, wait, solve or done, not {other:?}")),
         })
     }
 
@@ -52,7 +57,8 @@ impl Act {
     /// it as. `done` and `wait` only read the page, as a picture does.
     pub fn command(&self) -> &'static str {
         match self {
-            Act::Click(..) | Act::Hold(..) => "click",
+            // A solve answers the check, as a click on it does, and crosses the same gates.
+            Act::Click(..) | Act::Hold(..) | Act::Solve => "click",
             Act::Drag(..) => "drag",
             Act::Type(_) => "type",
             Act::Press(_) => "press",
@@ -69,6 +75,7 @@ impl Act {
             Self::Press(k) => format!("pressed {k}"),
             Self::Wait(ms) => format!("waited {ms}ms"),
             Self::Done => "done".into(),
+            Self::Solve => "solved with the captcha solver".into(),
         }
     }
 }
@@ -198,6 +205,7 @@ mod tests {
         assert_eq!(Act::of("press", None, None, None, None, None, Some("Enter"), None).unwrap(), Act::Press("Enter".into()));
         assert_eq!(Act::of("wait", None, None, None, None, None, None, Some(999_999)).unwrap(), Act::Wait(20_000));
         assert_eq!(Act::of("done", None, None, None, None, None, None, None).unwrap(), Act::Done);
+        assert_eq!(Act::of("solve", None, None, None, None, None, None, None).unwrap(), Act::Solve);
         assert!(Act::of("click", Some(1.0), None, None, None, None, None, None).is_err());
         assert!(Act::of("teleport", None, None, None, None, None, None, None).is_err());
     }
@@ -229,6 +237,7 @@ mod tests {
             (Act::Press("Enter".into()), "press", "pressed Enter".to_string()),
             (Act::Wait(500), "screenshot", "waited 500ms".to_string()),
             (Act::Done, "screenshot", "done".to_string()),
+            (Act::Solve, "click", "solved with the captcha solver".to_string()),
         ];
         for (act, command, said) in steps {
             assert_eq!((act.command(), act.said()), (command, said), "{act:?}");
