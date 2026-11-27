@@ -133,15 +133,15 @@ jobs:
           shots="$RUNNER_TEMP/check/shots"
           mkdir -p "$shots"
           drew=fail; python3 -I .github/qa/qa_tools.py --picture "$shots/window.png" > "$RUNNER_TEMP/check/window.log" 2>&1 && drew=pass
-          # A new node opens on its terms; Open my node, and the same window asks its owner to sign in (Skip for now).
-          opened=fail; python3 -I .github/qa/qa_tools.py --picture "$shots/window-open-my-node.png" "click:Open my node;live:4" >> "$RUNNER_TEMP/check/window.log" 2>&1 && opened=pass
-          # The sign-in shows only in the window that pressed Open my node (window/src/app.zig acceptTerms), so a window
-          # opened after it goes on to Connect your agents when it finds agent apps here (Skip, which the node
-          # remembers), else to the node. Skip on Connect goes on to ChatGPT and Claude on the web, whose Not now ends it
-          # (screens/connect.zig webStep).
-          # With no agent installed here the sheet's button is Next, not Skip.
+          # A new node opens on setting up (window/src/screens/onboarding.zig): Welcome, whose Get started shows its
+          # terms; Agree and continue, and the same window asks its owner to sign in (Skip for now).
+          opened=fail; python3 -I .github/qa/qa_tools.py --picture "$shots/window-first-run.png" "click:Get started;live:2;click:Agree and continue;live:4" >> "$RUNNER_TEMP/check/window.log" 2>&1 && opened=pass
+          # The sign-in shows only in the window that agreed (window/src/app.zig acceptTerms), so a window opened after
+          # it goes on to the AI apps step: Skip there (Next when no agent app is installed here) shows ChatGPT and
+          # Claude on the web, whose Not now ends on You're set, and Open Unbrowse opens the node. A node with an app
+          # connected already skips all of it.
           clicked=fail
-          for script in "click:Skip;live:2;click:Not now;live:2;click:Vault;live:2" "click:Next;live:2;click:Not now;live:2;click:Vault;live:2" "click:Skip;live:2;click:Vault;live:2" "click:Vault;live:2"; do
+          for script in "click:Skip;live:2;click:Not now;live:2;click:Open Unbrowse;live:2;click:Vault;live:2" "click:Next;live:2;click:Not now;live:2;click:Open Unbrowse;live:2;click:Vault;live:2" "click:Vault;live:2"; do
             python3 -I .github/qa/qa_tools.py --picture "$shots/window-vault.png" "$script" >> "$RUNNER_TEMP/check/window.log" 2>&1 && { clicked=pass; break; }
           done
           size=$(wc -c < "$shots/window.png" 2>/dev/null || echo 0)
@@ -151,8 +151,8 @@ jobs:
             echo "| Step | Result | Note |"
             echo "| --- | --- | --- |"
             echo "| opens on this node and draws | $drew | window.png, $size bytes |"
-            echo "| its terms, then Open my node opens the node | $opened | window-open-my-node.png |"
-            echo "| opened again: Skip on Connect your agents if it shows, then Vault shows the Vault screen | $clicked | window-vault.png |"
+            echo "| Get started shows its terms, then Agree and continue asks the owner to sign in | $opened | window-first-run.png |"
+            echo "| opened again: the AI apps, ChatGPT and Claude and You're set if they show, then Vault shows the Vault screen | $clicked | window-vault.png |"
           } > "$RUNNER_TEMP/check/window.md"
           cat "$RUNNER_TEMP/check/window.md" "$RUNNER_TEMP/check/window.log"
           [ "$drew" = pass ] && [ "$opened" = pass ] && [ "$clicked" = pass ]
