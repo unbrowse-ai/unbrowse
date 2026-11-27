@@ -290,29 +290,24 @@ anything else driving that browser over DevTools can sign in with the loaded pas
 
 ## Payments, sharing and the peer network
 
-The node runs Anvil in `~/.unbrowse/devnet` and deploys the contracts there itself, or runs on a live Arc network whose
-contracts its network file names (`app/networks/<name>.json`). It pays another contributor's fee for a route by itself,
-once, when it fetches the body, up to the owner's per-fetch maximum (`max_fetch_usdc`, 0.05 USDC). Its own routes are
-free to its own agents, listed or not: no voucher, no line, nothing against a key's cap. A route made from another
-contributor's body only ever goes over HTTPS to public internet addresses ([SHARING.md](../docs/SHARING.md)). Until its
-owner signs in it is local: it joins nothing and lists nothing. From sign-in on it lists the routes its agents keep using
-(`app/src/autolist.rs`), and finds other nodes' routes through a Kademlia table keyed by site (`crates/net`,
-`app/src/peers.rs`). Every write and every fee the node pays itself, in USDC on Arc: there is no sponsor (spec §76). A
-node that only earns needs a few cents once, for its identity.
+The node runs a local Anvil devnet in `~/.unbrowse/devnet` in source builds (test mode), or connects to the Arc network named in `app/networks/<name>.json` in release builds.
+
+- **Your own routes are free** to your own agents, whether listed or not: no voucher, no receipt line, nothing counted against an agent key's daily cap.
+- **Sharing to the index:** Once you accept the terms and the peer network is on (the default), the node joins with its own wallet (no account or sign-in needed) and automatically lists proven routes (`app/src/autolist.rs`) so other agents can discover them through the Kademlia DHT keyed by site (`crates/net`, `app/src/peers.rs`). Listing is free.
+- **Fetching others' routes:** The node pays another contributor's fetch fee automatically in USDC, once per route version, up to your per-fetch maximum (`max_fetch_usdc`, $0.05 by default). Foreign routes are restricted to HTTPS and public internet addresses ([SHARING.md](../docs/SHARING.md)).
+- **Gas and settlement:** On a live network, every on-chain write is paid in Arc's native USDC. A node that only earns needs just a few cents once to register its ERC-8004 identity.
 
 ```bash
-unbrowse-node wallet                     # the node's address, the linked owner wallet, the network and its gas
-unbrowse-node wallet address --copy      # the address alone, and on the clipboard
-unbrowse-node onboard                    # new here: start the node, passphrase, terms and sign-in, on this terminal
-unbrowse-node onboard status             # whether the node runs and is signed in (exit 0 only when both)
-unbrowse-node sign-in                    # sign in to the network (Privy on the site, or --wallet <address>)
-unbrowse-node share                      # what the node lists by itself, and why each route waits
+unbrowse-node wallet                     # the node's address, optional linked wallet, network, and balance
+unbrowse-node wallet address --copy      # copy the address alone
+unbrowse-node onboard                    # interactive CLI setup: start node, passphrase, terms, optional wallet link
+unbrowse-node onboard status             # check onboarding status
+unbrowse-node sign-in                    # optional: link a payout wallet (email/Google or --wallet <address>)
+unbrowse-node share                      # inspect or change automatic route sharing
 unbrowse-node network [on|off|light|full]
 ```
 
-The detail: [MONEY.md](../docs/MONEY.md) (every cost, the split, decimals), [ONBOARDING.md](../docs/ONBOARDING.md) (the
-sign-in and paying its own way), [SHARING.md](../docs/SHARING.md) (what is shared and how) and [NETWORK.md](../docs/NETWORK.md) (the
-peer network). The contracts are [`unbrowse-settlement`](../unbrowse-settlement).
+Full details: [Payments, Staking & UNB](../docs/concepts/payments-and-unb.md), [MONEY.md](../docs/MONEY.md) (costs, 65/30/5 split, staking, bounties), [ONBOARDING.md](../docs/ONBOARDING.md), [SHARING.md](../docs/SHARING.md), and [NETWORK.md](../docs/NETWORK.md). Compiled contract ABIs used by the node live in `app/contracts/`.
 
 ## Usage telemetry
 
