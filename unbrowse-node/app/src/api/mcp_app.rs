@@ -43,6 +43,7 @@ pub(super) fn hints(tool: &str) -> Option<(&'static str, bool, bool, bool)> {
         "unbrowse_inspect" => ("Inspect a route", true, false, false),
         "unbrowse_judge" => ("Judge an answer", false, false, false),
         "unbrowse_whoami" => ("Check this connection", true, false, false),
+        "unbrowse_setup" => ("Setup", false, false, false),
         "unbrowse_report" => ("Report a problem", false, false, true),
         _ => return None,
     })

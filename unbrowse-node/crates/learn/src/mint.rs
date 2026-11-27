@@ -162,7 +162,8 @@ struct ClosesWithTheWalk<'a>(&'a dyn Fn(&[&str]) -> Result<String, MintError>);
 
 impl Drop for ClosesWithTheWalk<'_> {
     fn drop(&mut self) {
-        let _ = (self.0)(&["close"]);
+        // A walk that was stopped closes its browser all the same: the close is the one command a stop must not cut.
+        let _ = unstopped(|| (self.0)(&["close"]));
     }
 }
 
@@ -173,7 +174,7 @@ struct ClosesWithTheVisit<'a>(Option<&'a dyn Fn(&[&str]) -> Option<String>>);
 impl Drop for ClosesWithTheVisit<'_> {
     fn drop(&mut self) {
         if let Some(ab) = self.0 {
-            ab(&["close"]);
+            unstopped(|| ab(&["close"]));
         }
     }
 }
@@ -258,9 +259,14 @@ pub fn noted_program_session(program: &str, session: &str, sockets: Option<&std:
 /// The folder the program keeps a session's files in: the one the node named, else the program's default for this
 /// environment (as `connection::get_socket_dir` reads it: a runtime folder, else the home's `.agent-browser`).
 fn program_files_of(s: &ProgramSession) -> Option<std::path::PathBuf> {
-    s.sockets.clone().or_else(|| {
-        std::env::var_os("XDG_RUNTIME_DIR").filter(|d| !d.is_empty()).map(|d| std::path::PathBuf::from(d).join("agent-browser")).or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".agent-browser")))
-    })
+    program_files_in(s.sockets.clone(), std::env::var_os("XDG_RUNTIME_DIR"), std::env::home_dir())
+}
+
+/// [`program_files_of`] from what it reads. The home is the one the program reads (`std::env::home_dir`: `USERPROFILE`
+/// on Windows), never `HOME`, which Windows leaves unset: there no session's daemon was found, so none was closed and
+/// its browser stayed open after the node had finished with it.
+fn program_files_in(sockets: Option<std::path::PathBuf>, runtime: Option<std::ffi::OsString>, home: Option<std::path::PathBuf>) -> Option<std::path::PathBuf> {
+    sockets.or_else(|| runtime.filter(|d| !d.is_empty()).map(|d| std::path::PathBuf::from(d).join("agent-browser")).or_else(|| home.map(|h| h.join(".agent-browser"))))
 }
 
 /// Closes every session of the browser program the node noted (in this process, and on disk by a node of this home
@@ -328,6 +334,18 @@ pub fn stop_flag() -> Option<std::sync::Arc<std::sync::atomic::AtomicBool>> {
     STOP.with(|s| s.borrow().clone())
 }
 
+/// Runs `work` as though the ask had not given up: for the cleanup a stopped ask still owes (closing its browser).
+fn unstopped<T>(work: impl FnOnce() -> T) -> T {
+    struct Restore(Option<std::sync::Arc<std::sync::atomic::AtomicBool>>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            STOP.with(|s| *s.borrow_mut() = self.0.take());
+        }
+    }
+    let _restore = Restore(STOP.with(|s| s.borrow_mut().take()));
+    work()
+}
+
 /// Whether the ask this thread works for has given up.
 pub fn asked_to_stop() -> bool {
     STOP.with(|s| s.borrow().as_ref().is_some_and(|f| f.load(std::sync::atomic::Ordering::Relaxed)))
@@ -367,6 +385,9 @@ pub fn most_for<S: AsRef<std::ffi::OsStr>>(args: &[S]) -> std::time::Duration {
 /// command's own exit, and reading files, ends with the command on every system.
 pub fn ran(mut cmd: Command, most: std::time::Duration) -> Result<std::process::Output, String> {
     use std::process::Stdio;
+    if asked_to_stop() {
+        return Err(agent_browser_core::session::STOPPED.to_string());
+    }
     static RUNS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let n = RUNS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     // In the node's own scratch folder, each file made new and the owner's alone: a name someone else made first (a
@@ -391,6 +412,13 @@ pub fn ran(mut cmd: Command, most: std::time::Duration) -> Result<std::process::
         loop {
             match child.try_wait() {
                 Ok(Some(status)) => return Ok(status),
+                // The ask gave up: the command ends now, not when its time runs out. Windows, 22 Nov 2026: a page that
+                // never finished held the fallback walk, and its Chrome, long after the job was stopped.
+                Ok(None) if asked_to_stop() => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(agent_browser_core::session::STOPPED.to_string());
+                }
                 Ok(None) if std::time::Instant::now() < deadline => std::thread::sleep(std::time::Duration::from_millis(25)),
                 Ok(None) => {
                     let _ = child.kill();
@@ -584,7 +612,8 @@ impl BrowserMint {
     pub(crate) fn close(&self) {
         if let Ok(mut cmd) = cli_at(&self.browser, &self.session, self.profile.as_deref(), self.cdp_endpoint.as_deref()) {
             cmd.arg("close");
-            let _ = ran(cmd, most_for(&["close"]));
+            // A close is cleanup a stopped ask still owes: the stop must not cut it.
+            let _ = unstopped(|| ran(cmd, most_for(&["close"])));
         }
     }
 
@@ -778,7 +807,7 @@ impl BrowserMint {
         // ends the route's call, so this session's browser goes here — what a later step would have reused is not
         // coming, and a browser left up holds the site's profile against the next walk.
         if outcome.is_err() {
-            let _ = ab(&["close"]);
+            let _ = unstopped(|| ab(&["close"]));
         }
         outcome
     }
@@ -1806,6 +1835,51 @@ mod tests {
         assert!(cmd.get_envs().any(|(k, v)| k == "AGENT_BROWSER_CDP" && v.is_some_and(|v| v == secret)));
     }
     use super::*;
+
+    /// Windows, 22 Nov 2026: the fallback walk's page never finished, and its Chrome ran on after the job was stopped.
+    /// A command the program is running for an ask ends as soon as the ask gives up, and the walk's close still runs.
+    #[test]
+    #[cfg(unix)]
+    fn a_stopped_ask_ends_the_programs_command_and_still_closes_its_browser() {
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let flag = stop.clone();
+        let setter = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            flag.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+        let started = std::time::Instant::now();
+        let (said, closed) = stops_with(stop, || {
+            let mut open = Command::new("sleep");
+            open.arg("30");
+            let said = ran(open, std::time::Duration::from_secs(20)).err();
+            let closed = unstopped(|| ran(Command::new("true"), std::time::Duration::from_secs(5)).map(|o| o.status.success()));
+            (said, closed)
+        });
+        setter.join().unwrap();
+        assert_eq!(said.as_deref(), Some(agent_browser_core::session::STOPPED));
+        assert!(started.elapsed() < std::time::Duration::from_secs(5), "the command ran on after the stop: {:?}", started.elapsed());
+        assert_eq!(closed, Ok(true), "the close a stopped walk owes is not cut");
+
+        let already_stopped = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let said = stops_with(already_stopped, || ran(Command::new("unused-after-stop"), std::time::Duration::from_secs(1)));
+        assert_eq!(said.err().as_deref(), Some(agent_browser_core::session::STOPPED));
+    }
+
+    /// The program's session files are under the home the program reads. Windows leaves `HOME` unset and puts the home
+    /// in `USERPROFILE`: with `HOME` the node found no daemon to close, and its browser stayed open.
+    #[test]
+    fn the_programs_files_are_under_the_home_it_reads() {
+        let home = std::path::PathBuf::from(r"C:\Users\svc");
+        assert_eq!(program_files_in(None, None, Some(home.clone())), Some(home.join(".agent-browser")));
+        assert_eq!(program_files_in(None, Some("".into()), Some(home.clone())), Some(home.join(".agent-browser")));
+        assert_eq!(program_files_in(None, Some("/run/user/1".into()), Some(home.clone())), Some(std::path::PathBuf::from("/run/user/1/agent-browser")));
+        assert_eq!(program_files_in(Some("/s".into()), Some("/run/user/1".into()), Some(home)), Some(std::path::PathBuf::from("/s")));
+        // Where the program looks, on this machine: never a home it doesn't read.
+        let s = ProgramSession { program: "p".into(), session: "s".into(), sockets: None };
+        if std::env::var_os("XDG_RUNTIME_DIR").filter(|d| !d.is_empty()).is_none() {
+            assert_eq!(program_files_of(&s), std::env::home_dir().map(|h| h.join(".agent-browser")));
+        }
+    }
 
     /// An ask's stop flag reaches what its thread does, and is gone once the ask's work ends: the next ask a pooled
     /// thread works for never inherits it.
@@ -3024,3 +3098,7 @@ mod tests {
         assert_eq!(sent, ["sid=s1", "wide=w1"], "the host's and the domain's cookie at the root, not another site's nor one for another path");
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "mint_cov_tests.rs"]
+mod mint_cov_tests;

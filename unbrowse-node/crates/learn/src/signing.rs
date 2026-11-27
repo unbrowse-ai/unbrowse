@@ -2213,3 +2213,7 @@ mod tests {
         assert!(compact(&mut graph, &target).is_none(), "one script is already the whole set");
     }
 }
+
+#[cfg(test)]
+#[path = "signing_cov_tests.rs"]
+mod signing_cov_tests;

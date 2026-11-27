@@ -111,6 +111,18 @@ class Options(unittest.TestCase):
         self.node().call("hn-search", {"q": "rust"}, fields=["hits.points"])
         self.assertEqual(self.stub.last()["body"], {"inputs": {"q": "rust"}, "fields": ["hits.points"]})
 
+    def test_call_sends_an_explicit_browser_policy(self):
+        self.node().call("hn-search", {"q": "rust"}, browser="never")
+        self.assertEqual(self.stub.last()["body"], {"inputs": {"q": "rust"}, "browser": "never"})
+
+    def test_call_with_never_stops_before_sending_to_an_older_node(self):
+        stub = StubNode(lambda *args: (200, {"agent": "agent", "address": "0x0", "node": "old", "browser": "present"}))
+        self.addCleanup(stub.close)
+        with self.assertRaises(UnbrowseError) as error:
+            UnbrowseNode(token=TOKEN, base_url=stub.base).call("hn-search", browser="never")
+        self.assertEqual(error.exception.code, "unsupported")
+        self.assertEqual(stub.last()["url"], "/v1/whoami")
+
 
 class Shapes(unittest.TestCase):
     """The reply shapes the node's newer answers carry, read whole by the client's own types."""

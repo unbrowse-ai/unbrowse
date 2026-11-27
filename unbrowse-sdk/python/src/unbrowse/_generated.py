@@ -94,6 +94,7 @@ class _AgentClientsResultClientsItemRequired(TypedDict):
 class AgentClientsResultClientsItem(_AgentClientsResultClientsItemRequired, total=False):
     note: str
     manual: bool
+    heard: float
 
 
 class AgentConnectResult(TypedDict):
@@ -250,6 +251,8 @@ class _CallArgsRequired(TypedDict):
 
 class CallArgs(_CallArgsRequired, total=False):
     inputs: Dict[str, str]
+    browser: Literal["auto", "never"]
+    """Use never for replay only. Default auto allows browser fallback."""
     fields: List[str]
 
 
@@ -277,6 +280,9 @@ class CallResult(_CallResultRequired, total=False):
     """How many records the answer holds where a confirming browse saw this route's records, read on the answer whole before the reply chose its fields or cut it: 0 is the site finding nothing, null an answer without that place. Absent where no place was seen."""
     bounties: BountyAsks
     browser: bool
+    route_id: str
+    replaced: str
+    learned_again: str
     outcome: Outcome
     outcome_from: str
     next: Next
@@ -504,6 +510,7 @@ class _DoResultCalledRequired(TypedDict):
 
 class DoResultCalled(_DoResultCalledRequired, total=False):
     picked_by: str
+    learned_routes: List[str]
     outcome: Outcome
     outcome_from: str
     next: Next
@@ -625,6 +632,15 @@ class FirstBuy(TypedDict):
     launch_tx: Optional[str]
     stake_tx: Optional[str]
     at: int
+
+
+class _ForPersonRequired(TypedDict):
+    kind: Literal["link", "dialog", "app"]
+    say: str
+
+
+class ForPerson(_ForPersonRequired, total=False):
+    url: str
 
 
 class Funding(TypedDict):
@@ -1046,7 +1062,7 @@ class NewRemoteKey(TypedDict):
 
 
 class Next(TypedDict):
-    tool: Literal["unbrowse_do", "unbrowse_call", "unbrowse_browse", "unbrowse_challenge", "unbrowse_search"]
+    tool: Literal["unbrowse_do", "unbrowse_call", "unbrowse_browse", "unbrowse_challenge", "unbrowse_search", "unbrowse_setup"]
     args: Dict[str, Any]
 
 
@@ -1204,6 +1220,11 @@ class _RemoteAnswersResultRequired(TypedDict):
 
 class RemoteAnswersResult(_RemoteAnswersResultRequired, total=False):
     since: int
+
+
+class RemoteLinkResult(TypedDict):
+    url: str
+    opened: bool
 
 
 class _ReportArgsRequired(TypedDict):
@@ -1416,6 +1437,7 @@ class SaveSettingsSettings(_SaveSettingsSettingsRequired, total=False):
     list_per_day: Optional[int]
     private_network: bool
     terms_accepted: Optional[str]
+    advanced: Optional[bool]
     peer_network: bool
     light: bool
     serve_kept: bool
@@ -1426,6 +1448,7 @@ class SaveSettingsSettings(_SaveSettingsSettingsRequired, total=False):
     passkeys: bool
     passkeys_never: List[str]
     chain: str
+    chain_chosen: bool
     max_fetch_usdc: float
     deposit_floor_usdc: float
     coin_dev_buy_bps: int
@@ -1474,6 +1497,7 @@ class _SettingsRequired(TypedDict):
     share_preview_told: Optional[int]
     private_network: bool
     terms_accepted: Optional[str]
+    advanced: Optional[bool]
     peer_network: bool
     light: bool
     serve_kept: bool
@@ -1484,6 +1508,7 @@ class _SettingsRequired(TypedDict):
     passkeys: bool
     passkeys_never: List[str]
     chain: str
+    chain_chosen: bool
     max_fetch_usdc: float
     deposit_floor_usdc: float
     coin_dev_buy_bps: int
@@ -1500,6 +1525,33 @@ class _SettingsRequired(TypedDict):
 class Settings(_SettingsRequired, total=False):
     list_per_day: int
     check_rpc: Optional[str]
+
+
+class Setup(TypedDict):
+    steps: List[SetupStep]
+    left: List[str]
+    did: str
+    ok: bool
+    said: str
+    person: Optional[ForPerson]
+
+
+class SetupArgs(TypedDict, total=False):
+    do: Literal["accept_terms", "sign_in", "connect_apps", "tools", "web", "connect_site"]
+    host: str
+
+
+class SetupStatus(TypedDict):
+    steps: List[SetupStep]
+    left: List[str]
+
+
+class SetupStep(TypedDict):
+    id: str
+    done: bool
+    optional: bool
+    said: str
+    next: Optional[Next]
 
 
 class ShareBlockedLocked(TypedDict):
@@ -1761,6 +1813,7 @@ class _WhoamiRequired(TypedDict):
 class Whoami(_WhoamiRequired, total=False):
     browser: BrowserState
     browser_fetch: bool
+    call_browser: bool
     owner: OwnerReach
 
 
@@ -1814,10 +1867,11 @@ PRIMITIVES: Dict[str, Dict[str, Any]] = {
     "unbrowse_observe": {"tool": "unbrowse_observe", "method": "POST", "path": "/v1/observe", "renamed": [], "args": ["goal", "session", "site"], "required": [], "sdk": ["observe"], "cli": "observe"},
     "unbrowse_logins": {"tool": "unbrowse_logins", "method": "GET", "path": "/v1/logins", "renamed": [], "args": [], "required": [], "sdk": ["logins", "cards"], "cli": "logins"},
     "unbrowse_open": {"tool": "unbrowse_open", "method": "GET", "path": "/v1/open", "renamed": [{"http": "q", "tool": "link"}], "args": ["link"], "required": ["link"], "sdk": ["open"], "cli": "open"},
-    "unbrowse_call": {"tool": "unbrowse_call", "method": "POST", "path": "/v1/routes/{id}/call", "renamed": [{"http": "id", "tool": "route_id"}], "args": ["fields", "inputs", "route_id"], "required": ["route_id"], "sdk": ["call"], "cli": "call"},
+    "unbrowse_call": {"tool": "unbrowse_call", "method": "POST", "path": "/v1/routes/{id}/call", "renamed": [{"http": "id", "tool": "route_id"}], "args": ["browser", "fields", "inputs", "route_id"], "required": ["route_id"], "sdk": ["call"], "cli": "call"},
     "unbrowse_inspect": {"tool": "unbrowse_inspect", "method": "GET", "path": "/v1/routes/{id}/inspect", "renamed": [{"http": "id", "tool": "route_id"}], "args": ["route_id"], "required": ["route_id"], "sdk": ["inspect"], "cli": "inspect"},
     "unbrowse_judge": {"tool": "unbrowse_judge", "method": "POST", "path": "/v1/routes/{id}/judge", "renamed": [{"http": "id", "tool": "route_id"}], "args": ["bounty", "entry", "fields", "links", "route_id", "url", "verdict", "what", "why", "word", "writes"], "required": ["route_id", "verdict"], "sdk": ["judge"], "cli": "judge"},
     "unbrowse_whoami": {"tool": "unbrowse_whoami", "method": "GET", "path": "/v1/whoami", "renamed": [], "args": [], "required": [], "sdk": ["whoami"], "cli": "whoami"},
+    "unbrowse_setup": {"tool": "unbrowse_setup", "method": "POST", "path": "/v1/setup", "renamed": [], "args": ["do", "host"], "required": [], "sdk": ["setup"], "cli": "setup"},
     "unbrowse_report": {"tool": "unbrowse_report", "method": "POST", "path": "/v1/report", "renamed": [], "args": ["error", "expected", "goal", "got", "kind", "route_id", "summary", "tool", "url"], "required": ["kind", "summary", "expected", "got"], "sdk": ["report"], "cli": "report"},
 }
 
@@ -1877,10 +1931,10 @@ class OwnerCommands:
         return self.command("advance_day")
 
     def agent_clients(self) -> AgentClientsResult:
-        """The MCP clients this machine has (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI, opencode and the others Unbrowse connects): whether each is found and connected to this node, and its config file."""
+        """The MCP clients this machine has (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI, opencode and the others Unbrowse connects): whether each is found and connected to this node, its config file, and when it last reached this node (`heard`, unix seconds, by the name it gives at MCP initialize)."""
         return self.command("agent_clients")
 
-    def agent_connect(self, clients: List[Literal["claude_code", "claude_desktop", "cursor", "codex"]]) -> AgentConnectResult:
+    def agent_connect(self, clients: List[Literal["claude_code", "claude_desktop", "cursor", "codex", "vscode", "windsurf", "devin", "gemini_cli", "antigravity", "qwen_code", "copilot_cli", "factory_droid", "kiro", "warp", "amp", "opencode", "kilo_code", "augment", "junie", "cline", "roo_code", "lm_studio", "hermes", "openclaw", "elizaos"]]) -> AgentConnectResult:
         """Connects the named MCP clients to this node as its first agent: each gets `unb mcp --agent first` in its own config, checked to answer first, its file kept as it was beside it, and no token in it."""
         return self.command("agent_connect", {"clients": clients})
 
@@ -2117,7 +2171,7 @@ class OwnerCommands:
         return self.command("identity")
 
     def import_session(self, host: str) -> ImportSessionResult:
-        """Takes a site's cookies from the browser the node uses into the node's session for it, answering how many it kept."""
+        """Takes a site's cookies from the owner's browsers on this machine (the Chromium browsers first, then Firefox and Safari, the first that holds the site's session kept whole) into the node's session for it, answering how many it kept."""
         return self.command("import_session", {"host": host})
 
     def keep_card_codes(self, on: Optional[bool] = None) -> CardCodes:
@@ -2204,6 +2258,10 @@ class OwnerCommands:
         """Makes a remote key for the gateway, which opens this node only through it, and answers its token once with how an MCP client uses it."""
         return self.command("remote_key_create", _args({}, name=name))
 
+    def remote_link(self) -> RemoteLinkResult:
+        """Links this node to the owner's Unbrowse account, so ChatGPT and Claude signed in to Unbrowse reach it with no address to paste: turns the address on if it is off, lets a sign-in ask, and opens the gateway's link page in the owner's browser (url, opened). The node asks the owner before it is linked."""
+        return self.command("remote_link")
+
     def remote_revoke(self) -> Remote:
         """Revokes every remote key for the gateway."""
         return self.command("remote_revoke")
@@ -2259,6 +2317,10 @@ class OwnerCommands:
     def settings(self) -> Settings:
         """The owner's settings."""
         return self.command("settings")
+
+    def setup_status(self) -> SetupStatus:
+        """This node's setup as one list, the same an agent reads with unbrowse_setup: the terms, signing in, the agent apps on this machine, the address for ChatGPT and Claude on the web, the sites it holds a sign-in for, and whether an agent has called it. Each step: done, optional, a line saying where it stands, and the unbrowse_setup call that does it; left names the steps setup still needs."""
+        return self.command("setup_status")
 
     def share_approve(self) -> None:
         """The owner has looked at the routes waiting to be shared and lets the first listing go now, rather than a day after the node told them (R2.8)."""

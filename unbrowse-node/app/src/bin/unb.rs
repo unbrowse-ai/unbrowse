@@ -4,7 +4,7 @@
 //!   unb do <goal words...> [--url <page>] [name=value ...] [--fields <path,path> | --fields '*']
 //!                                           what you want: the route that does it, or one learned from the page
 //!   unb search [words]                      routes this node knows
-//!   unb call <route id> [name=value ...]
+//!   unb call <route id> [name=value ...] [--browser auto|never]
 //!
 //! Nothing waits for the owner: the node pays a route's fee itself, up to the owner's per-fetch maximum.
 //!   unb browse <command...> [--site <site>] [--goal <words>] [--session <name>]
@@ -46,6 +46,18 @@
 //!                                           `--client` (any), what the app's Connect or `connect --client` changed
 //!   unb grant [<n> | first]                 let agent `n` (else the node's first key) be used by a client on this
 //!                                           machine: the owner is asked once, and the yes is kept as its grant
+//!   unb install [--skill] [--commands] [--dry-run]
+//!                                           the agent skill, where the agent apps on this machine read skills, and the
+//!                                           commands on the PATH (`~/.local/bin`), as the app puts them in place on its
+//!                                           first run: dragging a disk image in runs no code of its own
+//!   unb skill [dir]                         the skill alone, into that folder (default: every agent found here); what
+//!                                           was there that Unbrowse didn't write is kept beside it, never deleted
+//!   unb where                               where the programs run from, and which are there
+//!   unb app                                 the window, which starts the node when none is running
+//!   unb start [<words>…]                    the node, with these words (`unbrowse start --from <tag>`)
+//!
+//! `unbrowse` is this same program under the name a person types, which the install links: the words above are its own,
+//! and any other word is one of the node's commands, run by the node (`unbrowse vault …`, `unbrowse update`).
 //!   unb mcp [--agent <index|first>]         the node's MCP server over stdio, for an agent host to start: the agent's
 //!                                           token is read from its grant (`unb grant`), never a command line or
 //!                                           config, and each message goes to the node signed with it. A node on this
@@ -75,10 +87,16 @@ mod legacy;
 mod migrate;
 #[path = "../connect.rs"]
 mod connect;
+#[path = "../install.rs"]
+#[allow(dead_code)]
+mod install;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let base = std::env::var("UNBROWSE_NODE").unwrap_or_else(|_| "http://127.0.0.1:7788".into());
+    if let Some(code) = own(&args) {
+        return code;
+    }
     if args.first().map(String::as_str) == Some("connect") {
         return connect(&base, &args[1..]);
     }
@@ -136,13 +154,26 @@ fn main() -> ExitCode {
     // What the command asks for, worked out before anything is sent: a command unb doesn't know says its usage and
     // reaches no one, so the token never leaves for it.
     let Some(req) = request(&args) else {
-        eprintln!("usage: unb do <goal> [--url <page>] [name=value ...] [--fields <path,...>] | unb browse <command...> [--site <site>] [--goal <words>] | unb challenge <look|click|drag|type --text -|press|wait|done> [--url <page>] [--site <site>] [--session <name>] | unb search [words] | unb open <unbrowse://link> | unb call <id> [name=value ...] [--fields <path,...>] | unb logins | unb whoami | unb judge <route id> <right|wrong> [--url <page>] [--why <text>] [--what <words>] [--fields <path,...>] [--writes|--reads] [--bounty <id> --entry <entry>] | unb report <kind> <summary> --expected <what> --got <what> [--route <id>] [--goal <words>] [--url <page>] [--tool <tool>] [--error <text>]");
+        eprintln!("usage: unb do <goal> [--url <page>] [name=value ...] [--fields <path,...>] | unb browse <command...> [--site <site>] [--goal <words>] | unb challenge <look|click|drag|type --text -|press|wait|done> [--url <page>] [--site <site>] [--session <name>] | unb search [words] | unb open <unbrowse://link> | unb call <id> [name=value ...] [--fields <path,...>] | unb logins | unb whoami | unb setup [accept_terms|sign_in|connect_apps|tools|web|connect_site <host>] | unb install [--skill] [--commands] [--dry-run] | unb skill [dir] | unb where | unb app | unb start [<words>…] | unb judge <route id> <right|wrong> [--url <page>] [--why <text>] [--what <words>] [--fields <path,...>] [--writes|--reads] [--bounty <id> --entry <entry>] | unb report <kind> <summary> --expected <what> --got <what> [--route <id>] [--goal <words>] [--url <page>] [--tool <tool>] [--error <text>]");
         return ExitCode::from(2);
     };
     let http = client(WAIT);
     if let Err(e) = proven(&http, &base, &token) {
         eprintln!("{e}");
         return ExitCode::FAILURE;
+    }
+    if args.first().is_some_and(|cmd| cmd == "call") && matches!(&req, Req::Post(_, body) if body["browser"] == "never") {
+        match ask(&base, &token, Req::Get("/v1/whoami".into(), None)) {
+            Ok(capabilities) if capabilities["call_browser"] == true => {}
+            Ok(_) => {
+                eprintln!("this node does not support --browser never on direct route calls. Update it or leave --browser unset");
+                return ExitCode::FAILURE;
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                return ExitCode::FAILURE;
+            }
+        }
     }
     match ask(&base, &token, req) {
         Ok(v) => {
@@ -477,6 +508,8 @@ fn request(args: &[String]) -> Option<Req> {
 fn request_with(args: &[String], stdin: &mut dyn FnMut() -> Option<String>) -> Option<Req> {
     Some(match args.first().map(String::as_str) {
         Some("whoami") => Req::Get("/v1/whoami".into(), None),
+        // The node's setup, or one step of it (`unb setup connect_site github.com`): the owner is asked on their screen.
+        Some("setup") => Req::Post("/v1/setup".into(), json!({ "do": args.get(1), "host": args.get(2) })),
         Some("logins") => Req::Get("/v1/logins".into(), None),
         Some("browse") if args.len() >= 2 => {
             let (mut steps, mut site, mut goal, mut session) = (Vec::new(), String::new(), String::new(), env_session());
@@ -622,7 +655,11 @@ fn request_with(args: &[String], stdin: &mut dyn FnMut() -> Option<String>) -> O
         }
         Some("call") if args.len() >= 2 => {
             let (_, _, inputs, fields) = parts(&args[2..]);
-            Req::Post(format!("/v1/routes/{}/call", args[1]), json!({ "inputs": inputs, "fields": fields }))
+            let mut body = json!({ "inputs": inputs, "fields": fields });
+            if let Some(at) = args[2..].iter().position(|a| a == "--browser") {
+                body["browser"] = json!(args.get(at + 3)?);
+            }
+            Req::Post(format!("/v1/routes/{}/call", args[1]), body)
         }
         _ => return None,
     })
@@ -727,9 +764,19 @@ fn connect(base: &str, args: &[String]) -> ExitCode {
     }
     let unb = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("unb"));
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    // Claude Code goes the way it always has (`migrate`); the other clients named go through `connect.rs`.
+    // Claude Code goes the way it always has (`migrate`); the other clients go through `connect.rs`: those named with
+    // `--client`, or, with none named, every one found on this machine and not connected yet, as the app's Connect does.
     let claude_code = clients.is_empty() || clients.contains(&connect::Client::ClaudeCode);
-    let others: Vec<connect::Client> = clients.iter().copied().filter(|c| *c != connect::Client::ClaudeCode).collect();
+    let found_here = clients.is_empty() && opts.index.is_none() && opts.undo.is_none();
+    let others: Vec<connect::Client> = if found_here {
+        connect::clients(&machine, &connect::entry(&unb, base))
+            .into_iter()
+            .filter(|s| s.found && !s.connected && !s.manual && s.id != connect::Client::ClaudeCode.id())
+            .filter_map(|s| connect::Client::from_id(s.id))
+            .collect()
+    } else {
+        clients.iter().copied().filter(|c| *c != connect::Client::ClaudeCode).collect()
+    };
     if !others.is_empty() && opts.index.is_some() {
         eprintln!("--client {} connects the node's first agent: leave out the agent number", others.iter().map(|c| c.id()).collect::<Vec<_>>().join(","));
         return ExitCode::from(2);
@@ -741,8 +788,10 @@ fn connect(base: &str, args: &[String]) -> ExitCode {
     for c in &others {
         println!("{}: `unbrowse` in {}", c.name(), c.config(&machine).display());
     }
-    // Clients named on the command line are the owner's yes for them; Claude Code's plan is asked about as before.
-    let next = if claude_code { migrate::next(&opts, plan.changes(), std::io::stdin().is_terminal()) } else if opts.dry_run { migrate::Next::OnlyShow } else { migrate::Next::Go };
+    // Clients named on the command line are the owner's yes for them; Claude Code's plan, and the clients found here
+    // that nobody named, are asked about (or `--yes`).
+    let changes = plan.changes() || (found_here && !others.is_empty());
+    let next = if claude_code { migrate::next(&opts, changes, std::io::stdin().is_terminal()) } else if opts.dry_run { migrate::Next::OnlyShow } else { migrate::Next::Go };
     match next {
         migrate::Next::OnlyShow if opts.dry_run => {
             println!("\nDry run: nothing was changed.");
@@ -833,11 +882,6 @@ fn connect(base: &str, args: &[String]) -> ExitCode {
                 (None, false) => println!("{}: connected.", o.name),
             }
         }
-    } else if clients.is_empty() {
-        let found: Vec<&str> = connect::clients(&machine, &connect::entry(&unb, base)).into_iter().filter(|s| s.found && !s.connected && s.id != "claude_code").map(|s| s.name).collect();
-        if !found.is_empty() {
-            println!("Also on this machine: {}. `unbrowse connect --client all` connects them too.", found.join(", "));
-        }
     }
     if failed { ExitCode::FAILURE } else { ExitCode::SUCCESS }
 }
@@ -902,7 +946,7 @@ fn node_on_demand(base: &str) {
 /// owner hasn't let that agent's client in, and `unb mcp` won't ask the keystore itself.
 fn granted_token(home: &std::path::Path, which: Option<u32>) -> Result<String, String> {
     let dir = home.join("bridges");
-    let not_yet = |what: String| format!("the owner hasn't let {what} in on this machine yet: run `unbrowse grant {}` once (the owner is asked), or `unbrowse connect`", which.map(|i| i.to_string()).unwrap_or_else(|| "first".into()));
+    let not_yet = |what: String| format!("the owner hasn't let {what} in on this machine yet: they connect this agent from the Unbrowse app (Agents, Connect), which asks them once");
     let index = match which {
         Some(i) => i,
         None => std::fs::read_to_string(dir.join("first")).ok().and_then(|f| f.trim().parse().ok()).ok_or_else(|| not_yet("the node's first agent key".into()))?,
@@ -984,7 +1028,7 @@ fn not_connected(why: &str) -> ExitCode {
 fn not_connected_answer(message: &Value, why: &str) -> Option<Value> {
     let id = message.get("id").cloned().filter(|i| !i.is_null())?;
     let say = format!(
-        "Unbrowse now runs on this machine, and this agent isn't connected to it yet: open the Unbrowse app and click Connect (or run `unbrowse connect` in a terminal once), then restart the agent. ({why})"
+        "Unbrowse now runs on this machine, and this agent isn't connected to it yet: open the Unbrowse app and click Connect on Agents, then restart the agent. ({why})"
     );
     let result = match message.get("method").and_then(Value::as_str) {
         Some("initialize") => json!({
@@ -1011,14 +1055,173 @@ fn waiting_on_owner(health: &Value) -> Option<&str> {
     health["checks"]["network"]["detail"].as_str()?.strip_prefix("waiting: ")
 }
 
+/// The program as it really is on disk: through the links the install made (`~/.local/bin/unbrowse` is the app's `unb`),
+/// so the programs beside it are the ones of the install that made them, not the links pointing back at it.
+fn program_path() -> std::path::PathBuf {
+    std::env::current_exe().ok().and_then(|p| std::fs::canonicalize(&p).ok()).unwrap_or_default()
+}
+
 /// `unbrowse-node`: beside this program (the app bundle and the npm platform package keep them together), else on PATH.
 fn node_program() -> std::path::PathBuf {
     let name = if cfg!(windows) { "unbrowse-node.exe" } else { "unbrowse-node" };
-    std::env::current_exe()
-        .ok()
-        .and_then(|me| me.parent().map(|d| d.join(name)))
-        .filter(|p| p.exists())
-        .unwrap_or_else(|| std::path::PathBuf::from(name))
+    let beside = program_path().parent().map(|d| d.join(name));
+    beside.filter(|p| p.exists()).unwrap_or_else(|| std::path::PathBuf::from(name))
+}
+
+/// The folder this program runs from: the app's `Contents/MacOS`, or the platform package's `bin`, where the node is
+/// beside it (the install links the commands at the programs there).
+fn programs_dir() -> std::path::PathBuf {
+    program_path().parent().map(|d| d.to_path_buf()).unwrap_or_default()
+}
+
+/// The words that are this program's own, which `unbrowse` passes on here rather than to the node. Everything else typed
+/// as `unbrowse` is one of the node's commands (`unbrowse vault …`, `unbrowse update`).
+const OWN_WORDS: &[&str] = &[
+    "do", "search", "call", "browse", "challenge", "open", "logins", "whoami", "report", "judge", "connect", "grant", "mcp", "setup", "install", "skill", "where", "app", "start",
+];
+
+/// Whether this program was run as `unbrowse`, the name a person types, rather than `unb`.
+fn named(program: &str) -> bool {
+    std::path::Path::new(program).file_name().map(|n| n == "unbrowse").unwrap_or(false)
+}
+
+/// The half of an install nobody types first: the app, the node, where the programs are, the skill, and the install
+/// itself. `install.rs` puts `unbrowse` on the PATH as this same program under that name, so one binary answers both.
+fn own(args: &[String]) -> Option<ExitCode> {
+    own_named(&std::env::args().next().unwrap_or_default(), args)
+}
+
+fn own_named(program: &str, args: &[String]) -> Option<ExitCode> {
+    let Some(word) = args.first().map(String::as_str) else {
+        return named(program).then(own_usage);
+    };
+    if named(program) && matches!(word, "help" | "--help" | "-h") {
+        return Some(own_usage());
+    }
+    match args.first().map(String::as_str) {
+        Some("app") => Some(open_app()),
+        Some("start") => Some(run_node(&args[1..])),
+        Some("where") => Some(where_it_is()),
+        Some("install") => Some(install(&args[1..])),
+        Some("skill") => Some(skill(&args[1..])),
+        _ if named(program) && !OWN_WORDS.contains(&word) => Some(run_node(args)),
+        _ => None,
+    }
+}
+
+/// What `unbrowse` alone says: the words it answers itself, and where the rest go.
+fn own_usage() -> ExitCode {
+    println!(
+        "usage: unbrowse app | unbrowse start [--from <tag>] | unbrowse install [--skill] [--commands] [--dry-run] | unbrowse skill [dir] | unbrowse where\n\
+         \x20      unbrowse do <goal> [--url <page>] | unbrowse browse <command…> | unbrowse search [words] | unbrowse call <id> [name=value …]\n\
+         \x20      unbrowse connect | unbrowse mcp [--agent <n|first>] | unbrowse agent new | unbrowse vault … | unbrowse session …\n\
+         \x20      unbrowse update [channel …] | unbrowse restart | unbrowse share … | unbrowse sign-in … | unbrowse browser …\n\
+         The node's own commands are read by the node, so every word the node takes is an unbrowse command too."
+    );
+    ExitCode::SUCCESS
+}
+
+/// Runs the node with these words, as it would be run by its own name.
+fn run_node(args: &[String]) -> ExitCode {
+    run_node_at(&node_program(), args)
+}
+
+fn run_node_at(program: &std::path::Path, args: &[String]) -> ExitCode {
+    match std::process::Command::new(program).args(args).status() {
+        Ok(s) => ExitCode::from(s.code().unwrap_or(1).clamp(0, 255) as u8),
+        Err(e) => {
+            eprintln!("unbrowse: can't run {}: {e}", program.display());
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `unbrowse app`: the window, which starts the node when none is running. Inside an app bundle the bundle is opened (a
+/// running one comes to the front, rather than a second one failing to start a second node); elsewhere the window beside
+/// the programs is run.
+fn open_app() -> ExitCode {
+    open_app_at(&programs_dir())
+}
+
+fn open_app_at(dir: &std::path::Path) -> ExitCode {
+    let bundle = dir.parent().and_then(|contents| contents.parent()).filter(|p| p.extension().map(|e| e == "app").unwrap_or(false));
+    let mut cmd = match (&bundle, cfg!(target_os = "macos")) {
+        (Some(b), true) => {
+            let mut c = std::process::Command::new("open");
+            c.arg(b);
+            c
+        }
+        _ => {
+            let window = dir.join(if cfg!(windows) { "unbrowse-window.exe" } else { "unbrowse-window" });
+            std::process::Command::new(window)
+        }
+    };
+    match cmd.status() {
+        Ok(s) if s.success() => ExitCode::SUCCESS,
+        Ok(s) => ExitCode::from(s.code().unwrap_or(1).clamp(0, 255) as u8),
+        Err(e) => {
+            eprintln!("unbrowse: can't open the app: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `unbrowse where`: where the programs run from, and which of them are there.
+fn where_it_is() -> ExitCode {
+    let dir = programs_dir();
+    println!("{}", dir.display());
+    for name in ["unbrowse-node", "unb", "unbrowse-window", "agent-browser"] {
+        let p = dir.join(if cfg!(windows) { format!("{name}.exe") } else { name.to_string() });
+        println!("{} {}", if p.is_file() { "here " } else { "absent" }, p.display());
+    }
+    ExitCode::SUCCESS
+}
+
+/// `unb install [--skill] [--commands] [--dry-run]`: what the app does on first run, from a shell.
+fn install(args: &[String]) -> ExitCode {
+    let dry = args.iter().any(|a| a == "--dry-run");
+    let parts = install::Parts {
+        skill: !args.iter().any(|a| a == "--commands"),
+        commands: !args.iter().any(|a| a == "--skill"),
+    };
+    for a in args {
+        if !matches!(a.as_str(), "--skill" | "--commands" | "--dry-run") {
+            eprintln!("usage: unb install [--skill] [--commands] [--dry-run]");
+            return ExitCode::from(2);
+        }
+    }
+    let done = install::run(&legacy::Machine::here(""), &programs_dir(), parts, dry);
+    println!("{}", serde_json::to_string_pretty(&done).unwrap_or_default());
+    println!("{}", done.said());
+    if done.skill.is_empty() && done.commands.is_empty() { ExitCode::FAILURE } else { ExitCode::SUCCESS }
+}
+
+/// `unb skill [dir]`: the agent skill into that folder (default: every agent found on this machine), as `unbrowse skill`
+/// and the npm install's `postinstall` do.
+fn skill(args: &[String]) -> ExitCode {
+    let dry = args.iter().any(|a| a == "--dry-run");
+    match args.iter().find(|a| !a.starts_with("--")) {
+        Some(dir) => match install::install_into(std::path::Path::new(dir), dry) {
+            Ok(p) => {
+                println!("{}", serde_json::to_string_pretty(&p).unwrap_or_default());
+                if let Some(kept) = &p.kept {
+                    println!("kept what was at {} as {}, as it was", p.at.display(), kept.display());
+                }
+                println!("the unbrowse skill is in {}", p.at.display());
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("unb: {e}");
+                ExitCode::FAILURE
+            }
+        },
+        None => {
+            let done = install::run(&legacy::Machine::here(""), &programs_dir(), install::Parts { skill: true, commands: false }, dry);
+            println!("{}", serde_json::to_string_pretty(&done).unwrap_or_default());
+            println!("{}", done.said());
+            ExitCode::SUCCESS
+        }
+    }
 }
 
 /// Where a node started from here writes its output: the same file the window's node writes.
@@ -1127,10 +1330,11 @@ mod tests {
         // With no grant the shim answers, naming the step: no grant file, no token.
         let h = crate::legacy::tests::home("m07");
         let said = granted_token(&h.0, None).unwrap_err();
-        assert!(said.contains("unbrowse grant first") && said.contains("unbrowse connect"), "{said}");
+        assert!(said.contains("the node's first agent key") && said.contains("Unbrowse app (Agents, Connect)"), "{said}");
         let reply = not_connected_answer(&json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {} }), &said).unwrap();
         assert_eq!(reply["result"]["isError"], true);
-        assert!(reply["result"]["content"][0]["text"].as_str().unwrap().contains("unbrowse connect"));
+        let text = reply["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("click Connect on Agents") && !text.contains("unbrowse connect"), "the app's step, never a command: {text}");
         // Once the owner has let the first agent in, the same entry speaks for it.
         std::fs::create_dir_all(h.0.join("bridges")).unwrap();
         std::fs::write(h.0.join("bridges/first"), "0").unwrap();
@@ -1226,7 +1430,7 @@ mod tests {
         std::fs::write(dir.join("agent-2.token"), "unb_granted\n").unwrap();
         assert_eq!(granted_token(&home, Some(2)).as_deref(), Ok("unb_granted"), "the agent the owner let in");
         let refused = granted_token(&home, Some(3)).unwrap_err();
-        assert!(refused.contains("unbrowse grant 3"), "another agent isn't, and nothing asks the keystore for it: {refused}");
+        assert!(refused.contains("agent 3") && refused.contains("Agents, Connect"), "another agent isn't, and nothing asks the keystore for it: {refused}");
         assert!(granted_token(&home, None).is_err(), "nor the node's first key, with no grant of its own");
         std::fs::write(dir.join("first"), "2").unwrap();
         assert_eq!(granted_token(&home, None).as_deref(), Ok("unb_granted"), "the first key, once the owner let it in");
@@ -1267,7 +1471,8 @@ mod tests {
     fn an_entry_with_no_agent_let_in_is_told_to_connect() {
         let init = not_connected_answer(&json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": { "protocolVersion": "2025-03-26" } }), "no grant").unwrap();
         assert_eq!(init["result"]["protocolVersion"], "2025-03-26");
-        assert!(init["result"]["instructions"].as_str().unwrap().contains("unbrowse connect"));
+        let said = init["result"]["instructions"].as_str().unwrap();
+        assert!(said.contains("click Connect on Agents") && !said.contains("unbrowse connect"), "the app's step, never a command: {said}");
         let list = not_connected_answer(&json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }), "no grant").unwrap();
         assert_eq!(list["result"]["tools"][0]["name"], "unbrowse_connect");
         let call = not_connected_answer(&json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": { "name": "unbrowse_do" } }), "no grant").unwrap();
@@ -1671,6 +1876,15 @@ mod tests {
         assert!(words.is_empty() && url.is_none() && inputs.is_empty() && fields.is_empty(), "a flag with nothing after it adds nothing");
     }
 
+    #[test]
+    fn a_direct_call_can_pass_its_browser_policy() {
+        let args = ["call", "id", "--browser", "never", "q=lamps"].map(str::to_string);
+        let Some(Req::Post(path, body)) = request(&args) else { panic!("a route request") };
+        assert_eq!(path, "/v1/routes/id/call");
+        assert_eq!(body["browser"], "never");
+        assert_eq!(body["inputs"]["q"], "lamps");
+    }
+
     /// A grant for an agent that isn't a number, and a connect that is given a flag it doesn't have, say the usage and
     /// exit 2, reaching no node and changing nothing.
     #[test]
@@ -1680,3 +1894,7 @@ mod tests {
         assert_eq!(format!("{:?}", connect("http://127.0.0.1:1", &["--wat".to_string()])), two);
     }
 }
+
+#[cfg(test)]
+#[path = "unb/unb_cov_tests.rs"]
+mod unb_cov_tests;

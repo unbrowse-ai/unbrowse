@@ -11,12 +11,14 @@ const App = @import("../app.zig").App;
 const wallet = @import("wallet.zig");
 const connect = @import("connect.zig");
 const cloud = @import("cloud.zig");
+const settings = @import("settings.zig");
 
 pub fn view(a: *App, c: *ui.Context) void {
     {
         const h = look.header(c, "Agents", "Add Unbrowse to the agents you use: one click for the ones on this Mac, a few steps for ChatGPT and Claude on the web.");
         h.end();
     }
+    setup(a, c);
     {
         const found = if (a.clients()) |cs| blk: {
             var n: usize = 0;
@@ -25,12 +27,12 @@ pub fn view(a: *App, c: *ui.Context) void {
             };
             break :blk n;
         } else 0;
-        const p = look.panel(c, "On this Mac", if (found == 1) "1 agent found" else c.print("{d} agents found", .{found}));
+        const p = look.panel(c, "On this Mac", if (a.clients() == null) "Looking\u{2026}" else if (found == 1) "1 agent found" else c.print("{d} agents found", .{found}));
         defer p.end();
         look.panelBody(c);
         const b = look.pad(c);
         defer b.end();
-        look.body(c, "Connect adds the node to each agent you leave ticked, and keeps each file as it was beside it: Undo puts them back.");
+        look.body(c, "Connect adds Unbrowse to each app you leave ticked, and keeps its settings file as it was, beside it: Undo puts them back.");
         {
             const sheet = ui.div(c).column().wFull().minW(0).border(look.x(c).hair).rounded(8).clip();
             defer sheet.end();
@@ -47,6 +49,14 @@ pub fn view(a: *App, c: *ui.Context) void {
         const b = look.pad(c);
         defer b.end();
         cloud.view(a, c);
+    }
+    sites(a, c);
+    // The keys, what each spent, and how another program connects are the advanced screens' (`App.advanced`); the basic
+    // screen says what a call can cost in a line.
+    if (!a.advanced()) {
+        const max = if (a.store.get(.settings)) |s| s.max_fetch_usdc else 0.05;
+        look.small(c, if (max > 0) c.print("Some sites charge for an answer. Unbrowse pays it from your balance, at most ${d} an answer, and each app has a daily limit (Money).", .{max}) else "Unbrowse uses only free answers and your own: paying for an answer is off (Settings).");
+        return;
     }
     // The keys themselves, with what each spent today: add one, or revoke one.
     {
@@ -69,6 +79,78 @@ pub fn view(a: *App, c: *ui.Context) void {
         a.toaster.push(.{ .status = .success, .title = "Copied", .duration = 2 });
         a.cheer();
     }
+}
+
+/// The node's setup as one list (`setup_status`), the same an agent reads and acts on with unbrowse_setup: each step done
+/// or not, in the node's own words. Shown while setup still needs something, or anything optional is left.
+fn setup(a: *App, c: *ui.Context) void {
+    const st = a.store.get(.setup_status) orelse return;
+    var open: usize = 0;
+    for (st.steps) |s| {
+        if (!s.done) open += 1;
+    }
+    if (open == 0) return;
+    const p = look.panel(c, "Your setup", if (st.left.len == 0) "Ready: the rest is optional" else c.print("{d} step{s} left", .{ st.left.len, if (st.left.len == 1) "" else "s" }));
+    defer p.end();
+    look.panelBody(c);
+    const b = look.pad(c);
+    defer b.end();
+    look.small(c, "Your agents can do each of these for you too: they ask you here first, and never ask you to type a command.");
+    for (st.steps) |s| {
+        ui.key(c, s.id);
+        const r = ui.div(c).row().wFull().gap(10).itemsStart();
+        defer r.end();
+        look.status(c, if (s.done) .ok else if (s.optional) .idle else .warn, stepName(s.id));
+        const w = ui.div(c).column().grow().minW(0);
+        defer w.end();
+        look.small(c, s.said);
+    }
+}
+
+/// A setup step's name, as the owner reads it.
+fn stepName(id: []const u8) []const u8 {
+    const names = [_][2][]const u8{
+        .{ "terms", "Terms" },
+        .{ "sign_in", "Signed in" },
+        .{ "apps", "Agent apps" },
+        .{ "tools", "Skill and commands" },
+        .{ "web", "ChatGPT and Claude" },
+        .{ "sites", "Sites" },
+        .{ "first_call", "First call" },
+    };
+    for (names) |n| if (std.mem.eql(u8, n[0], id)) return n[1];
+    return id;
+}
+
+/// Sites your agents can use signed in as you: a site's sign-in taken from your own browser (`import_session`), and the
+/// sites the node holds one for (`sessions`).
+fn sites(a: *App, c: *ui.Context) void {
+    const held = a.store.get(.sessions) orelse &.{};
+    const p = look.panel(c, "Sites your agents can use", if (held.len == 1) "1 site" else c.print("{d} sites", .{held.len}));
+    defer p.end();
+    look.panelBody(c);
+    const b = look.pad(c);
+    defer b.end();
+    look.body(c, "Name a site you're signed in to in Chrome, Brave, Edge or another Chromium browser. Unbrowse copies that one site's sign-in, so your agents work there as you.");
+    {
+        const r = ui.div(c).row().wFull().gap(8).itemsCenter();
+        defer r.end();
+        const res = ui.textField(c, &a.site_field, .{ .width = .fill, .placeholder = "github.com" });
+        const host = settings.hostOf(c, a.site_field.text());
+        if ((look.primary(c, "Connect site", .{ .disabled = host.len == 0, .loading = a.store.isBusy("site_connect"), .size = .md }) or res.submitted) and host.len > 0) {
+            a.site_sent.set(host);
+            a.site_err.len = 0;
+            a.store.actWith(.site_connect, "site_connect", "import_session", .{ .host = host });
+        }
+    }
+    if (a.site_err.len > 0) look.failText(c, a.site_err.get());
+    if (held.len == 0) return look.small(c, "No site connected yet.");
+    var line: std.ArrayList(u8) = .empty;
+    for (held, 0..) |s, i| {
+        if (i > 0) line.appendSlice(c.alloc(), ", ") catch {};
+        line.appendSlice(c.alloc(), s.host) catch {};
+    }
+    look.small(c, c.print("Connected: {s}", .{line.items}));
 }
 
 /// How an agent that isn't in the list connects, for the screen to show and copy: the token is read as the line runs, so

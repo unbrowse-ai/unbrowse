@@ -300,7 +300,7 @@ pub async fn reach_owner(watchers: impl Fn() -> usize, open: impl FnOnce() -> Re
         Err(e) => format!("it couldn't be opened here ({e})"),
     };
     Err(format!(
-        "the owner can't see this: no Unbrowse window is open, and {why}. Nothing was asked. The owner can open the window (`unbrowse-window`, or `unbrowse app`) and you ask again; or tell the user what you need them to do."
+        "the owner can't see this: no Unbrowse window is open, and {why}. Nothing was asked. Ask the person to open the Unbrowse app on that computer, then ask again; or tell them what you need them to do."
     ))
 }
 

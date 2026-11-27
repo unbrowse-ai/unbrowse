@@ -1,68 +1,68 @@
-//! First run: the terms and the choice to stay off the network, before anything else the window shows. The node holds
-//! off joining until it is answered (`terms::standing`), and it comes back whenever the node carries a newer version.
-//! Only pressing Open my node answers it: seeing it sends nothing. The words are the node's (`terms_text`), since the
-//! node updates by itself and can be newer than this window. Answering it goes on to Connect your agents (the shell's
-//! next screen in line, `shell.front`) and then to Home.
+//! The terms step of setting up (screens/onboarding.zig): the short version, the documents a click away, the choice to
+//! share with other Unbrowse users or keep everything on this computer, and the yes. The node holds off joining until
+//! it is answered (`terms::standing`), and the step comes back whenever the node carries a newer version. The documents'
+//! words are the node's (`terms_text`), since the node updates by itself and can be newer than this window.
 const std = @import("std");
 const nanoui = @import("nanoui");
 const ui = nanoui.ui;
 const look = @import("../look.zig");
-const art = @import("../art.zig");
 const App = @import("../app.zig").App;
+const onboarding = @import("onboarding.zig");
 
-pub fn view(a: *App, c: *ui.Context) void {
+/// The terms step of setting up (screens/onboarding.zig): the short version first, the documents a click away, the
+/// choice to share or not, and the yes. Only pressing Agree and continue answers it: seeing it sends nothing.
+pub fn body(a: *App, c: *ui.Context) void {
     if (!a.terms_asked) {
         a.terms_asked = true;
         a.store.fetch(.terms_text);
     }
     const x = look.x(c);
-    // One column on the canvas, as wide as a page of terms reads, the terms on a sheet in it: /link's card, grown.
-    const page = ui.div(c).column().sizeFull().bg(x.canvas).px(32).pt(46).pb(28).itemsCenter();
-    defer page.end();
-    const col = ui.div(c).column().wFull().maxW(680).grow().gap(16);
-    defer col.end();
-    {
-        const brand = ui.div(c).row().gap(8).itemsCenter();
-        defer brand.end();
-        art.mark(c, 24);
-        ui.text(c, "Unbrowse", .{ .size = 17, .weight = .semibold });
-    }
-    {
-        const words = ui.div(c).column().wFull().gap(6);
-        defer words.end();
-        look.title(c, "Before your node joins the network");
-        look.body(c, "Routes go straight between nodes run by other people. What your node shares, serves and calls is your responsibility, not Unbrowse's.");
-    }
     const text = a.store.get(.terms_text);
     {
-        const sheet = ui.div(c).column().grow().wFull().minW(0).bg(c.theme.surface).border(x.frame).rounded(16).shadowMd().clip();
+        const words = ui.div(c).column().wFull().gap(8);
+        defer words.end();
+        look.title(c, "The short version");
+        onboarding.point(c, "Unbrowse runs on this computer. Your logins, keys and money stay with you.");
+        onboarding.point(c, "With sharing on, what your Unbrowse learns about a site can help other people's AI, and you earn when they use it.");
+        onboarding.point(c, "What it does on the sites it visits is your responsibility, as with your own browser.");
+    }
+    {
+        const r = ui.div(c).row().wFull().gap(10).itemsCenter();
+        defer r.end();
+        if (look.ghost(c, if (a.terms_open) "Hide the full terms" else "Read the full terms and privacy notice", .{ .size = .sm })) a.terms_open = !a.terms_open;
+        ui.spacer(c);
+        if (text) |t| ui.text(c, c.print("Version {s}", .{t.version}), .{ .size = 12, .color = x.text3 });
+    }
+    if (a.terms_open) {
+        const sheet = ui.div(c).column().h(280).wFull().minW(0).bg(c.theme.surface).border(x.frame).rounded(12).clip();
         defer sheet.end();
         {
-            const head = ui.div(c).row().wFull().px(16).py(12).gap(12).itemsCenter();
+            const head = ui.div(c).row().wFull().px(14).py(10).gap(12).itemsCenter();
             defer head.end();
             _ = ui.segmented(c, &.{ "Terms of Service", "Privacy Policy" }, &a.terms_tab);
-            ui.spacer(c);
-            if (text) |t| ui.text(c, c.print("Version {s}", .{t.version}), .{ .size = 12, .color = x.text3 });
         }
         look.rule(c);
-        const box = ui.div(c).column().grow().wFull().minW(0).scrollY().px(20).py(16).gap(10);
+        const box = ui.div(c).column().grow().wFull().minW(0).scrollY().px(18).py(14).gap(10);
         defer box.end();
-        if (text) |t| document(c, if (a.terms_tab == 0) t.terms else t.privacy) else if (a.store.err(.terms_text)) |e| look.failText(c, e) else look.body(c, "Reading the terms…");
+        if (text) |t| document(c, if (a.terms_tab == 0) t.terms else t.privacy) else if (a.store.err(.terms_text)) |e| look.failText(c, e) else look.body(c, "Reading the terms\u{2026}");
     }
-    var off = a.keepOff();
+    var share = !a.keepOff();
     {
         const r = ui.div(c).row().wFull().gap(12).itemsCenter();
         defer r.end();
-        if (ui.checkbox(c, "Keep my node off the network", &off)) a.keep_off = off;
-        if (off) look.small(c, "Routes stay on this computer and your agents keep working.");
+        if (ui.checkbox(c, "Share what my Unbrowse learns with other Unbrowse users", &share)) a.keep_off = !share;
     }
+    look.small(c, if (share) "You can turn sharing off at any time in Settings." else "Everything stays on this computer, and your AI apps work just the same.");
     if (a.err.len > 0) look.failText(c, a.err.get());
     {
         const r = ui.div(c).row().wFull().gap(12).itemsCenter();
         defer r.end();
+        if (a.new_node orelse false) {
+            if (look.secondary(c, "Back", .{})) a.onboardGo(.back, .terms);
+        }
         // No answer can be given to terms that weren't there to read.
-        if (look.primary(c, "Open my node", .{ .size = .md, .disabled = text == null, .loading = a.store.isBusy("accept_terms") })) a.acceptTerms();
-        look.small(c, "Opening your node records that you were shown these terms.");
+        if (look.primary(c, "Agree and continue", .{ .size = .md, .disabled = text == null, .loading = a.store.isBusy("accept_terms") })) a.acceptTerms();
+        look.small(c, "Agreeing records that you were shown these terms.");
     }
 }
 
@@ -83,8 +83,43 @@ fn document(c: *ui.Context, text: []const u8) void {
             std.mem.replaceScalar(u8, part, '\n', ' ');
             const line = std.mem.trim(u8, part, " ");
             // A list item keeps its mark, drawn as one.
-            if (std.mem.startsWith(u8, line, "- ")) look.body(c, c.print("\u{2022}  {s}", .{line[2..]})) else look.body(c, line);
+            const plain = readable(c.alloc(), line);
+            if (std.mem.startsWith(u8, plain, "- ")) look.body(c, c.print("\u{2022}  {s}", .{plain[2..]})) else look.body(c, plain);
             start = end + 1;
         }
     }
+}
+
+/// A line of Markdown as a reader reads it: a link `[words](target)` is its words, and code in backticks loses them.
+pub fn readable(alloc: std.mem.Allocator, line: []const u8) []const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    var i: usize = 0;
+    while (i < line.len) {
+        const ch = line[i];
+        if (ch == '`') {
+            i += 1;
+            continue;
+        }
+        if (ch == '[') {
+            if (std.mem.indexOfScalarPos(u8, line, i + 1, ']')) |close| {
+                if (close + 1 < line.len and line[close + 1] == '(') {
+                    if (std.mem.indexOfScalarPos(u8, line, close + 2, ')')) |end| {
+                        out.appendSlice(alloc, line[i + 1 .. close]) catch return line;
+                        i = end + 1;
+                        continue;
+                    }
+                }
+            }
+        }
+        out.append(alloc, ch) catch return line;
+        i += 1;
+    }
+    return out.items;
+}
+
+test "a link reads as its words and code loses its backticks" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.expectEqualStrings("the Apache License 2.0 (LICENSE); run unbrowse-node terms accept", readable(arena.allocator(), "the Apache License 2.0 ([LICENSE](LICENSE)); run `unbrowse-node terms accept`"));
+    try std.testing.expectEqualStrings("a [bracket] stays", readable(arena.allocator(), "a [bracket] stays"));
 }

@@ -14,6 +14,7 @@ test {
     _ = @import("fmt.zig");
     _ = @import("api.zig");
     _ = @import("store.zig");
+    _ = @import("handoff.zig");
     _ = @import("live.zig");
     _ = @import("burst.zig");
     _ = @import("picture.zig");
@@ -53,6 +54,97 @@ const terms_text = "{\"version\":\"2026-11-01\",\"terms\":\"# Terms of Service\\
 const settings_due = "{\"map_while_browsing\":true,\"hold_routes\":false,\"signed_in_calls\":false,\"paused\":false,\"api_port\":7788,\"storage_gb\":5,\"excluded\":[],\"share_routes\":\"used\",\"share_notice_seen\":true,\"terms_accepted\":\"2026-10-29\",\"peer_network\":true}";
 const settings_off = "{\"map_while_browsing\":true,\"hold_routes\":false,\"signed_in_calls\":false,\"paused\":false,\"api_port\":7788,\"storage_gb\":5,\"excluded\":[],\"share_routes\":\"used\",\"share_notice_seen\":true,\"terms_accepted\":null,\"peer_network\":false}";
 
+const settings_basic = "{\"map_while_browsing\":true,\"hold_routes\":false,\"signed_in_calls\":false,\"paused\":false,\"api_port\":7788,\"storage_gb\":5,\"excluded\":[],\"share_routes\":\"used\",\"share_notice_seen\":true,\"terms_accepted\":\"2026-11-01\",\"advanced\":false}";
+
+test "a newcomer's sidebar lists the basic screens, and the advanced ones come with the owner's switch" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    a.store.put(.settings, settings_basic);
+    a.finish_due = false;
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    a.go(.access);
+    t.settle(1);
+    for ([_][]const u8{ "Agents", "Money", "Vault", "Settings" }) |shown| try std.testing.expect(t.hasText(shown));
+    for ([_][]const u8{ "Node", "Live", "My routes", "Activity", "Leaderboard", "Browser" }) |hidden| try std.testing.expect(!t.hasText(hidden));
+    snap(&t, "test-sidebar-basic");
+    // A screen's shortcut still opens it, and it is listed while it shows.
+    a.go(.routes);
+    t.settle(1);
+    try std.testing.expect(t.hasText("My routes"));
+    // More screens, under the basic ones, turns the rest on; the switch in Settings is the same choice.
+    try t.clickText("More screens");
+    try std.testing.expect(std.mem.containsAtLeast(u8, a.store.lastLog(), 1, "\"advanced\":true"));
+    a.go(.settings);
+    t.settle(1);
+    try std.testing.expect(t.hasText("Show advanced screens"));
+    a.store.put(.settings, canned[1][1]);
+    t.settle(1);
+    for ([_][]const u8{ "Node", "Live", "My routes", "Activity", "Leaderboard" }) |shown| try std.testing.expect(t.hasText(shown));
+    try std.testing.expect(!t.hasText("More screens"));
+}
+
+test "a newcomer's home says what Unbrowse does in plain words, and keeps keys, fees and addresses for the advanced screens" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    a.store.put(.settings, settings_basic);
+    a.store.put(.identity, "{\"address\":\"0x1234567890abcdef1234567890abcdef12345678\",\"created\":false}");
+    a.store.put(.remote_status, "{\"on\":true,\"url\":\"https://unbrowse.ai/p/x/mcp\",\"public\":false,\"keys\":[]}");
+    a.finish_due = false;
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 1600 });
+    defer t.deinit();
+    a.go(.access);
+    a.clients_known = false;
+    t.settle(1);
+    // Still looking: no count that the list under it contradicts.
+    try std.testing.expect(!t.containsText("0 agents found"));
+    // No route fees, vouchers, MCP or shell for a newcomer: one line on what an answer can cost.
+    try std.testing.expect(t.containsText("Some sites charge for an answer"));
+    for ([_][]const u8{ "contributor", "voucher", "unb mcp", "Any other agent", "this node", "This node", "The node" }) |w| {
+        if (t.containsText(w)) {
+            std.debug.print("a newcomer's home still says {s}\n", .{w});
+            return error.TestUnexpectedResult;
+        }
+    }
+    try std.testing.expect(t.hasText("Your Unbrowse address"));
+    // The wallet's address isn't in the sidebar.
+    try std.testing.expect(!t.containsText("0x1234"));
+    // Nothing connected (the owner passed the apps step by): Undo has nothing to put back, and a click sends nothing.
+    a.connect_checked = true;
+    a.connect_dismissed = true;
+    putClients(a, "{\"clients\":[{\"id\":\"cursor\",\"name\":\"Cursor\",\"found\":true,\"connected\":false,\"path\":\"p\"}]}");
+    t.settle(1);
+    const before = a.store.lastLog();
+    t.clickText("Undo") catch {};
+    try std.testing.expectEqualStrings(before, a.store.lastLog());
+    snap(&t, "test-home-basic-words");
+}
+
+test "a new node's window chooses the basic screens once, and a node from before keeps them all" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    // From before the choice: every screen, and nothing saved.
+    try std.testing.expect(a.advanced());
+    a.noteNewNode();
+    try std.testing.expect(!std.mem.containsAtLeast(u8, a.store.lastLog(), 1, "advanced"));
+    // A new node: the basic screens, kept by the node.
+    a.new_node = null;
+    a.store.put(.settings, settings_new);
+    a.noteNewNode();
+    try std.testing.expect(std.mem.containsAtLeast(u8, a.store.lastLog(), 1, "\"advanced\":false"));
+}
+
 test "the first-run screen stands before everything until the owner answers, and seeing it answers nothing" {
     const a = try std.testing.allocator.create(App);
     defer std.testing.allocator.destroy(a);
@@ -64,11 +156,13 @@ test "the first-run screen stands before everything until the owner answers, and
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
     defer t.deinit();
     t.settle(1);
-    try std.testing.expect(t.hasText("Before your node joins the network"));
+    try std.testing.expect(t.hasText("The short version"));
     try std.testing.expect(!t.hasText("Online"));
-    // The terms can't be answered before they can be read.
+    // The full terms are a click away; they can't be answered before they can be read.
+    try t.clickText("Read the full terms and privacy notice");
+    t.settle(1);
     try std.testing.expect(t.hasText("Reading the terms…"));
-    try t.clickText("Open my node");
+    try t.clickText("Agree and continue");
     try std.testing.expectEqualStrings("", a.store.lastLog());
     a.store.put(.terms_text, terms_text);
     t.settle(1);
@@ -79,12 +173,12 @@ test "the first-run screen stands before everything until the owner answers, and
     try std.testing.expect(t.hasText("What leaves this machine."));
     snap(&t, "test-first-run");
     try std.testing.expectEqualStrings("", a.store.lastLog());
-    try t.clickText("Open my node");
+    try t.clickText("Agree and continue");
     try std.testing.expectEqualStrings("accept_terms {\"keep_off\":false}", a.store.lastLog());
     // The node's answer lifts it.
     a.store.put(.settings, canned[1][1]);
     t.settle(1);
-    try std.testing.expect(!t.hasText("Before your node joins the network"));
+    try std.testing.expect(!t.hasText("The short version"));
     try std.testing.expect(t.hasText("Online"));
 }
 
@@ -100,10 +194,10 @@ test "keeping the node off on the first-run screen is the answer the node gets" 
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
     defer t.deinit();
     t.settle(1);
-    try t.clickText("Keep my node off the network");
+    try t.clickText("Share what my Unbrowse learns with other Unbrowse users");
     t.settle(1);
-    try std.testing.expect(t.containsText("Routes stay on this computer"));
-    try t.clickText("Open my node");
+    try std.testing.expect(t.containsText("Everything stays on this computer"));
+    try t.clickText("Agree and continue");
     try std.testing.expectEqualStrings("accept_terms {\"keep_off\":true}", a.store.lastLog());
 }
 
@@ -119,7 +213,10 @@ test "an owner already off the network stays off when asked about new terms" {
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
     defer t.deinit();
     t.settle(1);
-    try t.clickText("Open my node");
+    // Never answered: a new node, welcomed first.
+    try t.clickText("Get started");
+    t.settle(1);
+    try t.clickText("Agree and continue");
     try std.testing.expectEqualStrings("accept_terms {\"keep_off\":true}", a.store.lastLog());
 }
 
@@ -134,7 +231,10 @@ fn answeredNew(a: *App, t: *ui.Tester, height: f32) !void {
     a.store.put(.link_status, unlinked);
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = height });
     t.settle(1);
-    try t.clickText("Open my node");
+    // A new node is welcomed first.
+    try t.clickText("Get started");
+    t.settle(1);
+    try t.clickText("Agree and continue");
     try std.testing.expectEqualStrings("accept_terms {\"keep_off\":false}", a.store.lastLog());
     a.store.put(.settings, canned[1][1]);
     t.settle(1);
@@ -148,7 +248,7 @@ test "a new node's owner is asked to sign in once the terms are answered, and si
     var t: ui.Tester = undefined;
     try answeredNew(a, &t, 780);
     defer t.deinit();
-    try std.testing.expect(!t.hasText("Before your node joins the network"));
+    try std.testing.expect(!t.hasText("The short version"));
     try std.testing.expect(t.hasText("Sign in"));
     try std.testing.expect(t.hasText("Skip for now"));
     // Nothing behind it yet: no sidebar, no node card.
@@ -177,6 +277,10 @@ test "a new node's owner is asked to sign in once the terms are answered, and si
     a.store.put(.link_status, "{\"owner\":\"0xfeedfacefeedfacefeedfacefeedfacefeedface\",\"waiting\":false,\"error\":null}");
     t.settle(2);
     try std.testing.expect(!t.hasText("Skip for now"));
+    // A new node's setting up closes on You're set; Open Unbrowse goes on to the window.
+    try std.testing.expect(t.hasText("You're set"));
+    try t.clickText("Open Unbrowse");
+    t.settle(1);
     try std.testing.expect(t.hasText("Online"));
     try std.testing.expect(t.hasText("Signed in"));
     try std.testing.expect(a.screen == .access);
@@ -199,6 +303,9 @@ test "skipping the first-run sign-in lands on the window with no wallet linked, 
     // Skipping asks the node for nothing: it is as it was, on its own wallet.
     try std.testing.expectEqualStrings("accept_terms {\"keep_off\":false}", a.store.lastLog());
     try std.testing.expect(!t.hasText("Skip for now"));
+    try std.testing.expect(t.hasText("You're set"));
+    try t.clickText("Open Unbrowse");
+    t.settle(1);
     try std.testing.expect(t.hasText("Online"));
     try std.testing.expect(t.hasText("My routes"));
     try std.testing.expect(a.screen == .access);
@@ -1034,6 +1141,36 @@ test "an agent's ask brings the owner to the page: clicks and keys on its pictur
     a.close();
     a.go(.node);
     try std.testing.expectEqualStrings("hands_stop {}", a.store.lastLog());
+}
+
+test "an agent's ask stays in its note for as long as it waits, and goes when it lapses" {
+    var t: ui.Tester = undefined;
+    const a = try liveApp(1180, 860, &t);
+    defer freeApp(a);
+    defer t.deinit();
+    var arena = scratch();
+    defer arena.deinit();
+    const s = arena.allocator();
+    a.now = 1000;
+    // The node's list of asks isn't read yet: only the note can say it.
+    a.store.put(.hands, "{\"browsers\":[],\"asks\":[],\"watching\":null}");
+    const ask = "{\"id\":\"ask-1\",\"site\":\"linkedin.com\",\"why\":\"sign in to LinkedIn\",\"agent\":\"Claude Code\",\"asked_at\":1000,\"expires_at\":1300}";
+    a.event("hands", "{\"kind\":\"ask\",\"site\":\"linkedin.com\",\"ask\":" ++ ask ++ "}", s);
+    t.settle(1);
+    try std.testing.expect(t.hasText("Claude Code needs you on linkedin.com"));
+    // Twelve seconds on, the ask still waits, and its note is still there (it used to go after ten).
+    t.advance(12);
+    t.settle(1);
+    try std.testing.expect(t.hasText("Claude Code needs you on linkedin.com"));
+    // No one answered: the node says it lapsed, and the note goes.
+    a.event("hands", "{\"kind\":\"lapsed\",\"site\":\"linkedin.com\"}", s);
+    t.advance(1);
+    t.settle(2);
+    try std.testing.expect(!t.hasText("Claude Code needs you on linkedin.com"));
+    // An ask whose end can't be read stays the ten seconds it always did.
+    try std.testing.expectEqual(@as(f32, 10), @import("app.zig").askNoteSeconds(null, 1000));
+    try std.testing.expectEqual(@as(f32, 10), @import("app.zig").askNoteSeconds(.{ .expires_at = 1300 }, 0));
+    try std.testing.expectEqual(@as(f32, 300), @import("app.zig").askNoteSeconds(.{ .expires_at = 1300 }, 1000));
 }
 
 test "an agent's ask for a login opens the vault's own form, never the agent's chat" {
@@ -2209,7 +2346,7 @@ fn count(t: *ui.Tester, name: []const u8, w: f32, h: f32) void {
     std.debug.print("UNB160-COUNT {s} words={d} blocks={d} controls={d}\n", .{ name, words, blocks, controls });
 }
 
-const money_funded = "{\"balance\":\"4.20\",\"available_to_spend\":\"4.20\",\"needed_to_start\":\"0.00\",\"payments\":\"open\"," ++
+const money_funded = "{\"balance\":\"4.20\",\"available_to_spend\":\"4.20\",\"needed_to_start\":\"0.00\",\"add_funds_url\":\"https://unbrowse.ai/fund/#node=0x1234567890abcdef1234567890abcdef12345678&chain=5042002&min=0.00&nonce=n2\",\"payments\":\"open\"," ++
     "\"parts\":{\"at_address\":\"0.40\",\"kept_for_fees\":\"0.05\",\"deposit\":\"3.80\",\"account_deposit\":null,\"signed\":\"0.12\"},\"agents\":[{\"index\":0,\"spent_today\":\"0.12\",\"pays_from\":\"node\"}],\"earnings\":{\"available\":\"0.00\",\"on_hold\":\"0.31\",\"security_hold\":\"0.00\"}}";
 
 const S = struct {
@@ -2645,7 +2782,7 @@ test "the connect screen lists the clients found, each ticked, and sends the tic
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
     defer t.deinit();
     t.settle(1);
-    try std.testing.expect(t.hasText("Connect your agents"));
+    try std.testing.expect(t.hasText("Connect your AI apps"));
     try std.testing.expect(t.hasText("Claude Code"));
     try std.testing.expect(t.hasText("Claude Desktop"));
     try std.testing.expect(t.hasText("Cursor"));
@@ -2684,8 +2821,8 @@ test "after the node answers, each row says what happened in plain words" {
     // The node now says Claude Code is connected: the screen stays for the owner to read the rows.
     putClients(a, "{\"clients\":[{\"id\":\"claude_code\",\"name\":\"Claude Code\",\"found\":true,\"connected\":true,\"path\":\"p\"},{\"id\":\"claude_desktop\",\"name\":\"Claude Desktop\",\"found\":true,\"connected\":true,\"path\":\"q\"},{\"id\":\"cursor\",\"name\":\"Cursor\",\"found\":true,\"connected\":false,\"path\":\"r\"}]}");
     t.settle(1);
-    try std.testing.expect(t.hasText("Connect your agents"));
-    try std.testing.expect(t.hasText("Connected"));
+    try std.testing.expect(t.hasText("Connect your AI apps"));
+    try std.testing.expect(t.hasText("Connected: open Claude Code to start using it"));
     try std.testing.expect(t.hasText("Connected: quit and reopen Claude Desktop"));
     try std.testing.expect(t.hasText("Cursor's config file isn't valid JSON, so nothing was changed."));
     snap(&t, "test-connect-results");
@@ -2694,12 +2831,41 @@ test "after the node answers, each row says what happened in plain words" {
     try t.clickText("Next");
     t.settle(1);
     try std.testing.expect(t.hasText("Use ChatGPT or Claude on the web?"));
-    try std.testing.expect(!t.hasText("Connect your agents"));
+    try std.testing.expect(!t.hasText("Connect your AI apps"));
     try t.clickText("Not now");
     t.settle(1);
     try std.testing.expect(!t.hasText("Use ChatGPT or Claude on the web?"));
+    // Setting up closes on You're set, with the first thing to try, and Open Unbrowse goes to the window.
+    try std.testing.expect(t.hasText("You're set"));
+    try t.clickText("Open Unbrowse");
+    t.settle(1);
     try std.testing.expect(t.hasText("Online"));
     try std.testing.expect(!a.connectDue());
+}
+
+test "a connected app says whether it has reached Unbrowse, here and on You're set" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    // Claude Code was opened since it was connected and said so at MCP initialize (`heard`); Codex hasn't been.
+    putClients(a, "{\"clients\":[{\"id\":\"claude_code\",\"name\":\"Claude Code\",\"found\":true,\"connected\":true,\"path\":\"p\",\"heard\":1795347861},{\"id\":\"codex\",\"name\":\"Codex\",\"found\":true,\"connected\":true,\"path\":\"q\"}]}");
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    a.go(.access);
+    t.settle(1);
+    try std.testing.expect(t.hasText("Connected: it reached Unbrowse"));
+    try std.testing.expect(t.hasText("Connected: open Codex to start using it"));
+    snap(&t, "test-connect-heard");
+    // Setting up closes on You're set, which says the same of each app, so the owner sees it worked.
+    a.finish_due = true;
+    t.settle(1);
+    try std.testing.expect(t.hasText("You're set"));
+    try std.testing.expect(t.containsText("Claude Code reached Unbrowse"));
+    try std.testing.expect(t.containsText("Codex: open it to start using Unbrowse"));
+    snap(&t, "test-done-heard");
 }
 
 test "a connect the node refuses shows its words on the screen and leaves the rows to try again" {
@@ -2718,7 +2884,7 @@ test "a connect the node refuses shows its words on the screen and leaves the ro
     answer(a, .agent_connect, false, "You said no to changing your agents' files.", arena.allocator());
     t.settle(1);
     try std.testing.expect(t.hasText("You said no to changing your agents' files."));
-    try std.testing.expect(t.hasText("Connect your agents"));
+    try std.testing.expect(t.hasText("Connect your AI apps"));
     // Still there to press again.
     try t.clickText("Connect");
     try std.testing.expectEqualStrings("agent_connect {\"clients\":[\"claude_code\",\"claude_desktop\",\"cursor\"]}", a.store.lastLog());
@@ -2735,14 +2901,17 @@ test "with no agent found the connect screen says so in a line and goes on to Ch
     try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
     defer t.deinit();
     t.settle(1);
-    try std.testing.expect(t.hasText("No agent found on this Mac yet."));
+    try std.testing.expect(t.containsText("No AI app was found on this computer"));
     try std.testing.expect(!t.hasText("Connect"));
     try t.clickText("Next");
     t.settle(1);
     try std.testing.expect(t.hasText("Use ChatGPT or Claude on the web?"));
     try t.clickText("Not now");
     t.settle(1);
-    try std.testing.expect(!t.hasText("Connect your agents") and !t.hasText("Use ChatGPT or Claude on the web?"));
+    try std.testing.expect(!t.hasText("Connect your AI apps") and !t.hasText("Use ChatGPT or Claude on the web?"));
+    try std.testing.expect(t.hasText("You're set"));
+    try t.clickText("Open Unbrowse");
+    t.settle(1);
     try std.testing.expect(t.hasText("Online"));
 }
 
@@ -2806,13 +2975,18 @@ test "the first run's web step turns the address on, then gives it with Claude's
     try std.testing.expect(t.containsText("Business, Enterprise and Edu"));
     try std.testing.expect(!t.hasText("Click +, then Add custom connector."));
     snap(&t, "test-connect-web-chatgpt");
-    // A sign-in can be let ask again, for an owner who comes back to it later.
-    try t.clickText("Adding it now? Let a sign-in ask");
-    try std.testing.expectEqualStrings("remote_set {\"on\":true}", a.store.lastLog());
-    try t.clickText("Done");
+    // The node can be linked to the owner's Unbrowse account instead, so ChatGPT and Claude signed in to Unbrowse reach
+    // it with no address to paste; it lets a sign-in ask too, for an owner who comes back to it later.
+    try t.clickText("Link to my Unbrowse account");
+    try std.testing.expectEqualStrings("remote_link {}", a.store.lastLog());
+    try t.clickText("Next");
     t.settle(1);
     try std.testing.expect(!a.connectDue());
-    // Done lands on the home screen, Agents, which holds the same panel.
+    try std.testing.expect(t.hasText("You're set"));
+    try std.testing.expect(t.hasText(@import("screens/onboarding.zig").try_this));
+    try t.clickText("Open Unbrowse");
+    t.settle(1);
+    // Open Unbrowse lands on the home screen, Agents, which holds the same panel.
     try std.testing.expectEqual(@import("app.zig").Screen.access, a.screen);
     try std.testing.expect(t.hasText("ChatGPT and Claude on the web"));
     try std.testing.expect(t.hasText("Address on"));
@@ -2891,6 +3065,9 @@ test "the window stands the move, the terms, signing in and Connect in that orde
     putClients(a, clients_found);
     try std.testing.expectEqual(Front.connect, shell.front(a));
     a.dismissConnect();
+    // Setting up closes on You're set; past it, the normal screens.
+    try std.testing.expectEqual(Front.done, shell.front(a));
+    a.onboardFinish();
     try std.testing.expectEqual(Front.none, shell.front(a));
 }
 
@@ -2927,7 +3104,7 @@ test "the agent access screen lists the same clients with Connect and Undo, and 
     a.go(.access);
     t.settle(1);
     try std.testing.expect(t.hasText("Cursor"));
-    try std.testing.expect(t.hasText("Connected"));
+    try std.testing.expect(t.hasText("Connected: open Cursor to start using it"));
     try std.testing.expect(t.hasText("Undo"));
     try std.testing.expect(t.hasText("Copy example requests"));
     try std.testing.expect(!t.containsText("claude mcp add"));
@@ -2936,4 +3113,190 @@ test "the agent access screen lists the same clients with Connect and Undo, and 
     answer(a, .agent_undo, true, "{\"restored\":[{\"id\":\"cursor\",\"name\":\"Cursor\",\"path\":\"/Users/x/.cursor/mcp.json\"}]}", arena.allocator());
     t.settle(1);
     try std.testing.expect(t.hasText("Put back Cursor."));
+}
+
+const setup_left = "{\"steps\":[{\"id\":\"terms\",\"done\":false,\"optional\":false,\"said\":\"this node stays off the peer network until its owner acknowledges terms 2026-11-01, which the Unbrowse app asks for when it opens\",\"next\":{\"tool\":\"unbrowse_setup\",\"args\":{\"do\":\"accept_terms\"}}}," ++
+    "{\"id\":\"apps\",\"done\":true,\"optional\":true,\"said\":\"connected: Claude Code and Codex\",\"next\":null}," ++
+    "{\"id\":\"sites\",\"done\":false,\"optional\":true,\"said\":\"no site's sign-in kept yet\",\"next\":{\"tool\":\"unbrowse_setup\",\"args\":{\"do\":\"connect_site\"}}}],\"left\":[\"terms\"]}";
+const setup_done = "{\"steps\":[{\"id\":\"terms\",\"done\":true,\"optional\":false,\"said\":\"terms 2026-11-01 acknowledged\",\"next\":null}],\"left\":[]}";
+
+test "the Agents screen shows the node's own setup list while anything is left, and nothing once all is done" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    a.store.put(.setup_status, setup_left);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 1500 });
+    defer t.deinit();
+    a.go(.access);
+    t.settle(1);
+    try std.testing.expect(t.hasText("Your setup"));
+    try std.testing.expect(t.hasText("1 step left"));
+    try std.testing.expect(t.hasText("Terms") and t.hasText("Agent apps") and t.hasText("Sites"));
+    try std.testing.expect(t.containsText("which the Unbrowse app asks for when it opens"));
+    try std.testing.expect(t.containsText("never ask you to type a command"));
+    snap(&t, "test-agents-setup");
+    a.store.put(.setup_status, setup_done);
+    t.settle(1);
+    try std.testing.expect(!t.hasText("Your setup"));
+}
+
+test "a site is connected from the Agents screen by its host, its sign-in taken from the owner's own browser" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    a.store.put(.sessions, "[{\"host\":\"news.ycombinator.com\",\"cookies\":3,\"updated\":1}]");
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 1800 });
+    defer t.deinit();
+    a.go(.access);
+    t.settle(1);
+    try std.testing.expect(t.hasText("Sites your agents can use"));
+    try std.testing.expect(t.containsText("Connected: news.ycombinator.com"));
+    try t.clickText("github.com"); // the field's placeholder
+    t.typeText("https://GitHub.com/settings");
+    try t.clickText("Connect site");
+    // The host alone, as a site is named: the node reads only that site's cookies.
+    try std.testing.expectEqualStrings("import_session {\"host\":\"github.com\"}", a.store.lastLog());
+    // A site that didn't connect says why under its own field, and nowhere else.
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    a.done(.{ .tag = .site_connect, .label = "site_connect", .ok = false, .text = "no cookies for github.com in your browsers", .arena = arena.allocator() });
+    t.settle(1);
+    try std.testing.expect(t.containsText("no cookies for github.com in your browsers"));
+    try std.testing.expectEqual(@as(usize, 0), a.err.len);
+    snap(&t, "test-agents-sites");
+}
+
+test "setting up a new node goes step by step, its stepper filling and each step sliding in from the way it goes" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    a.store.put(.settings, settings_new);
+    a.store.put(.terms_text, terms_text);
+    a.store.put(.link_status, unlinked);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 900 });
+    defer t.deinit();
+    t.settle(1);
+    // Welcome first: what Unbrowse does for the owner and how long setting up takes, with the steps ahead.
+    try std.testing.expect(t.hasText("Let your AI use any website"));
+    try std.testing.expect(t.containsText("about two minutes"));
+    for ([_][]const u8{ "Welcome", "Terms", "Sign in", "Your AI apps", "ChatGPT and Claude", "Done" }) |step| try std.testing.expect(t.hasText(step));
+    snap(&t, "test-onboard-welcome");
+    try t.clickText("Get started");
+    t.frame();
+    // The terms arrive moving, from the right, and come to rest still: nothing animates once settled.
+    try std.testing.expect(t.ctx.animating);
+    const early = t.findText("The short version").?.x;
+    t.settle(2);
+    try std.testing.expect(early > t.findText("The short version").?.x + 4);
+    try std.testing.expect(!t.ctx.animating);
+    try std.testing.expect(t.hasText("\u{2713}"));
+    snap(&t, "test-onboard-terms");
+    // Back goes back to Welcome, from the left.
+    try t.clickText("Back");
+    t.settle(2);
+    try std.testing.expect(t.hasText("Let your AI use any website"));
+    try std.testing.expectEqual(@as(f32, -1), a.onboard_dir);
+    try t.clickText("Get started");
+    t.settle(2);
+    try t.clickText("Agree and continue");
+    try std.testing.expectEqualStrings("accept_terms {\"keep_off\":false}", a.store.lastLog());
+    a.store.put(.settings, canned[1][1]);
+    t.settle(2);
+    // Signing in is a step of its own, with an ordinary way past it.
+    try std.testing.expect(t.hasText("Sign in to Unbrowse"));
+    snap(&t, "test-onboard-sign-in");
+    try t.clickText("Skip for now");
+    t.settle(2);
+    try std.testing.expect(!a.signInDue());
+}
+
+test "the last step of setting up gives the first thing to try, ready to copy" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    a.new_node = true;
+    a.finish_due = true;
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    t.settle(2);
+    try std.testing.expect(t.hasText("You're set"));
+    try std.testing.expect(t.hasText(@import("screens/onboarding.zig").try_this));
+    snap(&t, "test-onboard-done");
+    try t.clickText("Copy");
+    try std.testing.expectEqualStrings(@import("screens/onboarding.zig").try_this, t.clipboard.items);
+    try t.clickText("Open Unbrowse");
+    t.settle(1);
+    try std.testing.expect(t.hasText("Online"));
+}
+
+/// A balance with a top-up page: what a node on a live network or the devnet answers with while payments run.
+const money_top_up = "{\"balance\":\"4.20\",\"available_to_spend\":\"4.20\",\"needed_to_start\":\"0.00\",\"add_funds_url\":\"https://unbrowse.ai/fund/#node=0x1234567890abcdef1234567890abcdef12345678&chain=5042002&min=0.00&nonce=n3\",\"payments\":\"open\"," ++
+    "\"parts\":{\"at_address\":\"4.20\",\"kept_for_fees\":\"0.00\",\"deposit\":\"0.00\",\"account_deposit\":null,\"signed\":\"0.00\"},\"agents\":[],\"earnings\":{\"available\":\"0.00\"}}";
+
+/// The same after a top-up landed: the count the badge must show next.
+const money_topped = "{\"balance\":\"6.20\",\"available_to_spend\":\"6.20\",\"needed_to_start\":\"0.00\",\"add_funds_url\":\"https://unbrowse.ai/fund/#node=0x1234567890abcdef1234567890abcdef12345678&chain=5042002&min=0.00&nonce=n4\",\"payments\":\"open\"," ++
+    "\"parts\":{\"at_address\":\"6.20\",\"kept_for_fees\":\"0.00\",\"deposit\":\"0.00\",\"account_deposit\":null,\"signed\":\"0.00\"},\"agents\":[],\"earnings\":{\"available\":\"0.00\"}}";
+
+/// A live network whose Settlement isn't deployed: no payments, so no top-up page to link.
+const money_closed = "{\"balance\":\"0.00\",\"available_to_spend\":\"0.00\",\"needed_to_start\":\"0.00\",\"add_funds_url\":null,\"payments\":\"not_open\"," ++
+    "\"parts\":{\"at_address\":\"0.00\",\"kept_for_fees\":\"0.00\",\"deposit\":\"0.00\",\"account_deposit\":null,\"signed\":\"0.00\"},\"agents\":[],\"earnings\":{\"available\":\"0.00\"}}";
+
+test "the balance badge sits on every screen, tops up, and shows a top-up that lands" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    a.store.put(.money, money_top_up);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    a.go(.node);
+    t.settle(1);
+    try std.testing.expect(t.hasText("$4.20  Top up"));
+    // Settings doesn't ask the node for money: the badge is there because the frame around every screen reads it.
+    a.go(.settings);
+    t.settle(1);
+    try std.testing.expect(t.hasText("$4.20  Top up"));
+    snap(&t, "test-credit-badge");
+    // One press is Money's Add funds, from wherever the owner stands.
+    try t.clickText("$4.20  Top up");
+    try std.testing.expectEqualStrings("add_funds {}", a.store.lastLog());
+    // A top-up that lands moves the badge without the owner leaving the screen.
+    a.store.put(.money, money_topped);
+    t.frame();
+    try std.testing.expect(t.hasText("$6.20  Top up"));
+    try std.testing.expect(!t.hasText("$4.20  Top up"));
+}
+
+test "with payments not open the badge shows the count and no dead top-up" {
+    const a = try std.testing.allocator.create(App);
+    defer std.testing.allocator.destroy(a);
+    a.init(std.testing.allocator, null, null);
+    defer a.deinit();
+    load(a);
+    a.store.put(.chain_status, "{\"up\":true,\"error\":null,\"rpc\":\"https://rpc.testnet.arc.io\",\"deployment\":null,\"payments\":\"not_open\"}");
+    a.store.put(.money, money_closed);
+    var t: ui.Tester = undefined;
+    try t.init(std.testing.allocator, .init(a, shell.view), .{ .width = 1180, .height = 780 });
+    defer t.deinit();
+    a.go(.routes);
+    t.settle(1);
+    try std.testing.expect(t.hasText("$0.00"));
+    try std.testing.expect(t.hasText("Payments not open yet"));
+    try std.testing.expect(!t.containsText("Top up"));
+    try std.testing.expectError(error.TextNotFound, t.clickText("$0.00  Top up"));
+    try std.testing.expectEqualStrings("", a.store.lastLog());
 }

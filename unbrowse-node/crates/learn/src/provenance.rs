@@ -2,7 +2,7 @@
 //! text (HTML or JS).
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use serde::{Deserialize, Serialize};
@@ -895,17 +895,27 @@ fn response_values(trace: &Trace, i: usize) -> Rc<Vec<(String, At)>> {
     v
 }
 
-/// Whether `value` is one this exchange's own request sent in its address (a query value or a path piece, as written or
-/// in another case): its answer saying it back is no source of it.
+/// Whether `value` is one this exchange's own request sent ([`sent_by`]), as written or in another case: its answer
+/// saying it back is no source of it.
 fn says_back(ex: &crate::trace::Exchange, value: &str) -> bool {
-    !value.is_empty()
-        && (ex.url.query_pairs().any(|(_, v)| v.eq_ignore_ascii_case(value))
-            || ex.url.path_segments().into_iter().flatten().any(|p| percent_encoding::percent_decode_str(p).decode_utf8_lossy().eq_ignore_ascii_case(value)))
+    !value.is_empty() && sent_by(ex).contains(&value.to_lowercase())
+}
+
+/// What this exchange's own request sent, lower-cased, read as every reader of a request's places reads them
+/// (`slots::slots`): its path pieces, its query values, its headers and its body's fields. A page's script sends a call
+/// its session values (a visitor id, a client version) and the site says them back in the answer's own context, and a
+/// later call that sends them takes them from wherever this request did, not from the answer that only said them back:
+/// read so, three housekeeping calls were chained in front of a search as the makers of what the page itself gave. The
+/// session's cookies are the jar's, and are not read here.
+fn sent_by(ex: &crate::trace::Exchange) -> HashSet<String> {
+    crate::slots::slots(ex).into_iter().filter(|s| !matches!(s.loc, crate::slots::Loc::Cookie(_))).map(|s| s.value.to_lowercase()).filter(|v| !v.is_empty()).collect()
 }
 
 fn read_values(trace: &Trace, i: usize) -> Vec<(String, At)> {
     READS.with(|n| n.set(n.get() + 1));
     let ex = &trace.exchanges[i];
+    let sent = sent_by(ex);
+    let says_back = |_: &crate::trace::Exchange, v: &str| !v.is_empty() && sent.contains(&v.to_lowercase());
     let mut out: Vec<(String, At)> = ex
         .set_cookies()
         .into_iter()
@@ -1041,41 +1051,31 @@ fn pointer_volatile(pointer: &str) -> bool {
     })
 }
 
-/// The one scalar leaf named `name` across the page's JSON documents, if exactly one carries it: a value whose
-/// container is volatile is still named by its own field. Two leaves of the same name say nothing about which is the
-/// value's, so an ambiguous name is not read.
+/// The one scalar value named `name` across the page's JSON documents: a value whose container is volatile is still
+/// named by its own field. A name that sits in several places holding one value is that value (a page's state that
+/// keeps its page-view id beside each listing); two values under one name say nothing about which is the value's, so
+/// such a name is not read.
 fn unique_leaf_named<'v>(docs: &'v [Value], name: &str) -> Option<&'v Value> {
-    fn walk<'v>(v: &'v Value, name: &str, found: &mut Option<&'v Value>, count: &mut usize) {
+    fn unambiguous<'v>(v: &'v Value, name: &str, found: &mut Option<&'v Value>) -> bool {
         match v {
             Value::Object(m) => {
                 for (k, val) in m {
                     if k == name && !matches!(val, Value::Object(_) | Value::Array(_) | Value::Null) {
-                        *count += 1;
-                        if *count == 1 {
-                            *found = Some(val);
+                        if *found.get_or_insert(val) != val {
+                            return false;
                         }
+                    } else if !unambiguous(val, name, found) {
+                        return false;
                     }
-                    walk(val, name, found, count);
                 }
+                true
             }
-            Value::Array(a) => {
-                for val in a {
-                    walk(val, name, found, count);
-                }
-            }
-            _ => {}
+            Value::Array(a) => a.iter().all(|val| unambiguous(val, name, found)),
+            _ => true,
         }
     }
     let mut found = None;
-    let mut count = 0;
-    for d in docs {
-        walk(d, name, &mut found, &mut count);
-    }
-    if count == 1 {
-        found
-    } else {
-        None
-    }
+    if docs.iter().all(|doc| unambiguous(doc, name, &mut found)) { found } else { None }
 }
 
 /// Reads the value at `at` from a response: how replay takes a derived value from a fresh
@@ -1214,6 +1214,20 @@ mod tests {
         assert_eq!(extract(&ex, &ptr).as_deref(), Some("pv-fresh"));
         let amb = exchange("GET", "https://www.example.com/search", &[], None, r#"{"a":{"pageViewId":"p1"},"b":{"pageViewId":"p2"}}"#);
         assert_eq!(extract(&amb, &ptr), None, "two leaves of the same name say nothing about which is the value's");
+    }
+
+    /// A leaf name that sits in several places of the page, all holding one value, is that value: a page's state that
+    /// keeps its page-view id beside each of its listings. booking.com's results page in PR 905's and 923's slices
+    /// (25 Nov 2026) carried `pageViewId` two or three times with one value, so the route learned on Tokyo read none
+    /// for Osaka, refused its own call, and walked again. Two values under one name are still not read.
+    #[test]
+    fn a_leaf_name_repeated_with_one_value_is_that_value() {
+        let ptr = At::Json { pointer: "/SponsoredListingData:787dd5c0-4ed1-422d-ab9a-c847955556a1_26/pageViewId".into() };
+        let page = r#"{"SponsoredListingData:aa11_3":{"pageViewId":"pv-fresh","rank":1},"SponsoredListingData:bb22_9":{"pageViewId":"pv-fresh","rank":2},"ROOT_QUERY":{"x":1}}"#;
+        let ex = exchange("GET", "https://www.example.com/searchresults.html", &[], None, page);
+        assert_eq!(extract(&ex, &ptr).as_deref(), Some("pv-fresh"));
+        let two = exchange("GET", "https://www.example.com/searchresults.html", &[], None, r#"{"S:a_1":{"pageViewId":"p1"},"S:b_2":{"pageViewId":"p2"}}"#);
+        assert_eq!(extract(&two, &ptr), None, "two values under one name say nothing about which is the value's");
     }
 
     /// A value an answer of the walk delivered that a later request sent back, in any position, is the session's: a
@@ -1495,6 +1509,31 @@ mod tests {
         assert_eq!(find_origin(&t, 1, "mtop.shop.recommend.list"), None, "the path's own word, said back");
         assert_eq!(find_origin(&t, 1, "mtop.shop.Recommend.list"), None, "the query's own value, said back");
         assert_eq!(find_origin(&t, 1, "cursor_7f3a9c21e4").map(|o| o.at), Some(At::Json { pointer: "/data/next".into() }), "what it gave");
+    }
+
+    /// The walk that exposed it (a video site's search): the page gives a visitor id in its text; a housekeeping call
+    /// sends it in its body and a header, and its answer says it back in its own context, as every answer of the site
+    /// does. The next call takes it from the page, not from the answer that only said back what its request sent, so no
+    /// housekeeping call is chained in front of it. What that answer gave of its own (a token the request never sent) is
+    /// still found there.
+    #[test]
+    fn an_answer_that_says_back_what_its_request_sent_in_its_body_is_no_source_of_it() {
+        let visitor = "CgtWaXNpdG9yNDQ3MQ%3D%3D";
+        let page = ex(&format!(r#"<script>ytcfg.set({{"INNERTUBE_CONTEXT":{{"client":{{"visitorData":"{visitor}"}}}}}})</script>"#), &[]);
+        let mut guide = ex(&format!(r#"{{"responseContext":{{"serviceTrackingParams":[{{"params":[{{"key":"visitor_data","value":"{visitor}"}}]}}]}},"token":"tok_8c1f2e7a9b"}}"#), &[]);
+        guide.method = "POST".into();
+        guide.url = "https://www.video.example/api/v1/guide".parse().unwrap();
+        guide.request_headers = vec![("x-goog-visitor-id".into(), visitor.into()), ("content-type".into(), "application/json".into())];
+        guide.request_body = Some(format!(r#"{{"context":{{"client":{{"visitorData":"{visitor}"}}}}}}"#));
+        // The call that sends it next is a POST, as the search is: a step that may write takes a value from its latest
+        // issuer, and an answer that only said it back is none.
+        let mut search = ex("{}", &[]);
+        search.method = "POST".into();
+        search.url = "https://www.video.example/api/v1/search".parse().unwrap();
+        search.request_body = Some(format!(r#"{{"context":{{"client":{{"visitorData":"{visitor}"}}}},"query":"lamp"}}"#));
+        let t = trace(vec![page, guide, search]);
+        assert_eq!(find_origin(&t, 2, visitor).map(|o| o.exchange), Some(0), "the page gave it; the guide only said it back");
+        assert_eq!(find_origin(&t, 2, "tok_8c1f2e7a9b").map(|o| o.exchange), Some(1), "what the guide gave of its own");
     }
 
     /// A page says a value in its text, and a POST it sent first says it back as JSON, as every answer of the site does.

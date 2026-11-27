@@ -16,6 +16,8 @@ md-5 = "0.10"
 sha1 = "0.10"
 sha2 = "0.10"
 hmac = "0.12"
+# A request body the page compressed is read as what it compresses, and sent compressed again (`wire::uncompressed`).
+flate2 = "1"
 
 [lints]
 workspace = true

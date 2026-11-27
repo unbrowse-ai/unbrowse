@@ -116,7 +116,9 @@ class CoreTest(Server, unittest.TestCase):
         self.assertIn("still calls the routes the node has", r["hint"])
         named = run_tool(node, do, {"goal": "learn a page", "url": "https://example.com/page"})
         self.assertEqual(named["code"], "browser_missing")
-        self.assertIn("`unbrowse browser install` on the node's machine", named["hint"])
+        # The model is told the app's way to get the browser, never a command for its person to type.
+        self.assertIn("download Chrome for Testing in the Unbrowse app's Settings", named["hint"])
+        self.assertNotIn("unbrowse browser install", named["hint"])
         fetching = run_tool(node, do, {"goal": "learn a page soon", "url": "https://example.com/page"})
         self.assertIn("fetching its browser now: try again in a minute", fetching["hint"])
         down = UnbrowseNode(token=TOKEN, base_url="http://127.0.0.1:9", timeout=2)

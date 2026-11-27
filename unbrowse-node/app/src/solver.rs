@@ -21,10 +21,24 @@ pub(crate) struct Solver {
     key: String,
 }
 
-/// The solver the owner configured, or `None`. From env `UNBROWSE_CAPTCHA_SOLVER` as `"<url>|<key>"`, else
-/// `~/.config/unbrowse/solver.json` (`{"url": ..., "key": ...}`). `None` when unset or either field is blank: the
-/// solver source is then unavailable, and the clearance flow moves on without it.
+/// The solver the node uses: the owner's own (`owners`), else, for a node whose owner signed in on unbrowse.ai,
+/// Unbrowse's gateway (`gateway::solver_url`). `None` when neither: the solver source is then unavailable, and the
+/// clearance flow moves on without it.
 pub(crate) fn configured() -> Option<Solver> {
+    chosen(owners(), crate::gateway::solver_url())
+}
+
+/// What a node sends the gateway as its key: the gateway drops it and puts Unbrowse's own in, for members only.
+const GATEWAY_KEY: &str = "unbrowse-member";
+
+/// The owner's solver wins over the gateway's.
+fn chosen(owners: Option<Solver>, gateway: Option<String>) -> Option<Solver> {
+    owners.or_else(|| gateway.and_then(|url| from_url_key(&url, GATEWAY_KEY)))
+}
+
+/// The solver the owner configured, or `None`. From env `UNBROWSE_CAPTCHA_SOLVER` as `"<url>|<key>"`, else
+/// `~/.config/unbrowse/solver.json` (`{"url": ..., "key": ...}`). `None` when unset or either field is blank.
+fn owners() -> Option<Solver> {
     if let Ok(v) = std::env::var("UNBROWSE_CAPTCHA_SOLVER") {
         if let Some(s) = from_pair(&v) {
             return Some(s);
@@ -147,7 +161,8 @@ pub(crate) fn clearance_token(sitekey: &str, page_url: &str, action: Option<&str
     match solver.token(sitekey, page_url, action) {
         Ok(t) => Some(t),
         Err(e) => {
-            eprintln!("   [solver] no token for {page_url}: {e}");
+            // A failed request repeats its URL, and the gateway's carries the node's pass.
+            eprintln!("   [solver] no token for {page_url}: {}", crate::gateway::scrub(&e));
             None
         }
     }
@@ -167,6 +182,18 @@ mod tests {
         // the url is kept without a trailing slash so createTask/getTaskResult join cleanly
         let s = from_url_key("https://solver.example/api/", "k").unwrap();
         assert_eq!(s.url, "https://solver.example/api");
+    }
+
+    /// The owner's own solver wins; a node with none uses the gateway's address, under a stand-in key the gateway
+    /// replaces; with neither there is none.
+    #[test]
+    fn a_member_node_with_no_solver_of_its_own_uses_the_gateways() {
+        let gw = Some("https://rpc.example/arc-testnet/0xabc.1.0xdef".to_string());
+        let own = chosen(from_url_key("https://solver.example/api", "owners-key"), gw.clone()).unwrap();
+        assert_eq!((own.url.as_str(), own.key.as_str()), ("https://solver.example/api", "owners-key"));
+        let member = chosen(None, gw).unwrap();
+        assert_eq!((member.url.as_str(), member.key.as_str()), ("https://rpc.example/arc-testnet/0xabc.1.0xdef", GATEWAY_KEY));
+        assert!(chosen(None, None).is_none());
     }
 
     /// The createTask body names the challenge generically: the page, the site key, and a page action when given.
@@ -256,8 +283,8 @@ mod tests {
         std::env::set_var("UNBROWSE_CAPTCHA_SOLVER", "");
         let empty = std::env::temp_dir().join(format!("ub-no-solver-{}", std::process::id()));
         std::env::set_var("XDG_CONFIG_HOME", &empty);
-        assert!(configured().is_none());
-        assert!(clearance_token("s", "u", None).is_none());
+        assert!(owners().is_none());
+        assert!(chosen(owners(), None).is_none(), "and no gateway: no solver");
 
         // config_dir prefers XDG, and falls back to HOME when XDG is unset
         assert_eq!(config_dir(), Some(empty.clone()));

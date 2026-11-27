@@ -1883,3 +1883,8 @@ mod one_row {
         verdict.unwrap_or_else(|e| panic!("{e}"));
     }
 }
+
+// UNB-208 step 6 (A2): the fixture site over plain HTTP.
+#[cfg(test)]
+#[path = "primitives_a2_tests.rs"]
+mod a2_tests;

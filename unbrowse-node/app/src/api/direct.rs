@@ -261,7 +261,7 @@ mod tests {
             let (ask, _) = signed_ask(&local, &authority);
             let a = client.ask(me, addrs.clone(), ask).await.unwrap();
             assert_eq!(a.status, 403, "{}", String::from_utf8_lossy(&a.body));
-            assert!(String::from_utf8_lossy(&a.body).contains("remote peer key"), "says how the owner opens it");
+            assert!(String::from_utf8_lossy(&a.body).contains("making a peer key"), "says how the owner opens it");
 
             let (_, token) = agents::create_for_gateway(keys.keys.as_ref(), "peer", 1.0, 30, crate::remote::PEER_NETWORK).unwrap();
             let (ask, nonce) = signed_ask(&token, &authority);
@@ -316,3 +316,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 }
+
+#[cfg(test)]
+#[path = "direct_cov_tests.rs"]
+mod direct_cov_tests;

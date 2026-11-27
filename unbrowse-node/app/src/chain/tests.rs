@@ -1416,8 +1416,12 @@ fn a_network_with_no_measured_epoch_cant_be_deployed_on() {
     assert_eq!(epoch_blocks(net, Some(170_000)), Ok(170_000));
     assert!(epoch_blocks(net, None).unwrap_err().contains("epoch_blocks"));
     assert!(epoch_blocks(net, Some(0)).is_err(), "zero is none");
+    // Mainnet has been deployed on, so its file now carries the number that deploy was measured at, in the two places a
+    // node reads it: the file's own, and its deployment's (which a live node holds to, `usable`). The rule above is what
+    // the test is for — a network with no measured number can't be deployed on.
     let shipped: NetworkFile = serde_json::from_str(net.file).unwrap();
-    assert_eq!(shipped.epoch_blocks, None, "mainnet's is the owner's to measure");
+    assert_eq!(shipped.epoch_blocks, shipped.deployment.as_ref().map(|d| d.epoch_blocks), "the file's number is its deployment's");
+    assert!(shipped.epoch_blocks.is_some_and(|blocks| blocks > 0), "a network deployed on names the day of blocks it was measured at")
 }
 
 /// What the wallet says is left of the day is the blocks left, at a day's pace; never a rule, and never negative.
@@ -3822,6 +3826,44 @@ async fn a_log_read_waits_out_a_rate_limit() {
     assert_eq!(asked.load(std::sync::atomic::Ordering::SeqCst), 3, "asked again after each refusal");
 }
 
+/// A history read that fails part-way, as a read does that a shared public RPC turns away for its rate past every
+/// retry, keeps the windows it finished: the next read asks only for the rest, so a node that keeps trying gets through
+/// the history where one that started from the deployment's block each time met the refusal at the same window again.
+#[tokio::test]
+async fn a_history_read_that_fails_part_way_keeps_what_it_read() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex as StdMutex};
+    let asked: Arc<StdMutex<Vec<(u64, u64)>>> = Arc::default();
+    let refusing = Arc::new(AtomicBool::new(true));
+    let (seen, refuse) = (asked.clone(), refusing.clone());
+    let hex = |v: &serde_json::Value| u64::from_str_radix(v.as_str().unwrap_or("0x0").trim_start_matches("0x"), 16).unwrap();
+    // One log, at block 5; the window from block 20,000 is refused while `refusing` holds.
+    let url = rpc_replying(move |body| {
+        let (a, b) = (hex(&body["params"][0]["fromBlock"]), hex(&body["params"][0]["toBlock"]));
+        seen.lock().unwrap().push((a, b));
+        if a == 20_000 && refuse.load(Ordering::SeqCst) {
+            return serde_json::json!({"jsonrpc": "2.0", "id": body["id"], "error": {"code": -32000, "message": "the node is unavailable"}});
+        }
+        let log = serde_json::json!({"address": Address::repeat_byte(7), "topics": [], "data": "0x", "blockNumber": "0x5", "blockHash": FixedBytes::<32>::ZERO, "transactionHash": FixedBytes::<32>::ZERO, "transactionIndex": "0x0", "logIndex": "0x0", "removed": false});
+        let result = if a <= 5 && 5 <= b { vec![log] } else { vec![] };
+        serde_json::json!({"jsonrpc": "2.0", "id": body["id"], "result": result})
+    })
+    .await;
+    let url: reqwest_url::Url = url.parse().unwrap();
+    let filter = alloy::rpc::types::Filter::new().address(Address::repeat_byte(7));
+    // A chain no other test holds histories on.
+    let chain = Some(0xBEEF_u64);
+
+    let e = gas::held_logs(&url, chain, &filter, 0, 35_000).await.unwrap_err();
+    assert!(e.contains("unavailable"), "{e}");
+    assert_eq!(asked.lock().unwrap().drain(..).collect::<Vec<_>>(), vec![(0, 9_999), (10_000, 19_999), (20_000, 29_999)]);
+
+    refusing.store(false, Ordering::SeqCst);
+    let logs = gas::held_logs(&url, chain, &filter, 0, 35_000).await.unwrap();
+    assert_eq!(logs.len(), 1, "the log read before the refusal is still there");
+    assert_eq!(asked.lock().unwrap().clone(), vec![(20_000, 29_999), (30_000, 35_000)], "only the windows the failed read didn't finish");
+}
+
 /// A history read again on a live network asks the RPC only for the blocks past where it was read to, less
 /// `LOGS_REREAD`, and still returns every log it held: each claim pass reads the coins' and Settlement's events from the
 /// deployment's block five times or more, and each read was every window since. The devnet holds nothing.
@@ -4001,4 +4043,121 @@ async fn a_node_the_gateway_refused_takes_it_again_once_it_answers() {
 
     let wrong = replying(200, r#"{"jsonrpc":"2.0","id":0,"result":"0x1"}"#.into()).await;
     assert!(retaken(&on_public, &format!("{wrong}/arc-testnet/pass")).await.is_none(), "an answer as another chain is never taken");
+}
+
+/// The owner's answer a test sets, put back to "no dialog" when the test ends: the test threads are reused, and a yes
+/// left behind answers the next test's question.
+struct Answering;
+impl Answering {
+    fn with(yes: Option<bool>) -> Self {
+        crate::owner_dialog::answer_in_test(yes);
+        Answering
+    }
+}
+impl Drop for Answering {
+    fn drop(&mut self) {
+        crate::owner_dialog::answer_in_test(None);
+    }
+}
+
+/// UNB-99, Lewis 25 Nov 2026 ("yes" to mainnet in the next release): a node saves the default chain it first started
+/// on (`chain: arc-testnet` for every node a testnet release set up), so the release that moves the default to Arc
+/// mainnet would leave all of them on testnet and split the network. A node whose owner never picked a chain is
+/// offered this build's, between live networks only; one whose owner picked stays where they put it.
+#[test]
+fn a_node_whose_owner_never_picked_a_chain_is_offered_the_builds_live_network() {
+    assert_eq!(super::build_moved("arc-testnet", false, "arc-mainnet"), Some("arc-mainnet"));
+    assert_eq!(super::build_moved("arc-testnet", true, "arc-mainnet"), None, "the owner picked testnet: it stays");
+    assert_eq!(super::build_moved("arc-testnet", false, "arc-testnet"), None, "the build's default is where it is");
+    assert_eq!(super::build_moved("arc-testnet", false, "devnet"), None, "a source build offers no network");
+    assert_eq!(super::build_moved("devnet", false, "arc-mainnet"), None, "a devnet is a developer's own");
+    assert_eq!(super::build_moved("arc-mainnet", false, "arc-testnet"), Some("arc-testnet"), "either way between live networks");
+    assert_eq!(super::build_moved("no-such-net", false, "arc-mainnet"), None, "a name the build doesn't know is left alone");
+}
+
+/// Moving to another chain moves where the node pays, with that chain's money ("chain", `store::SPENDING`): on mainnet
+/// a linked wallet's real USDC. So the node never moves on its own: it asks the owner, and moves only on their yes.
+#[tokio::test]
+async fn the_move_to_the_builds_network_waits_on_the_owners_yes() {
+    let _home = store::scratch_home("offer-build-chain");
+    let mut s = store::load_settings();
+    s.chain = "arc-testnet".into();
+    s.chain_chosen = false;
+    store::save_settings(&s).unwrap();
+
+    let _answering = Answering::with(Some(false));
+    let (said, moved) = super::offer_chain("arc-mainnet", None).await.expect("a testnet node is offered mainnet");
+    assert!(!moved && said.contains("unbrowse-node chain arc-mainnet"), "a no says the one command that moves it: {said}");
+    assert_eq!((store::load_settings().chain.as_str(), store::load_settings().chain_chosen), ("arc-testnet", false), "a no moves nothing");
+    let asked = crate::owner_dialog::asked_in_test();
+    assert!(asked.last().is_some_and(|q| q.contains("arc-mainnet") && q.contains("real USDC")), "{asked:?}");
+
+    let _answering = Answering::with(None);
+    let (_, moved) = super::offer_chain("arc-mainnet", None).await.expect("still offered");
+    assert!(!moved, "no dialog and no passphrase is no yes");
+    assert_eq!(store::load_settings().chain, "arc-testnet");
+
+    let _answering = Answering::with(Some(true));
+    let (said, moved) = super::offer_chain("arc-mainnet", None).await.expect("offered again");
+    assert!(moved && said.contains("unbrowse-node chain arc-testnet"), "a yes moves it and says how to go back: {said}");
+    let s = store::load_settings();
+    assert_eq!((s.chain.as_str(), s.chain_chosen), ("arc-mainnet", true));
+    assert!(super::offer_chain("arc-mainnet", None).await.is_none(), "moved: never offered again");
+}
+
+/// At start the offer is made only while the setting is what runs: `UNBROWSE_CHAIN` names the chain otherwise, and the
+/// owner isn't asked. On a yes the node says it must restart to run there.
+#[tokio::test]
+async fn the_offer_at_start_is_skipped_while_the_environment_names_the_chain() {
+    let _home = store::scratch_home("offer-on-start");
+    let mut s = store::load_settings();
+    s.chain = "arc-testnet".into();
+    store::save_settings(&s).unwrap();
+    let _answering = Answering::with(Some(true));
+    let before = crate::owner_dialog::asked_in_test().len();
+    assert!(!super::offer_on_start("arc-mainnet", Some("arc-testnet".into()), None).await);
+    assert_eq!(crate::owner_dialog::asked_in_test().len(), before, "the owner isn't asked");
+    assert_eq!(store::load_settings().chain, "arc-testnet");
+    assert!(super::offer_on_start("arc-mainnet", Some("  ".into()), None).await, "an empty UNBROWSE_CHAIN names nothing: offered, and moved on the yes");
+    assert!(!super::offer_on_start("arc-mainnet", None, None).await, "moved: nothing more to offer");
+}
+
+/// A yes whose setting can't be written moves nothing, and says so with the command that moves it.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_yes_whose_setting_cant_be_written_moves_nothing_and_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let _home = store::scratch_home("offer-unwritable");
+    let mut s = store::load_settings();
+    s.chain = "arc-testnet".into();
+    store::save_settings(&s).unwrap();
+    let home = store::home();
+    std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let _answering = Answering::with(Some(true));
+    let offered = super::offer_chain("arc-mainnet", None).await;
+    std::fs::set_permissions(&home, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let (said, moved) = offered.expect("offered");
+    assert!(!moved && said.contains("couldn't be written") && said.contains("unbrowse-node chain arc-mainnet"), "{said}");
+    assert_eq!(store::load_settings().chain, "arc-testnet");
+}
+
+/// A chain the owner names is chosen, from the shell or the window: no release offers to move it.
+#[test]
+fn a_chain_the_owner_names_is_chosen() {
+    let _home = store::scratch_home("chain-chosen");
+    assert!(!store::load_settings().chain_chosen, "a fresh node started on the build's default chose nothing");
+    super::pick("arc-testnet").unwrap();
+    let s = store::load_settings();
+    assert_eq!((s.chain.as_str(), s.chain_chosen), ("arc-testnet", true));
+    assert_eq!(super::build_moved(&s.chain, s.chain_chosen, "arc-mainnet"), None);
+}
+
+/// A settings file from before `chain_chosen` reads as a chain nobody picked.
+#[test]
+fn settings_from_before_the_choice_was_kept_read_as_unchosen() {
+    let mut v = serde_json::to_value(store::Settings::default()).unwrap();
+    v.as_object_mut().unwrap().remove("chain_chosen");
+    v["chain"] = serde_json::json!("arc-testnet");
+    let s: store::Settings = serde_json::from_value(v).unwrap();
+    assert_eq!((s.chain.as_str(), s.chain_chosen), ("arc-testnet", false));
 }

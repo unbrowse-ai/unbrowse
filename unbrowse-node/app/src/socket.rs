@@ -189,6 +189,7 @@ fn freshest(site: &str, origin: &url::Origin) -> Option<(String, Vec<(String, St
 pub struct SocketCall {
     pub answer: Result<serde_json::Value, String>,
     pub possible_commit: bool,
+    pub used_browser: bool,
 }
 
 /// What a failed frame means for the call: whether the page may be opened again and the frame sent once more, and
@@ -202,34 +203,35 @@ fn after_a_failed_frame(handed_over: bool, writes: bool) -> (bool, bool) {
 /// Calls a socket route. Blocking. A refused or closed socket heals once — the node's browser opens the route's
 /// page, and the route takes the socket that page opens — but only for a frame the site never received: a frame
 /// that went out may already have been acted on, and sending it again would say it twice.
-pub fn call(route: &mut Route, values: &HashMap<String, String>, who: &str) -> SocketCall {
+pub fn call(route: &mut Route, values: &HashMap<String, String>, who: &str, may_open_browser: bool) -> SocketCall {
+    let plain = |answer, possible_commit| SocketCall { answer, possible_commit, used_browser: false };
     let Some(s) = route.socket.clone() else {
-        return SocketCall { answer: Err("not a socket route".into()), possible_commit: false };
+        return plain(Err("not a socket route".into()), false);
     };
     // While a checkout waits for the owner, a socket route sends no frame anywhere, however it is judged.
     if let Some(why) = unbrowse_learn::hold::waiting() {
-        return SocketCall { answer: Err(why), possible_commit: false };
+        return plain(Err(why), false);
     }
     let frame = match frame_of(&s, values) {
         Ok(f) => f,
-        Err(e) => return SocketCall { answer: Err(e), possible_commit: false },
+        Err(e) => return plain(Err(e), false),
     };
     let sent: Vec<String> = values.values().cloned().collect();
     let rt = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
         Ok(rt) => rt,
-        Err(e) => return SocketCall { answer: Err(e.to_string()), possible_commit: false },
+        Err(e) => return plain(Err(e.to_string()), false),
     };
     match rt.block_on(speak(&s, &frame, &sent)) {
-        Ok(v) => SocketCall { answer: Ok(v), possible_commit: route.write },
+        Ok(v) => plain(Ok(v), route.write),
         Err(first) => {
             let (may_send_again, possible_commit) = after_a_failed_frame(first.sent, route.write);
-            if !may_send_again {
+            if !may_send_again || !may_open_browser {
                 // The frame went out. Opening the page again would only earn a new socket for a second frame, and
                 // the site may already hold the first.
-                return SocketCall { answer: Err(first.why), possible_commit };
+                return plain(Err(first.why), possible_commit);
             }
             let Some(origin) = url::Url::parse(&s.url).ok().map(|u| u.origin()) else {
-                return SocketCall { answer: Err(first.why), possible_commit };
+                return plain(Err(first.why), possible_commit);
             };
             let site = unbrowse_learn::identity::site_of(&route.site);
             // The node's own tab of the site's browser: never the page an agent is driving there.
@@ -242,17 +244,18 @@ pub fn call(route: &mut Route, values: &HashMap<String, String>, who: &str) -> S
             crate::browse::heal_done(&site);
             let (url, headers) = match healed {
                 Ok(socket) => socket,
-                Err(e) => return SocketCall { answer: Err(format!("{}; and {e}", first.why)), possible_commit },
+                Err(e) => return SocketCall { answer: Err(format!("{}; and {e}", first.why)), possible_commit, used_browser: true },
             };
             let healed = SocketRoute { url, headers, ..s };
             match rt.block_on(speak(&healed, &frame, &sent)) {
                 Ok(v) => {
                     route.socket = Some(healed);
-                    SocketCall { answer: Ok(v), possible_commit: route.write }
+                    SocketCall { answer: Ok(v), possible_commit: route.write, used_browser: true }
                 }
                 Err(e) => SocketCall {
                     answer: Err(format!("{}; after opening the page again: {}", first.why, e.why)),
                     possible_commit: after_a_failed_frame(e.sent, route.write).1,
+                    used_browser: true,
                 },
             }
         }

@@ -71,6 +71,8 @@ pub struct CallResult {
     /// place, None a route with no place seen. The reply says it as `records`.
     #[serde(skip)]
     pub records: Option<Option<usize>>,
+    #[serde(skip)]
+    pub(crate) whole: Option<std::sync::Arc<WholeAnswer>>,
 }
 
 /// How much answer a reply carries, at most: a ceiling, not a default. It bounds what one reply costs an agent's
@@ -198,8 +200,65 @@ pub(crate) fn held_to_ceiling(reply: &mut serde_json::Value) {
             break;
         }
     }
+    if size(reply) > REPLY_BUDGET {
+        texts_to_ceiling(reply, SAYING);
+    }
     if answers && size(reply) > REPLY_BUDGET {
         eprintln!("reply: {} bytes over the ceiling, none of them an answer's data", size(reply) - REPLY_BUDGET);
+    }
+}
+
+/// What is left over the ceiling once the answers are cut (or in a reply with none: a browse reply's page snapshot),
+/// taken from the reply's longest texts, each keeping its start up to the end of a line, and said in `texts_cut`. A
+/// page snapshot's start is the top of the page, where the first results are; a client that refuses a reply over its
+/// limit hands the agent nothing at all. Each cut takes `saying` more than is over, which is room for `texts_cut`
+/// itself, so a text is cut once: the next pass, if any, cuts the next longest.
+fn texts_to_ceiling(reply: &mut serde_json::Value, saying: usize) {
+    let mut cuts: Vec<Cut> = Vec::new();
+    while size(reply) > REPLY_BUDGET && cuts.len() < 8 {
+        let over = size(reply) - REPLY_BUDGET;
+        let mut longest = (String::new(), 0usize);
+        longest_text(reply, String::new(), &mut longest);
+        let (at, chars) = longest;
+        let Some(serde_json::Value::String(s)) = reply.pointer_mut(&at).filter(|_| chars > 0) else { break };
+        // A text's escaped size is at least its characters, so this many fewer characters is at least `over` fewer bytes.
+        let end = s.char_indices().nth(chars.saturating_sub(over + saying)).map_or(s.len(), |(i, _)| i);
+        let end = s[..end].rfind('\n').filter(|&nl| end - nl < 2048).unwrap_or(end);
+        s.truncate(end);
+        cuts.push(Cut { kept: s.chars().count(), at, total: chars, unit: "chars" });
+    }
+    if cuts.is_empty() {
+        return;
+    }
+    let note = format!(
+        "The reply was over the {} KB a reply carries: each text in cuts keeps only its first kept characters (a page's top, where its first results are).",
+        REPLY_BUDGET / 1024
+    );
+    if let Some(o) = reply.as_object_mut() {
+        o.insert("texts_cut".into(), serde_json::json!({ "cuts": cuts, "note": note }));
+    }
+}
+
+/// The JSON pointer and length in characters of the longest text in `v`.
+fn longest_text(v: &serde_json::Value, at: String, best: &mut (String, usize)) {
+    match v {
+        serde_json::Value::String(s) => {
+            let n = s.chars().count();
+            if n > best.1 {
+                *best = (at, n);
+            }
+        }
+        serde_json::Value::Object(o) => {
+            for (k, x) in o {
+                longest_text(x, format!("{at}/{}", k.replace('~', "~0").replace('/', "~1")), best);
+            }
+        }
+        serde_json::Value::Array(a) => {
+            for (i, x) in a.iter().enumerate() {
+                longest_text(x, format!("{at}/{i}"), best);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -493,6 +552,11 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
         },
         None => false,
     };
+    // A route from another node that carries its site's sign-in, on a node with no session there: on the owner's yes the
+    // node takes that sign-in as its own, fills it from its own vault, and signs in as its own owner (`signs_in_as_its_owner`).
+    if egress != unbrowse_learn::egress::Egress::Own {
+        signs_in_as_its_owner(&route, who, node.as_deref(), &mut |q| ask_on_this_thread(node.as_deref(), q).unwrap_or_else(|| Err("no one to ask".into())))?;
+    }
     // A route this node didn't learn acts in the owner's session on its site only once the owner allowed that route,
     // as it is now; otherwise it runs with none of their session.
     // The yes is bound to the graph the client is given (`run_graph`), and the client checks it again against the graph
@@ -519,7 +583,7 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
     // and the activity log says so.
     let mut foreign_minted = false;
     // Whether the call opened a browser at all, for any route: the browserless measure.
-    let mut browser_used = false;
+    let browser_used;
     // What the call costs the owner's machine (`learn.rung`), and the model requests made before it began.
     let mut made = unbrowse_learn::Made::default();
     let model_before = unbrowse_learn::judge::requests_made();
@@ -535,10 +599,12 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
     let mut healed = None;
     // What the site answered that says it drifted, where the call learns the route again rather than heal it.
     let mut drifted: Option<String> = None;
+    let mut rendered_links = Vec::new();
+    let mut answered_with_data = false;
     let (answer, ledger): (Result<serde_json::Value, (String, String)>, unbrowse_learn::Ledger) = if route.socket.is_some() {
-        let called = crate::socket::call(&mut route, &values, who);
-        // A socket that had to be found again was found by the node's browser opening the route's page.
-        if route.socket.as_ref().and_then(|s| serde_json::to_value(s).ok()) != socket_before {
+        let called = crate::socket::call(&mut route, &values, who, !browser_shut());
+        browser_used = called.used_browser;
+        if browser_used {
             made.reach(unbrowse_learn::Rung::Browser);
         }
         let socket_url = route.socket.as_ref().map(|s| s.url.clone()).unwrap_or_default();
@@ -571,7 +637,7 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
                 None => client,
             };
             let client = if crate::learn::learns_again(&route, writes(&route)) { client.learning_again() } else { client };
-            let client = client.with_session_reads_in_writes(session_reads);
+            let client = client.with_session_reads_in_writes(session_reads).with_rendered_links();
             let client = match &owner_consent {
                 Some((body, digest)) => client.with_owner_consent(body, digest),
                 None => client,
@@ -590,30 +656,34 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
             Some(program) => client.with_browser(&program),
             None => client,
         };
-        let mut client = client.with_cdp(crate::browse::cdp_of(&root_host)).with_root(&route.root, &target.0, &target.1);
+        let cdp = if browser_shut() { None } else { crate::browse::cdp_of(&root_host) };
+        let mut client = client.with_cdp(cdp).with_root(&route.root, &target.0, &target.1);
         if let Some(sink) = frames {
             client = client.with_frames(sink);
         }
         // What the owner's browsing did on this site, when the route is the node's own to run in the browser.
         let site = unbrowse_learn::identity::site_of(&root_host);
         let own = egress == unbrowse_learn::egress::Egress::Own;
+        let browser_setups = own && !browser_shut();
+        let can_choose = browser_setups && !route.write;
         // Whether the call went through a sign-in or a choice: its own answer is what says that took.
         let signed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let browser_signed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let mut chose = false;
         // Whether the sign-in's own request carried the login in this call and the site didn't take it: nothing types
         // it again behind that.
         let spent = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let mut client = client.with_sign_in(if own { crate::setups::signing_in(site.clone(), root_host.clone(), who.to_string(), node.clone(), signed.clone(), spent.clone()) } else { None });
+        let mut client = client.with_sign_in(if browser_setups { crate::setups::signing_in(site.clone(), root_host.clone(), who.to_string(), node.clone(), browser_signed.clone(), spent.clone()) } else { None });
         // The sign-in's own request, where the node holds it: the owner's sign-in made again for the agent's request,
         // kept with the choices a site asks again (`own_asks::Ask::Setups`).
         client = client.with_plain_sign_in(if own && !crate::learn::own_asks::held(crate::learn::own_asks::Ask::Setups) { crate::setups::signing_in_plainly(site.clone(), root_host.clone(), who.to_string(), node.clone(), signed.clone(), spent) } else { None });
         // What the node can do against a wall that the client can't (`clearance`): for its own routes only.
-        if own {
+        if browser_setups {
             client = client.with_clearer(unbrowse_learn::refusal::Source::OwnerSession, crate::clearance::owners_session(root_host.clone(), who.to_string(), node.clone()));
         }
         // A choice the route's calls depend on that the jar has lost is made again first: a store picked on the page asks
         // nothing back, so nothing later would show it had gone. A write's own steps are left as they were learned.
-        if own && !route.write {
+        if can_choose {
             let sends: Vec<&str> = route.graph.steps.iter().flat_map(|s| &s.fields).filter_map(|f| if let unbrowse_learn::Loc::Cookie(c) = &f.loc { Some(c.as_str()) } else { None }).collect();
             let jar: HashMap<String, String> = store::read_json(&store::jar_path(&root_host), &unbrowse_files::JAR);
             if let Some(choice) = crate::setups::load(&site).into_iter().find(|s| s.lost_from(&sends, &|c| jar.contains_key(c))).filter(|_| !crate::learn::own_asks::held_at(crate::learn::own_asks::Ask::Setups, "run::setups::earn")) {
@@ -657,27 +727,31 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
             client.call_with_ledger(&values)
         };
         // The site answered with the page that asks what the owner already chose: it is chosen again, and asked again.
-        if let Some(choice) = answer.as_ref().ok().filter(|_| own && !route.write).and_then(|v| crate::setups::load(&site).into_iter().find(|s| s.asked_by(v))).filter(|_| !crate::learn::own_asks::held_at(crate::learn::own_asks::Ask::Setups, "run::setups::earn")) {
+        if let Some(choice) = answer.as_ref().ok().filter(|_| can_choose).and_then(|v| crate::setups::load(&site).into_iter().find(|s| s.asked_by(v))).filter(|_| !crate::learn::own_asks::held_at(crate::learn::own_asks::Ask::Setups, "run::setups::earn")) {
             if let Some(jar) = crate::setups::earn(&choice, &root_host, &site, who, None) {
                 client.absorb(jar);
                 chose = true;
                 (answer, ledger) = client.call_with_ledger(&values);
+                plain_answered = None;
             }
         }
-        if chose || signed.load(std::sync::atomic::Ordering::Relaxed) {
+        let setup_used_browser = chose || browser_signed.load(std::sync::atomic::Ordering::Relaxed);
+        if setup_used_browser || signed.load(std::sync::atomic::Ordering::Relaxed) {
             let asks_again = answer.as_ref().ok().is_some_and(|v| crate::setups::load(&site).iter().any(|s| s.asked_by(v)));
             crate::setups::judged_by_the_call(&site, who, answer.is_ok() && !asks_again);
         }
-        let answered_by = plain_answered.as_ref().unwrap_or(&client);
+        let answered_by = plain_answered.as_mut().unwrap_or(&mut client);
+        rendered_links = answered_by.take_rendered_links();
+        answered_with_data = answered_by.answered_with_data();
         if route.body.is_some() && calls_the_body() {
             eprintln!("   [call] {}: ran {}", route.id, if answered_by.ran_body() { "the body it was learned as by example" } else { "its graph, the body beside it" });
         }
-        browser_used = answered_by.used_browser();
+        browser_used = setup_used_browser || answered_by.used_browser();
         fell_back = answered_by.fell_back();
         unheld = answered_by.unheld();
         made = answered_by.made().clone();
         // A choice made again on the page, or a sign-in, was the browser's work for this call.
-        if chose || signed.load(std::sync::atomic::Ordering::Relaxed) {
+        if setup_used_browser {
             made.reach(unbrowse_learn::Rung::Browser);
         }
         foreign_minted = !own && browser_used;
@@ -714,12 +788,9 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
     // Nothing the call hands back, or keeps, says a secret the vault filled in: it says the reference. Nor one the
     // node typed on the route's site, or the vault holds for it: a page that shows a password shows it in the answer
     // of the call that read it too.
-    let mut secrets = filled.secrets.clone();
-    secrets.extend(crate::browse::secrets_of(&unbrowse_learn::identity::site_of(&route.site)));
     // Nor a session the site's jar filled in at call time, which a site may say back (a debug block, a "signed in
     // as" line): the agent reads the jar entry's name in its place. A value too short to be a session is left alone.
-    secrets.extend(jar_secrets(&route.graph));
-    let scrub = Scrub::of(&secrets);
+    let scrub = Scrub::of_route(&route, filled.secrets.clone());
     let mut truncated = None;
     let mut shown = None;
     // The fields a call of this route hands back by default, chosen once, from the first answer big enough to trim.
@@ -753,15 +824,22 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
         Ok(v) => {
             let v = scrub.json(v);
             records = records_where_seen(&route, &v);
-            whole_answer = Some(v.clone());
-            keep_whole_here(&route.id, &filled.values, &v);
+            let rendered_links = if rendered_links.is_empty() || records == Some(Some(0)) {
+                None
+            } else {
+                let asked: Vec<&str> = values.values().map(String::as_str).collect();
+                (!unbrowse_learn::answer::lists_nothing(&v, &asked))
+                    .then(|| scrub.json(serde_json::Value::Array(rendered_links)))
+            };
+            whole_answer = Some(std::sync::Arc::new(WholeAnswer {
+                data: v.clone(), rendered_links: rendered_links.clone(), answered_with_data,
+            }));
             more = next_page(&route, filled, &values, &v, &scrub);
+            let v = result_record_view(&route, v, asked_for);
             // Results a call hands back drawn already, markup in a field, are read as a page is before the fields a
             // reply shows are chosen: what it lists is in that markup. A caller who names fields gets them as sent.
-            let (v, drawn) = match (asked_for.is_empty(), url::Url::parse(&route.root)) {
-                (true, Ok(base)) => unbrowse_learn::fields::with_markup_read_at(v, &base),
-                _ => (v, Vec::new()),
-            };
+            let wanted = unbrowse_learn::goal::fields(&route.what);
+            let (v, links_drawn) = read_reply_markup(&route, v, asked_for, &wanted);
             // Fields chosen from an answer of another shape than this one (the page's state, before the page answered
             // with what it renders) name nothing here: they are chosen again. One a value's answer happens to lack (a
             // search's category, for a word that has none) is no other shape, and what an agent is shown stays the same.
@@ -776,7 +854,6 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
                 || route.stats.fields_rule < unbrowse_learn::fields::DEFAULTS_RULE;
             // What the call drew is what it answers with: the links of the markup it carried are the defaults,
             // whatever was chosen from the flags and notes around it, unless an agent said which fields are.
-            let links_drawn: Vec<String> = drawn.iter().flat_map(|at| [format!("{at}.links[].text"), format!("{at}.links[].url")]).collect();
             let defaults = if !route.judged.fields && !links_drawn.is_empty() {
                 if route.fields != links_drawn {
                     learned_fields = Some(links_drawn.clone());
@@ -794,7 +871,7 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
             } else {
                 route.fields.clone()
             };
-            let (v, s) = shown_of_read(&route, &v, all, &defaults, asked_for);
+            let (v, s) = shown_of_read(&route, &values, WholeAnswer { data: v, rendered_links, answered_with_data }, all, defaults, asked_for);
             let v = unbrowse_learn::fields::without_addresses(v, &route.what, asked_for);
             shown = Some(s);
             let (v, cut) = fit_reply(v, REPLY_BUDGET, asked_for);
@@ -822,9 +899,9 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
     // The sighting reads the whole answer (its values, lines and records), bookkeeping for a later call's confirm: it
     // is kept beside the reply, not before it, so a page's state of megabytes doesn't hold the caller up.
     {
-        let (route, values, answer) = (route.clone(), values.clone(), whole_answer.clone().or_else(|| data.clone()));
+        let (route, values, answer) = (route.clone(), values.clone(), whole_answer.clone());
         let rung = made.reached as u8;
-        beside(move || crate::learn::sighted::called(&route, &values, answer.as_ref(), ok, ms, rung));
+        beside(move || crate::learn::sighted::called(&route, &values, answer.as_deref().map(|answer| &answer.data), ok, ms, rung));
     }
     if let Some(v) = variant.as_deref().filter(|_| !ok) {
         crate::report::note_failure(&route.id, v);
@@ -863,7 +940,7 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
         }
     }
     let variant = variant.filter(|_| !ok);
-    Ok(CallResult { ok, ms, data, error, possible_commit, retry, truncated, refused, variant, fields: shown, more, browser: browser_used, fell_back, unheld, learned_again: None, records })
+    Ok(CallResult { ok, ms, data, error, possible_commit, retry, truncated, refused, variant, fields: shown, more, browser: browser_used, fell_back, unheld, learned_again: None, records, whole: whole_answer })
 }
 
 /// What the owner is asked before a route that came from another node runs: a write of it sends a value an earlier step
@@ -940,6 +1017,51 @@ pub fn owner_session_for(route: &store::Route, graph: &unbrowse_learn::Graph, as
     allowed.insert(key.clone(), route.site.clone());
     let _ = store::write_json(&shared_sessions_path(), &unbrowse_files::SHARED_SESSIONS, &allowed);
     Some((body, key))
+}
+
+/// For a route another node listed whose body carries its site's sign-in (`Recipe::sign_in`): when this node holds no
+/// session on the site and keeps no sign-in of its own there, it asks its owner whether to sign in as the account its
+/// own vault holds for the site, with that sign-in. On yes the sign-in becomes the node's own (`setups::adopt`) and is
+/// sent now (`setups::sign_in_now`): the session that comes back is the owner's own, in their jar, and the route runs
+/// in it as any shared route does once allowed (`owner_session_for`). A no, no one to ask, or a body with no sign-in
+/// changes nothing: the route runs as it would have. With no login for the site in the vault the call says how to add
+/// one, since it can't sign in as anyone else.
+pub fn signs_in_as_its_owner(route: &store::Route, who: &str, node: Option<&crate::Node>, ask: &mut dyn FnMut(String) -> Result<(), String>) -> Result<bool, String> {
+    let Some(content) = route.fetched.as_ref().map(|f| f.content_id.clone()) else { return Ok(false) };
+    let Some(sign_in) = crate::recipe::load_body(&content).and_then(|b| serde_json::from_slice::<crate::recipe::Recipe>(&b).ok()).and_then(|r| r.sign_in) else { return Ok(false) };
+    let site = unbrowse_learn::identity::site_of(&route.site);
+    let Some(host) = unbrowse_learn::client::jar_name(&route.graph) else { return Ok(false) };
+    let jar: HashMap<String, String> = store::read_json(&store::jar_path(&host), &unbrowse_files::JAR);
+    if !jar.is_empty() || crate::setups::load(&site).iter().any(|s| s.kind == unbrowse_learn::setup::Kind::SignIn) {
+        return Ok(false);
+    }
+    let logins: Vec<crate::vault::Ref> = crate::vault::list()
+        .into_iter()
+        .map(|l| crate::vault::Ref { site: l.site, account: l.account, new: false, code: false })
+        .filter(|r| r.fits(&site))
+        .collect();
+    let Some(login) = logins.first() else {
+        return Err(format!(
+            "this route signs in on {site}, and this node's vault holds no login there to sign in as: add one (unbrowse_logins; fill a sign-up's password box with vault:new:{site}:<account>, or vault:ask:{site}:<account> for an account that exists), then call again"
+        ));
+    };
+    let Some(last) = sign_in.steps.last() else { return Ok(false) };
+    let question = format!(
+        "A route from the network for {site} needs a sign-in, and carries the site's own. Sign in to {site} as {}, the login in your vault, with it? It sends that account and its password to {} {} only, and the node then keeps it as its own sign-in for {site}.",
+        shown(&login.account),
+        shown(&last.method),
+        shown(&last.url)
+    );
+    if ask(question).is_err() {
+        return Ok(false);
+    }
+    let keys = node.and_then(|n| n.key().ok()).ok_or("the node's key isn't open, so its vault can't sign in")?;
+    crate::setups::adopt(&site, &sign_in, login, keys)?;
+    if !crate::setups::sign_in_now(&site, &host, who, keys) {
+        crate::setups::drop_adopted(&site, keys);
+        return Err(format!("the sign-in was sent as {} and {site} didn't take it as it takes a sign-in: check the login in the vault", shown(&login.account)));
+    }
+    Ok(true)
 }
 
 /// The most a consent question shows, and so the most a route may be to be allowed the owner's session at all:
@@ -1166,7 +1288,7 @@ thread_local! {
 
 /// `f`, with this thread's calls opening no browser when `shut`: what a call for an ask that said `browser: never`
 /// runs under. Nothing the call does then opens one: not to sign a step its page's code signs, not to heal, not to
-/// learn a drifted route again. What the browser would have done is left undone, and the call answers as the site did.
+/// learn a drifted route again or retry a page behind its reply. What the browser would have done is left undone.
 pub fn with_the_browser_shut<T>(shut: bool, f: impl FnOnce() -> T) -> T {
     struct Restore(bool);
     impl Drop for Restore {
@@ -1376,7 +1498,7 @@ fn record(route: &store::Route, socket_before: Option<serde_json::Value>, ok: bo
             }
         }
     });
-    if let (true, Ok(Some(r))) = (ok, &kept) {
+    if let (true, Ok(Some(r))) = (ok && !browser_shut(), &kept) {
         crate::learn::try_the_page_again(r);
     }
 }
@@ -1387,6 +1509,13 @@ fn beside(keep: impl FnOnce() + Send + 'static) {
     if cfg!(test) {
         return keep();
     }
+    enqueue_sighting(keep);
+}
+
+fn enqueue_sighting(keep: impl FnOnce() + Send + 'static) {
+    // Bookkeeping can retry a route's page. Capture the submitting call's policy before crossing to the queue.
+    let shut = browser_shut();
+    let keep = move || with_the_browser_shut(shut, keep);
     static QUEUE: std::sync::OnceLock<std::sync::Mutex<std::sync::mpsc::Sender<Box<dyn FnOnce() + Send>>>> = std::sync::OnceLock::new();
     let queue = QUEUE.get_or_init(|| {
         let (tx, rx) = std::sync::mpsc::channel::<Box<dyn FnOnce() + Send>>();
@@ -1471,8 +1600,13 @@ const JAR_SECRET_LEN: usize = 12;
 /// in its place (`jar:<name>`).
 fn jar_secrets(graph: &unbrowse_learn::Graph) -> Vec<(String, String)> {
     let Some(host) = unbrowse_learn::client::jar_name(graph) else { return Vec::new() };
+    let public_site = unbrowse_learn::identity::is_public_name(&host).then(|| unbrowse_learn::identity::site_of(&host));
     let jar: HashMap<String, String> = store::read_json(&store::jar_path(&host), &unbrowse_files::JAR);
-    jar.into_iter().filter(|(_, v)| v.chars().count() >= JAR_SECRET_LEN).map(|(name, v)| (v, format!("jar:{name}"))).collect()
+    jar.into_iter().filter(|(_, value)| {
+        // An exact copy of the route's public hostname or registrable domain is already present in its URL.
+        value.chars().count() >= JAR_SECRET_LEN
+            && public_site.as_deref().is_none_or(|site| value.as_str() != host.as_str() && value.as_str() != site)
+    }).map(|(name, v)| (v, format!("jar:{name}"))).collect()
 }
 
 /// The inputs that read on from `answer` to the list's next page, never worked out from a secret: None when the route
@@ -1501,6 +1635,12 @@ struct Scrub {
 }
 
 impl Scrub {
+    fn of_route(route: &store::Route, mut secrets: Vec<(String, String)>) -> Self {
+        secrets.extend(crate::browse::secrets_of(&unbrowse_learn::identity::site_of(&route.site)));
+        secrets.extend(jar_secrets(&route.graph));
+        Self::of(&secrets)
+    }
+
     fn of(secrets: &[(String, String)]) -> Scrub {
         let mut forms: Vec<String> = Vec::new();
         let mut names: Vec<String> = Vec::new();
@@ -1570,6 +1710,9 @@ fn fragment(url: &str) -> String {
 /// lacks it (`learn::confirm::lacks_its_records`).
 pub(crate) fn records_where_seen(route: &store::Route, answer: &serde_json::Value) -> Option<Option<usize>> {
     let place = route.heard.records_at.as_deref()?;
+    if route.heard.document_records {
+        return Some(crate::learn::confirm::stable_list_at(answer, place).and_then(serde_json::Value::as_array).map(Vec::len));
+    }
     Some((!crate::learn::confirm::lacks_its_records(route, answer)).then(|| crate::learn::confirm::count_at(answer, place).unwrap_or_default()))
 }
 
@@ -1581,34 +1724,116 @@ pub(crate) fn records_where_seen(route: &store::Route, answer: &serde_json::Valu
 /// the browser answered (a walk or a confirming browse) or the route's own call did. It once said that in an
 /// `answered_by` the schema never published, and left out `ms`, `paid_usdc`, `paid_unb`, `possible_commit` and
 /// `retry`: every learned `unbrowse_do` broke its schema (QA's MCP check, UNB-235).
-pub(crate) fn as_a_reply(route: &store::Route, values: &HashMap<String, String>, asked_for: &[String], v: serde_json::Value, ms: u64, browser: bool) -> serde_json::Value {
-    let all = unbrowse_learn::fields::paths(&v);
+pub(crate) fn as_a_reply(route: &store::Route, values: &HashMap<String, String>, asked_for: &[String], mut answer: WholeAnswer, ms: u64, browser: bool) -> serde_json::Value {
+    use unbrowse_learn::goal;
+    let data = result_record_view(route, answer.data, asked_for);
+    let wanted = goal::fields(&route.what);
+    let (data, links_drawn) = if wanted.iter().any(|field| field.shape == goal::Shape::Link) {
+        read_reply_markup(route, data, asked_for, &wanted)
+    } else {
+        (data, Vec::new())
+    };
+    answer.data = data;
+    let all = unbrowse_learn::fields::paths(&answer.data);
     let held = !route.fields.is_empty()
+        && (route.judged.fields || route.stats.fields_rule >= unbrowse_learn::fields::DEFAULTS_RULE)
         && route.fields.iter().filter(|p| all.iter().any(|f| &f.path == *p)).count() * 2 > route.fields.len()
         && !unbrowse_learn::fields::misses_the_records(&route.fields, &all)
         && !unbrowse_learn::fields::records_gone(&route.fields, &all);
-    let defaults = if held {
+    let defaults = if !route.judged.fields && !links_drawn.is_empty() {
+        links_drawn
+    } else if held {
         route.fields.clone()
     } else {
         let asked: Vec<String> = route.inputs.iter().filter(|i| !i.secret && !i.file).filter_map(|i| values.get(&i.name).cloned()).collect();
         let d = unbrowse_learn::fields::defaults_on(&all, &route.what, &asked, &route.root);
-        unbrowse_learn::fields::page_defaults(&v, d, &asked)
+        unbrowse_learn::fields::page_defaults(&answer.data, d, &asked)
     };
-    let (v, shown) = shown_of_read(route, &v, all, &defaults, asked_for);
+    let (v, shown) = shown_of_read(route, values, answer, all, defaults, asked_for);
     let v = unbrowse_learn::fields::without_addresses(v, &route.what, asked_for);
     let (v, cut) = fit_reply(v, REPLY_BUDGET, asked_for);
     let truncated = cut.map(|cut| Truncated::of(&route.id, cut, None));
     serde_json::json!({ "ok": true, "ms": ms, "data": v, "error": null, "paid_usdc": null, "paid_unb": null, "possible_commit": false, "retry": null, "truncated": truncated, "fields": shown, "browser": browser })
 }
 
+fn read_reply_markup(route: &store::Route, data: serde_json::Value, asked_for: &[String], wanted: &[unbrowse_learn::goal::Field]) -> (serde_json::Value, Vec<String>) {
+    let (true, Ok(base)) = (asked_for.is_empty(), url::Url::parse(&route.root)) else { return (data, Vec::new()) };
+    use unbrowse_learn::goal;
+    if wanted.iter().any(|field| field.shape == goal::Shape::Link) {
+        let holding = if goal::wants_one(&route.what) {
+            goal::holding_for_goal(&data, wanted, &[], &route.what)
+        } else {
+            goal::list_holding_for_goal(&data, wanted, &[], &route.what)
+        };
+        if holding.has_shapes() && holding.has_record_fields(&route.what, wanted) {
+            return (data, Vec::new());
+        }
+    }
+    let (data, drawn) = unbrowse_learn::fields::with_markup_read_at(data, &base);
+    let fields = drawn.iter().flat_map(|at| [format!("{at}.links[].text"), format!("{at}.links[].url")]).collect();
+    (data, fields)
+}
+
+fn result_record_view(route: &store::Route, answer: serde_json::Value, asked_for: &[String]) -> serde_json::Value {
+    if route.heard.document_records && asked_for.is_empty() && !route.judged.fields {
+        if let Some(view) = route.heard.records_at.as_deref().and_then(|place| crate::learn::confirm::stable_list_view(&answer, place)) {
+            return view;
+        }
+    }
+    answer
+}
+
+/// The links beside embedded state belong in the reply's view, after choosing the route's stored fields.
+fn add_rendered_links(route: &store::Route, answer: &mut serde_json::Value, fields: &mut Vec<unbrowse_learn::fields::Field>, defaults: &mut Vec<String>, links: Option<serde_json::Value>) {
+    if let Some(links) = links {
+        let links = result_links_first(route, answer, links);
+        let mut rendered = serde_json::json!({ "links": links });
+        fields.extend(unbrowse_learn::fields::paths(&rendered));
+        if !route.judged.fields && unbrowse_learn::goal::fields(&route.what).iter().any(|f| f.shape == unbrowse_learn::goal::Shape::Link) {
+            defaults.extend(["links[].text".into(), "links[].url".into()]);
+        }
+        answer["links"] = rendered["links"].take();
+    }
+}
+
+/// Put the rendered links of the actual result rows before the page's other anchors so the reply budget covers
+/// the first records. Keep the original URLs and order the extra links after the results.
+fn result_links_first(route: &store::Route, answer: &serde_json::Value, links: serde_json::Value) -> serde_json::Value {
+    use unbrowse_learn::goal;
+    let wanted = goal::fields(&route.what);
+    if !wanted.iter().any(|field| field.shape == goal::Shape::Link) {
+        return links;
+    }
+    let Some(anchors) = links.as_array() else { return links };
+    let records = if route.heard.document_records {
+        route.heard.records_at.as_deref().and_then(|place| crate::learn::confirm::stable_list_at(answer, place))
+    } else {
+        Some(answer)
+    };
+    let Some(matched) = records.and_then(|rows| goal::holding_with_rendered_links(rows, anchors, &wanted, &[], &route.what)) else { return links };
+    let urls: std::collections::HashSet<&str> = matched.links.iter().filter_map(|link| link["url"].as_str()).collect();
+    let ordered = matched.links.into_iter().chain(anchors.iter().filter(|link| link["url"].as_str().is_none_or(|url| !urls.contains(url))));
+    serde_json::Value::Array(ordered.cloned().collect())
+}
+
 /// `answer` as a reply of `route` shows it, its fields already read: its `defaults` and the fields the caller asked
 /// for (`fields::shown_for_read`). Fields an agent said are the answer come back as it said them.
-fn shown_of_read(route: &store::Route, answer: &serde_json::Value, all: Vec<unbrowse_learn::fields::Field>, defaults: &[String], asked_for: &[String]) -> (serde_json::Value, unbrowse_learn::fields::Shown) {
+fn shown_of_read(route: &store::Route, values: &HashMap<String, String>, answer: WholeAnswer, mut all: Vec<unbrowse_learn::fields::Field>, mut defaults: Vec<String>, asked_for: &[String]) -> (serde_json::Value, unbrowse_learn::fields::Shown) {
+    let WholeAnswer { mut data, rendered_links, .. } = answer;
+    let has_rendered_links = rendered_links.is_some();
+    add_rendered_links(route, &mut data, &mut all, &mut defaults, rendered_links);
     let shown_as: Vec<String> = match route.judged.fields {
         true => defaults.iter().chain(asked_for).cloned().collect(),
         false => asked_for.to_vec(),
     };
-    unbrowse_learn::fields::shown_for_read(answer, all, defaults, &shown_as, &route.what)
+    let (mut view, shown) = unbrowse_learn::fields::shown_for_read(&data, all, &defaults, &shown_as, &route.what);
+    if let Some(links) = view.as_object_mut().filter(|_| has_rendered_links).and_then(|o| o.remove("links")) {
+        let asked: Vec<&str> = values.values().map(String::as_str).collect();
+        if !unbrowse_learn::answer::lists_nothing(&view, &asked) {
+            view["links"] = links;
+        }
+    }
+    (view, shown)
 }
 
 /// Writes what an ask of `route` the browser served (a confirming browse, `learn::confirm`) cost, as a call's cost is
@@ -1787,38 +2012,27 @@ fn fit_sized(v: serde_json::Value, whole: usize, budget: usize, at: &str, path: 
     }
 }
 
-/// The whole answers of this node's latest calls, cleared of the session as a reply is, for a caller in the node
-/// itself that reads the whole of what it asked (a route confirmed by its own call): asked for every field instead,
-/// the answer was cut to a reply's size, written to a file and read back, a quarter of that call's time. Keyed by
-/// the route and a hash of the values it was called with; the newest few, for a minute.
-static WHOLE_HERE: std::sync::Mutex<Vec<(u64, std::time::Instant, std::sync::Arc<serde_json::Value>)>> = std::sync::Mutex::new(Vec::new());
-
-fn whole_key(route: &str, values: &HashMap<String, String>) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut pairs: Vec<(&String, &String)> = values.iter().collect();
-    pairs.sort();
-    let mut h = std::collections::hash_map::DefaultHasher::new();
-    (route, pairs).hash(&mut h);
-    h.finish()
+/// The unprojected data and rendered links of a reply. Confirmation compares the data.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct WholeAnswer {
+    pub data: serde_json::Value,
+    pub rendered_links: Option<serde_json::Value>,
+    /// The replay read native data. Embedded markup can expose the same JSON fields without settling its results.
+    pub answered_with_data: bool,
 }
 
-fn keep_whole_here(route: &str, values: &HashMap<String, String>, v: &serde_json::Value) {
-    let mut kept = WHOLE_HERE.lock().unwrap_or_else(|e| e.into_inner());
-    let key = whole_key(route, values);
-    kept.retain(|(k, at, _)| *k != key && at.elapsed() < std::time::Duration::from_secs(60));
-    kept.push((key, std::time::Instant::now(), std::sync::Arc::new(v.clone())));
-    let over = kept.len().saturating_sub(4);
-    kept.drain(..over);
+impl WholeAnswer {
+    pub(crate) fn from_walk(route: &store::Route, data: serde_json::Value, links: Vec<serde_json::Value>) -> Self {
+        let scrub = Scrub::of_route(route, Vec::new());
+        let rendered_links = (!links.is_empty()).then(|| scrub.json(serde_json::Value::Array(links)));
+        Self { data: scrub.json(data), rendered_links, answered_with_data: false }
+    }
 }
 
-/// The whole answer of this node's latest call of `route` with `values`, made within the last minute: taken, so it is
-/// read once. None where there is none: the caller asks for the whole answer instead.
-pub(crate) fn take_whole_here(route: &str, values: &HashMap<String, String>) -> Option<serde_json::Value> {
-    let mut kept = WHOLE_HERE.lock().unwrap_or_else(|e| e.into_inner());
-    let key = whole_key(route, values);
-    let at = kept.iter().position(|(k, at, _)| *k == key && at.elapsed() < std::time::Duration::from_secs(60))?;
-    let (_, _, v) = kept.remove(at);
-    Some(std::sync::Arc::try_unwrap(v).unwrap_or_else(|v| (*v).clone()))
+impl From<serde_json::Value> for WholeAnswer {
+    fn from(data: serde_json::Value) -> Self {
+        Self { data, rendered_links: None, answered_with_data: false }
+    }
 }
 
 /// Keeps a whole answer a reply was cut from, for its caller to read on the node's machine: the newest few only.
@@ -1876,6 +2090,23 @@ mod tests {
         crate::browsers::for_this_test(None);
     }
 
+    #[test]
+    fn call_bookkeeping_keeps_its_browser_policy_after_the_reply() {
+        let (sent, got) = std::sync::mpsc::channel();
+        let caller = std::thread::current().id();
+        for shut in [true, false] {
+            let sent = sent.clone();
+            with_the_browser_shut(shut, || enqueue_sighting(move || {
+                sent.send((std::thread::current().id(), browser_shut())).unwrap();
+            }));
+        }
+        for expected in [true, false] {
+            let (worker, shut) = got.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+            assert_ne!(worker, caller);
+            assert_eq!(shut, expected);
+        }
+    }
+
     /// A target that answered an error status with a page says what the page says (its title and text), never its
     /// markup: a search that found nothing is told apart from a broken call by reading it.
     #[test]
@@ -1904,6 +2135,19 @@ mod tests {
             "provisional": false, "learned_at": 1, "graph": { "steps": [], "provisional": false }
         }))
         .expect("a route")
+    }
+
+    #[test]
+    fn a_replay_only_socket_call_cannot_open_a_page_after_a_failed_handshake() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        drop(listener);
+        let mut route = route();
+        route.root = "data:text/html,not-a-site".into();
+        route.socket = Some(store::SocketRoute { url: format!("ws://{address}/"), headers: vec![], opening: vec![], frame: vec![], server_first: false });
+        let answer = with_the_browser_shut(true, || crate::socket::call(&mut route, &HashMap::new(), "agent", !browser_shut()));
+        assert!(!answer.used_browser && !answer.possible_commit);
+        assert!(!answer.answer.unwrap_err().contains("; and "), "the handshake failure is returned before browser recovery");
     }
 
     /// A route another node listed acts in the owner's session only on their yes to that route as it is: asked once and
@@ -2170,7 +2414,7 @@ mod tests {
         let a = CallEvent::start(&r, "Claude", Some(0));
         let b = CallEvent::start(&r, "Claude", Some(0));
         assert_ne!(a.id, b.id);
-        let res = CallResult { ok: true, ms: 412, data: None, error: None, possible_commit: false, retry: Some(unbrowse_learn::Retry::AsIs), truncated: None, refused: None, variant: None, fields: None, more: None, browser: false, fell_back: Vec::new(), unheld: None, learned_again: None, records: None };
+        let res = CallResult { ok: true, ms: 412, data: None, error: None, possible_commit: false, retry: Some(unbrowse_learn::Retry::AsIs), truncated: None, refused: None, variant: None, fields: None, more: None, browser: false, fell_back: Vec::new(), unheld: None, learned_again: None, records: None, whole: None };
         let end = b.end(&res, None);
         assert_eq!((end.id, end.phase, end.ok, end.ms), (b.id, "end", Some(true), Some(412)));
         assert!(end.at_ms >= b.at_ms);
@@ -2235,15 +2479,30 @@ mod tests {
         assert!(Scrub::of(&[]).is_empty());
     }
 
-    /// A call's whole answer is kept for a reader in the node for the values it was called with, and read once.
     #[test]
-    fn a_calls_whole_answer_is_kept_for_its_values_and_read_once() {
-        let id = format!("whole-{}", std::process::id());
-        let asked = HashMap::from([("q".to_string(), "lamps".to_string())]);
-        keep_whole_here(&id, &asked, &serde_json::json!({ "items": [1, 2, 3] }));
-        assert_eq!(take_whole_here(&id, &HashMap::from([("q".to_string(), "chairs".to_string())])), None, "another value's");
-        assert_eq!(take_whole_here(&id, &asked), Some(serde_json::json!({ "items": [1, 2, 3] })));
-        assert_eq!(take_whole_here(&id, &asked), None, "read once");
+    fn a_jars_public_hostname_does_not_rewrite_the_page_links() {
+        let _home = store::scratch_home("jar-public-host");
+        let host = "www.marketplace-example.com";
+        let domain = "marketplace-example.com";
+        let secret = "JAR-SESSION-fixture-8720";
+        let lookalike = "..MARKETPLACE-EXAMPLE.COM..";
+        let mut route = route();
+        route.site = host.into();
+        route.root = format!("https://{host}/search");
+        route.graph.steps.push(serde_json::from_value(serde_json::json!({
+            "exchange":0,"method":"GET","status":200,"url":route.root,"fields":[],"needs_browser":false
+        })).unwrap());
+        std::fs::create_dir_all(store::jars_dir()).unwrap();
+        store::write_json(&store::jar_path(host), &unbrowse_files::JAR, &HashMap::from([
+            ("origin", domain), ("full_host", host), ("sid", secret), ("lookalike", lookalike),
+        ])).unwrap();
+        let scrub = Scrub::of_route(&route, Vec::new());
+        let url = format!("https://{host}/listing/19");
+        let data = serde_json::json!({"url":url,"echo":secret,"other":lookalike});
+        let said = scrub.json(data);
+        assert_eq!(said["url"], url);
+        assert_eq!(said["echo"], "jar:sid");
+        assert_eq!(said["other"], "jar:lookalike");
     }
 
     /// A value's size is the bytes `serde_json` writes for it, counted without writing them anywhere.
@@ -2614,6 +2873,48 @@ mod tests {
         crate::outcome::outcome_of("unbrowse_call", &serde_json::to_value(r).unwrap()).outcome
     }
 
+    #[test]
+    fn a_rendered_link_can_be_requested_on_a_structured_page_reply() {
+        store::scratch_home("run-rendered-links");
+        let page = |state: &str| format!(r#"<html><body><main><a href="/desk">Desk</a></main><script type="application/json">{state}</script></body></html>"#);
+        let port = test_site(vec![
+            ("/found", 200, "text/html", page(r#"{"items":[{"name":"Desk"}]}"#)),
+            ("/empty", 200, "text/html", page(r#"{"items":[]}"#)),
+            ("/native", 200, "text/html", page(r#"{"items":[{"name":"Desk"}],"links":{"manual":"/manual"}}"#)),
+            ("/diagnostic", 200, "text/html", page(&serde_json::json!({ "items": [], "diagnostic": "f".repeat(10_000) }).to_string())),
+        ]);
+        let call = |path: &str| {
+            let mut route = read_route(path, &format!("http://127.0.0.1:{port}/{path}"));
+            route.graph.steps[0].response_shape = Some(unbrowse_learn::graph::shape(&serde_json::json!({ "items": [{"name": "Desk"}], "total": 1 })));
+            route.fields = vec!["items".into()];
+            route.judged.fields = true;
+            let result = call_with(route, &crate::vault::Filled::plain(HashMap::new()), "You", None, &["links".into()], None).unwrap();
+            assert!(result.ok && !result.browser, "{:?}", result.error);
+            result
+        };
+        let result = call("found");
+        let found = result.data.unwrap();
+        assert_eq!(found["items"][0]["name"], "Desk");
+        assert_eq!(found["links"][0]["url"], format!("http://127.0.0.1:{port}/desk"));
+
+        let whole = result.whole.unwrap();
+        assert_eq!(whole.data, serde_json::json!({ "items": [{"name": "Desk"}] }));
+        let mut route = store::load_route("found").unwrap();
+        route.what = "List results with links".into();
+        let confirmed = as_a_reply(&route, &HashMap::new(), &[], (*whole).clone(), 1, false);
+        assert_eq!(confirmed["data"], found);
+
+        let empty = call("empty");
+        assert_eq!(outcome_of_call(&empty), crate::outcome::Outcome::AnsweredEmpty);
+        assert_eq!(empty.data.unwrap(), serde_json::json!({ "items": [] }));
+
+        let diagnostic = call("diagnostic");
+        assert_eq!(outcome_of_call(&diagnostic), crate::outcome::Outcome::AnsweredEmpty);
+        assert_eq!(diagnostic.data.unwrap(), serde_json::json!({ "items": [] }));
+
+        assert_eq!(call("native").data.unwrap()["links"], serde_json::json!({ "manual": "/manual" }));
+    }
+
     /// An answer over the reply's ceiling is cut, the fields the caller named kept first, and the reply answers
     /// `answered_cut`: it says which fields were left out by the paths to name for less, the inputs of the next page,
     /// and the file the whole answer is kept in.
@@ -2747,6 +3048,24 @@ mod tests {
         assert_eq!(got.data.as_ref().unwrap()["results"][7]["item"]["sku"], "s7", "{:?}", got.fields);
         assert!(got.data.as_ref().unwrap().get("facets").is_none(), "{:?}", got.fields);
         assert_eq!(store::load_route("search").unwrap().fields, r.fields, "the defaults are kept");
+    }
+
+    #[test]
+    fn a_release_read_refreshes_old_saved_fields() {
+        store::scratch_home("run-release-fields");
+        let data = serde_json::json!({"published_at":"2026-11-26", "tag":"2.34.2", "description":"more details ".repeat(350)});
+        let port = test_site(vec![("/release", 200, "application/json", data.to_string())]);
+        let mut route = read_route("release", &format!("http://127.0.0.1:{port}/release"));
+        route.what = "get the latest published version of widget".into();
+        route.fields = vec!["published_at".into()];
+        route.stats.fields_rule = 8;
+        store::save_route(&route).unwrap();
+
+        let reply = as_a_reply(&route, &HashMap::new(), &[], data.into(), 0, false);
+        assert_eq!(reply["data"]["tag"], "2.34.2", "{reply}");
+        let actual = call("release", &HashMap::new(), "You").unwrap();
+        assert_eq!(actual.data.unwrap()["tag"], "2.34.2");
+        assert_eq!(store::load_route("release").unwrap().stats.fields_rule, unbrowse_learn::fields::DEFAULTS_RULE);
     }
 
     /// A route's stored fields are its own: a call never chooses them again because the rule now leaves out a copy of a
@@ -2984,6 +3303,52 @@ mod tests {
         assert_eq!(answer["outcome_from"], "result.truncated");
         assert!(answer["truncated"]["cuts"].as_array().is_some_and(|c| c.iter().any(|c| c["at"] == "/rows" && c["total"] == 2000)), "{}", answer["truncated"]);
         assert_eq!(reply["outcome"], serde_json::Value::Null, "only the answer's own outcome says it");
+    }
+
+    /// A reply whose bulk is no answer's data (a browse reply's page snapshot) is held to the ceiling too: its longest
+    /// text keeps its start, and the cut is said. PR 926's slice, 25 Nov 2026: Carousell's page after a Turnstile was
+    /// handed over as a 61 KB `how: browse` reply, the client refused it ("exceeds maximum allowed tokens"), and the
+    /// agent answered without the links it needed.
+    #[test]
+    fn a_reply_over_the_ceiling_with_no_answer_cuts_its_longest_text() {
+        let lines: Vec<String> = (0..900)
+            .map(|i| format!("- link \"Nintendo Switch listing {i}\" [ref=e{i}] -> https://www.carousell.sg/p/nintendo-switch-{i}/"))
+            .collect();
+        let page = lines.join("\n");
+        assert!(page.len() > 2 * REPLY_BUDGET, "{}", page.len());
+        let mut reply = serde_json::json!({ "how": "browse", "site": "carousell.sg", "page": page, "why": "the page needs clicks",
+            "note": "Drive it with unbrowse_browse." });
+        held_to_ceiling(&mut reply);
+        assert!(size(&reply) <= REPLY_BUDGET, "the reply is {} bytes", size(&reply));
+        let kept = reply["page"].as_str().unwrap();
+        assert!(kept.starts_with(&lines[0]) && kept.contains(&lines[40]), "the page keeps its start: its first results");
+        assert!(page.starts_with(kept.trim_end_matches('\n')) && kept.ends_with(&lines[kept.lines().count() - 1]), "cut at a line's end");
+        let cut = &reply["texts_cut"];
+        assert_eq!(cut["cuts"][0]["at"], "/page", "{cut}");
+        assert_eq!(cut["cuts"][0]["total"], page.chars().count());
+        assert!(cut["note"].as_str().is_some_and(|n| n.contains("32 KB")), "{cut}");
+        assert_eq!((reply["how"].as_str(), reply["why"].as_str()), (Some("browse"), Some("the page needs clicks")), "the rest is as it was");
+        let mut small = serde_json::json!({ "how": "browse", "page": "- heading \"Results\"" });
+        let before = small.clone();
+        held_to_ceiling(&mut small);
+        assert_eq!(small, before, "a reply under the ceiling is untouched");
+    }
+
+    /// A reply over the ceiling with no text in it is left as it is, said in the log: there is nothing a cut could keep
+    /// the start of. A long text inside a list is found and cut like any other.
+    #[test]
+    fn the_ceiling_cuts_a_text_in_a_list_and_leaves_a_reply_with_no_text() {
+        let numbers: Vec<u64> = (0..20_000).collect();
+        let mut plain = serde_json::json!({ "n": numbers });
+        let before = plain.clone();
+        texts_to_ceiling(&mut plain, 2048);
+        assert_eq!(plain, before, "no text: nothing to cut");
+        let long = "- row\n".repeat(12_000);
+        let mut listed = serde_json::json!({ "how": "browse", "n": 7, "pages": [{ "url": "https://a.example/", "page": long }] });
+        held_to_ceiling(&mut listed);
+        assert!(size(&listed) <= REPLY_BUDGET, "{}", size(&listed));
+        assert_eq!(listed["texts_cut"]["cuts"][0]["at"], "/pages/0/page", "{}", listed["texts_cut"]);
+        assert_eq!((listed["n"].as_u64(), listed["pages"][0]["url"].as_str()), (Some(7), Some("https://a.example/")));
     }
 
     /// The owner is shown a route's session values, a piece of their value and a form body as they are sent; a body

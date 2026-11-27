@@ -20,18 +20,27 @@ use serde_json::json;
 
 use crate::{link, login, owner_dialog, store, terms, tty};
 
-pub const USAGE: &str = "usage: unbrowse-node onboard [--keep-off] [--website | --key-file <path> | --wallet <address>]
-                                set up this node and sign its owner in, on this terminal
+pub const USAGE: &str = "usage: unbrowse-node onboard [--keep-off] [--accept-terms] [--website | --key-file <path> | --wallet <address> | --no-sign-in]
+                               [--connect all|<app>[,<app>…]] [--web]
+                                set up this node and sign its owner in: on this terminal, or with no terminal (an agent's
+                                shell) when the command line already gives every yes it needs
        unbrowse-node onboard status   whether the node runs here and is signed in (exit 0 only when both)";
 
 /// How many times a prompt is asked again after an answer it can't use, before it gives up.
 const TRIES: usize = 3;
 
-/// What the command line chose before anything was asked.
-#[derive(Debug, PartialEq)]
+/// What the command line chose before anything was asked. Each yes given here is the owner's, said on the command
+/// line, so a shell with no terminal (an agent's, on its person's word) can run the whole setup: `--accept-terms` for
+/// the terms, `--connect` for the agent apps, `--web` for the address, `--no-sign-in` to leave signing in for later.
+#[derive(Debug, PartialEq, Default)]
 struct Asked {
     keep_off: bool,
     way: Option<Chosen>,
+    accept_terms: bool,
+    /// The agent apps to connect, by id, or `all` for every one found here.
+    connect: Option<Vec<String>>,
+    web: bool,
+    no_sign_in: bool,
 }
 
 /// A way to sign in named on the command line.
@@ -44,12 +53,36 @@ enum Chosen {
 
 /// The words after `onboard`, read; `Err` is the usage.
 fn parse(args: &[&str]) -> Result<Asked, String> {
-    let mut asked = Asked { keep_off: false, way: None };
+    let mut asked = Asked::default();
     let mut rest = args;
     while let Some((first, after)) = rest.split_first() {
         let (way, after) = match (*first, after) {
             ("--keep-off", after) => {
                 asked.keep_off = true;
+                rest = after;
+                continue;
+            }
+            ("--accept-terms", after) => {
+                asked.accept_terms = true;
+                rest = after;
+                continue;
+            }
+            ("--web", after) => {
+                asked.web = true;
+                rest = after;
+                continue;
+            }
+            ("--no-sign-in", after) => {
+                asked.no_sign_in = true;
+                rest = after;
+                continue;
+            }
+            ("--connect", [apps, after @ ..]) => {
+                let apps: Vec<String> = apps.split(',').map(|a| a.trim().replace('-', "_")).filter(|a| !a.is_empty()).collect();
+                if apps.is_empty() {
+                    return Err(USAGE.into());
+                }
+                asked.connect = Some(apps);
                 rest = after;
                 continue;
             }
@@ -62,6 +95,9 @@ fn parse(args: &[&str]) -> Result<Asked, String> {
             return Err(format!("name one way to sign in, not two\n{USAGE}"));
         }
         rest = after;
+    }
+    if asked.no_sign_in && asked.way.is_some() {
+        return Err(format!("--no-sign-in names no way to sign in, so leave out {}\n{USAGE}", "--website, --key-file and --wallet"));
     }
     Ok(asked)
 }
@@ -94,20 +130,39 @@ pub fn cli(args: &[String]) -> i32 {
 }
 
 fn onboard(asked: Asked) -> Result<(), String> {
-    tty::say("Setting up this Unbrowse node, with no window: 1 the node, 2 an owner passphrase, 3 the terms, 4 signing in.\n\n")?;
+    say("Setting up this Unbrowse node, with no window: 1 the node, 2 an owner passphrase, 3 the terms, 4 signing in, 5 your agent apps, 6 the address for ChatGPT and Claude on the web.\n\n")?;
     node_step()?;
     passphrase_step()?;
-    terms_step(asked.keep_off)?;
-    sign_in_step(asked.way)?;
+    terms_step(asked.keep_off, asked.accept_terms)?;
+    if asked.no_sign_in {
+        println!("4/6 signing in: left for later (the node works without it)");
+    } else {
+        sign_in_step(asked.way)?;
+    }
+    apps_step(asked.connect.as_deref())?;
+    web_step(asked.web)?;
     println!();
     let (lines, signed_in) = status();
     for l in lines {
         println!("{l}");
     }
-    if !signed_in {
+    if !signed_in && !asked.no_sign_in {
         return Err("the node doesn't say it is signed in".into());
     }
-    println!("\ndone: this node is signed in. `unbrowse-node onboard status` checks it any time.");
+    println!("\ndone: this node is set up. `unbrowse-node onboard status` checks it any time.");
+    Ok(())
+}
+
+/// Whether this process has a terminal of its own to ask on (`tty`): an agent's shell has none.
+fn terminal() -> bool {
+    tty::say("").is_ok()
+}
+
+/// Says `text` on the terminal, or, with none (an agent's shell), on standard output: what is said needs no answer.
+fn say(text: &str) -> Result<(), String> {
+    if tty::say(text).is_err() {
+        print!("{text}");
+    }
     Ok(())
 }
 
@@ -117,12 +172,12 @@ fn node_step() -> Result<(), String> {
     let port = store::api_port();
     match crate::owner_ask("identity", json!({}), Duration::from_secs(20)) {
         Ok(_) => {
-            println!("1/4 node: running on 127.0.0.1:{port}");
+            println!("1/6 node: running on 127.0.0.1:{port}");
             Ok(())
         }
         Err(crate::Unanswered::NoNode(_)) => {
             let (pid, log) = start_node()?;
-            println!("1/4 node: started on 127.0.0.1:{port} (pid {pid}), in the background; what it says goes to {}", log.display());
+            println!("1/6 node: started on 127.0.0.1:{port} (pid {pid}), in the background; what it says goes to {}", log.display());
             Ok(())
         }
         Err(crate::Unanswered::Node(e)) => Err(format!("the node on 127.0.0.1:{port} didn't answer as its owner expects: {e}")),
@@ -161,7 +216,7 @@ fn start_node() -> Result<(u32, PathBuf), String> {
     }
     let mut child = cmd.spawn().map_err(|e| format!("couldn't start the node: {e}"))?;
     let pid = child.id();
-    tty::say(&format!("starting the node (pid {pid})…\n"))?;
+    say(&format!("starting the node (pid {pid})…\n"))?;
     let until = Instant::now() + Duration::from_secs(180);
     loop {
         if let Ok(Some(status)) = child.try_wait() {
@@ -184,10 +239,17 @@ fn start_node() -> Result<(u32, PathBuf), String> {
 
 fn passphrase_step() -> Result<(), String> {
     if owner_dialog::passphrase_file().exists() {
-        println!("2/4 owner passphrase: set already");
+        println!("2/6 owner passphrase: set already");
         return Ok(());
     }
     let set = match owner_dialog::why_no_dialog() {
+        // No screen for the node's dialogs and no terminal to type a passphrase on: nothing here can say yes for the
+        // owner, so signing in can't be done from this shell.
+        Some(why) if !terminal() => {
+            return Err(format!("this machine can't show the node's dialogs ({why}), and this shell has no terminal to set an owner passphrase on: run onboard once in a terminal on this machine"));
+        }
+        // A screen asks in its dialog: with no terminal here, no passphrase is needed.
+        None if !terminal() => false,
         Some(why) => {
             tty::say(&format!(
                 "This machine can't show the node's dialogs ({why}), so the node asks for your yes with an owner passphrase typed on a terminal. Signing in needs one: set it now.\n"
@@ -197,24 +259,35 @@ fn passphrase_step() -> Result<(), String> {
         None => yes_no("Set an owner passphrase too, to say yes from a terminal when no screen is there (over SSH)? [y/N] ", false)?,
     };
     if !set {
-        println!("2/4 owner passphrase: not set (`unbrowse-node passphrase` sets one later)");
+        println!("2/6 owner passphrase: not set (`unbrowse-node passphrase` sets one later)");
         return Ok(());
     }
     let said = crate::root_store().and_then(|keys| crate::set_passphrase(keys.as_ref()))?;
-    println!("2/4 owner passphrase: {said}");
+    println!("2/6 owner passphrase: {said}");
     Ok(())
 }
 
 // ---- 3. the terms ----
 
-fn terms_step(keep_off: bool) -> Result<(), String> {
+fn terms_step(keep_off: bool, accepted_on_the_command_line: bool) -> Result<(), String> {
     let s = store::load_settings();
     // An owner who kept the node off before keeps it off; `--keep-off` keeps it off now.
     let keep_off = keep_off || !s.peer_network;
     if s.terms_accepted.as_deref() == Some(terms::TERMS_VERSION) {
         let s = if keep_off && s.peer_network { crate::accept_terms(true)? } else { s };
-        println!("3/4 terms {}: acknowledged already; {}", terms::TERMS_VERSION, terms::joining(&s));
+        println!("3/6 terms {}: acknowledged already; {}", terms::TERMS_VERSION, terms::joining(&s));
         return Ok(());
+    }
+    if accepted_on_the_command_line {
+        let s = crate::accept_terms(keep_off)?;
+        println!("3/6 terms {}: acknowledged on the command line (--accept-terms); {}", terms::TERMS_VERSION, terms::joining(&s));
+        return Ok(());
+    }
+    if !terminal() {
+        return Err(format!(
+            "the terms need the owner's yes and this shell has no terminal to ask on: once they have read them ({}) and agree, run onboard again with --accept-terms",
+            crate::setup::TERMS_PAGE
+        ));
     }
     tty::say(&format!(
         "\nThe Unbrowse terms and privacy notice, version {}. {}\n",
@@ -229,7 +302,7 @@ fn terms_step(keep_off: bool) -> Result<(), String> {
         match tty::read_line("Type `accept` to acknowledge them, `show` to read them here, or press Enter to stop: ")?.trim().to_ascii_lowercase().as_str() {
             "accept" | "yes" | "y" => {
                 let s = crate::accept_terms(keep_off)?;
-                println!("3/4 terms {}: acknowledged; {}", terms::TERMS_VERSION, terms::joining(&s));
+                println!("3/6 terms {}: acknowledged; {}", terms::TERMS_VERSION, terms::joining(&s));
                 return Ok(());
             }
             "show" => tty::say(&format!("\n{}\n", terms::full()))?,
@@ -240,18 +313,70 @@ fn terms_step(keep_off: bool) -> Result<(), String> {
     Err("no answer to the terms could be read".into())
 }
 
+// ---- 5. agent apps, 6. the web address ----
+
+/// Connects the agent apps named on the command line (`--connect`), `all` meaning every one found here and not
+/// connected yet; with none named, says which are found and connected.
+fn apps_step(named: Option<&[String]>) -> Result<(), String> {
+    let clients = crate::owner_call("agent_clients", json!({}))?;
+    let found: Vec<(String, String, bool)> = clients["clients"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|c| c["found"] == true && c["manual"] != true)
+        .map(|c| (c["id"].as_str().unwrap_or_default().to_string(), c["name"].as_str().unwrap_or_default().to_string(), c["connected"] == true))
+        .collect();
+    let Some(named) = named else {
+        let connected: Vec<&str> = found.iter().filter(|c| c.2).map(|c| c.1.as_str()).collect();
+        let waiting: Vec<&str> = found.iter().filter(|c| !c.2).map(|c| c.1.as_str()).collect();
+        println!(
+            "5/6 agent apps: {}{}",
+            if connected.is_empty() { "none connected".to_string() } else { format!("connected: {}", connected.join(", ")) },
+            if waiting.is_empty() { String::new() } else { format!("; not yet: {} (--connect all connects them)", waiting.join(", ")) }
+        );
+        return Ok(());
+    };
+    let ids: Vec<String> = if named.iter().any(|n| n == "all") { found.iter().filter(|c| !c.2).map(|c| c.0.clone()).collect() } else { named.to_vec() };
+    if ids.is_empty() {
+        println!("5/6 agent apps: none waiting to be connected");
+        return Ok(());
+    }
+    let done = crate::owner_call("agent_connect", json!({ "clients": ids }))?;
+    for r in done["results"].as_array().into_iter().flatten() {
+        let name = r["name"].as_str().unwrap_or("?");
+        match (r["ok"] == true, r["restart_needed"] == true) {
+            (true, true) => println!("5/6 {name}: connected; quit and reopen {name} to use it"),
+            (true, false) => println!("5/6 {name}: connected"),
+            (false, _) => println!("5/6 {name}: not connected ({})", r["error"].as_str().unwrap_or("it didn't work")),
+        }
+    }
+    Ok(())
+}
+
+/// Turns on the node's address for ChatGPT and Claude on the web (`--web`), and says how an app adds it.
+fn web_step(on: bool) -> Result<(), String> {
+    let r = if on { crate::owner_call("remote_set", json!({ "on": true }))? } else { crate::remote::status() };
+    match (r["on"] == true, r["url"].as_str()) {
+        (true, Some(url)) => println!("6/6 web address: {url}: add it in ChatGPT or Claude as a custom connector named Unbrowse, and allow its sign-in when this node asks"),
+        _ => println!("6/6 web address: off (--web turns it on, for ChatGPT and Claude on the web)"),
+    }
+    Ok(())
+}
+
 // ---- 4. signing in ----
 
 fn sign_in_step(chosen: Option<Chosen>) -> Result<(), String> {
     let st = crate::owner_call("link_status", json!({}))?;
     if let Some(owner) = st["owner"].as_str() {
-        println!("4/4 signed in already as {owner}");
+        println!("4/6 signed in already as {owner}");
         return Ok(());
     }
     let way = match chosen {
         Some(Chosen::Website) => login::Way::Website,
         Some(Chosen::KeyFile(path)) => login::Way::Key(login::key_from_file(&expand(&path))?),
         Some(Chosen::Wallet(owner)) => login::Way::Message { owner: address(&owner)? },
+        // With no terminal to choose on, the website: its page is said, to open on any device.
+        None if !terminal() => login::Way::Website,
         None => choose()?,
     };
     let done = match signed_in(way)? {
@@ -265,7 +390,7 @@ fn sign_in_step(chosen: Option<Chosen>) -> Result<(), String> {
     };
     match done {
         login::Done::Linked { owner } => {
-            println!("4/4 signed in as {owner}");
+            println!("4/6 signed in as {owner}");
             println!("{}", link::signed_in_note(store::load_settings().share_routes));
             Ok(())
         }
@@ -357,6 +482,14 @@ fn status() -> (Vec<String>, bool) {
         Some(o) => format!("signed in: yes, as {o}"),
         None => "signed in: no (`unbrowse-node onboard` signs you in)".into(),
     });
+    // The node's own setup list (`setup_status`), the one the window draws and an agent reads with unbrowse_setup.
+    if let Ok(setup) = crate::owner_call("setup_status", json!({})) {
+        lines.push("setup:".into());
+        for s in setup["steps"].as_array().into_iter().flatten() {
+            let mark = if s["done"] == true { "done" } else if s["optional"] == true { "optional" } else { "to do" };
+            lines.push(format!("  {} ({mark}): {}", s["id"].as_str().unwrap_or("?"), s["said"].as_str().unwrap_or_default()));
+        }
+    }
     (lines, owner.is_some())
 }
 
@@ -416,14 +549,27 @@ mod tests {
 
     #[test]
     fn the_command_line_names_at_most_one_way_and_may_keep_the_node_off() {
-        assert_eq!(parse(&[]), Ok(Asked { keep_off: false, way: None }));
-        assert_eq!(parse(&["--keep-off", "--website"]), Ok(Asked { keep_off: true, way: Some(Chosen::Website) }));
-        assert_eq!(parse(&["--key-file", "k", "--keep-off"]), Ok(Asked { keep_off: true, way: Some(Chosen::KeyFile("k".into())) }));
-        assert_eq!(parse(&["--wallet", "0xabc"]), Ok(Asked { keep_off: false, way: Some(Chosen::Wallet("0xabc".into())) }));
+        assert_eq!(parse(&[]), Ok(Asked::default()));
+        assert_eq!(parse(&["--keep-off", "--website"]), Ok(Asked { keep_off: true, way: Some(Chosen::Website), ..Asked::default() }));
+        assert_eq!(parse(&["--key-file", "k", "--keep-off"]), Ok(Asked { keep_off: true, way: Some(Chosen::KeyFile("k".into())), ..Asked::default() }));
+        assert_eq!(parse(&["--wallet", "0xabc"]), Ok(Asked { way: Some(Chosen::Wallet("0xabc".into())), ..Asked::default() }));
         assert!(parse(&["--website", "--key-file", "k"]).unwrap_err().contains("one way"));
-        for bad in [&["--key-file"][..], &["--wallet"], &["now"], &["status", "--json"]] {
+        for bad in [&["--key-file"][..], &["--wallet"], &["now"], &["status", "--json"], &["--connect"], &["--connect", ","]] {
             assert_eq!(parse(bad), Err(USAGE.into()), "{bad:?}");
         }
+    }
+
+    /// Every yes an agent's shell can't ask for on a terminal can be given on the command line, so onboard runs with no
+    /// terminal: the terms, the apps to connect (by id, `all`, or with dashes as typed), the web address, and leaving
+    /// the sign-in for later, which names no way to sign in.
+    #[test]
+    fn every_yes_onboard_asks_can_be_given_on_the_command_line() {
+        assert_eq!(
+            parse(&["--accept-terms", "--keep-off", "--connect", "all", "--web", "--no-sign-in"]),
+            Ok(Asked { keep_off: true, accept_terms: true, connect: Some(vec!["all".into()]), web: true, no_sign_in: true, ..Asked::default() })
+        );
+        assert_eq!(parse(&["--connect", "cursor,claude-desktop"]).map(|a| a.connect), Ok(Some(vec!["cursor".into(), "claude_desktop".into()])));
+        assert!(parse(&["--no-sign-in", "--website"]).unwrap_err().contains("--no-sign-in names no way"));
     }
 
     #[test]

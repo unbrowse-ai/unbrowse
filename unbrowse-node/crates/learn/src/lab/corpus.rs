@@ -595,3 +595,7 @@ fn what_shrinking_would_try_of_each_learned_body() {
     let tried: usize = by_kind.values().sum();
     println!("\n{learned} bodies learned; {tried} parts shrinking would try, by kind: {by_kind:?}; of their {headers} headers and {cookies} cookies, the browser's own, the body's framing and every cookie are never tried");
 }
+
+#[cfg(test)]
+#[path = "corpus_tests.rs"]
+mod corpus_tests;

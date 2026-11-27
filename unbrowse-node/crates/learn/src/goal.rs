@@ -17,6 +17,8 @@ pub enum Shape {
     Link,
     /// A day: `2026-10-28`, or a month's name beside a number (`28 Oct`, `October 28`).
     Date,
+    /// A published software release number, such as `2.34.2`.
+    ReleaseVersion,
     /// No look of its own: only a key named for it shows it.
     Plain,
 }
@@ -49,6 +51,10 @@ pub fn over_a_span(words: &[String]) -> bool {
 /// How many times a rendered page must show a field before it is a list of them, not a stray one.
 pub const FEWEST: usize = 5;
 
+pub fn has_rendered_links(page: &Value) -> bool {
+    page["links"].as_array().is_some_and(|links| links.iter().filter(|link| link["text"].as_str().is_some_and(|text| !text.trim().is_empty())).take(FEWEST).count() >= FEWEST)
+}
+
 /// The words that join a goal's fields or point at the page, never fields themselves: a goal that says "get the
 /// price on this page" asks for a price, not for a `get` or a `this`.
 const JOINS: [&str; 22] = [
@@ -68,13 +74,43 @@ pub fn fields(goal: &str) -> Vec<Field> {
         .unwrap_or(&goal);
     let mut out: Vec<Field> = Vec::new();
     let now = goal.split(|c: char| !c.is_alphanumeric()).any(|w| NOW.contains(&w));
+    let goal_words = || goal.split(|c: char| !c.is_alphanumeric());
+    let release = goal_words().any(|w| matches!(w, "latest" | "current" | "published" | "release"));
+    let release_tag = release && goal_words().any(|w| matches!(w, "image" | "release" | "version"));
     for w in tail.split(|c: char| !c.is_alphanumeric()).filter(|w| w.chars().count() >= 3 && !JOINS.contains(w)) {
         if !out.iter().any(|f| f.word == w) {
-            let shape = shape_of(w);
+            let shape = match stem(w) {
+                "version" if release => Shape::ReleaseVersion,
+                "tag" if release_tag => Shape::ReleaseVersion,
+                _ => shape_of(w),
+            };
             out.push(Field { word: w.to_string(), now: now && shape == Shape::Money, shape });
         }
     }
     out
+}
+
+/// Whether a goal asks for one thing (`get the price of a coin`, `get a crate's details`) rather than a list (`search
+/// stories`, `list open markets`): it never asks for a list or for all of something.
+pub fn wants_one(goal: &str) -> bool {
+    let words: Vec<String> = goal.to_lowercase().split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(String::from).collect();
+    let lists = ["search", "list", "find", "browse", "compare", "show", "all", "every", "each"];
+    let shows_one_release = words.iter().any(|word| word == "show")
+        && fields(goal).iter().any(|field| field.shape == Shape::ReleaseVersion && matches!(field.word.as_str(), "version" | "tag"));
+    // A goal that asks for several of something names it up front (`flights from Singapore to Tokyo`), even where the
+    // caller left out a list's verb. It was read as a goal for one thing, so the page's own last piece
+    // (`showfarefirst` at `/flights/showfarefirst`) was taken for the thing it names and the streamed answer rejected
+    // for never saying it. The head word is the first that isn't an article or a verb of asking; the endings that look
+    // plural and are not (`status`, `analysis`, `gas`, `chaos`) and a number's pieces are left out.
+    let lead = ["the", "a", "an", "me", "please", "get", "read", "give", "fetch", "retrieve", "check", "look", "for"];
+    let plural = |w: &str| {
+        w.chars().count() >= 4
+            && w.ends_with('s')
+            && !["ss", "us", "is", "as", "os"].iter().any(|e| w.ends_with(e))
+            && w.chars().any(|c| c.is_alphabetic())
+    };
+    let head = words.iter().find(|w| !lead.contains(&w.as_str()));
+    !words.iter().any(|w| lists.contains(&w.as_str()) && !(w == "show" && shows_one_release)) && !head.is_some_and(|w| plural(w))
 }
 
 /// The shape a field's word names. The word, not a site: what a price, a link or a date looks like is the same
@@ -123,12 +159,22 @@ pub struct Holding {
     pub echoes: bool,
     /// How many records (1 for a single object).
     pub records: usize,
+    /// The same records supplied a plain field and the shaped fields.
+    linked_records: bool,
 }
 
 impl Holding {
     /// Every field with a shape of its own is there: a goal that asks for prices is not answered without prices.
     pub fn has_shapes(&self) -> bool {
         self.shaped == self.shaped_asked
+    }
+
+    pub fn has_record_fields(&self, goal: &str, fields: &[Field]) -> bool {
+        !linked_records_required(goal, fields) || self.has_linked_records()
+    }
+
+    fn has_linked_records(&self) -> bool {
+        self.linked_records
     }
 
     /// In words, for the owner's window.
@@ -145,6 +191,12 @@ impl Holding {
     }
 }
 
+fn linked_records_required(goal: &str, fields: &[Field]) -> bool {
+    fields.iter().any(|f| f.shape == Shape::Link)
+        && fields.iter().any(|f| f.shape == Shape::Plain)
+        && goal.split(|c: char| !c.is_alphanumeric()).any(|w| w.eq_ignore_ascii_case("each") || w.eq_ignore_ascii_case("every"))
+}
+
 fn plural(n: usize, what: &str) -> String {
     if n == 1 {
         format!("1 {what}")
@@ -156,17 +208,147 @@ fn plural(n: usize, what: &str) -> String {
 /// What a JSON answer holds of `fields`: the best of its lists of records (an array of objects, an object of
 /// objects keyed by id, or the answer itself as one record). `asked` is what the caller asked for (the search).
 pub fn holding(answer: &Value, fields: &[Field], asked: &[String]) -> Holding {
+    holding_ranked(answer, fields, asked, false, true)
+}
+
+pub fn holding_for_goal(answer: &Value, fields: &[Field], asked: &[String], goal: &str) -> Holding {
+    holding_ranked(answer, fields, asked, linked_records_required(goal, fields), true)
+}
+
+/// What a record list holds, including a one-item list. Wrapper fields cannot stand for the list.
+pub fn list_holding_for_goal(answer: &Value, fields: &[Field], asked: &[String], goal: &str) -> Holding {
+    holding_ranked(answer, fields, asked, linked_records_required(goal, fields), false)
+}
+
+/// Embedded records can carry prices and names while the same document renders their links in its markup.
+/// An anchor supplies a field only when its label names the record and its address is unique to that match.
+pub struct RenderedHolding<'a> {
+    pub holding: Holding,
+    pub links: Vec<&'a Value>,
+}
+
+pub fn holding_with_rendered_links<'a>(answer: &Value, links: &'a [Value], fields: &[Field], asked: &[String], goal: &str) -> Option<RenderedHolding<'a>> {
+    if links.is_empty() || !fields.iter().any(|f| f.shape == Shape::Link) {
+        return None;
+    }
+    let anchors: Vec<_> = links.iter().filter_map(|anchor| {
+        let address = anchor["url"].as_str().filter(|address| link(address))?;
+        Some((anchor["text"].as_str().map(link_label)?, address, anchor))
+    }).collect();
+    let mut sets = Vec::new();
+    if let Some(records) = answer.as_array() {
+        let records: Vec<&Value> = records.iter().filter(|value| value.is_object()).collect();
+        if !records.is_empty() {
+            sets.push(records);
+        }
+    } else {
+        lists(answer, 0, true, &mut sets);
+    }
+    let asked = asked_words(asked);
+    sets.into_iter().map(|records| {
+        let mut used = std::collections::HashSet::new();
+        let mut matched = Vec::new();
+        let reads: Vec<_> = records.into_iter().map(|record| {
+            let mut read = Read::of(record, RECORD_DEPTH);
+            if !read.link {
+                let mut labels = Vec::new();
+                record_labels(record, 0, &mut labels);
+                let mut matching = anchors.iter().filter(|(anchor, _, _)| labels.iter().any(|label| {
+                    anchor.match_indices(label.as_str()).any(|(start, sound)| {
+                        (start == 0 || anchor[..start].ends_with(' '))
+                            && (start + sound.len() == anchor.len() || anchor[start + sound.len()..].starts_with(' '))
+                    })
+                }));
+                if let Some((_, _, anchor)) = matching.next().filter(|(_, address, _)| matching.next().is_none() && used.insert(*address)) {
+                    read.link = true;
+                    matched.push(*anchor);
+                }
+            }
+            read
+        }).collect();
+        RenderedHolding { holding: held_reads(&reads, fields, &asked), links: matched }
+    }).filter(|result| result.holding.has_shapes() && result.holding.has_record_fields(goal, fields))
+        .max_by_key(|result| (rank(&result.holding), result.links.len()))
+}
+
+fn link_label(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+}
+
+fn record_labels(record: &Value, depth: usize, labels: &mut Vec<String>) {
+    let Some(object) = record.as_object().filter(|_| depth < 4) else { return };
+    let mut names_itself = false;
+    let mut qualified = Vec::new();
+    for (key, value) in object {
+        let words = key_words(key);
+        if !words.iter().any(|word| matches!(word.as_str(), "name" | "title")) {
+            continue;
+        }
+        let Some(text) = value.as_str().or_else(|| value.get("text").and_then(Value::as_str)) else { continue };
+        let label = link_label(text);
+        let own = words.len() == 1 || words.len() == 2 && words[0] == "display";
+        names_itself |= own && !label.is_empty();
+        if label.chars().count() >= 5 {
+            if own { labels.push(label) } else { qualified.push(label) }
+        }
+    }
+    // A wrapper can carry the record's name. Once a record names itself, nested entities' names are their own.
+    if !names_itself {
+        labels.extend(qualified);
+        for value in object.values() {
+            record_labels(value, depth + 1, labels);
+        }
+    }
+}
+
+fn holding_ranked(answer: &Value, fields: &[Field], asked: &[String], prefer_records: bool, allow_whole_record: bool) -> Holding {
     let asked = asked_words(asked);
     let mut sets: Vec<Vec<&Value>> = Vec::new();
-    lists(answer, 0, &mut sets);
-    let mut best = sets.iter().map(|records| held(records, fields, &asked, RECORD_DEPTH)).max_by_key(rank);
+    lists(answer, 0, prefer_records || !allow_whole_record, &mut sets);
+    let ranked = |h: &Holding| (prefer_records && h.has_shapes() && h.has_linked_records(), rank(h));
+    let mut best = sets.iter().map(|records| held(records, fields, &asked, RECORD_DEPTH)).max_by_key(ranked);
     // The answer as one record is read near its top only: a field is the answer's when it sits a few keys in, and a
     // config of thousands of settings names every word somewhere deep inside it.
-    if answer.is_object() {
+    if allow_whole_record && answer.is_object() {
         let one = held_one(answer, fields, &asked);
-        best = [best, Some(one)].into_iter().flatten().max_by_key(rank);
+        best = [best, Some(one)].into_iter().flatten().max_by_key(ranked);
     }
     best.unwrap_or_else(|| empty(fields))
+}
+
+/// The one thing a page is about, by its address: the last piece of its path (`tt0111161` of `/title/tt0111161/`),
+/// decoded. None for a page at the site's root.
+pub fn thing_of(page: &str) -> Option<String> {
+    let page = url::Url::parse(page).ok()?;
+    let piece = page.path_segments()?.rfind(|p| !p.is_empty())?;
+    Some(percent_encoding::percent_decode_str(piece).decode_utf8_lossy().into_owned())
+}
+
+/// What the record of the one thing a goal asks about holds of `fields`: a record anywhere in the answer that names the
+/// thing (a value of its own equal to `thing`, `id: "tt0111161"`), read as one record ([`held_one`]): its own fields,
+/// never those of a list of other records inside it. A title's rating is its `ratingsSummary`; the ratings of its
+/// featured reviews, listed under it, are theirs. Nothing when no record names the thing.
+pub fn thing_holding(answer: &Value, fields: &[Field], thing: &str) -> Holding {
+    fn naming<'a>(v: &'a Value, thing: &str, depth: usize, out: &mut Vec<&'a Value>) {
+        if depth > 16 || out.len() >= 16 {
+            return;
+        }
+        match v {
+            Value::Object(map) => {
+                if map.values().any(|x| x.as_str().is_some_and(|s| s.eq_ignore_ascii_case(thing))) {
+                    out.push(v);
+                }
+                map.values().for_each(|x| naming(x, thing, depth + 1, out));
+            }
+            Value::Array(items) => items.iter().for_each(|x| naming(x, thing, depth + 1, out)),
+            _ => {}
+        }
+    }
+    let mut named = Vec::new();
+    if thing.chars().count() >= 3 {
+        naming(answer, thing, 0, &mut named);
+    }
+    named.into_iter().map(|r| held_one(r, fields, &[])).max_by_key(rank).unwrap_or_else(|| empty(fields))
 }
 
 /// What a page holds of `fields`, read as the replay reads it (`page::read`: `{title, state, text, links}`): its
@@ -186,9 +368,11 @@ pub fn page_holding(page: &Value, fields: &[Field], asked: &[String]) -> Holding
             Shape::Money => written.iter().filter(|l| money(l)).count(),
             Shape::Date => written.iter().filter(|l| date(l)).count(),
             Shape::Link => links,
+            Shape::ReleaseVersion => usize::from(page_shows_release(page["title"].as_str().unwrap_or_default(), text)),
             Shape::Plain => 0,
         };
-        if shown >= FEWEST {
+        let needed = if f.shape == Shape::ReleaseVersion { 1 } else { FEWEST };
+        if shown >= needed {
             rendered.covered.push(f.word.clone());
             rendered.shaped += 1;
             rendered.records = rendered.records.max(shown);
@@ -220,27 +404,27 @@ fn records_in(v: &Value) -> bool {
     }
 }
 
-/// The lists of records in an answer: arrays of three or more objects, and objects whose values are mostly objects
-/// (records keyed by their ids). Only the first few items of a list are searched for lists inside it: those are
-/// each record's own parts, alike from one record to the next.
-fn lists<'a>(v: &'a Value, depth: usize, out: &mut Vec<Vec<&'a Value>>) {
+/// The lists of records in an answer: arrays of objects, and objects whose values are mostly objects (records
+/// keyed by their ids). An explicit request for each record's link also considers shorter arrays. Only the first
+/// few items of a list are searched for lists inside it.
+fn lists<'a>(v: &'a Value, depth: usize, include_short: bool, out: &mut Vec<Vec<&'a Value>>) {
     if depth > 16 {
         return;
     }
     match v {
         Value::Array(items) => {
             let records: Vec<&Value> = items.iter().filter(|i| i.is_object()).collect();
-            if records.len() >= 3 {
+            if records.len() >= 3 || (include_short && !records.is_empty() && records.len() == items.len()) {
                 out.push(records);
             }
-            items.iter().take(3).for_each(|i| lists(i, depth + 1, out));
+            items.iter().take(3).for_each(|i| lists(i, depth + 1, include_short, out));
         }
         Value::Object(map) => {
             let records: Vec<&Value> = map.values().filter(|i| i.is_object()).collect();
             if records.len() >= FEWEST && records.len() * 5 >= map.len() * 4 {
                 out.push(records);
             }
-            map.values().for_each(|i| lists(i, depth + 1, out));
+            map.values().for_each(|i| lists(i, depth + 1, include_short, out));
         }
         _ => {}
     }
@@ -256,12 +440,13 @@ const ONE_RECORD_DEPTH: usize = 8;
 /// What the answer holds read as one record: its own fields, at any depth up to `ONE_RECORD_DEPTH`, but not the
 /// lists of records inside it, which are read as lists.
 fn held_one(answer: &Value, fields: &[Field], _asked: &[String]) -> Holding {
-    let mut r = Read { keys: Vec::new(), text: String::new(), money: false, link: false, date: false, lists: false };
-    r.walk(answer, 0, ONE_RECORD_DEPTH);
+    let mut r = Read::default();
+    r.walk(answer, 0, ONE_RECORD_DEPTH, false);
     r.text = r.text.to_lowercase();
+    let includes_images = fields.iter().any(|f| image_word(&f.word));
     let mut h = empty(fields);
     for f in fields {
-        if r.carries(f) {
+        if r.carries(f, includes_images) {
             h.covered.push(f.word.clone());
             if f.shape != Shape::Plain {
                 h.shaped += 1;
@@ -277,10 +462,15 @@ fn held_one(answer: &Value, fields: &[Field], _asked: &[String]) -> Holding {
 /// search repeated).
 fn held(records: &[&Value], fields: &[Field], asked: &[String], depth: usize) -> Holding {
     let reads: Vec<Read> = records.iter().map(|r| Read::of(r, depth)).collect();
+    held_reads(&reads, fields, asked)
+}
+
+fn held_reads(reads: &[Read], fields: &[Field], asked: &[String]) -> Holding {
     let half = |n: usize| n * 2 >= reads.len();
+    let includes_images = fields.iter().any(|f| image_word(&f.word));
     let mut h = empty(fields);
     for f in fields {
-        if half(reads.iter().filter(|r| r.carries(f)).count()) {
+        if half(reads.iter().filter(|r| r.carries(f, includes_images)).count()) {
             h.covered.push(f.word.clone());
             if f.shape != Shape::Plain {
                 h.shaped += 1;
@@ -289,19 +479,26 @@ fn held(records: &[&Value], fields: &[Field], asked: &[String], depth: usize) ->
     }
     h.echoes = reads.len() >= 3 && !asked.is_empty() && half(reads.iter().filter(|r| asked.iter().any(|w| says(&r.text, w))).count());
     h.records = reads.len();
+    h.linked_records = half(reads.iter().filter(|r| {
+        fields.iter().any(|f| f.shape == Shape::Plain && r.carries(f, includes_images))
+            && fields.iter().filter(|f| f.shape != Shape::Plain).all(|f| r.carries(f, includes_images))
+    }).count());
     h
 }
 
 /// A record, read once: the words of every key in it that holds a value (`last_price_dollars` is last, price,
 /// dollars), every string it holds, and the shapes those strings take. A key whose value is a switch (true, false)
 /// or nothing names a setting, not a field the record carries.
+#[derive(Default)]
 struct Read {
     /// Each key's words, and whether its value is an amount (a number, a figure, money, or an object holding one).
     keys: Vec<(Vec<String>, bool)>,
     text: String,
     money: bool,
     link: bool,
+    image_link: bool,
     date: bool,
+    release_version: bool,
     /// Whether lists of records inside it are read too: a record's own parts are, an answer read as one record's
     /// lists are not.
     lists: bool,
@@ -309,13 +506,13 @@ struct Read {
 
 impl Read {
     fn of(record: &Value, most: usize) -> Self {
-        let mut r = Read { keys: Vec::new(), text: String::new(), money: false, link: false, date: false, lists: true };
-        r.walk(record, 0, most);
+        let mut r = Read { lists: true, ..Read::default() };
+        r.walk(record, 0, most, false);
         r.text = r.text.to_lowercase();
         r
     }
 
-    fn walk(&mut self, v: &Value, depth: usize, most: usize) {
+    fn walk(&mut self, v: &Value, depth: usize, most: usize, image: bool) {
         if depth > most {
             return;
         }
@@ -325,19 +522,27 @@ impl Read {
         match v {
             Value::Object(map) => {
                 for (k, x) in map {
+                    let words = key_words(k);
+                    let image = image || words.iter().any(|w| image_word(w));
                     if !x.is_boolean() && !x.is_null() {
-                        self.keys.push((key_words(k), amount(x)));
+                        self.release_version |= x.as_str().is_some_and(|value| release_field(&words, value));
+                        self.keys.push((words, amount(x)));
                     }
-                    self.walk(x, depth + 1, most);
+                    self.walk(x, depth + 1, most, image);
                 }
             }
-            Value::Array(items) => items.iter().for_each(|x| self.walk(x, depth + 1, most)),
+            Value::Array(items) => items.iter().for_each(|x| self.walk(x, depth + 1, most, image)),
             Value::String(s) => {
                 // A price is a short value of its own (`S$828`, `From $4.00`); a sentence that mentions an amount
                 // ("Free for orders over $35") is the site's words about prices.
                 self.money |= money(s) && s.chars().count() <= SHORT;
-                self.link |= link(s);
+                if image {
+                    self.image_link |= link(s);
+                } else {
+                    self.link |= link(s);
+                }
                 self.date |= date(s);
+                self.release_version |= depth == 0 && release_version_token(s);
                 self.text.push_str(s);
                 self.text.push('\n');
             }
@@ -349,7 +554,14 @@ impl Read {
     /// never by letters inside a word (`get` in `target`), or by its shape in a value.
     /// A field with a look of its own is named by a key only where the key holds such a value: `"price": 24.99` is a
     /// price, `"price": "Price"` is the word for one (a page's labels).
-    fn carries(&self, f: &Field) -> bool {
+    fn carries(&self, f: &Field, includes_images: bool) -> bool {
+        // A label or a photo inside a listing does not link to the listing itself.
+        if f.shape == Shape::Link {
+            return self.link || (includes_images && self.image_link);
+        }
+        if f.shape == Shape::ReleaseVersion {
+            return self.release_version;
+        }
         let stem = stem(&f.word);
         // A price asked for as it is now is a key's of the moment: not a figure over a span, and the last trade, a
         // bid or an ask is one.
@@ -362,11 +574,96 @@ impl Read {
             || (f.shape == Shape::Money && !f.now && self.keys.iter().any(|(k, amount)| *amount && k.iter().any(|w| names_a_cost(w))))
             || match f.shape {
                 Shape::Money => self.money,
-                Shape::Link => self.link,
                 Shape::Date => self.date,
-                Shape::Plain => false,
+                Shape::Link | Shape::Plain | Shape::ReleaseVersion => false,
             }
     }
+}
+
+fn image_word(word: &str) -> bool {
+    matches!(stem(word), "image" | "img" | "photo" | "picture" | "thumbnail" | "avatar" | "icon" | "logo" | "poster")
+}
+
+/// A page can show its release in its heading, a version label tied to the document, or a supported tag row.
+fn page_shows_release(title: &str, text: &str) -> bool {
+    let name = title.split_whitespace().next().unwrap_or_default();
+    let heading = |line: &str| {
+        line.trim().split_once(char::is_whitespace).is_some_and(|(subject, version)| {
+            let version = version.trim();
+            subject.eq_ignore_ascii_case(name)
+                && release_parts(version).is_some_and(|parts| version.starts_with(['v', 'V']) || !dotted_day(parts))
+        })
+    };
+    if heading(title) || text.lines().find(|line| !line.trim().is_empty()).is_some_and(|line| heading(line) || labelled_release(line)) {
+        return true;
+    }
+    // A rendered tag list may put its comma separators on separate lines.
+    let mut tag_lines = 0usize;
+    text.replace("\n,\n", ", ").lines().any(|line| {
+        let line = line.trim();
+        if line.split_once(char::is_whitespace).is_some_and(|(subject, rest)| subject.eq_ignore_ascii_case(name) && labelled_release(rest)) {
+            return true;
+        }
+        if let Some(primary) = tag_heading(line, name) {
+            tag_lines = if primary { 3 } else { 0 };
+            return false;
+        }
+        if tag_lines == 0 {
+            return false;
+        }
+        // A short section heading can span several rendered lines before the tag row.
+        tag_lines -= 1;
+        let mut tags = line.split(',').map(str::trim);
+        tags.next().is_some_and(release_version_token) && tags.any(|tag| tag.eq_ignore_ascii_case("latest"))
+    })
+}
+
+/// Report whether a tag heading belongs to the document, including headings that end its own section.
+fn tag_heading(line: &str, name: &str) -> Option<bool> {
+    let line = line.to_ascii_lowercase();
+    let rest = ["supported tags", "supported releases"].into_iter().find_map(|heading| line.strip_prefix(heading))?;
+    Some(rest.is_empty() || rest.starts_with(" and respective")
+        || rest.strip_prefix(" for ").is_some_and(|subject| subject.eq_ignore_ascii_case(name)))
+}
+
+fn labelled_release(line: &str) -> bool {
+    let line = line.trim();
+    let Some((label, value)) = line.split_once(':').or_else(|| line.rsplit_once(char::is_whitespace)) else { return false };
+    matches!(label.trim().to_ascii_lowercase().as_str(), "latest version" | "latest release" | "latest tag" | "current version" | "current release" | "current tag")
+        && release_version_token(value.trim().trim_end_matches('.'))
+}
+
+fn release_version_token(value: &str) -> bool {
+    release_parts(value).is_some()
+}
+
+fn release_parts(value: &str) -> Option<[&str; 3]> {
+    let version = value.trim();
+    let version = version.strip_prefix(['v', 'V']).unwrap_or(version);
+    let core = version.split(['-', '+']).next().unwrap_or_default();
+    let mut parts = core.split('.');
+    let three = [parts.next()?, parts.next()?, parts.next()?];
+    (parts.next().is_none() && three.iter().all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))).then_some(three)
+}
+
+/// Calendar dates can appear in rendered prose with dots. A named release field can still use a calendar version.
+fn dotted_day([first, middle, last]: [&str; 3]) -> bool {
+    let number = |part: &str| part.parse::<u16>().unwrap_or_default();
+    let year = |part: &str| part.len() == 4 && (1900..=2199).contains(&number(part));
+    let month = |part: &str| (1..=12).contains(&number(part));
+    let day = |part: &str| (1..=31).contains(&number(part));
+    (year(first) && month(middle) && day(last)) || (year(last) && day(first) && day(middle) && (month(first) || month(middle)))
+}
+
+pub(crate) fn release_field(words: &[String], value: &str) -> bool {
+    let words = match words {
+        [.., tag, name] if tag == "tag" && name == "name" => &words[..words.len() - 1],
+        _ => words,
+    };
+    let Some((field, qualifiers)) = words.split_last() else { return false };
+    matches!(field.as_str(), "version" | "tag" | "release" | "latest")
+        && qualifiers.iter().all(|w| matches!(w.as_str(), "latest" | "current" | "published" | "release" | "newest" | "max" | "maximum" | "stable"))
+        && release_version_token(value)
 }
 
 /// Whether a value is an amount: a number, a figure written as text (`"0.5600"`, `"1,299"`), money, a list of
@@ -471,8 +768,15 @@ pub fn money(s: &str) -> bool {
 /// Whether a string is an address: absolute, or a path on the site.
 pub fn link(s: &str) -> bool {
     let s = s.trim();
-    (s.starts_with("https://") || s.starts_with("http://") || (s.starts_with('/') && !s.starts_with("//") && s.len() > 1))
-        && !s.contains(char::is_whitespace)
+    if s.contains(char::is_whitespace) {
+        return false;
+    }
+    if let Some(relative) = s.strip_prefix("//") {
+        return relative.split_once('/').is_some_and(|(host, path)| !host.is_empty() && !path.is_empty());
+    }
+    s.starts_with("https://") || s.starts_with("http://")
+        || s.starts_with('/') && s.len() > 1
+        || s.strip_prefix("../").or_else(|| s.strip_prefix("./")).is_some_and(|path| !path.is_empty())
 }
 
 const MONTHS: [&str; 12] = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
@@ -526,11 +830,18 @@ pub fn asks_a_change(goal: &str) -> bool {
 const WRITES: &[&str] = &["buy", "purchase", "order", "pay", "checkout", "send", "post", "submit", "create", "add", "delete", "remove", "cancel", "update", "edit", "change", "save", "upload", "book", "register", "subscribe", "apply", "vote", "follow", "reply", "comment", "sign", "login", "logout", "message"];
 
 /// Whether `goal` opens by asking for a change ("submit the order", "register an account", "check out", "log in"):
-/// its first word is the change it asks for. Loading a page changes nothing, so no call a page sends by itself as it
-/// loads does what such a goal asks: someone has to take the step on it. A goal that only names a change further on
-/// ("track my order", "latest blog post") opens with something else and is not one.
+/// its command starts with the change it asks for, after any opening location clause ("On the demo site, register").
+/// Loading a page changes nothing, so no call it sends by itself as it loads does what such a goal asks.
+/// A goal that only names a change further on ("track my order", "latest blog post") is not one.
 pub fn opens_with_a_change(goal: &str) -> bool {
-    let mut words = goal.split_whitespace().map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_ascii_lowercase());
+    let command = goal
+        .split_once(',')
+        .and_then(|(context, command)| {
+            let first = context.split_whitespace().next()?;
+            ["on", "in", "at"].iter().any(|word| first.eq_ignore_ascii_case(word)).then_some(command)
+        })
+        .unwrap_or(goal);
+    let mut words = command.split_whitespace().map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_ascii_lowercase());
     let first = words.next().unwrap_or_default();
     let second = words.next().unwrap_or_default();
     (first == "check" && second == "out") || (first == "log" && matches!(second.as_str(), "in" | "out" | "on")) || WRITES.contains(&first.as_str())
@@ -553,10 +864,10 @@ mod tests {
     /// whether each says back the ask; one record is "1 record".
     #[test]
     fn what_an_answer_holds_is_said_in_words() {
-        let none = super::Holding { covered: vec![], shaped: 0, shaped_asked: 1, echoes: false, records: 4 };
+        let none = super::Holding { shaped_asked: 1, records: 4, ..Default::default() };
         assert_eq!(none.said(), "its answer holds none of the goal's fields (4 records)");
         assert!(!none.has_shapes());
-        let one = super::Holding { covered: vec!["price".into(), "name".into()], shaped: 1, shaped_asked: 1, echoes: true, records: 1 };
+        let one = super::Holding { covered: vec!["price".into(), "name".into()], shaped: 1, shaped_asked: 1, echoes: true, records: 1, ..Default::default() };
         assert_eq!(one.said(), "its answer holds 1 record with price, name, each saying back what was asked");
         assert!(one.has_shapes());
         let many = super::Holding { records: 12, echoes: false, ..one };
@@ -564,6 +875,99 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn linked_results_can_be_a_list_of_one_or_two_records() {
+        let goal = "list saved articles with each title and link";
+        let fields = fields(goal);
+        for count in [1, 2] {
+            let articles: Vec<_> = (1..=count).map(|i| serde_json::json!({"title":format!("Article {i}"),"url":format!("/articles/{i}")})).collect();
+            let answer = serde_json::json!({"title":"Home","url":"/","articles":articles});
+            let holding = holding_for_goal(&answer, &fields, &[], goal);
+            assert!(holding.has_shapes() && holding.has_record_fields(goal, &fields), "{holding:?}");
+            assert_eq!(holding.records, count);
+        }
+        let shell = serde_json::json!({"title":"Home","url":"/","articles":[]});
+        assert!(!holding_for_goal(&shell, &fields, &[], goal).has_record_fields(goal, &fields));
+        let split = serde_json::json!([{"title":"Article A"},{"url":"/articles/b"}]);
+        assert!(!holding_for_goal(&split, &fields, &[], goal).has_record_fields(goal, &fields));
+    }
+
+    #[test]
+    fn links_to_photos_do_not_supply_the_listing_link() {
+        let listings = (1..=5).map(|n| serde_json::json!({
+            "name": format!("Room {n}"),
+            "price": "$36.00",
+            "linkLabel": "Open details",
+            "property": {"photos": {"main": {"relativeUrl": format!("/img/room-{n}")}}}
+        })).collect::<Vec<_>>();
+        let answer = serde_json::json!({"results": listings});
+        let goal = "list the results with name, price and link of each";
+        let requested = fields(goal);
+        assert!(!holding_for_goal(&answer, &requested, &[], goal).has_shapes());
+        let photo_goal = "list the results with a photo link";
+        assert!(holding_for_goal(&answer, &fields(photo_goal), &[], photo_goal).has_shapes());
+
+        let mut answer = answer;
+        for (n, row) in answer["results"].as_array_mut().unwrap().iter_mut().enumerate() {
+            row["url"] = serde_json::json!(format!("/property/{n}"));
+        }
+        let held = holding_for_goal(&answer, &requested, &[], goal);
+        assert!(held.has_shapes() && held.has_record_fields(goal, &requested));
+    }
+
+    #[test]
+    fn rendered_links_must_identify_distinct_records() {
+        let goal = "list results with name, price and link of each";
+        let answer = serde_json::json!({"results": (0..5).map(|i| serde_json::json!({
+            "property": {"displayName": {"text": format!("Meadow Room {i}")}},
+            "price": "$36"
+        })).collect::<Vec<_>>()});
+        let anchors: Vec<_> = (0..5).map(|i| serde_json::json!({
+            "text": format!("Top rated Meadow Room {i} $36"), "url": format!("/property/{i}")
+        })).collect();
+        assert!(holding_with_rendered_links(&answer, &anchors, &fields(goal), &[], goal).is_some());
+        let duplicate_address: Vec<_> = anchors.iter().cloned().map(|mut anchor| {
+            anchor["url"] = "/property".into();
+            anchor
+        }).collect();
+        assert!(holding_with_rendered_links(&answer, &duplicate_address, &fields(goal), &[], goal).is_none());
+        let ambiguous: Vec<_> = anchors.iter().cloned().chain(anchors.iter().cloned().map(|mut anchor| {
+            anchor["url"] = format!("{}?other=1", anchor["url"].as_str().unwrap()).into();
+            anchor
+        })).collect();
+        assert!(holding_with_rendered_links(&answer, &ambiguous, &fields(goal), &[], goal).is_none());
+        let partial: Vec<_> = (0..5).map(|i| serde_json::json!({
+            "text": format!("Top rated Meadow Room {i}0 $36"), "url": format!("/property/{i}0")
+        })).collect();
+        assert!(holding_with_rendered_links(&answer, &partial, &fields(goal), &[], goal).is_none());
+        assert!(holding_with_rendered_links(&answer, &anchors, &fields("name and price"), &[], "name and price").is_none());
+    }
+
+    #[test]
+    fn a_related_entitys_link_cannot_stand_for_the_record() {
+        let goal = "list results with name, price and link of each";
+        let answer = serde_json::json!({"results": (0..5).map(|i| serde_json::json!({
+            "title":format!("Meadow Room {i}"), "price":"$36", "manufacturer":{"name":format!("Pine Maker {i}")}
+        })).collect::<Vec<_>>()});
+        let makers: Vec<_> = (0..5).map(|i| serde_json::json!({
+            "text":format!("Pine Maker {i}"), "url":format!("/maker/{i}")
+        })).collect();
+        assert!(holding_with_rendered_links(&answer, &makers, &fields(goal), &[], goal).is_none());
+        let both: Vec<_> = makers.into_iter().chain((0..5).map(|i| serde_json::json!({
+            "text":format!("Top rated Meadow Room {i}"), "url":format!("/rooms/{i}")
+        }))).collect();
+        let matched = holding_with_rendered_links(&answer, &both, &fields(goal), &[], goal).unwrap();
+        assert_eq!(matched.links.len(), 5);
+        assert_eq!(matched.links[0]["url"], "/rooms/0");
+
+        let wrappers = serde_json::json!({"results": (0..5).map(|i| serde_json::json!({
+            "property":{"displayName":{"text":format!("Meadow Room {i}")}}, "price":"$36", "chainName":format!("Inn Collection {i}")
+        })).collect::<Vec<_>>()});
+        let wrapped = holding_with_rendered_links(&wrappers, &both, &fields(goal), &[], goal).unwrap();
+        assert_eq!(wrapped.links.len(), 5);
+        assert_eq!(wrapped.links[0]["url"], "/rooms/0");
+    }
 
     /// A storefront grid keeps each price as a numeric minor-unit amount with a sibling currency
     /// (`pricing.price.current.value: 4990`, `currency.code: "SGD"`): no single string looks like money, but the
@@ -591,6 +995,14 @@ mod tests {
         for goal in ["track my order", "read the latest blog post", "search orders", "check guest access", "list comments", "top stories", ""] {
             assert!(!opens_with_a_change(goal), "{goal:?} opens with no change");
         }
+    }
+
+    #[test]
+    fn an_opening_site_context_does_not_hide_the_command() {
+        assert!(opens_with_a_change("On the demo bank, register a fresh account, then read Accounts Overview."));
+        assert!(opens_with_a_change("In the test store, log in and check the account."));
+        assert!(!opens_with_a_change("On the demo bank, read the registration instructions, then list the fields."));
+        assert!(!opens_with_a_change("Read the help page, register an account is one of the links."));
     }
 
     #[test]
@@ -641,6 +1053,72 @@ mod tests {
     }
 
     #[test]
+    fn a_release_read_requires_a_version_in_the_answer() {
+        use serde_json::json;
+
+        let version = "2.34.2";
+        let flag_data = json!({"flags": [{"name": "show-install-guide", "enabled": true}]});
+        let repository = json!({"name": "example library", "description": "The latest source code"});
+        let page = json!({"title": "Example library", "text": "Supported releases\n2.34.2, stable, latest"});
+        for ask in ["latest published version of the example package", "latest tag available for the official example image"] {
+            let asked = fields(ask);
+            assert!(!holding(&flag_data, &asked, &[]).has_shapes(), "feature settings supply no release");
+            assert!(!holding(&repository, &asked, &[]).has_shapes(), "a repository read supplies no release");
+            assert!(page_holding(&page, &asked, &[]).has_shapes(), "a single rendered release is an answer");
+            assert!(holding(&json!({"release_version": version}), &asked, &[]).has_shapes(), "a release named in data also answers");
+        }
+    }
+
+    #[test]
+    fn showing_one_release_is_a_single_record_read() {
+        assert!(wants_one("show the latest published version of widget"));
+        assert!(!wants_one("show all published versions of widget"));
+        assert!(!wants_one("show the latest tags for images"));
+        assert!(!wants_one("show me the product listings"));
+    }
+
+    #[test]
+    fn a_named_tag_field_holds_the_published_release() {
+        let ask = fields("Get the latest tag of the widget image");
+        assert!(holding(&serde_json::json!({"tag_name":"v2.34.2"}), &ask, &[]).has_shapes());
+        assert!(!holding(&serde_json::json!({"dependency_tag_name":"v2.34.2"}), &ask, &[]).has_shapes());
+    }
+
+    #[test]
+    fn a_foreign_tag_heading_ends_the_packages_tag_section() {
+        let ask = fields("latest published version of Widget");
+        let page = serde_json::json!({"title":"Widget", "text":"Supported tags\nSupported tags for Python\n3.11.2, latest"});
+        assert!(!page_holding(&page, &ask, &[]).has_shapes());
+    }
+
+    #[test]
+    fn a_release_read_distinguishes_a_page_date_from_a_published_version() {
+        let asked = fields("latest published version of the example package");
+        for date in ["2026.11.26", "26.11.2026", "11.26.2026"] {
+            let page = serde_json::json!({"title":"Example library", "text":format!("Last updated: {date}. No releases have been published.")});
+            assert!(!page_holding(&page, &asked, &[]).has_shapes(), "{date}");
+            let page = serde_json::json!({"title":"Widget", "text":format!("Widget {date}")});
+            assert!(!page_holding(&page, &asked, &[]).has_shapes(), "{date}");
+        }
+        for version in ["2.34.2", "v2026.11.26"] {
+            let page = serde_json::json!({"title":"Widget", "text":format!("Latest version {version}\nLast updated: 2026.11.26")});
+            assert!(page_holding(&page, &asked, &[]).has_shapes(), "{version}");
+        }
+        assert!(holding(&serde_json::json!({"latest_version":"2026.11.26"}), &asked, &[]).has_shapes());
+    }
+
+    #[test]
+    fn a_release_read_requires_the_packages_own_version_on_a_rendered_page() {
+        let ask = fields("latest published version of widget");
+        for text in ["No Widget releases have been published. Requires Python 3.11.2.", "No Widget releases have been published\nBuild dependencies\nPython\nLatest version: 3.11.2", "No Widget releases have been published\nSupported tags for Python\n3.11.2, latest", "Examples\nInstall widget 2.33.0\nUpdated instructions for 2.34.2", "Changelog\n2.33.0\n2.32.0"] {
+            assert!(!page_holding(&serde_json::json!({"title":"Widget", "text":text}), &ask, &[]).has_shapes(), "{text}");
+        }
+        for text in ["Widget 2.34.2\nRequires Python 3.11.2", "Supported tags\n2.34.2\n,\nstable\n,\nlatest", "Supported tags for Widget\n2.34.2, latest", "Details\nWidget latest version: 2.34.2"] {
+            assert!(page_holding(&serde_json::json!({"title":"Widget | Registry", "text":text}), &ask, &[]).has_shapes(), "{text}");
+        }
+    }
+
+    #[test]
     fn money_links_and_days_are_read_by_their_look() {
         for yes in ["S$828", "From $4.00", "SGD 12", "12,50 €", "£3", "price: $1,299.00"] {
             assert!(money(yes), "{yes}");
@@ -649,6 +1127,7 @@ mod tests {
             assert!(!money(no), "{no}");
         }
         assert!(link("https://shop.example/item/1") && link("/item/1"));
+        assert!(link("../products/lamp") && link("./products/lamp") && link("//shop.example/products/lamp"));
         assert!(!link("a title") && !link("//cdn") && !link("/"));
         for yes in ["2026-10-28T10:00:00Z", "28 Oct 2026", "October 28, 2026", "Sat, 1 Nov"] {
             assert!(date(yes), "{yes}");
