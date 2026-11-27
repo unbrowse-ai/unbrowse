@@ -33,7 +33,16 @@ call. Cookie metadata beside the jar carries the `Max-Age`, and a call drops exp
 | `Radware` | `reese84`, the same shape | a browser in the site's profile | reuse while it lives; headed if a headless profile is refused |
 | `DataDome`, `PerimeterX` | `datadome` / `_px3` | a browser in the site's profile | as above |
 | `OwnSigning` | none: the site signs its own calls | the signing bridge (`Class::Script`) | the value's provenance says which producer is missing |
-| `Unknown` | none found | the site's own page (recompute) | a browserless re-fetch, then report |
+| `Unknown` | none found | the site's own page earns it, by its own code (`Earn::Recompute`) | the door's page and scripts are run in the sandbox (`UNBROWSE_DOOR_PASS=1`), and the pass it writes joins the jar; a bare refusal with no page to run is the site's answer and earns nothing |
+
+A check with no vendor's mark is the case this row exists for: a page that runs its own script, asks for nothing, links
+nowhere on its site and says a few lines is a door whatever issued it (`page::a_door`, `graph::Door::met`), and a walk
+that went on past it to the site's "access denied" was stopped at it (`Trace::door`, `stood_in_the_way`). Looks alone never
+take a walk's calls away: an app's shell looks the same, and its answer may come from another domain (hn.algolia.com's
+from `…-dsn.algolia.net`), so a walk that ended on such a page keeps its calls and replay judges them. A page whose scripts
+only carry its data runs no code (`type="application/json"`, `ld+json`) and is no check at all. It is
+`Unknown` and `Earn::Recompute`: nothing device-bound marks it, so its own code is what earns a fresh pass — the same
+recompute a site's own signing gets, one step earlier.
 
 A refusal with `earn: Recompute` never opens a browser: the refresh is the whole of what there was to do. A refusal
 with a device-bound credential opens one browser in the site's profile, takes the credential it issues, and retries

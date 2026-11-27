@@ -161,8 +161,9 @@ in its environment: it signs each message. Codex's plugin and `integrations/code
 framework that takes an MCP server as an object can have it from the SDK: `await node.mcpServer()` in TypeScript,
 `node.mcp_server()` in Python, which give that same stdio server with the token in its environment (keep it out of
 logs). An HTTP MCP client that can only send a header would send the token itself: the node refuses it unless the owner
-allows bearer tokens. Where the agent takes skills, copy [`skills/unbrowse`](../../skills/unbrowse) into its skills
-folder.
+allows bearer tokens. Where the agent takes skills, the app's first start puts the skill there for every agent it finds
+on this machine (and `unbrowse install` or `unb skill` does it again; [`skills/unbrowse`](../../skills/unbrowse) is
+the file itself).
 
 ## A script, or a shell
 
