@@ -603,6 +603,16 @@ class WorkflowSecurityTest(unittest.TestCase):
                 self.assertTrue(clients, "no Claude client receives OAuth")
                 self.assertTrue(all(token == selected for token in clients))
 
+    def test_pr_window_builds_patch_zig_after_setup_and_before_building(self):
+        for workflow in (PR_AGENT_CHECKS, PR_CHECK):
+            with self.subTest(workflow=workflow.name):
+                jobs = yaml.safe_load(workflow.read_text())["jobs"]
+                steps = jobs["build" if workflow == PR_AGENT_CHECKS else "check"]["steps"]
+                setup = next(i for i, step in enumerate(steps) if step.get("uses", "").startswith("mlugg/setup-zig@"))
+                build = next(i for i, step in enumerate(steps) if step.get("name") == "Build the window")
+                scripts = [step.get("run", "") for step in steps[setup + 1:build]]
+                self.assertTrue(any(".github/scripts/patch_zig_std.py" in run for run in scripts))
+
     def test_pr_agent_checks_a_missing_credential_fails_rather_than_passes(self):
         # qa.yml warns and passes with no credential; a required check that passed that way would prove nothing.
         jobs = self._pr_doc()["jobs"]

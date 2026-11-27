@@ -73,6 +73,8 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.17.0
+      - name: Patch Zig's interrupted socket connect
+        run: python3 -I .github/scripts/patch_zig_std.py
       - name: Build the window
         working-directory: unbrowse-node/window
         run: zig build
