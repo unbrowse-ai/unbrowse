@@ -31,7 +31,7 @@ for each.
 
 Both also have the owner's client (`UnbrowseOwner`): everything the Unbrowse window does, with the owner's token.
 
-For the hosted API at unbrowse.ai, use [`@unbrowse/sdk`](https://www.npmjs.com/package/@unbrowse/sdk) instead.
+> This is the SDK for the **local Unbrowse node** (`http://127.0.0.1:7788`). Legacy hosted API users should migrate to the local node (`npm install -g unbrowse`).
 
 ## Changing the API
 

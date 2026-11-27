@@ -1,3 +1,25 @@
+//! The Unbrowse local node (`unbrowse-node`), listening on `127.0.0.1:7788`.
+//!
+//! One process turns websites into reusable HTTP routes, protects secrets locally,
+//! connects to the peer-to-peer route index, and settles USDC fees on Arc:
+//!
+//! - **Agent API (`api/`, `apischema.rs`, `connect.rs`):** HTTP (`/v1/*`) and MCP (`/mcp`)
+//!   endpoints authenticated by capped, HMAC-signed agent keys (`agents.rs`).
+//! - **Owner API (`commands.rs`, `owner_dialog.rs`, `hands.rs`):** `/owner/*` control plane
+//!   used by the native Zig window, including live browser handoff and checkout approvals.
+//! - **Learning & execution (`learn.rs`, `run.rs`, `browse.rs`, `browsers.rs`, `solver.rs`):**
+//!   Links `unbrowse-browser` and `unbrowse-learn` in-process (`mint -> walk -> trace -> route -> call`)
+//!   with automatic browser fallback and relearning when sites drift.
+//! - **Vault & local state (`vault.rs`, `import.rs`, `passkey.rs`, `checkout.rs`, `store.rs`):**
+//!   OS-keystore root key, symbolic `vault:` login/card references, per-host cookie jars,
+//!   and website passkeys that never leave the machine.
+//! - **Sharing & peer index (`recipe.rs`, `listing.rs`, `autolist.rs`, `share.rs`, `peers.rs`, `rank/`):**
+//!   Compiles credential-free recipes, publishes signed listings to the site-keyed Kademlia DHT,
+//!   and ranks competing entries by verified staked collateral (`S = sqrt(Q * M)`).
+//! - **Settlement & route staking (`chain/`, `arc.rs`, `erc8004.rs`, `autobounty.rs`, `earnings.rs`, `watchtower.rs`):**
+//!   Manages ERC-8004 identity, USDC deposits, off-chain EIP-712 vouchers, batched claims (65/30/5 split),
+//!   route staking, and limit-order bounties.
+
 #[macro_use]
 mod antithesis;
 mod agents;
