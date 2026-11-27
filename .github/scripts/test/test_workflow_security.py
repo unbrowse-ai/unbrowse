@@ -579,6 +579,30 @@ class WorkflowSecurityTest(unittest.TestCase):
         self.assertEqual(env["SAME_REPO"], "${{ github.event.pull_request.head.repo.full_name == github.repository }}")
         self.assertEqual(env["RESULTS"], "${{ toJSON(needs) }}")
 
+    def test_pr_agent_checks_use_the_selected_oauth_token(self):
+        jobs = self._pr_doc()["jobs"]
+        selected = (
+            "${{ steps.credential.outputs.name == 'TOKEN' && "
+            "secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}"
+        )
+        for name in ("qa", "skills", "slice"):
+            with self.subTest(job=name):
+                job = jobs[name]
+                self.assertNotIn("secrets.ANTHROPIC_API_KEY", str(job))
+                self.assertEqual(job.get("env", {}).get("ANTHROPIC_API_KEY"), "")
+                steps = job["steps"]
+                picker = next(step for step in steps if step.get("id") == "credential")
+                self.assertEqual(picker["run"], "sh .github/scripts/claude-credential.sh TOKEN TOKEN_2")
+                self.assertEqual(picker["env"]["TOKEN"], "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}")
+                self.assertEqual(picker["env"]["TOKEN_2"], "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}")
+                clients = [
+                    step["env"]["CLAUDE_CODE_OAUTH_TOKEN"]
+                    for step in steps
+                    if "CLAUDE_CODE_OAUTH_TOKEN" in (step.get("env") or {})
+                ]
+                self.assertTrue(clients, "no Claude client receives OAuth")
+                self.assertTrue(all(token == selected for token in clients))
+
     def test_pr_agent_checks_a_missing_credential_fails_rather_than_passes(self):
         # qa.yml warns and passes with no credential; a required check that passed that way would prove nothing.
         jobs = self._pr_doc()["jobs"]

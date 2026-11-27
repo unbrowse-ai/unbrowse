@@ -307,6 +307,7 @@ jobs:
 
   # Claude QA as qa.yml runs it, on the build above. A required check that passes with no credential would prove
   # nothing, so a missing one fails here where qa.yml warns.
+  # The Claude jobs clear any API key inherited from the runner so the CLI uses the selected OAuth token.
   # In qa.yml's shards (test_merge_shards.py holds the two to the same rows).
   qa:
     name: Claude QA (${{ matrix.shard }})
@@ -330,15 +331,16 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: read
+    env:
+      ANTHROPIC_API_KEY: ''
     outputs:
       ran: ${{ steps.auth.outputs.ok }}
     steps:
       - id: auth
         env:
-          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
         run: |
-          [ -n "$API_KEY$OAUTH_TOKEN" ] || { echo "::error::No Claude credential reaches the pr-agent-checks environment"; exit 1; }
+          [ -n "$OAUTH_TOKEN" ] || { echo "::error::No Claude OAuth token reaches the pr-agent-checks environment"; exit 1; }
           echo "ok=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -358,10 +360,9 @@ jobs:
         id: credential
         env:
           CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
           TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+        run: sh .github/scripts/claude-credential.sh TOKEN TOKEN_2
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: pr-node-build
@@ -432,8 +433,7 @@ jobs:
         if: matrix.choice
         continue-on-error: true
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
         run: |
           cli="$GITHUB_WORKSPACE/.github/tools/claude-cli/node_modules/.bin/claude"
           out="$RUNNER_TEMP/tool-choice"
@@ -463,8 +463,7 @@ jobs:
       - name: QA
         id: claude
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
           PROMPT: 'Read .github/qa/checklist.md and do what it says. CHECKS: ${{ matrix.checks }}. VAULT_READY: ${{ env.VAULT_READY }}. SHOTS: ${{ github.workspace }}/qa-shots. WORK: ${{ github.workspace }}/qa-work. FIXTURES: ${{ env.QA_FIXTURES }}'
         run: |
           echo "execution_file=$RUNNER_TEMP/qa-execution.jsonl" >> "$GITHUB_OUTPUT"
@@ -554,12 +553,13 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: read
+    env:
+      ANTHROPIC_API_KEY: ''
     steps:
       - id: auth
         env:
-          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: '[ -n "$API_KEY$OAUTH_TOKEN" ] || { echo "::error::No Claude credential reaches the pr-agent-checks environment"; exit 1; }'
+          OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
+        run: '[ -n "$OAUTH_TOKEN" ] || { echo "::error::No Claude OAuth token reaches the pr-agent-checks environment"; exit 1; }'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -602,10 +602,9 @@ jobs:
         id: credential
         env:
           CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
           TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+        run: sh .github/scripts/claude-credential.sh TOKEN TOKEN_2
       - name: Prepare the sessions
         if: steps.passed.outputs.cache-hit != 'true'
         run: |
@@ -616,8 +615,7 @@ jobs:
         if: steps.passed.outputs.cache-hit != 'true'
         continue-on-error: true
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
         run: |
           cli="$GITHUB_WORKSPACE/.github/tools/claude-cli/node_modules/.bin/claude"
           out="$RUNNER_TEMP/skill-runs"
@@ -669,6 +667,7 @@ jobs:
     permissions:
       contents: read
     env:
+      ANTHROPIC_API_KEY: ''
       CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -690,10 +689,9 @@ jobs:
         id: credential
         env:
           CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
           TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+        run: sh .github/scripts/claude-credential.sh TOKEN TOKEN_2
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: pr-node-build
@@ -737,8 +735,7 @@ jobs:
           echo "$left task(s) in $rounds round(s)"
       - name: The clients
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
         run: |
           r=0
           while [ -d "$GATE/runs/round-$r" ]; do
@@ -758,8 +755,7 @@ jobs:
           echo "$n answer(s) to judge"
       - name: The judges
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
         run: |
           for f in "$GATE/runs/judge"/*.args; do
             [ -e "$f" ] || continue
