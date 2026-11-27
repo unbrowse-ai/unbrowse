@@ -26,6 +26,9 @@ pub struct Action {
     pub value: Option<String>,
     /// Typed into a password or one-time-code field.
     pub secret: bool,
+    /// A fill that submitted its field's form itself (a vault login's one step, `fill` with `submit`): the fill is the
+    /// step that sent it, with no click or key after it.
+    pub submit: bool,
 }
 
 /// The requests one action set off, until the next action.
@@ -70,8 +73,8 @@ pub struct Session {
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum Line {
-    Action { t: f64, action: String, selector: Option<String>, #[serde(default)] field: Option<String>, #[serde(default)] locator: Option<String>, value: Option<Value>, #[serde(default)] secret: bool },
-    Exchange { t: f64, #[serde(rename = "resourceType", default)] resource_type: String, entry: HarEntry },
+    Action { t: f64, action: String, selector: Option<String>, #[serde(default)] field: Option<String>, #[serde(default)] locator: Option<String>, value: Option<Value>, #[serde(default)] secret: bool, #[serde(default)] submit: bool },
+    Exchange { t: f64, #[serde(rename = "resourceType", default)] resource_type: String, #[serde(default)] tab: Option<String>, entry: HarEntry },
     SignProbe {
         #[serde(default)]
         probes: Vec<Vec<String>>,
@@ -108,6 +111,17 @@ impl Action {
             _ => false,
         }
     }
+
+    /// Whether the step hands over what was typed before it: Enter pressed, a click that chose no value of its own (a
+    /// search button, a suggestion), or a fill that submitted its own form. A call the page made between a value's
+    /// typing and the step that handed it over answered the field as it was typed (a suggestion), not the asking.
+    pub fn submits(&self) -> bool {
+        match self.kind.as_str() {
+            "press" => self.value.as_deref().is_some_and(|k| k.eq_ignore_ascii_case("enter")),
+            "click" => !self.gives_a_value(),
+            _ => self.submit,
+        }
+    }
 }
 
 impl Session {
@@ -120,7 +134,7 @@ impl Session {
     pub fn from_lines<S: AsRef<str>>(lines: impl IntoIterator<Item = S>) -> Result<Self, TraceError> {
         let mut actions = Vec::new();
         let mut sockets = Vec::new();
-        let mut exchanges: Vec<(f64, String, Exchange)> = Vec::new();
+        let mut exchanges: Vec<(f64, String, bool, Exchange)> = Vec::new();
         let mut probes: Vec<crate::trace::Probe> = Vec::new();
         for line in lines {
             let line = line.as_ref();
@@ -128,18 +142,18 @@ impl Session {
                 continue;
             }
             match serde_json::from_str::<Line>(line)? {
-                Line::Action { t, action, selector, field, locator, value, secret } => {
+                Line::Action { t, action, selector, field, locator, value, secret, submit } => {
                     let value = value.and_then(|v| match v {
                         Value::String(s) => Some(s),
                         Value::Null => None,
                         Value::Array(items) => Some(items.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(",")),
                         other => Some(other.to_string()),
                     });
-                    actions.push(Action { t, kind: action, selector, field, locator, value, secret });
+                    actions.push(Action { t, kind: action, selector, field, locator, value, secret, submit });
                 }
-                Line::Exchange { t, resource_type, entry } => {
+                Line::Exchange { t, resource_type, tab, entry } => {
                     if let Some(ex) = entry.into_exchange() {
-                        exchanges.push((t, resource_type, ex));
+                        exchanges.push((t, resource_type, tab.is_some(), ex));
                     }
                 }
                 Line::Script {} | Line::OriginStorage {} => {}
@@ -208,7 +222,24 @@ impl Session {
         }
         let times = exchanges.iter().map(|e| e.0).collect();
         let resource_types = exchanges.iter().map(|e| e.1.clone()).collect();
-        let trace = Trace { exchanges: exchanges.into_iter().map(|e| e.2).collect(), inputs };
+        let known_tab_navigation = exchanges.iter().any(|(_, _, tab, ex)| {
+            *tab && ex.resource_type.as_deref() == Some("Document")
+                && ex.main_frame.unwrap_or_else(|| ex.request_header("sec-fetch-dest") == Some("document"))
+        });
+        let exchanges = exchanges.into_iter().map(|(_, _, tab, mut ex)| {
+            // A browsing sidecar tags the page targets it owns. Once it has tagged a navigation, an unassigned
+            // document cannot replace the page, unless its request independently identifies a navigation.
+            if ex.main_frame.is_none() && ex.resource_type.as_deref() == Some("Document") {
+                ex.main_frame = match ex.request_header("sec-fetch-dest") {
+                    Some("document") => Some(true),
+                    Some("iframe" | "frame" | "fencedframe") => Some(false),
+                    _ if known_tab_navigation && !tab => Some(false),
+                    _ => None,
+                };
+            }
+            ex
+        }).collect();
+        let trace = Trace { exchanges, inputs };
         Ok(Self { actions, sockets, trace, probes, times, resource_types })
     }
 
@@ -374,6 +405,38 @@ mod segment_tests {
             "request": {"method": "GET", "url": url, "headers": []},
             "response": {"status": 200, "headers": [], "content": {"mimeType": "application/json", "text": "{}"}}}})
         .to_string()
+    }
+
+    #[test]
+    fn an_unassigned_document_cannot_replace_the_page_the_browser_tab_loaded() {
+        let document = |time, url: &str, tab: Option<&str>, destination: Option<&str>, frame: Option<bool>| {
+            let mut line: serde_json::Value = serde_json::from_str(&exchange(time, "Document", url)).unwrap();
+            line["entry"]["_resourceType"] = json!("Document");
+            if let Some(tab) = tab { line["tab"] = json!(tab); }
+            if let Some(dest) = destination {
+                line["entry"]["request"]["headers"] = json!([{"name":"sec-fetch-dest","value":dest}]);
+            }
+            if let Some(frame) = frame { line["entry"]["_mainFrame"] = json!(frame); }
+            line.to_string()
+        };
+        let lines = [
+            document(1.0, "https://shop.example/find?q=desk", Some("tab1"), Some("document"), None),
+            document(2.0, "https://embed.example/measure", None, None, None),
+            document(3.0, "https://shop.example/sidebar", Some("tab1"), Some("iframe"), None),
+            document(4.0, "https://shop.example/account", None, Some("document"), None),
+            document(5.0, "https://shop.example/panel", Some("tab1"), Some("document"), Some(false)),
+        ];
+        let session = Session::from_lines(lines.iter()).unwrap();
+        let pages: Vec<_> = session.trace.exchanges.iter().filter(|ex| ex.is_main_document()).map(|ex| ex.url.path()).collect();
+        assert_eq!(pages, ["/find", "/account"]);
+
+        let legacy = [
+            document(1.0, "https://shop.example/find?q=desk", None, None, None),
+            document(2.0, "https://shop.example/sidebar", Some("tab1"), Some("iframe"), None),
+        ];
+        let session = Session::from_lines(legacy.iter()).unwrap();
+        assert!(session.trace.exchanges[0].is_main_document());
+        assert!(!session.trace.exchanges[1].is_main_document());
     }
 
     /// Each request belongs to the last action before it, and the calls an action set off are its fetches and XHRs

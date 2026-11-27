@@ -3581,8 +3581,8 @@ async fn execute_command_inner(cmd: &Value, state: &mut DaemonState) -> Value {
         "isvisible" => handle_isvisible(cmd, state).await,
         "isenabled" => handle_isenabled(cmd, state).await,
         "ischecked" => handle_ischecked(cmd, state).await,
-        "back" => handle_back(state).await,
-        "forward" => handle_forward(state).await,
+        "back" => handle_history(state, -1).await,
+        "forward" => handle_history(state, 1).await,
         "reload" => handle_reload(state).await,
         "cookies_get" => handle_cookies_get(cmd, state).await,
         "cookies_set" => handle_cookies_set(cmd, state).await,
@@ -4668,13 +4668,6 @@ async fn browser_use_setup_timeout(state: &mut DaemonState) -> String {
             format!("{}; cleanup timed out{}", message, recovery)
         }
     }
-}
-
-/// True when [`apply_session_setup`] has anything to replay onto a new tab.
-async fn session_setup_pending(state: &DaemonState) -> bool {
-    !state.session_setup.is_empty()
-        || !state.routes.read().await.is_empty()
-        || !state.origin_headers.read().await.is_empty()
 }
 
 /// Replay the session-scoped setup the user configured on the active page
@@ -7210,14 +7203,10 @@ async fn handle_click(cmd: &Value, state: &mut DaemonState) -> Result<Value, Str
 
         let domain_filter = state.domain_filter.read().await.clone();
         let has_proxy_creds = state.proxy_credentials.read().await.is_some();
-        let defer_url_until_controls = should_defer_url_until_network_controls(
-            domain_filter.as_ref(),
-            has_proxy_creds,
-            Some(&href),
-        )?;
+        should_defer_url_until_network_controls(domain_filter.as_ref(), has_proxy_creds, Some(&href))?;
         // `click --new-tab` creates the same kind of daemon-owned tab as
-        // `tab new`, so it must use the same pre-navigation setup path.
-        let defer_url = defer_url_until_controls || session_setup_pending(state).await;
+        // `tab new`, so it must use the same pre-navigation setup path, the
+        // browser's own identity included: blank, set up, then navigated.
 
         state.ref_map.begin_snapshot();
         state.active_iframe_sessions.clear();
@@ -7225,8 +7214,7 @@ async fn handle_click(cmd: &Value, state: &mut DaemonState) -> Result<Value, Str
         state.webmcp.clear_invocations();
         let new_session_id = {
             let mgr = state.browser.as_mut().ok_or("Browser not launched")?;
-            mgr.tab_new(if defer_url { None } else { Some(&href) }, None)
-                .await?;
+            mgr.tab_new(None, None).await?;
             mgr.active_session_id()?.to_string()
         };
 
@@ -7234,10 +7222,8 @@ async fn handle_click(cmd: &Value, state: &mut DaemonState) -> Result<Value, Str
         install_network_controls_or_close(state, has_proxy_creds).await?;
         state.drain_cdp_events_background().await?;
 
-        if defer_url {
-            let mgr = state.browser.as_mut().ok_or("Browser not launched")?;
-            mgr.navigate(&href, WaitUntil::Load).await?;
-        }
+        let mgr = state.browser.as_mut().ok_or("Browser not launched")?;
+        mgr.navigate(&href, WaitUntil::Load).await?;
 
         state.refresh_active_iframe_sessions().await;
 
@@ -7759,10 +7745,14 @@ async fn handle_ischecked(cmd: &Value, state: &mut DaemonState) -> Result<Value,
     Ok(json!({ "checked": checked, "origin": url }))
 }
 
-async fn handle_back(state: &mut DaemonState) -> Result<Value, String> {
+async fn handle_history(state: &mut DaemonState, offset: i64) -> Result<Value, String> {
     if let Some(ref wb) = state.webdriver_backend {
         if state.browser.is_none() {
-            wb.back().await?;
+            if offset < 0 {
+                wb.back().await?;
+            } else {
+                wb.forward().await?;
+            }
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
             let url = wb.get_url().await.unwrap_or_default();
             state.ref_map.invalidate_all_documents();
@@ -7771,26 +7761,37 @@ async fn handle_back(state: &mut DaemonState) -> Result<Value, String> {
     }
     let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
     let session_id = mgr.active_session_id()?.to_string();
-    mgr.evaluate("history.back()", None).await?;
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-    let url = mgr.get_url().await.unwrap_or_default();
-    state.ref_map.invalidate_page(&session_id);
-    Ok(json!({ "url": url }))
-}
-
-async fn handle_forward(state: &mut DaemonState) -> Result<Value, String> {
-    if let Some(ref wb) = state.webdriver_backend {
-        if state.browser.is_none() {
-            wb.forward().await?;
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            let url = wb.get_url().await.unwrap_or_default();
-            state.ref_map.invalidate_all_documents();
-            return Ok(json!({ "url": url }));
+    // A history navigation can dispose of the renderer running Runtime.evaluate
+    // before it returns a result. Chrome's Page commands run outside that renderer.
+    if matches!(state.engine.as_str(), "lightpanda" | "obscura") {
+        let script = if offset < 0 { "history.back()" } else { "history.forward()" };
+        mgr.evaluate(script, None).await?;
+    } else {
+        let history = mgr
+            .client
+            .send_command_no_params("Page.getNavigationHistory", Some(&session_id))
+            .await?;
+        let index = history["currentIndex"]
+            .as_i64()
+            .ok_or("Missing history index")?;
+        let entries = history["entries"]
+            .as_array()
+            .ok_or("Missing history entries")?;
+        if let Some(entry) = index
+            .checked_add(offset)
+            .and_then(|next| usize::try_from(next).ok())
+            .and_then(|next| entries.get(next))
+        {
+            let id = entry["id"].as_i64().ok_or("Missing history entry id")?;
+            mgr.client
+                .send_command(
+                    "Page.navigateToHistoryEntry",
+                    Some(json!({ "entryId": id })),
+                    Some(&session_id),
+                )
+                .await?;
         }
     }
-    let mgr = state.browser.as_ref().ok_or("Browser not launched")?;
-    let session_id = mgr.active_session_id()?.to_string();
-    mgr.evaluate("history.forward()", None).await?;
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     let url = mgr.get_url().await.unwrap_or_default();
     state.ref_map.invalidate_page(&session_id);
@@ -8539,13 +8540,13 @@ pub(super) async fn handle_tab_new(cmd: &Value, state: &mut DaemonState) -> Resu
     let label = cmd.get("label").and_then(|v| v.as_str());
     let domain_filter = state.domain_filter.read().await.clone();
     let has_proxy_creds = state.proxy_credentials.read().await.is_some();
-    let defer_url_until_controls =
-        should_defer_url_until_network_controls(domain_filter.as_ref(), has_proxy_creds, url)?;
-    // UA, init scripts, headers, and routes are per-session in CDP, so when
-    // any are configured the tab is created blank and navigated only after
-    // they are replayed onto it; otherwise the first document would miss them.
-    let defer_url =
-        defer_url_until_controls || (url.is_some() && session_setup_pending(state).await);
+    should_defer_url_until_network_controls(domain_filter.as_ref(), has_proxy_creds, url)?;
+    // UA, init scripts, headers, and routes are per-session in CDP, so the tab
+    // is created blank and navigated only after they are replayed onto it;
+    // otherwise the first document would miss them. Unbrowse fork: the
+    // browser's own identity (`prepare_domains`) is per-session setup on every
+    // tab, so a tab given a URL always waits for it, whatever else is set.
+    let defer_url = url.is_some();
 
     let (mut result, new_session_id) = {
         let mgr = state.browser.as_mut().ok_or("Browser not launched")?;
@@ -12063,6 +12064,8 @@ async fn handle_responsebody(cmd: &Value, state: &DaemonState) -> Result<Value, 
                                 .cloned()
                                 .unwrap_or(json!({}));
 
+                            // Unbrowse fork: the body is read once the request has finished loading.
+                            super::unbrowse::network::loaded(&mut rx, &session_id, request_id, deadline).await;
                             let body_result = mgr
                                 .client
                                 .send_command(
@@ -16258,6 +16261,60 @@ mod tests {
     use tokio::net::TcpListener;
 
     #[tokio::test]
+    async fn history_commands_survive_the_old_renderer_closing() {
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::Message;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let pages = ["https://one.test/", "https://two.test/"];
+            let mut current = 1;
+            let mut navigated = Vec::new();
+            while let Some(Ok(Message::Text(text))) = socket.next().await {
+                let command: Value = serde_json::from_str(&text).unwrap();
+                let mut reply = json!({ "id": command["id"] });
+                match command["method"].as_str().unwrap() {
+                    "Page.getNavigationHistory" => {
+                        reply["result"] = json!({ "currentIndex": current, "entries": [
+                            { "id": 17, "url": pages[0] }, { "id": 42, "url": pages[1] }
+                        ] });
+                    }
+                    "Page.navigateToHistoryEntry" => {
+                        let entry = command["params"]["entryId"].as_i64().unwrap();
+                        current = match entry {
+                            17 => 0,
+                            42 => 1,
+                            _ => panic!("unexpected entry {entry}"),
+                        };
+                        navigated.push(entry);
+                        reply["result"] = json!({});
+                    }
+                    "Runtime.evaluate" if command["params"]["expression"] == "location.href" => {
+                        reply["result"] = json!({ "result": { "type": "string", "value": pages[current] } });
+                    }
+                    "Runtime.evaluate" => {
+                        reply["error"] = json!({ "code": -32000, "message": "Inspected target navigated or closed" });
+                    }
+                    _ => reply["result"] = json!({}),
+                }
+                socket.send(Message::Text(reply.to_string())).await.unwrap();
+            }
+            navigated
+        });
+
+        let mut state = DaemonState::new();
+        state.browser = Some(BrowserManager::connect_cdp_direct(&url).await.unwrap());
+        assert_eq!(handle_history(&mut state, -1).await.unwrap()["url"], "https://one.test/");
+        assert_eq!(handle_history(&mut state, 1).await.unwrap()["url"], "https://two.test/");
+        assert_eq!(handle_history(&mut state, 1).await.unwrap()["url"], "https://two.test/");
+        state.browser.take().unwrap().client.close().await;
+        assert_eq!(server.await.unwrap(), [17, 42]);
+    }
+
+    #[tokio::test]
     #[ignore]
     async fn e2e_failed_wheel_dispatch_preserves_pointer() {
         let mut state = DaemonState::new();
@@ -16826,6 +16883,19 @@ mod tests {
                 "/session/test-session/url",
                 json!({ "value": "https://example.test/first" }),
             ),
+            ("POST /session/test-session/back", json!({ "value": null })),
+            (
+                "/session/test-session/url",
+                json!({ "value": "https://example.test/previous" }),
+            ),
+            (
+                "POST /session/test-session/forward",
+                json!({ "value": null }),
+            ),
+            (
+                "/session/test-session/url",
+                json!({ "value": "https://example.test/first" }),
+            ),
         ])
         .await;
         let mut state = DaemonState::new();
@@ -16850,7 +16920,21 @@ mod tests {
             assert!(state.webdriver_backend.is_some());
         }
 
-        assert_eq!(server.await.unwrap(), 2);
+        for (action, url) in [
+            ("back", "https://example.test/previous"),
+            ("forward", "https://example.test/first"),
+        ] {
+            let response = execute_command(
+                &json!({ "id": action, "action": action, "provider": "safari" }),
+                &mut state,
+            )
+            .await;
+            assert_eq!(response["success"], true, "{response}");
+            assert_eq!(response["data"]["url"], url);
+            assert!(state.browser.is_none());
+        }
+
+        assert_eq!(server.await.unwrap(), 6);
     }
 
     #[tokio::test]

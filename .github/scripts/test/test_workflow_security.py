@@ -579,6 +579,40 @@ class WorkflowSecurityTest(unittest.TestCase):
         self.assertEqual(env["SAME_REPO"], "${{ github.event.pull_request.head.repo.full_name == github.repository }}")
         self.assertEqual(env["RESULTS"], "${{ toJSON(needs) }}")
 
+    def test_pr_agent_checks_use_the_selected_oauth_token(self):
+        jobs = self._pr_doc()["jobs"]
+        selected = (
+            "${{ steps.credential.outputs.name == 'TOKEN' && "
+            "secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}"
+        )
+        for name in ("qa", "skills", "slice"):
+            with self.subTest(job=name):
+                job = jobs[name]
+                self.assertNotIn("secrets.ANTHROPIC_API_KEY", str(job))
+                self.assertEqual(job.get("env", {}).get("ANTHROPIC_API_KEY"), "")
+                steps = job["steps"]
+                picker = next(step for step in steps if step.get("id") == "credential")
+                self.assertEqual(picker["run"], "sh .github/scripts/claude-credential.sh TOKEN TOKEN_2")
+                self.assertEqual(picker["env"]["TOKEN"], "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}")
+                self.assertEqual(picker["env"]["TOKEN_2"], "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}")
+                clients = [
+                    step["env"]["CLAUDE_CODE_OAUTH_TOKEN"]
+                    for step in steps
+                    if "CLAUDE_CODE_OAUTH_TOKEN" in (step.get("env") or {})
+                ]
+                self.assertTrue(clients, "no Claude client receives OAuth")
+                self.assertTrue(all(token == selected for token in clients))
+
+    def test_pr_window_builds_patch_zig_after_setup_and_before_building(self):
+        for workflow in (PR_AGENT_CHECKS, PR_CHECK):
+            with self.subTest(workflow=workflow.name):
+                jobs = yaml.safe_load(workflow.read_text())["jobs"]
+                steps = jobs["build" if workflow == PR_AGENT_CHECKS else "check"]["steps"]
+                setup = next(i for i, step in enumerate(steps) if step.get("uses", "").startswith("mlugg/setup-zig@"))
+                build = next(i for i, step in enumerate(steps) if step.get("name") == "Build the window")
+                scripts = [step.get("run", "") for step in steps[setup + 1:build]]
+                self.assertTrue(any(".github/scripts/patch_zig_std.py" in run for run in scripts))
+
     def test_pr_agent_checks_a_missing_credential_fails_rather_than_passes(self):
         # qa.yml warns and passes with no credential; a required check that passed that way would prove nothing.
         jobs = self._pr_doc()["jobs"]
@@ -800,6 +834,48 @@ class WorkflowSecurityTest(unittest.TestCase):
             self.assertFalse(any(t.startswith("pull_request") for t in _triggers(doc)), name)
             self.assertEqual(doc["jobs"]["dashboard"]["uses"], "./.github/workflows/dashboard-post.yml", name)
             self.assertEqual(doc["jobs"]["dashboard"]["permissions"], {"actions": "read", "contents": "read"}, name)
+
+
+class ReleaseRunsOnItsBranch(unittest.TestCase):
+    """A CI run that passes on staging or a release branch hands the release to that branch (UNB-224). A workflow_run run
+    runs on main's ref, which the `release` environment refuses: runs 45103689530 and 45174816274 (23 Nov 2026) failed
+    "Branch main is not allowed to deploy to release" at the Mac signing job, and no staging or rc build reached npm."""
+
+    def setUp(self):
+        self.doc = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
+        self.jobs = self.doc["jobs"]
+
+    def needs(self, name):
+        n = self.jobs[name].get("needs", [])
+        return [n] if isinstance(n, str) else n
+
+    def reaches_version(self, name, seen=()):
+        return name == "version" or any(self.reaches_version(n, seen + (name,)) for n in self.needs(name) if n not in seen)
+
+    def test_no_job_with_an_environment_runs_on_a_workflow_run(self):
+        self.assertNotIn("workflow_run", self.jobs["version"]["if"])
+        for name, job in self.jobs.items():
+            if "environment" in job:
+                self.assertTrue(self.reaches_version(name), f"{name} holds an environment and does not wait on version")
+                self.assertNotIn("workflow_run", str(job.get("if", "")), name)
+
+    def test_ci_passing_on_a_branch_dispatches_the_release_on_that_branch_and_commit(self):
+        hand = self.jobs["hand-over"]
+        self.assertNotIn("environment", hand)
+        self.assertEqual(hand["permissions"], {"actions": "write"})
+        for part in ("github.event.workflow_run.conclusion == 'success'", "github.event.workflow_run.event == 'push'",
+                     "github.event.workflow_run.head_repository.full_name == github.repository"):
+            self.assertIn(part, hand["if"])
+        step = hand["steps"][0]
+        self.assertEqual(step["env"]["BRANCH"], "${{ github.event.workflow_run.head_branch }}")
+        self.assertEqual(step["env"]["SHA"], "${{ github.event.workflow_run.head_sha }}")
+        self.assertIn('--ref "$BRANCH" -f sha="$SHA"', step["run"])
+
+    def test_the_handed_over_commit_is_released_only_from_its_own_branch(self):
+        steps = self.jobs["version"]["steps"]
+        self.assertEqual(steps[0]["with"]["ref"], "${{ inputs.sha || github.sha }}")
+        guard = next(s for s in steps if s.get("name") == "The commit is the branch's")
+        self.assertIn('merge-base --is-ancestor "$WANT" "$GITHUB_SHA"', guard["run"])
 
 
 if __name__ == "__main__":

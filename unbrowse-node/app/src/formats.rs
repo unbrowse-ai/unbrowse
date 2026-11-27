@@ -91,6 +91,7 @@ fn checks() -> Vec<Check> {
         Check { format: &f::ERC8004, at: "erc8004-0x2222222222222222222222222222222222222222.json", round: round::<crate::erc8004::Registration>, found: |v| v["agent_id"] == "7" },
         Check { format: &f::PEER_KEY, at: "peer-key.json", round: round::<crate::peers::PeerKey>, found: |v| v["bits"] == 8 },
         Check { format: &f::REMOTE, at: "remote.json", round: round::<crate::remote::Remote>, found: |v| v["gateway"] == "https://unbrowse.ai" && v["on"] == true },
+        Check { format: &f::HEARD, at: "heard.json", round: round::<crate::heard::Heard>, found: |v| v["apps"][0]["name"] == "claude-code" && v["apps"][0]["web"] == false },
         Check { format: &f::PEER_PORT, at: "peer-port.json", round: round::<crate::peers::PeerPort>, found: |v| v["port"] == 47123 },
         Check { format: &f::PEER_PUBLISHED, at: "peer-published.json", round: round::<crate::peers::Published>, found: |v| v["addrs"][0] == "/ip4/127.0.0.1/tcp/47123" },
         // The peer table and the set-aside providers are the network crate's: their own tests read them there

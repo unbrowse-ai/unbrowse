@@ -8,11 +8,10 @@ A **route** is a website's own API call, learned once by the node's browser and 
 The node keeps the routes, the logins and, once something needs it, the browser; the client is how an agent or a
 script talks to it.
 
-> This is the client for the **local node** (`http://127.0.0.1:7788`). For the hosted API at unbrowse.ai, use
-> [`@unbrowse/sdk`](https://www.npmjs.com/package/@unbrowse/sdk).
+> This is the client for the **local node** (`http://127.0.0.1:7788`). Legacy hosted API users should migrate to the local node.
 
-**Install the app** (no Node or npm needed): [Mac](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-macos-arm64.dmg) · [Windows](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/Unbrowse-13.21.0-installers.3-windows-x64-setup.exe) ·
-[Linux](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_amd64.deb) · [Linux ARM](https://github.com/unbrowse-ai/unbrowse/releases/download/v13.21.0-installers.3/unbrowse_13.21.0-installers.3_arm64.deb). Every file with its SHA-256 is on [the release](https://github.com/unbrowse-ai/unbrowse/releases/tag/v13.21.0-installers.3); the guide is at
+**Install the app** (no Node or npm needed): [Mac](https://github.com/unbrowse-ai/unbrowse/releases/latest/download/Unbrowse-macos-arm64.dmg) · [Windows](https://github.com/unbrowse-ai/unbrowse/releases/latest/download/Unbrowse-windows-x64-setup.exe) ·
+[Linux](https://github.com/unbrowse-ai/unbrowse/releases/latest/download/unbrowse_amd64.deb) · [Linux ARM](https://github.com/unbrowse-ai/unbrowse/releases/latest/download/unbrowse_arm64.deb). Every file with its SHA-256 is on [the release](https://github.com/unbrowse-ai/unbrowse/releases/latest); the guide is at
 [unbrowse.ai/#install](https://unbrowse.ai/#install). The window starts the node (MCP at `http://127.0.0.1:7788/mcp`) and connects your
 agents and a remote MCP address.
 
@@ -70,7 +69,7 @@ unbrowse browser fetch off # never fetch it by itself: a goal that needs it thro
 
 ## Connect
 
-The node's owner makes a key for each agent in the Unbrowse app (Wallet, New agent key). Its setup carries the
+The node's owner makes a key for each agent with `unbrowse agent new <name>`, or in the Unbrowse app (Agents, Add agent, shown once Settings has Show advanced screens on). Its setup carries the
 node's address and the agent's token:
 
 ```bash
@@ -372,7 +371,7 @@ from before fees were USDC (it is USDC).
 |---|---|
 | Node | `identity()`, `nodeInfo()`, `settings()`, `saveSettings(s)`, `setMaxFetch(usdc)`: the most the node pays to fetch one route (0: only free routes and its own), `activity(limit?)`, `updateStatus()` |
 | Browser | `browsers()`: the one in use and the Chromium browsers on this Mac; `chooseBrowser(path \| null)`; `downloadBrowser()`: Chrome for Testing, ending with a `browser` event |
-| Routes and sites | `routes()`, `deleteRoute(id)`, `callRoute(id, inputs)`, `sites()`, `sessions()`, `forgetSession(host)`, `importSession(host)`: the site's cookies from the node's browser |
+| Routes and sites | `routes()`, `deleteRoute(id)`, `callRoute(id, inputs)`, `sites()`, `sessions()`, `forgetSession(host)`, `importSession(host)`: the site's cookies from the owner's browsers on this machine (Chromium browsers first, then Firefox and Safari) |
 | Agents | `agents()`, `createAgent({ name, capUsdc, days })`, `revokeAgent(index)`, `agentsSpend()` |
 | Vault | `vaultList()`, `vaultAdd({ site, account, kind, password? })`, `vaultRemove(site, account)`, `vaultReveal(site, account)`, `vaultRotate(site, account)`, `vaultImport(csv)`: a browser's or password manager's CSV export |
 | Passkeys | `passkeys()`, `passkeyNever(site, never?)`, `passkeyRemove(id)`, `passkeyEnrol(site, { cdp?, minutes? })`, `passkeyUse(site, cdp)` |
@@ -404,7 +403,7 @@ import { Unbrowse, AuthenticationError, NodeConnectionError } from "unbrowse";
 try {
   await new Unbrowse().do("search Hacker News stories", { url: "https://hn.algolia.com/?q=rust" });
 } catch (e) {
-  if (e instanceof AuthenticationError) console.error("make an agent key: Unbrowse app, Wallet, New agent key");
+  if (e instanceof AuthenticationError) console.error("make an agent key: unbrowse agent new <name>");
   else if (e instanceof NodeConnectionError) console.error("start the node: open the Unbrowse app");
   else throw e;
 }

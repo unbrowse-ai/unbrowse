@@ -294,6 +294,59 @@ pub fn names() -> Vec<&'static str> {
     std::iter::once(DEVNET).chain(arc::NETWORKS.iter().map(|n| n.name)).collect()
 }
 
+/// The live network to offer a node whose owner never picked a chain (`chain_chosen`): this build's default, when the
+/// node is on another live network, the one an older build started it on (UNB-99: every node a testnet release set up,
+/// once the release moves to Arc mainnet). None when the owner picked, the two are one network, either is the devnet,
+/// or `saved` names no network this build knows.
+pub(crate) fn build_moved(saved: &str, chosen: bool, build: &str) -> Option<&'static str> {
+    let live = |n: &str| arc::NETWORKS.iter().map(|net| net.name).find(|name| *name == n);
+    if chosen || saved == build {
+        return None;
+    }
+    live(saved)?;
+    live(build)
+}
+
+/// The owner's pick of a chain, as `unbrowse-node chain <name>` and a yes to a move make it: kept with `chain_chosen`,
+/// so no release offers to move it.
+pub fn pick(name: &str) -> Result<(), String> {
+    let _held = store::settings_held();
+    let mut s = store::load_settings();
+    s.chain = name.into();
+    s.chain_chosen = true;
+    store::save_settings(&s)
+}
+
+/// Offers the owner `build`'s network when [`build_moved`] says to: moving is moving where the node pays, with that
+/// chain's money (`store::SPENDING`), so it moves only on the owner's yes in the dialog. The line to log, and whether it
+/// moved: the node then restarts to run there. A no, or no dialog, moves nothing and names the command that does.
+pub async fn offer_chain(build: &str, keys: Option<&(dyn unbrowse_core::KeyStore + Send + Sync)>) -> Option<(String, bool)> {
+    let s = store::load_settings();
+    let to = build_moved(&s.chain, s.chain_chosen, build)?;
+    let from = s.chain;
+    let question = format!(
+        "Unbrowse's network is on {to} now, and this node is still on {from}. Move it to {to}? There it pays network fees and paid calls in real USDC, once its wallet holds some. The node restarts to move. No keeps it on {from}."
+    );
+    if crate::owner_dialog::ask(keys, question).await.is_err() {
+        return Some((format!("chain: this node is on {from}, and Unbrowse's network is on {to}: `unbrowse-node chain {to}` moves it"), false));
+    }
+    match pick(to) {
+        Ok(()) => Some((format!("chain: moved to {to} on the owner's yes; `unbrowse-node chain {from}` goes back"), true)),
+        Err(e) => Some((format!("chain: the owner said yes to {to}, and the setting couldn't be written ({e}): `unbrowse-node chain {to}` moves it"), false)),
+    }
+}
+
+/// [`offer_chain`] as the node starts: never while `UNBROWSE_CHAIN` (`env`) names the chain, since the setting isn't
+/// what runs then. Logs what it did; true when the node moved and must restart to run there.
+pub async fn offer_on_start(build: &str, env: Option<String>, keys: Option<&(dyn unbrowse_core::KeyStore + Send + Sync)>) -> bool {
+    if env.is_some_and(|c| !c.trim().is_empty()) {
+        return false;
+    }
+    let Some((said, moved)) = offer_chain(build, keys).await else { return false };
+    eprintln!("{said}");
+    moved
+}
+
 /// The chain this node runs on: `UNBROWSE_CHAIN` when set, else the `chain` setting; on a live network, the RPC
 /// `UNBROWSE_RPC` names, else Unbrowse's gateway while the node holds a pass it hasn't refused (`gateway::url_for`),
 /// else the network's public RPC from the table. Read once, when the chain starts.

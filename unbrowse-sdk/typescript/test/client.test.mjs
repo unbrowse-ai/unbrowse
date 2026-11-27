@@ -53,7 +53,7 @@ function answer(req, body) {
   }
   switch (route) {
     case "GET /v1/whoami":
-      return [200, { agent: "claude", address: "0xabc", node: "lewis-mac", browser: "missing", browser_fetch: false, owner: "off" }];
+      return [200, { agent: "claude", address: "0xabc", node: "lewis-mac", browser: "missing", browser_fetch: false, call_browser: true, owner: "off" }];
     case "GET /v1/routes":
       if (url.searchParams.get("q") === "nothing here") return [200, { routes: [] }];
       if (url.searchParams.get("q") === "flights") {
@@ -316,6 +316,14 @@ test("call sends inputs as strings, and nothing about payment", async () => {
   assert.deepEqual(r, { ok: true, ms: 212, data: { hits: [{ title: "tauri" }] }, truncated: null, error: null, paidUsdc: null, paidUnb: null, possibleCommit: false, retry: "as_is", remote: false, fields: null });
 });
 
+test("call refuses to send browser never to a node that does not support it", async () => {
+  const r = await node().call("hn-search", { q: "tauri" }, { browser: "never" });
+  assert.equal(r.ok, true);
+  assert.deepEqual(last().body, { inputs: { q: "tauri" }, browser: "never" });
+  await assert.rejects(new UnbrowseNode({ token: OLD_TOKEN, baseUrl: base }).call("hn-search", {}, { browser: "never" }), (e) => e.code === "unsupported");
+  assert.equal(last().url, "/v1/whoami");
+});
+
 test("a call whose answer was cut down says where, how much, and where the whole of it is", async () => {
   const r = await node().call("list-rows");
   assert.deepEqual(r.truncated, {
@@ -574,6 +582,7 @@ test("every primitive the node has is reachable from the SDK", async () => {
     cards: () => node.cards(),
     call: () => node.call("hn-search", { q: "x" }),
     whoami: () => node.whoami(),
+    setup: () => node.setup({ do: "connect_site", host: "github.com" }),
     report: () => node.report({ kind: "wrong_data", summary: "x", expected: "x", got: "y" }),
     judge: () => node.judge({ routeId: "hn-search", verdict: "right" }),
   };

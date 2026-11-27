@@ -289,4 +289,334 @@ mod tests {
         assert!(!due(Some(t0), t0 + Duration::from_millis(EVERY_MS - 1)));
         assert!(due(Some(t0), t0 + Duration::from_millis(EVERY_MS)));
     }
+
+    // ---- a browser on a local socket, driven by the test ----
+
+    use futures_util::{SinkExt, StreamExt};
+    use serde_json::{json, Value};
+    use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+    use tokio_tungstenite::tungstenite::Message;
+
+    struct FakeBrowser {
+        client: CdpClient,
+        /// Every command the browser was sent, as (method, params, sessionId).
+        seen: UnboundedReceiver<(String, Value, Option<String>)>,
+        push: UnboundedSender<String>,
+    }
+
+    /// A browser answering each command with `reply(method)`: a result, or an error message.
+    async fn fake_browser(reply: fn(&str) -> Result<Value, String>) -> FakeBrowser {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let (seen_tx, seen) = unbounded_channel();
+        let (push, mut push_rx) = unbounded_channel::<String>();
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            loop {
+                tokio::select! {
+                    msg = ws.next() => {
+                        let Some(Ok(Message::Text(text))) = msg else { break };
+                        let cmd: Value = serde_json::from_str(&text).unwrap();
+                        let method = cmd["method"].as_str().unwrap().to_string();
+                        let _ = seen_tx.send((method.clone(), cmd["params"].clone(), cmd["sessionId"].as_str().map(String::from)));
+                        let answer = match reply(&method) {
+                            Err(message) if message == "silent" => continue,
+                            Ok(result) => json!({"id": cmd["id"], "result": result}),
+                            Err(message) => json!({"id": cmd["id"], "error": {"code": -32000, "message": message}}),
+                        };
+                        if ws.send(Message::Text(answer.to_string())).await.is_err() { break }
+                    }
+                    Some(text) = push_rx.recv() => {
+                        if ws.send(Message::Text(text)).await.is_err() { break }
+                    }
+                }
+            }
+        });
+        FakeBrowser { client: CdpClient::connect(&url).await.unwrap(), seen, push }
+    }
+
+    fn accept_all(_: &str) -> Result<Value, String> {
+        Ok(json!({}))
+    }
+
+    fn png(w: u32, h: u32) -> Vec<u8> {
+        let mut png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR".to_vec();
+        png.extend_from_slice(&w.to_be_bytes());
+        png.extend_from_slice(&h.to_be_bytes());
+        png
+    }
+
+    fn b64(b: &[u8]) -> String {
+        base64::engine::general_purpose::STANDARD.encode(b)
+    }
+
+    fn frame_msg(data: &[u8], ack: u64, timestamp: f64) -> Value {
+        json!({"method": "Page.screencastFrame",
+               "params": {"data": b64(data), "sessionId": ack, "metadata": {"timestamp": timestamp, "deviceWidth": 10, "deviceHeight": 20}}})
+    }
+
+    fn cast_to(sink: FrameSink) -> Screencast {
+        Screencast { sink, last: None, held: None, acked: 0.0, early: None }
+    }
+
+    async fn next_seen(b: &mut FakeBrowser) -> (String, Value, Option<String>) {
+        tokio::time::timeout(Duration::from_secs(10), b.seen.recv()).await.expect("the browser was sent a command").expect("line open")
+    }
+
+    #[tokio::test]
+    async fn a_screencast_starts_small_on_the_walks_session() {
+        let mut b = fake_browser(accept_all).await;
+        let (sink, _got) = std::sync::mpsc::channel();
+        let cast = Screencast::start(&b.client, "S1", sink).await;
+        assert!(cast.is_some_and(|c| c.early.is_some() && c.held.is_none()));
+        let (method, p, session) = next_seen(&mut b).await;
+        assert_eq!(method, "Page.startScreencast");
+        assert_eq!(session.as_deref(), Some("S1"));
+        assert_eq!((p["maxWidth"].as_u64(), p["maxHeight"].as_u64(), p["everyNthFrame"].as_u64()), (Some(640), Some(640), Some(1)));
+        assert_eq!(p["format"], FORMAT);
+    }
+
+    #[tokio::test]
+    async fn a_browser_that_refuses_the_screencast_gives_none() {
+        let b = fake_browser(|_| Err("no screencast".into())).await;
+        let (sink, _got) = std::sync::mpsc::channel();
+        assert!(Screencast::start(&b.client, "S1", sink).await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_message_that_is_not_a_frame_is_left_alone() {
+        let mut b = fake_browser(accept_all).await;
+        let (sink, got) = std::sync::mpsc::channel();
+        let mut cast = cast_to(sink);
+        assert!(!cast.take(&b.client, "S1", &json!({"method": "Page.loadEventFired"})).await);
+        assert!(!cast.take(&b.client, "S1", &json!({"id": 3, "result": {}})).await);
+        assert!(got.try_recv().is_err());
+        assert!(tokio::time::timeout(Duration::from_millis(100), b.seen.recv()).await.is_err(), "nothing acknowledged");
+    }
+
+    #[tokio::test]
+    async fn a_frame_is_acknowledged_so_the_next_comes_and_is_passed_on() {
+        let mut b = fake_browser(accept_all).await;
+        let (sink, got) = std::sync::mpsc::channel();
+        let mut cast = cast_to(sink);
+        assert!(cast.take(&b.client, "S1", &frame_msg(&png(30, 40), 9, 5.0)).await);
+        let (method, p, session) = next_seen(&mut b).await;
+        assert_eq!((method.as_str(), p["sessionId"].as_u64(), session.as_deref()), ("Page.screencastFrameAck", Some(9), Some("S1")));
+        let f = got.try_recv().expect("the first frame is due at once");
+        assert_eq!((f.width, f.height, f.settled), (30, 40, false));
+        assert_eq!(cast.acked, 5.0);
+    }
+
+    #[tokio::test]
+    async fn a_frame_seen_twice_is_taken_once() {
+        let mut b = fake_browser(accept_all).await;
+        let (sink, got) = std::sync::mpsc::channel();
+        let mut cast = cast_to(sink);
+        assert!(cast.take(&b.client, "S1", &frame_msg(&png(1, 1), 1, 7.0)).await);
+        next_seen(&mut b).await;
+        got.try_recv().unwrap();
+        cast.last = None;
+        assert!(cast.take(&b.client, "S1", &frame_msg(&png(2, 2), 2, 7.0)).await, "still a frame");
+        assert!(got.try_recv().is_err(), "the repeat was not passed on");
+        assert!(tokio::time::timeout(Duration::from_millis(100), b.seen.recv()).await.is_err(), "nor acknowledged");
+        assert!(cast.held.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_frame_that_cannot_be_decoded_is_dropped_but_still_acknowledged() {
+        let mut b = fake_browser(accept_all).await;
+        let (sink, got) = std::sync::mpsc::channel();
+        let mut cast = cast_to(sink);
+        let bad = json!({"method": "Page.screencastFrame", "params": {"data": "***", "sessionId": 4}});
+        assert!(cast.take(&b.client, "S1", &bad).await);
+        assert_eq!(next_seen(&mut b).await.0, "Page.screencastFrameAck");
+        assert!(got.try_recv().is_err());
+    }
+
+    #[test]
+    fn a_frame_whose_picture_has_no_size_takes_the_size_chrome_reported() {
+        let msg = frame_msg(b"opaque bytes", 1, 1.0);
+        let f = frame_of(&msg).unwrap();
+        assert_eq!((f.width, f.height), (10, 20));
+        assert!(frame_of(&json!({"params": {}})).is_none());
+        assert!(frame_of(&json!({"params": {"data": 5}})).is_none());
+        assert!(frame_of(&json!({"params": {"data": "***"}})).is_none());
+    }
+
+    #[test]
+    fn a_picture_header_that_is_cut_short_or_wrong_names_no_size() {
+        assert_eq!(png_size(b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dXXXX\x00\x00\x00\x01\x00\x00\x00\x01"), None, "no IHDR");
+        assert_eq!(png_size(&png(3, 4)[..20]), None, "cut inside the width");
+        assert_eq!(png_size(&png(3, 4)[..22]), None, "cut inside the height");
+        assert_eq!(png_size(&png(3, 4)), Some((3, 4)));
+        assert_eq!(jpeg_size(&[0xFF, 0xD8]), None, "no frame marker");
+        // A DHT (C4) segment is skipped over, not read as a frame.
+        let mut j = vec![0xFF, 0xD8, 0xFF, 0xC4, 0x00, 0x04, 0x00, 0x00];
+        j.extend_from_slice(&tiny_jpeg(50, 60)[2..]);
+        assert_eq!(jpeg_size(&j), Some((50, 60)));
+        // Bytes between markers are stepped over one at a time.
+        let mut k = vec![0xFF, 0xD8, 0x00, 0x00];
+        k.extend_from_slice(&tiny_jpeg(7, 8)[2..]);
+        assert_eq!(jpeg_size(&k), Some((7, 8)));
+        // A segment is skipped by its own length: bytes inside it, a stray FF among them, are not markers.
+        let mut m = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x06, 0x00, 0x00, 0x00, 0xFF];
+        m.extend_from_slice(&tiny_jpeg(70, 80)[8..]);
+        assert_eq!(jpeg_size(&m), Some((70, 80)));
+        assert!(!due(Some(Instant::now()), Instant::now()));
+    }
+
+    fn settle_replies(method: &str) -> Result<Value, String> {
+        match method {
+            "Page.getLayoutMetrics" => Ok(json!({"cssVisualViewport": {"clientWidth": 1280.0, "clientHeight": 800.0, "pageX": 3.0, "pageY": 9.0}})),
+            "Page.captureScreenshot" => Ok(json!({"data": b64(&png(640, 400))})),
+            _ => Ok(json!({})),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_settled_walk_ends_the_cast_and_sends_one_last_picture_at_the_frames_size() {
+        let mut b = fake_browser(settle_replies).await;
+        let (sink, got) = std::sync::mpsc::channel();
+        cast_to(sink).settle(&b.client, "S1").await;
+        assert_eq!(next_seen(&mut b).await.0, "Page.stopScreencast");
+        assert_eq!(next_seen(&mut b).await.0, "Page.getLayoutMetrics");
+        let (method, p, session) = next_seen(&mut b).await;
+        assert_eq!((method.as_str(), session.as_deref()), ("Page.captureScreenshot", Some("S1")));
+        assert_eq!(p["optimizeForSpeed"], true);
+        assert_eq!(p["clip"], json!({"x": 3.0, "y": 9.0, "width": 1280.0, "height": 800.0, "scale": 0.5}));
+        let f = got.try_recv().expect("the settled picture");
+        assert!(f.settled);
+        assert_eq!((f.width, f.height), (640, 400));
+    }
+
+    #[tokio::test]
+    async fn a_page_narrower_than_the_cast_is_not_scaled_up() {
+        let mut b = fake_browser(|m| match m {
+            "Page.getLayoutMetrics" => Ok(json!({"cssVisualViewport": {"clientWidth": 320.0, "clientHeight": 200.0}})),
+            _ => Ok(json!({"data": b64(&png(320, 200))})),
+        })
+        .await;
+        let (sink, _got) = std::sync::mpsc::channel();
+        cast_to(sink).settle(&b.client, "S1").await;
+        next_seen(&mut b).await;
+        next_seen(&mut b).await;
+        let (_, p, _) = next_seen(&mut b).await;
+        assert_eq!(p["clip"]["scale"], 1.0);
+    }
+
+    #[tokio::test]
+    async fn a_settle_with_no_viewport_takes_the_whole_page_unclipped() {
+        let mut b = fake_browser(|m| match m {
+            "Page.getLayoutMetrics" => Err("no metrics".into()),
+            "Page.captureScreenshot" => Ok(json!({"data": b64(b"opaque")})),
+            _ => Ok(json!({})),
+        })
+        .await;
+        let (sink, got) = std::sync::mpsc::channel();
+        cast_to(sink).settle(&b.client, "S1").await;
+        next_seen(&mut b).await;
+        next_seen(&mut b).await;
+        let (_, p, _) = next_seen(&mut b).await;
+        assert!(p.get("clip").is_none());
+        let f = got.try_recv().unwrap();
+        assert_eq!((f.jpeg.as_slice(), f.width, f.height, f.settled), (&b"opaque"[..], 0, 0, true));
+    }
+
+    #[tokio::test]
+    async fn a_zero_sized_viewport_is_not_clipped_to() {
+        let mut b = fake_browser(|m| match m {
+            "Page.getLayoutMetrics" => Ok(json!({"cssVisualViewport": {"clientWidth": 0.0, "clientHeight": 800.0}})),
+            _ => Ok(json!({"data": b64(&png(1, 1))})),
+        })
+        .await;
+        let (sink, _got) = std::sync::mpsc::channel();
+        cast_to(sink).settle(&b.client, "S1").await;
+        next_seen(&mut b).await;
+        next_seen(&mut b).await;
+        assert!(next_seen(&mut b).await.1.get("clip").is_none());
+    }
+
+    #[tokio::test]
+    async fn a_walk_whose_screenshot_fails_or_is_not_an_image_sends_no_settled_picture() {
+        for reply in [
+            (|m: &str| if m == "Page.captureScreenshot" { Err("no".to_string()) } else { Ok(json!({})) }) as fn(&str) -> Result<Value, String>,
+            |m: &str| if m == "Page.captureScreenshot" { Ok(json!({"data": "***"})) } else { Ok(json!({})) },
+            |m: &str| if m == "Page.captureScreenshot" { Ok(json!({})) } else { Ok(json!({})) },
+        ] {
+            let b = fake_browser(reply).await;
+            let (sink, got) = std::sync::mpsc::channel();
+            cast_to(sink).settle(&b.client, "S1").await;
+            assert!(got.try_recv().is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn pumping_takes_the_frames_painted_while_the_walk_waits_and_stops_at_the_deadline() {
+        let mut b = fake_browser(accept_all).await;
+        let (sink, got) = std::sync::mpsc::channel();
+        let mut cast = Screencast::start(&b.client, "S1", sink).await.unwrap();
+        next_seen(&mut b).await;
+        b.push.send(json!({"method": "Page.loadEventFired", "params": {}}).to_string()).unwrap();
+        b.push.send("not json but \"Page.screencastFrame\"".to_string()).unwrap();
+        b.push.send(frame_msg(&png(11, 12), 3, 2.0).to_string()).unwrap();
+        let started = Instant::now();
+        cast.pump(&b.client, "S1", Duration::from_millis(700)).await;
+        assert!(started.elapsed() >= Duration::from_millis(700), "waited out the time");
+        assert_eq!(next_seen(&mut b).await.0, "Page.screencastFrameAck");
+        let f = got.try_recv().expect("the painted frame was passed on");
+        assert_eq!((f.width, f.height), (11, 12));
+    }
+
+    #[tokio::test]
+    async fn pumping_once_the_walk_reads_for_itself_just_waits() {
+        let b = fake_browser(accept_all).await;
+        let (sink, got) = std::sync::mpsc::channel();
+        let mut cast = Screencast::start(&b.client, "S1", sink).await.unwrap();
+        cast.stop_pumping();
+        assert!(cast.early.is_none());
+        b.push.send(frame_msg(&png(1, 1), 1, 1.0).to_string()).unwrap();
+        let started = Instant::now();
+        cast.pump(&b.client, "S1", Duration::from_millis(300)).await;
+        assert!(started.elapsed() >= Duration::from_millis(300));
+        assert!(got.try_recv().is_err(), "no frame is read while the walk reads for itself");
+    }
+
+    #[tokio::test]
+    async fn pumping_a_closed_line_still_waits_out_the_time() {
+        let b = fake_browser(accept_all).await;
+        let (sink, _got) = std::sync::mpsc::channel();
+        let mut cast = Screencast::start(&b.client, "S1", sink).await.unwrap();
+        b.client.close().await;
+        let started = Instant::now();
+        cast.pump(&b.client, "S1", Duration::from_millis(300)).await;
+        assert!(started.elapsed() >= Duration::from_millis(300));
+    }
+
+    #[tokio::test]
+    async fn a_frame_is_still_passed_on_when_the_browser_never_answers_its_acknowledgement() {
+        let b = fake_browser(|m| if m == "Page.screencastFrameAck" { Err("silent".into()) } else { Ok(json!({})) }).await;
+        let (sink, got) = std::sync::mpsc::channel();
+        let mut cast = cast_to(sink);
+        let started = Instant::now();
+        assert!(cast.take(&b.client, "S1", &frame_msg(&png(5, 6), 1, 1.0)).await);
+        assert!(started.elapsed() >= Duration::from_secs(2), "the ack was waited for, but only so long");
+        assert_eq!(got.try_recv().map(|f| (f.width, f.height)).ok(), Some((5, 6)));
+    }
+
+    #[tokio::test]
+    async fn pumping_after_a_flood_the_buffer_dropped_carries_on_and_takes_the_next_frame() {
+        let mut b = fake_browser(accept_all).await;
+        let (sink, got) = std::sync::mpsc::channel();
+        let mut cast = Screencast::start(&b.client, "S1", sink).await.unwrap();
+        next_seen(&mut b).await;
+        for i in 0..5000 {
+            b.push.send(json!({"method": "Noise.event", "params": {"i": i}}).to_string()).unwrap();
+        }
+        b.push.send(frame_msg(&png(8, 9), 2, 3.0).to_string()).unwrap();
+        // Let all of it arrive before anyone reads: the buffer overflows, the reader is told it fell behind.
+        tokio::time::sleep(Duration::from_millis(800)).await;
+        cast.pump(&b.client, "S1", Duration::from_millis(1500)).await;
+        assert_eq!(got.try_recv().map(|f| (f.width, f.height)).ok(), Some((8, 9)));
+    }
 }

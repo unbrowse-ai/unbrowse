@@ -1,3 +1,5 @@
+# <version> coverage <reason>: that release is gated on the task bank alone (promotion-gate.sh). One line per release.
+13.1.0 coverage Lewis, 2026-11-22: ship 13.1.0 with Rust coverage under 90% (unbrowse-node 83.47%, browser-core 84.84%, browser-cli 73.64%); the task bank still gates it
 # <version> coverage|bank <reason>: that release is not gated on that rule (promotion-gate.sh). One line per release and rule.
 13.1.0 coverage Lewis, 2026-11-22: ship 13.1.0 with Rust coverage under 90% (unbrowse-node 83.47%, browser-core 84.84%, browser-cli 73.64%); the task bank still gates it
 13.1.0 bank Lewis, 2026-11-23: ship 13.1.0 with the task bank at 67 right of 74, 2 confidently wrong and 8 tasks bot-walled from the Deck runner (run 45144426940); the 8 are Cloudflare Turnstile, Bizfile 403, Alibaba slider, Carousell and drugs.com walls, and real Google Chrome 158 on the Deck met the same Turnstile wall on npmjs.com

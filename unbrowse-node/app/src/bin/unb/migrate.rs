@@ -26,7 +26,7 @@ pub struct Opts {
     pub purge: bool,
 }
 
-pub const USAGE: &str = "usage: unbrowse connect [agent index] [--dry-run] [--yes]   |   unbrowse connect --undo [<time>] [--purge]";
+pub const USAGE: &str = "usage: unbrowse connect [--client <id>[,<id>…] | --client all] [agent index] [--dry-run] [--yes]   |   unbrowse connect --undo [<time>] [--purge]\n       with no --client, every agent app found on this machine is connected";
 
 pub fn parse(args: &[String]) -> Result<Opts, String> {
     let mut o = Opts::default();
@@ -1125,3 +1125,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
+
+#[cfg(test)]
+#[path = "migrate_cov_tests.rs"]
+mod migrate_cov_tests;

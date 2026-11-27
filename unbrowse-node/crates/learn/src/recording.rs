@@ -9,6 +9,7 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Arc;
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -118,12 +119,12 @@ pub struct StorageSnapshot {
 /// One walk: what it asked and was answered, the code that ran, what the page stored, and what its sockets said.
 #[derive(Clone, Debug)]
 pub struct Recording {
-    pub trace: Trace,
+    pub trace: Arc<Trace>,
     pub scripts: Vec<Script>,
     pub storage: Vec<StorageSnapshot>,
     pub sockets: Vec<SocketEvent>,
     /// Each script's body, by hash, kept only when its bytes have the hash they were listed under.
-    bodies: BTreeMap<String, Vec<u8>>,
+    bodies: Arc<BTreeMap<String, Vec<u8>>>,
     /// Every request the log holds, in the order sent, with what sent it.
     sent: Vec<Sent>,
 }
@@ -187,8 +188,8 @@ impl Recording {
             let text = std::fs::read_to_string(&path).ok()?;
             return Self::from_log(&text).ok();
         }
-        let har = agent_browser_core::session::walk_har(capture_dir, session);
-        let trace = Trace::from_har(&har.to_string(), vec![]).ok()?;
+        let har = agent_browser_core::session::walk_har_from_lines(&lines);
+        let trace = Trace::from_har_value(har).ok()?;
         let sockets = lines.iter().filter(|l| l["type"] == "socket").filter_map(socket_event).collect();
         Some(Self::with(trace, sockets, &lines))
     }
@@ -200,7 +201,7 @@ impl Recording {
         Ok(Self::with(session.trace, session.sockets, &lines))
     }
 
-    fn with(trace: Trace, mut sockets: Vec<SocketEvent>, lines: &[Value]) -> Self {
+    fn with(mut trace: Trace, mut sockets: Vec<SocketEvent>, lines: &[Value]) -> Self {
         let mut scripts = Vec::new();
         let mut storage = Vec::new();
         let mut bodies = BTreeMap::new();
@@ -260,8 +261,23 @@ impl Recording {
                 _ => {}
             }
         }
+        for exchange in &mut trace.exchanges {
+            if exchange.resource_type.as_deref() != Some("Script") {
+                continue;
+            }
+            let Some(prefix) = exchange.response_body.as_deref().filter(|s| !s.is_empty()) else { continue };
+            let mut sources = scripts.iter()
+                .filter(|s| s.language == Language::Js && s.url == exchange.url.as_str())
+                .filter_map(|s| std::str::from_utf8(bodies.get(s.sha256.as_ref()?)?).ok())
+                .filter(|s| s.starts_with(prefix));
+            if let Some(full) = sources.next() {
+                if full.len() > prefix.len() && sources.all(|other| other == full) {
+                    exchange.response_body = Some(full.to_owned());
+                }
+            }
+        }
         sockets.sort_by(|a, b| a.t.total_cmp(&b.t));
-        Self { trace, scripts, storage, sockets, bodies, sent }
+        Self { trace: Arc::new(trace), scripts, storage, sockets, bodies: Arc::new(bodies), sent }
     }
 
     /// The body of the script listed under `sha`, when the walk kept it.
@@ -305,7 +321,7 @@ impl Recording {
 
     /// Keeps every script body the walk held in `blobs`, once each. Returns how many bodies were put.
     pub fn keep_scripts(&self, blobs: &Blobs) -> Result<usize, BlobError> {
-        for (sha, body) in &self.bodies {
+        for (sha, body) in self.bodies.iter() {
             blobs.put_as(sha, body)?;
         }
         Ok(self.bodies.len())
@@ -367,6 +383,27 @@ mod tests {
             json!({"type": "origin_storage", "t": 2.0, "at": "settle", "origin": "https://shop.example", "local": {"early": "at-load"}, "session": {"tab": "one"}}),
             json!({"type": "origin_storage", "t": 5.0, "at": "end", "origin": "https://shop.example", "local": {"early": "at-load", "late": "after-settle"}, "session": {"tab": "one"}}),
         ]
+    }
+
+    #[test]
+    fn a_fetched_script_prefix_is_completed_by_what_the_browser_parsed() {
+        let dir = Scratch::new("script-prefix");
+        let url = "https://shop.example/app.js";
+        let prefix = "function sign(t) {";
+        let mut lines = walk_lines(true);
+        lines.extend(script_lines());
+        lines.extend([
+            json!({"type": "request", "t": 1.0, "requestId": "app", "method": "GET", "url": url, "headers": {}, "resourceType": "Script", "frameId": "MAIN"}),
+            json!({"type": "response", "t": 1.1, "requestId": "app", "url": url, "status": 200, "mimeType": "application/javascript", "headers": {}, "body": prefix}),
+        ]);
+        write(&dir.0, "w", &lines);
+        let body = |name| Recording::read(&dir.0, name).unwrap().trace.exchanges.iter().find(|e| e.url.as_str() == url).unwrap().response_body.clone().unwrap();
+        assert_eq!(body("w"), SIGNER);
+
+        let other = "function sign(t) { return t; }";
+        lines.push(json!({"type": "script", "scriptId": "13", "url": url, "language": "js", "sha256": sha256_hex(other.as_bytes()), "source": other}));
+        write(&dir.0, "other", &lines);
+        assert_eq!(body("other"), prefix);
     }
 
     fn write(dir: &Path, session: &str, lines: &[Value]) {

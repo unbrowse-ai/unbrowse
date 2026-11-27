@@ -403,6 +403,40 @@ fn as_the_browser_sends(mut headers: Vec<(String, String)>, ua: Option<String>) 
     headers
 }
 
+/// The answer a `data:` address holds (RFC 2397): its media type, and its bytes in base64 or percent-encoded after the
+/// comma, read as every reply's bytes are (`wire::reply_text`). A page's script reads one with `fetch` as it reads any
+/// call, and a route that kept the step reads it the same way, without sending anything.
+fn data_answer(req: &Request) -> Result<Exchange, ReplayError> {
+    use base64::Engine;
+    let rest = req.url.as_str().strip_prefix("data:").unwrap_or_default();
+    let (meta, data) = rest.split_once(',').ok_or_else(|| ReplayError::BadUrl("a data: address with no comma holds no answer".into()))?;
+    let (kind, base64) = match meta.strip_suffix(";base64") {
+        Some(kind) => (kind, true),
+        None => (meta, false),
+    };
+    let bytes = if base64 {
+        let text: String = percent_encoding::percent_decode_str(data).decode_utf8_lossy().chars().filter(|c| !c.is_whitespace()).collect();
+        let engines = [base64::engine::general_purpose::STANDARD, base64::engine::general_purpose::STANDARD_NO_PAD, base64::engine::general_purpose::URL_SAFE, base64::engine::general_purpose::URL_SAFE_NO_PAD];
+        engines.iter().find_map(|e| e.decode(&text).ok()).ok_or_else(|| ReplayError::BadUrl("a data: address whose base64 doesn't decode".into()))?
+    } else {
+        percent_encoding::percent_decode_str(data).collect()
+    };
+    let mime = kind.split(';').next().unwrap_or_default().trim();
+    let mime = if mime.is_empty() { "text/plain" } else { mime }.to_string();
+    Ok(Exchange {
+        method: req.method.clone(),
+        url: req.url.clone(),
+        request_headers: req.headers.clone(),
+        request_body: None,
+        status: 200,
+        response_headers: vec![("content-type".into(), mime.clone())],
+        response_body: unbrowse_route::wire::reply_text(&mime, &bytes),
+        response_mime: mime,
+        resource_type: None,
+        main_frame: None,
+    })
+}
+
 impl Fetch for ChromeFetch {
     fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
         self.send(req, true, None)
@@ -483,6 +517,10 @@ impl ChromeFetch {
     /// `within`, when the call is held to a route's own origins: every hop is checked against it before it is sent, and
     /// a redirect whose answer swaps the owner's session is not followed.
     fn send(&mut self, req: &Request, follow: bool, within: Option<&crate::replay::Within>) -> Result<Exchange, ReplayError> {
+        // A `data:` address holds its own answer, as a page's fetch of one reads it: nothing goes out.
+        if req.url.scheme() == "data" {
+            return data_answer(req);
+        }
         let began = req.url.host_str().unwrap_or_default().to_string();
         let mut at = req.clone();
         // The cookies the site set on the hops so far: a browser keeps them before it follows the redirect.
@@ -593,7 +631,9 @@ impl ChromeFetch {
             }
         }
         if let Some(body) = &req.body {
-            builder = builder.body(body.clone());
+            // A body the walk kept as what it compresses goes out in the encoding the request says it is in.
+            let encoding = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("content-encoding")).map(|(_, v)| v.as_str());
+            builder = builder.body(unbrowse_route::wire::as_sent(encoding, body));
         }
         // Someone else's route waits a bounded time for its answer, connection to last byte (`egress::FOREIGN_TIMEOUT`),
         // and a request held to a deadline waits no later than it.
@@ -1399,6 +1439,68 @@ mod tests {
         }
     }
 
+    /// Over the wire: a step whose walk sent its body compressed (`content-encoding: gzip`) holds that body as what it
+    /// compresses, and the route fills it as text. The transport sends it compressed, its length the compressed one; a
+    /// body with no encoding said goes as it is.
+    #[test]
+    fn a_body_goes_out_in_the_encoding_its_request_says() {
+        use std::io::{BufRead, BufReader, Read, Write};
+        let site = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let at = site.local_addr().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel::<(String, Vec<u8>)>();
+        std::thread::spawn(move || {
+            for s in site.incoming() {
+                let Ok(s) = s else { continue };
+                let tx = tx.clone();
+                std::thread::spawn(move || {
+                    let mut w = s.try_clone().unwrap();
+                    let mut r = BufReader::new(s);
+                    let (mut head, mut line, mut length) = (String::new(), String::new(), 0usize);
+                    while r.read_line(&mut line).unwrap_or(0) > 0 && line != "\r\n" {
+                        let lower = line.to_ascii_lowercase();
+                        if let Some(n) = lower.strip_prefix("content-length:") {
+                            length = n.trim().parse().unwrap_or(0);
+                        }
+                        head.push_str(&lower);
+                        line.clear();
+                    }
+                    let mut body = vec![0; length];
+                    let _ = r.read_exact(&mut body);
+                    let _ = tx.send((head, body));
+                    let _ = write!(w, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{{}}");
+                });
+            }
+        });
+        let json = r#"{"context":{"client":{"hl":"en"}},"query":"desk lamp"}"#;
+        let mut said = req("POST", &format!("http://{at}/api/v1/search"), Some(json));
+        said.headers.push(("content-type".into(), "application/json".into()));
+        said.headers.push(("content-encoding".into(), "gzip".into()));
+        let mut chrome = ChromeFetch::new().unwrap();
+        assert_eq!(Fetch::fetch(&mut chrome, &said).unwrap().status, 200);
+        let (head, body) = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        assert!(head.contains("content-encoding: gzip"), "{head}");
+        assert_eq!(unbrowse_route::wire::uncompressed("gzip", &body).as_deref(), Some(json.as_bytes()), "the body went out compressed, whole");
+        let plain = req("POST", &format!("http://{at}/api/v1/search"), Some(json));
+        assert_eq!(Fetch::fetch(&mut ChromeFetch::new().unwrap(), &plain).unwrap().status, 200);
+        assert_eq!(rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap().1, json.as_bytes(), "with no encoding said, as it is");
+    }
+
+    /// The walk that exposed it (a video site's search): the page's script fetched a `data:` address, the JSON in it the
+    /// values its search sends, and the route kept that step. A `data:` address holds its answer: it is read from the
+    /// address, in base64 or percent-encoded, and nothing is sent anywhere.
+    #[test]
+    fn a_data_address_answers_from_itself() {
+        use base64::Engine;
+        let json = r#"{"responseContext":{"visitorData":"Cgt2aXNpdG9y"}}"#;
+        let mut chrome = ChromeFetch::new().unwrap();
+        let packed = format!("data:/json;base64,{}", base64::engine::general_purpose::STANDARD.encode(json));
+        let ex = Fetch::fetch(&mut chrome, &req("GET", &packed, None)).unwrap();
+        assert_eq!((ex.status, ex.response_body.as_deref()), (200, Some(json)));
+        let ex = Fetch::fetch(&mut chrome, &req("GET", "data:application/json,%7B%22q%22%3A%22lamp%22%7D", None)).unwrap();
+        assert_eq!((ex.response_body.as_deref(), ex.response_mime.as_str()), (Some(r#"{"q":"lamp"}"#), "application/json"));
+        assert!(Fetch::fetch(&mut chrome, &req("GET", "data:text/plain;base64", None)).is_err(), "no comma, no answer");
+    }
+
     /// Calls to one site, each through a transport of its own as the node makes them, go over the connection the first
     /// one opened: one TCP connect (and one TLS handshake) for all of them, where each call opened its own and paid
     /// DNS, TCP and TLS again (a warm call took 270 ms where the same request over a warm connection takes 40).
@@ -1758,3 +1860,7 @@ mod tests {
         assert!(now_ms() > 1_700_000_000_000, "milliseconds since the epoch");
     }
 }
+
+#[cfg(test)]
+#[path = "http_cov_tests.rs"]
+mod http_cov_tests;

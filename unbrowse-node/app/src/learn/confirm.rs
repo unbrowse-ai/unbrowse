@@ -61,7 +61,7 @@ pub struct Confirmation {
     pub sent_beside: u64,
     /// What the browser's walk for the new value answered the agent's ask with (`the_browsers_answer`): the reply to
     /// the ask, whatever route stands. None where the walk made no call of either route.
-    pub answer: Option<serde_json::Value>,
+    pub answer: Option<crate::run::WholeAnswer>,
 }
 
 /// Whether `route` stands on one sighting: the site has not yet been seen to answer it for a second value (no word
@@ -94,9 +94,20 @@ pub fn served_by_the_browser(route: &Route, given: &HashMap<String, String>) -> 
 /// (`its_call`), read as the route reads its answer (`as_the_route_reads`) for the values asked (`given`). The first
 /// reply of a learn is this answer, the browser's for this value; the route's own first call confirms it behind the
 /// reply. None where the walk made no answered call of the route.
-pub fn walks_answer(route: &Route, trace: &Trace, given: &HashMap<String, String>) -> Option<serde_json::Value> {
+pub fn walks_answer(route: &Route, trace: &Trace, given: &HashMap<String, String>) -> Option<crate::run::WholeAnswer> {
     let j = its_call(route, trace)?;
-    as_the_route_reads(route, &trace.exchanges[j], &asked_of(route, given))
+    let exchange = &trace.exchanges[j];
+    let data = as_the_route_reads(route, exchange, &asked_of(route, given))?;
+    Some(answer_with_walk_links(route, exchange, data))
+}
+
+fn answer_with_walk_links(route: &Route, exchange: &Exchange, data: serde_json::Value) -> crate::run::WholeAnswer {
+    let content_type = exchange.response_header("content-type").unwrap_or(&exchange.response_mime);
+    let links = exchange.response_body.as_deref()
+        .filter(|body| unbrowse_learn::page::is_markup(content_type, body))
+        .map(|body| unbrowse_learn::page::links_beside_state(body, &exchange.url, &data))
+        .unwrap_or_default();
+    crate::run::WholeAnswer::from_walk(route, data, links)
 }
 
 /// The call of `trace` that is `route`'s target, answered: the last request the step would send, with a 2xx reply.
@@ -108,10 +119,12 @@ fn its_call(route: &Route, trace: &Trace) -> Option<usize> {
 /// that reloads it) made the call twice, and one that reads on as it scrolls made it once a page. The route's own is
 /// the one that sends what the route sends where the caller gives nothing and nothing it leaves out: the fewest query
 /// keys the route leaves empty (`leaves_out`: a page's fetch of its own next page or of its own link's data sends one
-/// more key, and answers other records), then the most of its inputs' own values (the first page, the page's size),
-/// then the latest.
+/// more key, and answers other records), then the most of its inputs' own values (the first page, the page's size).
+/// A tie goes to the route's recorded query: reading on may add a cursor inside an existing query value.
 fn its_calls(route: &Route, trace: &Trace) -> Vec<usize> {
     let Some(step) = route.graph.steps.last() else { return Vec::new() };
+    let address = url::Url::parse(&step.url.replace('{', "%7B").replace('}', "%7D")).ok();
+    let same_query = |e: &Exchange| address.as_ref().is_some_and(|u| u.query_pairs().eq(e.url.query_pairs()));
     let left_out = |e: &Exchange| e.url.query_pairs().filter(|(k, _)| leaves_out(step, k)).count();
     let own = |e: &Exchange| {
         step.fields
@@ -123,7 +136,10 @@ fn its_calls(route: &Route, trace: &Trace) -> Vec<usize> {
             .count()
     };
     let mut calls: Vec<usize> = (0..trace.exchanges.len()).filter(|&i| (200..300).contains(&trace.exchanges[i].status) && same_call(step, &trace.exchanges[i].method, &trace.exchanges[i].url, trace.exchanges[i].request_body.as_deref())).collect();
-    calls.sort_by_key(|&i| (left_out(&trace.exchanges[i]), std::cmp::Reverse((own(&trace.exchanges[i]), i))));
+    calls.sort_by_key(|&i| {
+        let e = &trace.exchanges[i];
+        (left_out(e), std::cmp::Reverse((own(e), same_query(e), i)))
+    });
     calls
 }
 
@@ -300,14 +316,22 @@ pub fn by_its_call(route: &Route, given: &HashMap<String, String>, answer: &serd
     if unbrowse_learn::answer::lists_nothing_beside(&read, &asked, None) || nothing_at_its_records(route, &read) {
         return Err("its answer lists nothing for the value".into());
     }
+    let kept = super::sighted::first_answer(route);
+    let changed_query = kept.as_ref().and_then(|h| h.query_records.as_ref()).filter(|_| moved.len() == 1).and_then(|before| {
+        super::sighted::query_records(route, &read, &now).filter(|current| {
+            route.heard.records_at.as_ref().is_none_or(|place| place == &current.place) && current.changed_from(before)
+        })
+    });
+    if let Some(current) = changed_query {
+        return Ok((Some(current.place), now[0].clone()));
+    }
     let ours = said_lines(&read, &[]);
     if ours.is_empty() {
         return Err("its answer says nothing".into());
     }
     let telling = telling_words(&now, &was);
-    let place = records_place(&read, &telling);
+    let place = route.heard.records_at.clone().or_else(|| records_place(&read, &telling));
     let set = |v: &[String]| v.iter().cloned().collect::<std::collections::BTreeSet<String>>();
-    let kept = super::sighted::first_answer(route);
     let first_rows = kept.as_ref().map(|h| set(&h.rows)).unwrap_or_default();
     // Said back by the records, never by the page's lines: a results page says the value back in its heading, its
     // crumb, its box and its share link whatever it found, its records empty (the incident this was built against).
@@ -472,7 +496,7 @@ pub(crate) fn as_records(v: &serde_json::Value) -> serde_json::Value {
 
 /// A key by its name: the part before anything a site writes into it (`search({"input":…})` is `search`), so the
 /// place of an answer's records reads the same whatever value the answer is for.
-fn key_name(k: &str) -> &str {
+pub(super) fn key_name(k: &str) -> &str {
     k.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '-')).next().unwrap_or(k)
 }
 
@@ -482,36 +506,99 @@ fn key_name(k: &str) -> &str {
 pub(crate) fn records_place(v: &serde_json::Value, words: &[String]) -> Option<String> {
     let v = &as_records(v);
     let words: Vec<String> = words.iter().map(|w| w.to_lowercase()).filter(|w| w.chars().count() >= 2).collect();
-    let mut best: Option<(usize, String)> = None;
-    fn walk(v: &serde_json::Value, at: &mut Vec<String>, words: &[String], best: &mut Option<(usize, String)>) {
+    // An answer that is one record (an item's own details: two values of its own or more) and says the value back is
+    // its own record: the whole. A title alone is the page's, not a record.
+    let fields = v.as_object().map_or(0, |o| o.values().filter(|x| x.is_string() || x.is_number() || x.is_boolean()).count());
+    let whole = || (fields >= 2 && words.iter().any(|w| said_lines(v, &[]).iter().any(|l| l.contains(w.as_str())))).then(|| WHOLE.to_string());
+    best_record_list(v, &words, |_, _, _| Some(0)).or_else(whole)
+}
+
+fn best_record_list(v: &serde_json::Value, words: &[String], mut coverage: impl FnMut(&serde_json::Value, &[String], usize) -> Option<usize>) -> Option<String> {
+    fn walk(v: &serde_json::Value, at: &mut Vec<String>, words: &[String], best: &mut Option<((usize, usize), String)>,
+            coverage: &mut impl FnMut(&serde_json::Value, &[String], usize) -> Option<usize>) {
         match v {
             serde_json::Value::Array(a) => {
-                let naming = a.iter().filter(|x| x.is_object() && words.iter().any(|w| x.to_string().to_lowercase().contains(w.as_str()))).count();
-                if naming >= 2 && best.as_ref().is_none_or(|(n, _)| naming > *n) {
-                    *best = Some((naming, at.join("/")));
+                let naming = a.iter().filter(|row| names_one(row, words)).count();
+                let rank = (naming >= 2).then(|| coverage(v, at, naming)).flatten().map(|fields| (fields, naming));
+                if let Some(rank) = rank.filter(|rank| best.as_ref().is_none_or(|(old, _)| rank > old)) {
+                    *best = Some((rank, at.join("/")));
                 }
                 at.push("[]".into());
                 for x in a {
-                    walk(x, at, words, best);
+                    walk(x, at, words, best, coverage);
                 }
                 at.pop();
             }
             serde_json::Value::Object(o) => {
                 for (k, x) in o {
                     at.push(key_name(k).to_string());
-                    walk(x, at, words, best);
+                    walk(x, at, words, best, coverage);
                     at.pop();
                 }
             }
             _ => {}
         }
     }
-    walk(v, &mut Vec::new(), &words, &mut best);
-    // An answer that is one record (an item's own details: two values of its own or more) and says the value back is
-    // its own record: the whole. A title alone is the page's, not a record.
-    let fields = v.as_object().map_or(0, |o| o.values().filter(|x| x.is_string() || x.is_number() || x.is_boolean()).count());
-    let whole = || (fields >= 2 && words.iter().any(|w| said_lines(v, &[]).iter().any(|l| l.contains(w.as_str())))).then(|| WHOLE.to_string());
-    best.map(|(_, place)| place).or_else(whole)
+    let mut best = None;
+    walk(v, &mut Vec::new(), words, &mut best, &mut coverage);
+    best.map(|(_, place)| place)
+}
+
+/// A cold search document identifies its result list by stable keys, records that name the search value, and the
+/// fields those records have to carry. A longer list of suggestions can mention the value without answering the goal.
+pub(crate) fn observed_search_list(data: &serde_json::Value, term: &str, coverage: impl Fn(&serde_json::Value) -> Option<usize>) -> Option<String> {
+    let words = [term.to_lowercase()];
+    best_record_list(data, &words, |list, path, named| {
+        if named < 3 || list.as_array().is_none_or(|rows| named * 2 < rows.len())
+            || stable_list_at(data, &path.join("/")).is_none_or(|recorded| !std::ptr::eq(recorded, list)) {
+            return None;
+        }
+        coverage(list)
+    })
+}
+
+pub(crate) fn stable_list_at<'a>(data: &'a serde_json::Value, place: &str) -> Option<&'a serde_json::Value> {
+    stable_list(data, place, |_, _| {})
+}
+
+pub(crate) fn settled_empty_list(data: &serde_json::Value, place: &str) -> bool {
+    let mut unready = false;
+    let list = stable_list(data, place, |_, object| unready |= unbrowse_learn::answer::search_unready(object));
+    !unready && list.and_then(serde_json::Value::as_array).is_some_and(Vec::is_empty)
+}
+
+pub(crate) fn stable_list_with_query<'a>(data: &'a serde_json::Value, place: &str) -> Option<(&'a serde_json::Value, Option<&'a str>)> {
+    let mut query = None;
+    let list = stable_list(data, place, |_, object| {
+        if let Some(found) = object.get("query").and_then(serde_json::Value::as_str) {
+            query = Some(found);
+        }
+    })?;
+    Some((list, query))
+}
+
+pub(crate) fn stable_list_view(data: &serde_json::Value, place: &str) -> Option<serde_json::Value> {
+    let mut path = Vec::new();
+    let rows = stable_list(data, place, |key, _| path.push(key))?;
+    Some(path.into_iter().rev().fold(rows.clone(), |nested, key| {
+        serde_json::Value::Object(serde_json::Map::from_iter([(key.clone(), nested)]))
+    }))
+}
+
+fn stable_list<'a>(data: &'a serde_json::Value, place: &str,
+    mut key_at: impl FnMut(&'a String, &'a serde_json::Map<String, serde_json::Value>)) -> Option<&'a serde_json::Value> {
+    let mut value = data;
+    for key in place.split('/').filter(|key| !key.is_empty()) {
+        let object = value.as_object()?;
+        let mut named = object.iter().filter(|(name, _)| key_name(name) == key);
+        let (name, child) = named.next()?;
+        if named.next().is_some() {
+            return None;
+        }
+        key_at(name, object);
+        value = child;
+    }
+    value.is_array().then_some(value)
 }
 
 /// The records place of an answer that is one record ([`records_place`]): the answer whole.
@@ -584,7 +671,7 @@ fn at_place(data: &serde_json::Value, place: &str) -> Option<bool> {
 /// the place (the page's title, its chrome, the session's earlier searches) holds no records for the value asked.
 pub(crate) fn lacks_its_records(route: &Route, data: &serde_json::Value) -> bool {
     let Some(place) = route.heard.records_at.as_deref() else { return false };
-    at_place(data, place).is_none()
+    at_its_records(route, data, place).is_none()
 }
 
 /// Whether `data`, an answer of `route`, holds nothing where the route's records were seen (`Heard::records_at`): the
@@ -593,7 +680,14 @@ pub(crate) fn lacks_its_records(route: &Route, data: &serde_json::Value) -> bool
 /// nothing. False for a route with no place seen.
 pub(crate) fn nothing_at_its_records(route: &Route, data: &serde_json::Value) -> bool {
     let Some(place) = route.heard.records_at.as_deref() else { return false };
-    at_place(data, place) != Some(true)
+    at_its_records(route, data, place) != Some(true)
+}
+
+fn at_its_records(route: &Route, data: &serde_json::Value, place: &str) -> Option<bool> {
+    if route.heard.document_records {
+        return stable_list_at(data, place).and_then(serde_json::Value::as_array).map(|rows| !rows.is_empty());
+    }
+    at_place(data, place)
 }
 
 /// Whether `was`, one answer to an ask, holds the records `now`, another answer to the same ask, holds: at most a
@@ -730,7 +824,19 @@ pub fn confirm_by_use(walks: &Walks, url: &str, goal: &str, who: &str, route: &R
     // Where the records are is read by the words that tell the value from the one the route was learned on: a search
     // that reads it word by word lists records saying some of its words.
     let telling = telling_words(&word.iter().cloned().collect::<Vec<_>>(), &moved(&first, given).iter().map(|(_, was, _)| was.to_string()).collect::<Vec<_>>());
-    let place = (!nothing).then(|| browsers.as_ref().and_then(|v| records_place(v, &telling))).flatten();
+    let witness = if standing.id == first.id && first.heard.document_records {
+        first.heard.records_at.as_deref()
+    } else if standing.heard.document_records {
+        standing.heard.records_at.as_deref()
+    } else {
+        None
+    };
+    let place = browsers.as_ref().filter(|_| !nothing).map(|answer| &answer.data).and_then(|v| match witness {
+        Some(place) => stable_list_at(v, place).and_then(serde_json::Value::as_array)
+            .filter(|rows| !rows.is_empty()).map(|_| place.to_string()),
+        None => records_place(v, &telling),
+    });
+    let browsers = browsers.map(|read| read.into_answer(&first, &standing, given));
     let saw_records = place.is_some();
     let standing = if may_stand_in(&verdict, saw_records, &first, &standing) || (standing.id == first.id && verdict == Confirmed::Agreed && saw_records) {
         match &verdict {
@@ -739,6 +845,7 @@ pub fn confirm_by_use(walks: &Walks, url: &str, goal: &str, who: &str, route: &R
                     r.provisional = false;
                     r.heard.said_back = word.clone();
                     r.heard.records_at = place.clone();
+                    r.heard.document_records |= witness.is_some();
                 })
                 .ok()
                 .flatten()
@@ -774,24 +881,45 @@ fn the_whole(data: Option<serde_json::Value>, cut: Option<&crate::run::Truncated
 /// each read as that route reads its answer (`as_the_route_reads`). Of those whose request sends the new value, the
 /// one with records for it (`found_nothing` false) answers; where neither holds any, the walk found nothing, and the
 /// first that sends the value says so, never a call that does not send it (the page's own settings). Nothing is asked of the site: the browser already got it. None where the walk made neither call.
-fn the_browsers_answer(earlier: Option<&Trace>, first: &Route, learned: &Route, second: &Trace, given: &HashMap<String, String>) -> Option<serde_json::Value> {
+fn the_browsers_answer<'a>(earlier: Option<&Trace>, first: &'a Route, learned: &'a Route, second: &'a Trace, given: &HashMap<String, String>) -> Option<ConfirmingRead<'a>> {
     let own = its_call(learned, second).and_then(|j| Some((j, as_the_route_reads(learned, &second.exchanges[j], &asked_of(learned, &HashMap::new()))?)));
     let beside = walks_call(earlier, first, second, given).and_then(|j| Some((j, as_the_route_reads(first, &second.exchanges[j], &asked_of(first, given))?)));
     // The call the ask was for held records on its first walk and holds none now: the walk found nothing, and that
     // call's own answer says so, whatever else the walk learned (a page's shell says nothing of the search).
-    if let Some((_, v)) = beside.as_ref().filter(|_| sighting_found_nothing(earlier, first, second, given)) {
-        return Some(v.clone());
+    if let Some((_, data)) = beside.as_ref().filter(|_| sighting_found_nothing(earlier, first, second, given)) {
+        return Some(ConfirmingRead { route: first, with_links: None, data: data.clone() });
     }
-    let read: Vec<(usize, serde_json::Value)> = [own, beside].into_iter().flatten().collect();
+    let read: Vec<_> = [(learned, own), (first, beside)].into_iter()
+        .filter_map(|(route, answer)| answer.map(|(j, data)| (route, j, data))).collect();
     // A call that answers the ask sends the value asked: a call of the page's own (its server's name and settings)
     // that a walk which found nothing learned is no answer to it.
     let now: Vec<String> = moved(first, given).iter().map(|(_, _, now)| now.to_lowercase()).collect();
     let sends = |j: usize| now.is_empty() || unbrowse_learn::slots::slots(&second.exchanges[j]).iter().any(|s| now.iter().any(|v| s.value.to_lowercase().contains(v.as_str())));
-    read.iter()
-        .find(|(j, v)| sends(*j) && !found_nothing(&second.exchanges[*j], v, &asked_of(learned, given), None))
-        .or_else(|| read.iter().find(|(j, _)| sends(*j)))
+    let records = read.iter()
+        .find(|(_, j, v)| sends(*j) && !found_nothing(&second.exchanges[*j], v, &asked_of(learned, given), None));
+    records
+        .or_else(|| read.iter().find(|(_, j, _)| sends(*j)))
         .or(read.first())
-        .map(|(_, v)| v.clone())
+        .map(|(route, j, data)| ConfirmingRead { route, with_links: records.map(|_| &second.exchanges[*j]), data: data.clone() })
+}
+
+/// The selected exchange's unredacted answer is used to judge what the walk saw. Only the reply leaves the node.
+struct ConfirmingRead<'a> {
+    route: &'a Route,
+    with_links: Option<&'a Exchange>,
+    data: serde_json::Value,
+}
+
+impl ConfirmingRead<'_> {
+    fn into_answer(self, first: &Route, learned: &Route, given: &HashMap<String, String>) -> crate::run::WholeAnswer {
+        let whole = match self.with_links {
+            Some(exchange) => answer_with_walk_links(self.route, exchange, self.data),
+            None => crate::run::WholeAnswer::from_walk(self.route, self.data, Vec::new()),
+        };
+        let sent: Vec<&str> = given.values().map(String::as_str).collect();
+        let scrub = |value| crate::api::said_to_an_agent_who_sent(learned, crate::api::said_to_an_agent_who_sent(first, value, &sent), &sent);
+        crate::run::WholeAnswer { data: scrub(whole.data), rendered_links: whole.rendered_links.map(scrub), ..whole }
+    }
 }
 
 /// Where the confirming browse's walk found nothing (`sighting_found_nothing`), the route learned from it beside the
@@ -926,8 +1054,8 @@ mod tests {
     #[test]
     fn a_learns_first_answer_is_the_walks_own_call_read_as_the_route_reads() {
         let brass = HashMap::from([("q".to_string(), "brass".to_string())]);
-        assert_eq!(walks_answer(&route(), &walk("brass", true), &brass), Some(records("brass")));
-        assert_eq!(walks_answer(&route_with_its_pages(), &walk_and_its_next_page("brass"), &brass), Some(records("brass")), "the route's own call, not the page's next page");
+        assert_eq!(walks_answer(&route(), &walk("brass", true), &brass).map(|answer| answer.data), Some(records("brass")));
+        assert_eq!(walks_answer(&route_with_its_pages(), &walk_and_its_next_page("brass"), &brass).map(|answer| answer.data), Some(records("brass")), "the route's own call, not the page's next page");
         assert_eq!(walks_answer(&route(), &walk("brass", false), &brass), None, "the walk made no call of the route");
     }
 
@@ -984,6 +1112,17 @@ mod tests {
         let mut only = walk_and_its_next_page("glass");
         only.exchanges.remove(1);
         assert_eq!(its_call(&route, &only), Some(1));
+    }
+
+    #[test]
+    fn the_walk_uses_the_routes_query_when_the_next_page_changes_a_value_inside_it() {
+        let first = "https://shop.example/api/feed?params=%7B%22count%22%3A20%7D";
+        let second = "https://shop.example/api/feed?params=%7B%22count%22%3A20%2C%22cursor%22%3A%22after-20%22%7D";
+        let mut route = route();
+        route.graph.steps[0].url = first.into();
+        route.graph.steps[0].fields.clear();
+        let trace = Trace { exchanges: vec![call(first, &records("first").to_string()), call(second, &records("second").to_string())], inputs: Vec::new() };
+        assert_eq!(walks_answer(&route, &trace, &HashMap::new()).map(|answer| answer.data), Some(records("first")));
     }
 
     /// An answer that holds the walk's records but never says the new value back is the site answering something else
@@ -1228,14 +1367,71 @@ mod tests {
         // The route that stood is the counts call; the route learned from the browser's walk is the search call.
         let (by_counts, learned) = (on("by-counts", "0", "brass"), on("learned", "20", "glass"));
         let answer = the_browsers_answer(Some(&first), &by_counts, &learned, &second, &glass()).expect("the browser got an answer");
-        assert_eq!(answer, records("glass"), "the records the browser got for the word, not the counts");
-        assert_eq!(the_browsers_answer(Some(&first), &learned, &by_counts, &second, &glass()), Some(records("glass")), "whichever of the two is which");
+        assert_eq!(answer.data, records("glass"), "the records the browser got for the word, not the counts");
+        assert_eq!(the_browsers_answer(Some(&first), &learned, &by_counts, &second, &glass()).map(|answer| answer.data), Some(records("glass")), "whichever of the two is which");
         // The walk found nothing: its own answer, which says so, is the reply.
         let word = "qzxvorb";
         let asked = HashMap::from([("q".to_string(), word.to_string())]);
-        assert_eq!(the_browsers_answer(Some(&first), &by_counts, &on("learned", "20", word), &searched(word, false), &asked), Some(nothing_found(word)));
+        assert_eq!(the_browsers_answer(Some(&first), &by_counts, &on("learned", "20", word), &searched(word, false), &asked).map(|answer| answer.data), Some(nothing_found(word)));
         // The walk made neither call: no answer of the browser's, and the route that stands is called.
-        assert_eq!(the_browsers_answer(Some(&first), &by_counts, &learned, &walk("glass", false), &glass()), None);
+        assert!(the_browsers_answer(Some(&first), &by_counts, &learned, &walk("glass", false), &glass()).is_none());
+    }
+
+    #[test]
+    fn the_confirming_browse_keeps_links_beside_its_structured_records() {
+        let mut first = route();
+        first.what = "List the first five results with a title and link".into();
+        first.path = "/search?q={q}".into();
+        first.graph.steps[0].url = "https://shop.example/search?q={q}".into();
+        first.heard.records_at = Some("results".into());
+        first.heard.document_records = true;
+        let mut learned = first.clone();
+        learned.inputs[0].default = Some("glass".into());
+        let document = |word: &str, data: serde_json::Value, query: &str| {
+            let links = data["results"].as_array().unwrap().iter().enumerate()
+                .map(|(i, row)| format!("<a href='/item/{word}/{i}{query}'>{}</a>", row["title"].as_str().unwrap()))
+                .collect::<String>();
+            let mut e = call(&format!("https://shop.example/search?q={word}"), &format!(
+                "<html><head><script type='application/json'>{data}</script></head><body><main>{links}</main><nav><a href='/collections'>Collections</a></nav></body></html>"
+            ));
+            e.response_mime = "text/html".into();
+            e.resource_type = Some("Document".into());
+            Trace { exchanges: vec![e], inputs: Vec::new() }
+        };
+        let given = glass();
+        let original = document("brass", records("brass"), "");
+        let newer = document("glass", records("glass"), "");
+        let captured = the_browsers_answer(Some(&original), &first, &learned, &newer, &given).unwrap();
+        let reply = crate::run::as_a_reply(&learned, &given, &[], captured.into_answer(&first, &learned, &given), 42, true);
+        assert_eq!(reply["browser"], true);
+        assert_eq!(reply["data"]["links"][0]["url"], "https://shop.example/item/glass/0", "{reply}");
+        assert_eq!(reply["data"]["links"][4]["url"], "https://shop.example/item/glass/4", "{reply}");
+
+        let empty = document("glass", serde_json::json!({"query":"glass", "results":[], "recommendations":records("brass")["results"]}), "");
+        assert!(sighting_found_nothing(Some(&original), &first, &empty, &given));
+        let captured = the_browsers_answer(Some(&original), &first, &learned, &empty, &given).unwrap().into_answer(&first, &learned, &given);
+        assert_eq!(captured.data["results"], serde_json::json!([]));
+        assert!(captured.rendered_links.is_none(), "navigation links cannot answer an empty search");
+
+        let fallback = document("glass", serde_json::json!({"query":"glass", "results":[]}), "");
+        let earlier_api = route();
+        let captured = the_browsers_answer(None, &earlier_api, &learned, &fallback, &given).unwrap()
+            .into_answer(&earlier_api, &learned, &given);
+        assert_eq!(captured.data["results"], serde_json::json!([]));
+        assert!(captured.rendered_links.is_none(), "an empty newly discovered page cannot contribute navigation links");
+
+        let owner_value = "private-owner-collection-2468";
+        let mut other = first.clone();
+        let mut input = other.inputs[0].clone();
+        input.name = "collection".into();
+        input.default = Some(owner_value.into());
+        other.session_gave = true;
+        other.given.push(input.name.clone());
+        other.inputs.push(input);
+        let private = document("glass", records("glass"), &format!("?collection={owner_value}"));
+        let captured = the_browsers_answer(Some(&original), &other, &learned, &private, &given).unwrap();
+        let reply = crate::run::as_a_reply(&learned, &given, &[], captured.into_answer(&other, &learned, &given), 42, true);
+        assert_eq!(reply["data"]["links"][0]["url"], "https://shop.example/item/glass/0?collection={collection}", "{reply}");
     }
 
     /// A walk of the shop's slots page for the day `iso`, whose call sends it day first (`sent`), answered with that
@@ -1505,7 +1701,7 @@ mod tests {
         learned.graph.steps[0].url = "https://shop.example/api/settings".into();
         learned.graph.steps[0].fields.clear();
         let asked = HashMap::from([("q".to_string(), word.to_string())]);
-        assert_eq!(the_browsers_answer(Some(&walk("brass", true)), &route(), &learned, &second, &asked), Some(nothing_found(word)));
+        assert_eq!(the_browsers_answer(Some(&walk("brass", true)), &route(), &learned, &second, &asked).map(|answer| answer.data), Some(nothing_found(word)));
     }
 
     /// A confirming browse agreed: the route of two sightings stands confirmed, and the route of one it confirmed is not
@@ -1543,7 +1739,7 @@ mod tests {
         page.graph.steps[0].url = "https://shop.example/search?q={q}".into();
         page.graph.steps[0].exchange = 0;
         let asked = HashMap::from([("q".to_string(), word.to_string())]);
-        assert_eq!(the_browsers_answer(Some(&walk("brass", true)), &route(), &page, &second, &asked), Some(nothing_found(word)));
+        assert_eq!(the_browsers_answer(Some(&walk("brass", true)), &route(), &page, &second, &asked).map(|answer| answer.data), Some(nothing_found(word)));
     }
 
     /// A feed served as one line of XML: the route's answer and the browser's are its items, which say the new value
@@ -1665,6 +1861,24 @@ mod tests {
         assert_eq!(records_place(&answer, &telling).as_deref(), Some("records"));
     }
 
+    #[test]
+    fn repeated_query_values_in_tracking_rows_do_not_win_the_result_list() {
+        let goal = "list the title, price and link of each result";
+        let fields = unbrowse_learn::goal::fields(goal);
+        let query = ["lamp".to_string()];
+        let answer = serde_json::json!({
+            "tracking": (0..6).map(|i| serde_json::json!({"query":"lamp","event":i})).collect::<Vec<_>>(),
+            "results": (0..5).map(|i| serde_json::json!({
+                "title":format!("Lamp {i}"),"price":"$15","url":format!("https://shop.example/items/{i}")
+            })).collect::<Vec<_>>()
+        });
+        let witnessed = observed_search_list(&answer, &query[0], |rows| {
+            let holding = unbrowse_learn::goal::holding_for_goal(rows, &fields, &query, goal);
+            (holding.has_shapes() && holding.has_record_fields(goal, &fields)).then_some(holding.covered.len())
+        });
+        assert_eq!(witnessed.as_deref(), Some("results"));
+    }
+
     /// A word the asked value shares with the one the route was learned on tells nothing, and a list that names it is no
     /// list of the value's records: the route and the browser both answer with a strip of the site's own offers, each
     /// naming "hotels", for "tokyo hotels" after "osaka hotels". It is not confirmed, and says so as before; nor is a
@@ -1706,6 +1920,75 @@ mod tests {
         let asked = HashMap::from([("q".to_string(), "tokyo hotels".to_string())]);
         assert!(by_its_call(&hotels, &asked, &offers).is_err(), "a strip naming only the word both values share");
         assert!(by_its_call(&route, &glass(), &serde_json::json!({ "query": "glass", "results": [] })).is_err(), "nothing found");
+    }
+
+    #[test]
+    fn a_completed_query_can_confirm_changed_records_whose_titles_use_different_words() {
+        store::scratch_home("calls-first-result-arguments");
+        let mut route = route();
+        route.what = "search events and list their name, date, venue and link".into();
+        route.root = "https://shop.example/find?q=brass".into();
+        route.graph.steps[0].url = "https://shop.example/find?q={q}".into();
+        let page = |word: &str, status: &str, names: &[&str]| {
+            let args = serde_json::json!({"keyword": word, "page":0});
+            let operation = format!("searchEvents({args})");
+            let events: Vec<_> = names.iter().enumerate().map(|(i, title)| serde_json::json!({
+                "name": title, "date": "2026-12-03", "venue": "Main hall",
+                "url": format!("https://shop.example/events/{}-{i}", title.replace(' ', "-"))
+            })).collect();
+            serde_json::json!({
+                "state":{"queries":{(operation):{"status":status,"originalArgs":args,"data":{"events":events}}}},
+                "navigation": (0..1400).map(|n| serde_json::json!({"title": format!("site navigation label {n}")})).collect::<Vec<_>>()
+            })
+        };
+        let old = ["Brass Recital", "Harp Quartet", "Riverside Revue", "Folk Weekend", "Piano Night"];
+        let new = ["Modern Dance", "Fiddlers", "The Festival", "Singing Practice", "Stage Night"];
+        super::super::sighted::called(&route, &HashMap::new(), Some(&page("brass", "fulfilled", &old)), true, 40, 0);
+        assert!(super::super::sighted::first_answer(&route).unwrap().query_records.is_some(), "the cold result list is recorded");
+        let (place, said) = by_its_call(&route, &glass(), &page("glass", "fulfilled", &new)).expect("the completed query's event records changed");
+        assert_eq!((place.as_deref(), said.as_str()), (Some("state/queries/searchEvents/data/events"), "glass"));
+        assert!(by_its_call(&route, &glass(), &page("glass", "fulfilled", &old)).is_err(), "a new cache key cannot confirm stale records");
+        let mut tracking = page("glass", "fulfilled", &old);
+        let entry = tracking["state"]["queries"].as_object_mut().unwrap().values_mut().next().unwrap();
+        for (i, event) in entry["data"]["events"].as_array_mut().unwrap().iter_mut().enumerate() {
+            event["trackingId"] = serde_json::json!(format!("new-tracking-{i}"));
+        }
+        assert!(by_its_call(&route, &glass(), &tracking).is_err(), "rotating tracking fields cannot confirm old records");
+        assert!(by_its_call(&route, &glass(), &page("glass", "pending", &new)).is_err(), "an in-flight entry cannot confirm");
+        assert!(by_its_call(&route, &glass(), &page("brass", "fulfilled", &new)).is_err(), "a different query cannot confirm");
+        let mut mixed = page("glass", "fulfilled", &new);
+        let earlier = page("brass", "fulfilled", &old);
+        mixed["state"]["queries"].as_object_mut().unwrap()
+            .extend(earlier["state"]["queries"].as_object().unwrap().clone());
+        assert!(by_its_call(&route, &glass(), &mixed).is_err(), "the records place would also carry a different query's cached results");
+        let mut ambiguous = page("glass", "fulfilled", &new);
+        let matching = ambiguous.as_object_mut().unwrap().remove("state").unwrap();
+        ambiguous["state(main)"] = matching;
+        ambiguous["state(sidebar)"] = earlier["state"].clone();
+        assert!(by_its_call(&route, &glass(), &ambiguous).is_err(), "normalizing the parent path must not merge two caches");
+        let mut aliases = page("glass", "fulfilled", &new);
+        let entry = aliases["state"]["queries"].as_object_mut().unwrap().values_mut().next().unwrap();
+        entry["data"]["events(stale)"] = serde_json::json!(old);
+        assert!(by_its_call(&route, &glass(), &aliases).is_err(), "the saved record path must not match a stale list beside it");
+
+        let mut parents = page("glass", "fulfilled", &new);
+        let entry = parents["state"]["queries"].as_object_mut().unwrap().values_mut().next().unwrap();
+        let earlier = earlier["state"]["queries"].as_object().unwrap().values().next().unwrap();
+        entry["data(stale)"] = earlier["data"].clone();
+        assert!(by_its_call(&route, &glass(), &parents).is_err(), "the container of the result list must also be unique");
+
+        let mut punctuation = page("glass", "fulfilled", &new);
+        let state = punctuation.as_object_mut().unwrap().remove("state").unwrap();
+        punctuation["$state"] = state;
+        assert!(super::super::sighted::query_records(&route, &punctuation, &["glass".into()]).is_none(),
+            "a path segment cannot disappear during normalization");
+
+        let mut empty_key = page("glass", "fulfilled", &new);
+        let entry = empty_key["state"]["queries"].as_object_mut().unwrap().values_mut().next().unwrap();
+        let items = entry["data"].as_object_mut().unwrap().remove("events").unwrap();
+        entry["data"][""] = items;
+        assert!(super::super::sighted::query_records(&route, &empty_key, &["glass".into()]).is_none(),
+            "the list needs a path segment of its own");
     }
 
     /// A page's state says its menus, its footer and its translations again for every value: thousands of values beside
@@ -1919,7 +2202,7 @@ mod tests {
     /// that made another call is not it, and with none the browse has no first walk to hold the second beside.
     #[test]
     fn the_first_walk_is_the_newest_other_walk_that_made_the_routes_call() {
-        let held = |trace: Trace, url: &str, age: u64| crate::learn::Walk { url: url.into(), trace, probes: Vec::new(), recording: None, at: std::time::Instant::now() - std::time::Duration::from_secs(age), addresses: None };
+        let held = |trace: Trace, url: &str, age: u64| crate::learn::Walk { url: url.into(), trace: trace.into(), probes: Vec::new(), recording: None, at: std::time::Instant::now() - std::time::Duration::from_secs(age), addresses: None };
         let walks = Walks::default();
         walks.0.locked().insert("second".into(), held(walk("glass", true), "https://shop.example/search?q=glass", 1));
         assert!(first_walk(&walks, "second", "https://shop.example/search?q=glass", &route()).is_none(), "no other walk");

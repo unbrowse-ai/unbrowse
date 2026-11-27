@@ -540,11 +540,14 @@ pub struct Heard {
     /// back (`learn::trial`): the route is known to answer a second value, not only the walked one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub said_back: Option<String>,
-    /// Where the answer holds its records, as a confirming browse saw them for a value the route was not learned on
+    /// Where the cold document showed the search results or a confirming browse saw records for a new value
     /// (`confirm::records_place`): the keys by name down to the list, `[]` for a list on the way. A later answer
     /// without that place holds no records for its value, whatever else it says (`confirm::lacks_its_records`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub records_at: Option<String>,
+    /// A stable list identified by the cold document. Other lists in that document cannot substitute for it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub document_records: bool,
 }
 
 impl Heard {
@@ -772,6 +775,34 @@ impl Route {
                 f.class = Class::Input { name: name.clone(), secret: false, default: None, optional: false };
                 // Out of the step's own address and body too, as the sharing boundary takes a value out (`promote`).
                 crate::recipe::promote(&mut step.url, &mut step.body, &f.loc, &fixed);
+            }
+        }
+        // - a fixed value the graph says holds an input inside it (`held`: the caller's word written into a longer
+        //   value, as a search sends the address of the results page it opens) has the caller's word put where the
+        //   owner's stood at call time (`replay`): the owner's word is taken out of it here, a placeholder standing
+        //   where it stood, and the call puts the caller's there.
+        for step in r.graph.steps.iter_mut() {
+            let held: Vec<usize> = (0..step.held.len()).filter(|&i| step.held[i].inside.is_none() && own.iter().any(|(n, _)| *n == step.held[i].input)).collect();
+            for i in held {
+                let (loc, sits, mark) = (step.held[i].loc.clone(), step.held[i].sits.clone(), format!("{{{}}}", step.held[i].input));
+                let mut took = false;
+                for f in step.fields.iter_mut().filter(|f| f.loc == loc) {
+                    if let Class::Constant { value, .. } | Class::Unconfirmed { value } = &mut f.class {
+                        if value.contains(&sits) {
+                            *value = value.replace(&sits, &mark);
+                            took = true;
+                        }
+                    }
+                }
+                if let (Loc::Json(pointer), Some(unbrowse_learn::Body::Json { template, .. })) = (&loc, step.body.as_mut()) {
+                    if let Some(serde_json::Value::String(s)) = template.pointer_mut(pointer).filter(|v| v.as_str().is_some_and(|s| s.contains(&sits))) {
+                        *s = s.replace(&sits, &mark);
+                        took = true;
+                    }
+                }
+                if took {
+                    step.held[i].sits = mark;
+                }
             }
         }
         let carries = |text: &str| own.iter().find(|(_, v)| crate::recipe::still_carries(text, v)).map(|(n, _)| n.clone());
@@ -1470,6 +1501,18 @@ pub struct Settings {
     /// joins the network only with the current one here (`terms::standing`).
     #[serde(default)]
     pub terms_accepted: Option<String>,
+    /// Whether the window shows its advanced screens (the node's map, the live walks, routes, activity, the
+    /// leaderboard), a view of the owner's, kept here so every window on the machine agrees. None: never chosen, which
+    /// a node from before the choice reads as on; a new node's window sets it off as it first opens.
+    #[serde(default)]
+    pub advanced: Option<bool>,
+    /// The SHA-256 of the agent skill the install last put in place (`install::skill_hash`), and when it did: a version
+    /// carrying a different skill installs it again, once, and a machine whose owner has none installed says so. Written
+    /// by the node at start after the terms are accepted, by `unbrowse_setup`'s `tools` step, and by `unb install`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools_skill: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tools_at: Option<u64>,
     /// Whether the owner lets the node advertise itself and join the peer network, once the terms are acknowledged. On
     /// unless they turn it off (in the window, or `unbrowse-node network off`); a settings file from before this setting
     /// reads as on.
@@ -1516,6 +1559,11 @@ pub struct Settings {
     /// the node starts; `UNBROWSE_CHAIN` overrides it (`unbrowse-node chain`).
     #[serde(default = "devnet")]
     pub chain: String,
+    /// Whether the owner picked `chain` (`unbrowse-node chain <name>`, the window's settings, a yes to a move): one
+    /// nobody picked is the default an older build started the node on, and the node offers its owner this build's
+    /// network (`chain::offer_chain`). A file from before reads as not picked.
+    #[serde(default)]
+    pub chain_chosen: bool,
     /// The most the node pays, in USDC, to fetch one route another contributor lists: an entry whose fee is above it
     /// is passed over as if it weren't offered, so the node never pays more (R3.3). Agents spend up to it on their
     /// own, with nothing to approve. 0: the node pays for no fetch and uses only free entries and its own routes. A
@@ -1835,6 +1883,9 @@ impl Default for Settings {
             list_per_day: None,
             private_network: false,
             terms_accepted: None,
+            advanced: None,
+            tools_skill: None,
+            tools_at: None,
             peer_network: true,
             light: false,
             serve_kept: false,
@@ -1845,6 +1896,7 @@ impl Default for Settings {
             passkeys: true,
             passkeys_never: Vec::new(),
             chain: crate::build_config::default_chain().into(),
+            chain_chosen: false,
             max_fetch_usdc: MAX_FETCH_USDC,
             deposit_floor_usdc: DEPOSIT_FLOOR_USDC,
             coin_dev_buy_bps: COIN_DEV_BUY_BPS,

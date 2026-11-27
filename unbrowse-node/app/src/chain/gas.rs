@@ -294,6 +294,11 @@ static HELD_LOGS: std::sync::LazyLock<Mutex<std::collections::HashMap<String, He
 /// events from the deployment's block five times or more (`send_own_held`, `complete_own_buys`, `coins_held`), and each
 /// read was every window since the deployment: 54 requests each three days after Arc testnet's, and 17 more each day.
 /// A held history is kept to `LOGS_REREAD` below the block read to, and those blocks are read again each time.
+///
+/// A read that fails part-way (an RPC that turns the node away for its rate past every retry, as a public RPC shared by
+/// several nodes on one address does) keeps the windows it finished, so the next read asks only for the rest: a fresh
+/// node's first read is every window since the deployment, and one that started again from the deployment's block on
+/// each try met the limit at the same window every time and never joined.
 pub(crate) async fn held_logs(url: &crate::proof::Url, held_on: Option<u64>, filter: &alloy::rpc::types::Filter, from: u64, to: u64) -> Result<Vec<alloy::rpc::types::Log>, String> {
     let Some(chain_id) = held_on else { return logs_at(url, filter, from, to).await };
     let key = format!("{chain_id}/{from}/{}", serde_json::to_string(filter).map_err(|e| e.to_string())?);
@@ -303,31 +308,49 @@ pub(crate) async fn held_logs(url: &crate::proof::Url, held_on: Option<u64>, fil
         Some(h) => (h.to + 1, h.logs.clone()),
         None => (from, Vec::new()),
     };
-    out.extend(logs_at(url, filter, start, to).await?);
+    let (got, read_to, failed) = logs_read(url, filter, start, to).await;
+    out.extend(got);
     if out.len() > MAX_LOGS_PER_READ {
-        return Err(format!("{LOGS_OVER_CAP}: over {MAX_LOGS_PER_READ} logs in one read"));
+        return Err(failed.unwrap_or_else(|| format!("{LOGS_OVER_CAP}: over {MAX_LOGS_PER_READ} logs in one read")));
     }
-    let keep_to = to.saturating_sub(LOGS_REREAD);
-    if keep_to >= from {
+    // Held up to the last window read whole, and never within `LOGS_REREAD` of the head; with no window read, what was
+    // held stays as it was.
+    let read_to = if failed.is_none() { Some(to) } else { read_to };
+    if let Some(keep_to) = read_to.map(|r| r.min(to.saturating_sub(LOGS_REREAD))).filter(|k| *k >= from && *k + 1 >= start) {
         let mut held = HELD_LOGS.locked();
         if held.len() >= LOGS_HELD && !held.contains_key(&key) {
             held.clear();
         }
         held.insert(key, Held { to: keep_to, logs: below(&out, keep_to) });
     }
-    Ok(out)
+    match failed {
+        Some(e) => Err(e),
+        None => Ok(out),
+    }
 }
 
 /// `logs` asked of the RPC at `url`.
 pub(crate) async fn logs_at(url: &crate::proof::Url, filter: &alloy::rpc::types::Filter, from: u64, to: u64) -> Result<Vec<alloy::rpc::types::Log>, String> {
+    let (out, _, failed) = logs_read(url, filter, from, to).await;
+    failed.map_or(Ok(out), Err)
+}
+
+/// `logs_at` as far as it got: the logs of every window read whole, the last block those windows cover (`None` when
+/// none was), and why the read stopped, if it did before `to`.
+async fn logs_read(url: &crate::proof::Url, filter: &alloy::rpc::types::Filter, from: u64, to: u64) -> (Vec<alloy::rpc::types::Log>, Option<u64>, Option<String>) {
     let mut out = Vec::new();
+    let mut read_to = None;
     for (start, end) in log_windows(from, to) {
-        out.extend(window_logs(url, filter, start, end).await?);
-        if out.len() > MAX_LOGS_PER_READ {
-            return Err(format!("{LOGS_OVER_CAP}: over {MAX_LOGS_PER_READ} logs in one read"));
+        match window_logs(url, filter, start, end).await {
+            Ok(logs) => out.extend(logs),
+            Err(e) => return (out, read_to, Some(e)),
         }
+        if out.len() > MAX_LOGS_PER_READ {
+            return (out, read_to, Some(format!("{LOGS_OVER_CAP}: over {MAX_LOGS_PER_READ} logs in one read")));
+        }
+        read_to = Some(end);
     }
-    Ok(out)
+    (out, read_to, None)
 }
 
 /// How an error from `agreed_logs` begins when the second RPC's logs differ from the first's.

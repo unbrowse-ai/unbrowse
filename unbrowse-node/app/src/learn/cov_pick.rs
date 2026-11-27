@@ -30,7 +30,7 @@ fn a_shop_walk(id: &str) -> (Walks, String, usize, usize) {
     let search = seen("GET", "https://shop.example/api/search?q=lamp", &serde_json::json!({ "results": records }).to_string(), false);
     let trace = Trace { exchanges: vec![page, suggest, search], inputs: Vec::new() };
     let walks = Walks::default();
-    walks.0.locked().insert(id.to_string(), Walk { url: url.clone(), trace, probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None });
+    walks.0.locked().insert(id.to_string(), Walk { url: url.clone(), trace: trace.into(), probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None });
     (walks, url, 1, 2)
 }
 
@@ -41,7 +41,7 @@ fn a_walk_of(host: &str, id: &str) -> (Walks, String, usize, usize) {
     {
         let mut guard = walks.0.locked();
         let w = guard.get_mut(id).unwrap();
-        for e in &mut w.trace.exchanges {
+        for e in &mut std::sync::Arc::make_mut(&mut w.trace).exchanges {
             e.url = url::Url::parse(&e.url.as_str().replace("shop.example", host)).unwrap();
         }
         w.url = url.clone();
@@ -115,7 +115,7 @@ fn a_walks_answer_is_its_own_call_read_as_the_route_reads_it() {
     let route = keep_candidate(&walks, "w1", strong, "search shop items", "You").unwrap();
     let given = HashMap::from([("q".to_string(), "lamp".to_string())]);
     let answer = walks_answer(&walks, "w1", &route, &given).expect("the walk made the call");
-    assert_eq!(things_in(&answer), 8, "{answer}");
+    assert_eq!(things_in(&answer.data), 8, "{}", answer.data);
     assert!(walks_answer(&walks, "w2", &route, &given).is_none());
 }
 
@@ -130,7 +130,7 @@ fn a_walks_text_is_its_sites_answers_and_the_scripts_it_ran() {
     let ads = seen("GET", "https://ads.other.example/bid", "tracking", false);
     {
         let mut guard = walks.0.locked();
-        guard.get_mut("w1").unwrap().trace.exchanges.extend([script, ads]);
+        std::sync::Arc::make_mut(&mut guard.get_mut("w1").unwrap().trace).exchanges.extend([script, ads]);
     }
     let text = walked_text(&walks, "w1", &site_of("lamps-f.example"));
     assert!(text.contains("Desk lamp model 3") && text.contains("var a = '/api/lamps';"), "{text}");
@@ -244,14 +244,33 @@ fn a_step_that_left_the_page_ends_the_flow_and_one_that_stayed_does_not() {
     store::scratch_home("pick-leaving");
     std::fs::create_dir_all(crate::browse::capture_dir()).unwrap();
     let (site, session) = ("leaves.example", "1:leaver");
-    leaving(site, session, 40.0).over(false);
+    leaving(site, session, 40.0).over(false, true);
     assert_eq!((flow_of(site, session), Marks::read(site).flow), (0.0, 0.0));
-    leaving(site, session, 42.5).over(true);
+    leaving(site, session, 42.5).over(true, true);
     assert_eq!((flow_of(site, session), Marks::read(site).flow), (42.5, 42.5));
-    leaving(site, session, 50.0).over(false);
+    leaving(site, session, 50.0).over(false, true);
     assert_eq!(flow_of(site, session), 42.5);
-    leaving(site, "1:other", 60.0).over(true);
+    leaving(site, "1:other", 60.0).over(true, true);
     assert_eq!((flow_of(site, "1:other"), flow_of(site, session)), (60.0, 42.5), "each session's flow is its own");
+}
+
+#[test]
+fn a_cancelled_navigation_reports_if_the_tab_reached_the_next_page() {
+    store::scratch_home("pick-cancelled-navigation");
+    std::fs::create_dir_all(crate::browse::capture_dir()).unwrap();
+    let (site, session) = ("cancelled.example", "1:navigate");
+    let before = "https://cancelled.example/previous";
+    let leaving_page = || {
+        let mut step = leaving(site, session, 10.0);
+        step.page = Some(before.into());
+        step
+    };
+    assert!(!leaving_page().over_at(false, true, Some(before)));
+    assert_eq!(flow_of(site, session), 0.0);
+    assert!(leaving_page().over_at(false, true, Some("https://cancelled.example/next")));
+    assert_eq!(flow_of(site, session), 10.0);
+    assert!(!leaving_page().over_at(false, false, None));
+    assert!(leaving_page().over_at(true, false, Some(before)));
 }
 
 /// The reasons a read of browsing gives are the words the owner is told.
@@ -291,7 +310,7 @@ fn browsing_read_from_a_place_in_its_log_skips_what_is_before_it() {
 
 fn walks_of(id: &str, url: &str, exchanges: Vec<Exchange>) -> Walks {
     let walks = Walks::default();
-    walks.0.locked().insert(id.to_string(), Walk { url: url.to_string(), trace: Trace { exchanges, inputs: Vec::new() }, probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None });
+    walks.0.locked().insert(id.to_string(), Walk { url: url.to_string(), trace: Trace { exchanges, inputs: Vec::new() }.into(), probes: Vec::new(), recording: None, at: std::time::Instant::now(), addresses: None });
     walks
 }
 
@@ -385,6 +404,66 @@ fn a_walk_that_found_nothing_for_the_value_keeps_no_route() {
 
 fn exchange_line(t: f64, kind: &str, method: &str, url: &str, mime: &str, text: &str) -> String {
     serde_json::json!({"type":"exchange","t":t,"resourceType":kind,"entry":{"request":{"method":method,"url":url,"headers":[]},"response":{"status":200,"headers":[],"content":{"mimeType":mime,"text":text}}}}).to_string()
+}
+
+#[test]
+fn leaving_a_page_keeps_its_read_route_while_another_learn_is_running() {
+    let site = "lamps-leaving.example";
+    let (ready, started) = std::sync::mpsc::channel();
+    let (result, finished) = std::sync::mpsc::channel();
+    std::thread::scope(|scope| {
+        let running = BROWSE_LEARN.locked();
+        scope.spawn(move || {
+            store::scratch_home("read-leaving");
+            std::fs::create_dir_all(crate::browse::capture_dir()).unwrap();
+            let url = format!("https://{site}/search?q=lamp");
+            let answer = a_search_answer(site);
+            let opened = serde_json::json!({"type":"action","t":0.5,"action":"navigate","value":url,"secret":false});
+            std::fs::write(log_of(site), format!("{opened}\n{}\n{}\n",
+                exchange_line(1.0, "Document", "GET", &url, "text/html", "<html><body><h1>Desk lamps</h1><p>Desk lamp model 1</p><p>Desk lamp model 2</p></body></html>"),
+                exchange_line(2.0, "XHR", "GET", answer.url.as_str(), "application/json", answer.response_body.as_deref().unwrap()),
+            )).unwrap();
+            crate::browse::set_goal(site, "1:leaving", "list desk lamp search results");
+            ready.send(()).unwrap();
+            result.send(learn_auto(site, "1:leaving", Some(3.0), "agent", &no_eye).map(|(route, _)| {
+                assert!(store::load_route(&route.id).is_some(), "the route is saved before the flow ends");
+                (route.site, route.path, route.write)
+            })).unwrap();
+        });
+        started.recv().unwrap();
+        let early = finished.recv_timeout(Duration::from_millis(500));
+        drop(running);
+        let kept = early.unwrap_or_else(|_| finished.recv().unwrap());
+        let (host, path, write) = kept.expect("leaving must keep the captured read even while a learn is running");
+        assert_eq!(host, site);
+        assert!(path.starts_with("/api/search"), "{path}");
+        assert!(!write);
+    });
+}
+
+#[test]
+fn a_cancelled_leave_stops_waiting_for_the_running_learn() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{mpsc, Arc};
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let flag = stop.clone();
+    let (started, ready) = mpsc::channel();
+    let (finished, result) = mpsc::channel();
+    std::thread::scope(|scope| {
+        let running = BROWSE_LEARN.locked();
+        scope.spawn(move || {
+            store::scratch_home("cancelled-leave");
+            started.send(()).unwrap();
+            let learned = unbrowse_learn::mint::stops_with(flag, || learn_auto("cancelled-leave.example", "1:cancelled", Some(3.0), "agent", &no_eye));
+            finished.send(learned.is_none()).unwrap();
+        });
+        ready.recv().unwrap();
+        stop.store(true, Ordering::Relaxed);
+        let cancelled = result.recv_timeout(Duration::from_secs(1));
+        drop(running);
+        assert_eq!(cancelled, Ok(true), "a cancelled leave need not wait for the learner");
+    });
 }
 
 /// A transfer the owner made on `site`: the form, the accounts it lists, an amount typed and an account chosen (and a

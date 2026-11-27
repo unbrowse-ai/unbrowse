@@ -535,14 +535,33 @@ pub fn install(from: Option<&Path>) -> Result<Vec<String>, String> {
             match unbrowse_learn::mint::downloaded_chromium() {
                 Some(c) if out.status.success() => did.push(format!("downloaded Chrome for Testing: {}", c.display())),
                 _ => {
-                    let said = String::from_utf8_lossy(&out.stderr).lines().rev().find(|l| !l.trim().is_empty()).map(String::from);
-                    return Err(format!("downloading Chrome for Testing: {}", said.unwrap_or_else(|| "it ended without a browser".into())));
+                    let looked = agent_browser_core::paths::browsers_dirs_here();
+                    return Err(chromium_fetch_failed(out.status.success(), &String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr), &looked));
                 }
             }
         }
     }
     apply();
     Ok(did)
+}
+
+/// Why `agent-browser install` left the node without a Chrome for Testing, with the folders the node looked in. Its
+/// last line of output is usually download progress, which says nothing: a failed run is quoted by its error line,
+/// and a run that succeeded is quoted by the folder it said it installed into.
+fn chromium_fetch_failed(succeeded: bool, stdout: &str, stderr: &str, looked_in: &[PathBuf]) -> String {
+    let looked = looked_in.iter().map(|d| d.display().to_string()).collect::<Vec<_>>().join(" and ");
+    // Progress is redrawn on one line with `\r`, so a line is anything between `\r` and `\n`.
+    let lines = || stderr.split(['\r', '\n']).chain(stdout.split(['\r', '\n'])).map(str::trim).filter(|l| !l.is_empty());
+    let progress = |l: &&str| l.ends_with("%)") && l.contains(" MB (");
+    let at = lines().find_map(|l| l.strip_prefix("Location:").map(|p| p.trim().to_string()));
+    if succeeded {
+        return match at {
+            Some(at) => format!("downloading Chrome for Testing: agent-browser installed it at {at}, but the node looked for it in {looked} and found none there"),
+            None => format!("downloading Chrome for Testing: agent-browser said it finished, but the node looked for it in {looked} and found none there"),
+        };
+    }
+    let said = lines().rfind(|l| l.contains('\u{2717}')).or_else(|| lines().rfind(|l| !progress(l)));
+    format!("downloading Chrome for Testing: {} (the node looks for it in {looked})", said.unwrap_or("agent-browser ended without saying why"))
 }
 
 /// Takes away the browser program the node installed, and with `chromium` the Chrome for Testing it downloaded too
@@ -677,11 +696,9 @@ impl Missing {
             (true, false) => "the node's browser program isn't installed",
             _ => "the node has no Chromium browser to walk the page in",
         };
-        let how = if fetch_allowed() {
-            format!("run `{INSTALL}` on the node's machine, or set UNBROWSE_BROWSER to the browser program")
-        } else {
-            format!("run `{INSTALL}` on the node's machine (or set UNBROWSE_BROWSER to the browser program), or let the node fetch it when it needs it: `unbrowse browser fetch on`")
-        };
+        // Said in the app's words, never as a command (`said_to_agents`): the agent's person may have no terminal. The
+        // `install` field beside it still names the command, for a script that runs it itself.
+        let how = "its owner downloads it in the Unbrowse app (Settings, Browser, Download Chrome for Testing)";
         let message = match (running, error) {
             (true, _) => format!("this needs the node's browser, which it is fetching now: try again in a minute ({what})"),
             (false, Some(e)) => format!("this needs the node's browser: {what}, and fetching it failed ({e}). To get it, {how}"),
@@ -1232,5 +1249,26 @@ mod profile_tests {
         assert_eq!(family("/Applications/Chromium.app/Contents/MacOS/Chromium"), Some("chromium"));
         assert_eq!(family("C:\\\\Program Files\\\\Vivaldi\\\\Application\\\\vivaldi.exe"), Some("vivaldi"));
         assert_eq!(family("/opt/weird/safari-like"), None);
+    }
+}
+
+#[cfg(test)]
+mod chromium_fetch_tests {
+    use super::chromium_fetch_failed;
+    use std::path::PathBuf;
+
+    // Windows, 22 Nov 2026 (c772f210): the node downloaded 205 MB and said only "fetching it failed" with the last
+    // progress line as the reason. The reason carries the folders the node looked in, never progress.
+    #[test]
+    fn a_failed_chrome_download_names_the_folder_looked_in_not_progress() {
+        let looked = [PathBuf::from(r"C:\Users\owner\.agent-browser\browsers")];
+        let ok = chromium_fetch_failed(true, "  Downloading Chrome 157\n\u{2713} Chrome 157 installed successfully\n  Location: D:\\svc\\.agent-browser\\browsers\\chrome-157\n", "\r  1/205 MB (0%)\r  205/205 MB (100%)\n", &looked);
+        assert!(ok.contains(r"D:\svc\.agent-browser\browsers\chrome-157") && ok.contains(r"C:\Users\owner\.agent-browser\browsers"), "{ok}");
+        assert!(!ok.contains("MB ("), "{ok}");
+        let failed = chromium_fetch_failed(false, "", "\r  1/205 MB (0%)\r  12/205 MB (5%)\n\u{2717} connection reset\n\r  12/205 MB (5%)", &looked);
+        assert!(failed.contains("connection reset") && failed.contains(r"C:\Users\owner"), "{failed}");
+        assert!(!failed.contains("MB ("), "{failed}");
+        let silent = chromium_fetch_failed(false, "", "\r  1/205 MB (0%)", &looked);
+        assert!(silent.contains("without saying why") && !silent.contains("MB ("), "{silent}");
     }
 }

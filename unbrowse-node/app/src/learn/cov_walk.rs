@@ -39,7 +39,7 @@ fn a_walk_of(base: &str, word: &str) -> (String, Trace) {
 }
 
 fn a_walk_in_memory(url: &str, trace: Trace, age: u64) -> Walk {
-    Walk { url: url.to_string(), trace, probes: Vec::new(), recording: None, at: std::time::Instant::now() + Duration::from_secs(age), addresses: None }
+    Walk { url: url.to_string(), trace: trace.into(), probes: Vec::new(), recording: None, at: std::time::Instant::now() + Duration::from_secs(age), addresses: None }
 }
 
 /// A site on this machine that answers every call by what `answer` says of its path and query (kind, body; the kind

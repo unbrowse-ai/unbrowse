@@ -144,6 +144,13 @@ pub const Net = struct {
                     n.io.sleep(.fromMilliseconds(250), .awake) catch {};
                     continue;
                 },
+                // The connection failed before anything was sent (a connect a signal interrupted, say): nothing reached
+                // the node, so it is asked again, a few times, without starting one.
+                error.NotSent => {
+                    if (!sendAgain(tries)) return said(a, 0, "Can't reach the node on this machine.");
+                    n.io.sleep(.fromMilliseconds(100), .awake) catch {};
+                    continue;
+                },
                 error.Failed => {
                     var r = said(a, 0, "The node's answer couldn't be read.");
                     r.unread = true;
@@ -157,7 +164,7 @@ pub const Net = struct {
         }
     }
 
-    fn postOnce(n: *Net, a: std.mem.Allocator, cmd: []const u8, body: []const u8) error{ Unreachable, Failed, NotTheNodes }!Reply {
+    fn postOnce(n: *Net, a: std.mem.Allocator, cmd: []const u8, body: []const u8) error{ Unreachable, NotSent, Failed, NotTheNodes }!Reply {
         var pbuf: [128]u8 = undefined;
         const path = std.fmt.bufPrint(&pbuf, "/owner/{s}", .{cmd}) catch return error.Failed;
         var tbuf: [256]u8 = undefined;
@@ -175,7 +182,7 @@ pub const Net = struct {
     /// request. Only a refused connection is `Unreachable`, so the caller tries
     /// again: a command that reached the node (a faucet, a payment) must never
     /// run twice.
-    fn exchange(n: *Net, a: std.mem.Allocator, method: std.http.Method, path: []const u8, body: ?[]const u8, token: []const u8) error{ Unreachable, Failed, NotTheNodes }!Reply {
+    fn exchange(n: *Net, a: std.mem.Allocator, method: std.http.Method, path: []const u8, body: ?[]const u8, token: []const u8) error{ Unreachable, NotSent, Failed, NotTheNodes }!Reply {
         var ubuf: [256]u8 = undefined;
         const uri = std.Uri.parse(n.url(&ubuf, path)) catch return error.Failed;
         var s: Signed = undefined;
@@ -188,7 +195,8 @@ pub const Net = struct {
             .extra_headers = &headers,
         }) catch |e| return switch (e) {
             error.ConnectionRefused => error.Unreachable,
-            else => error.Failed,
+            // Opening the connection failed and nothing was written: the request never reached the node.
+            else => error.NotSent,
         };
         defer req.deinit();
         if (body) |b| {
@@ -691,4 +699,16 @@ test "a reply the window words itself can be wiped like one the node sent" {
     // What a finished job does to every reply; a body in the program's constants stops the window here.
     std.crypto.secureZero(u8, r.body);
     try std.testing.expect(std.mem.allEqual(u8, r.body, 0));
+}
+
+/// Whether a request that never reached the node is sent again after `tries` tries: three in all, then the owner is
+/// told the node can't be reached.
+fn sendAgain(tries: u32) bool {
+    return tries < 2;
+}
+
+test "a request that never reached the node is tried again, three times in all" {
+    try std.testing.expect(sendAgain(0));
+    try std.testing.expect(sendAgain(1));
+    try std.testing.expect(!sendAgain(2));
 }

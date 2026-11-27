@@ -19,6 +19,30 @@ use serde_json::{json, Value};
 
 use crate::cdp::client::CdpClient;
 
+/// What the identity needs of a browser connection: one command, to a session or to the browser. The engine's own
+/// client has it, and so does any program that drives a browser of the node's (the browser CLI the agent's hands go
+/// through), so every browser the node runs is given its identity by the same code (`apply_browser_identity`) and not
+/// by a copy that knows fewer cases.
+pub trait Commands: Sync {
+    fn command(
+        &self,
+        method: &str,
+        params: Option<Value>,
+        session_id: Option<&str>,
+    ) -> impl std::future::Future<Output = Result<Value, String>> + Send;
+}
+
+impl Commands for CdpClient {
+    fn command(
+        &self,
+        method: &str,
+        params: Option<Value>,
+        session_id: Option<&str>,
+    ) -> impl std::future::Future<Output = Result<Value, String>> + Send {
+        self.send_command(method, params, session_id)
+    }
+}
+
 /// The same browser without the launch mode in its name.
 pub fn honest_user_agent(ua: &str) -> String {
     ua.replace("HeadlessChrome/", "Chrome/")
@@ -111,9 +135,9 @@ impl Drop for Asking {
 /// offered to secure documents, and the walked tab is not one yet; the
 /// browser's own `chrome://version` is, opens without the network, and is a
 /// browser page, not a tab anyone is driving.
-pub async fn own_identity(client: &CdpClient) -> Result<Value, String> {
+pub async fn own_identity<C: Commands>(client: &C) -> Result<Value, String> {
     let created = client
-        .send_command(
+        .command(
             "Target.createTarget",
             Some(json!({ "url": "chrome://version", "background": true })),
             None,
@@ -126,7 +150,7 @@ pub async fn own_identity(client: &CdpClient) -> Result<Value, String> {
         .to_string();
     let read = async {
         let attached = client
-            .send_command(
+            .command(
                 "Target.attachToTarget",
                 Some(json!({ "targetId": target, "flatten": true })),
                 None,
@@ -138,11 +162,11 @@ pub async fn own_identity(client: &CdpClient) -> Result<Value, String> {
             .ok_or("Target.attachToTarget returned no sessionId")?;
         // A browser that holds new targets for its debugger holds this one too.
         let _ = client
-            .send_command("Runtime.runIfWaitingForDebugger", None, Some(session))
+            .command("Runtime.runIfWaitingForDebugger", None, Some(session))
             .await;
         for _ in 0..40 {
             let evaluated = client
-                .send_command(
+                .command(
                     "Runtime.evaluate",
                     Some(json!({ "expression": OWN_REPORT, "awaitPromise": true, "returnByValue": true })),
                     Some(session),
@@ -157,7 +181,7 @@ pub async fn own_identity(client: &CdpClient) -> Result<Value, String> {
     }
     .await;
     let _ = client
-        .send_command("Target.closeTarget", Some(json!({ "targetId": target })), None)
+        .command("Target.closeTarget", Some(json!({ "targetId": target })), None)
         .await;
     read
 }
@@ -168,9 +192,9 @@ pub async fn own_identity(client: &CdpClient) -> Result<Value, String> {
 /// headless one is given its own report back with the switch taken out of the
 /// name; when it cannot say what it is, it is left as it is rather than made
 /// into something it is not.
-pub async fn apply_browser_identity(client: &CdpClient, session_id: &str) -> Result<(), String> {
+pub async fn apply_browser_identity<C: Commands>(client: &C, session_id: &str) -> Result<(), String> {
     let version = client
-        .send_command_no_params("Browser.getVersion", None)
+        .command("Browser.getVersion", None, None)
         .await
         .map_err(|e| format!("Browser.getVersion: {e}"))?;
     let ua = version
@@ -216,7 +240,7 @@ pub async fn apply_browser_identity(client: &CdpClient, session_id: &str) -> Res
     let hints = hints_from_report(&report)
         .ok_or_else(|| format!("the browser's own report is incomplete: {report}"))?;
     client
-        .send_command(
+        .command(
             "Emulation.setUserAgentOverride",
             Some(json!({ "userAgent": honest, "userAgentMetadata": hints })),
             Some(session_id),

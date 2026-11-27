@@ -173,7 +173,11 @@ export type Eye =
   | { kind: "scored"; walk: string; exchanges: number; candidates: Scored[] }
   | { kind: "picked"; walk: string; index: number; method: string; host: string; path: string; by: string; reasons: string[] }
   | { kind: "saved"; walk: string; route: string; what: string; site: string; steps: number; inputs: string[] }
-  | { kind: "failed"; walk: string; error: string };
+  | { kind: "failed"; walk: string; error: string }
+  /** The calls the walk's door took before any was a candidate, each with why (refused, another site's page, a page of script the walk went past). */
+  | { kind: "door"; walk: string; took: number; assets: number; calls: DoorTaken[] };
+/** One call the walk's door took, and the main document (`by`, an index into the walk) that held it there. */
+export type DoorTaken = { index: number; method: string; host: string; path: string; why: "refused" | "another_site" | "went_past"; by: number };
 
 /** A new picture of a walk. `settled` marks the page as the walk settled: the walk's poster. */
 export type FrameNote = { walk: string; seq: number; w: number; h: number; settled: boolean };

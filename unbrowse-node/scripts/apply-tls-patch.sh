@@ -13,8 +13,17 @@
 #
 # Idempotent: safe to re-run.
 set -e
-# Windows' Git Bash names them python and sha256sum.
-python3=$(command -v python3 || command -v python)
+# Windows' Git Bash names them python and sha256sum. A python that is only there by name is passed over: Windows puts
+# a Store stub called python3 on the path, which prints how to install Python and exits 9009 (22 Nov 2026).
+python3=
+for p in python3 python py; do
+    if command -v "$p" >/dev/null 2>&1 && "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)' >/dev/null 2>&1; then
+        python3=$(command -v "$p")
+        break
+    fi
+done
+[ -n "$python3" ] || { echo "no Python 3.8 or later that runs: install Python (on Windows, from python.org; the Store's python3 is only a stub)" >&2; exit 1; }
+[ "${1:-}" = "--which-python" ] && { echo "$python3"; exit 0; }
 sha256() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi; }
 here=$(cd "$(dirname "$0")/.." && pwd)
 version=0.5.6

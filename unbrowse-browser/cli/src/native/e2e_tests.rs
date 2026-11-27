@@ -1916,6 +1916,120 @@ async fn e2e_stale_presentational_iframe_ref_recovers_for_read_and_hover() {
     assert_success(&execute_command(&json!({"action": "close"}), &mut state).await);
 }
 
+/// A page's own script takes away a cross-site frame (which holds another) and then asks the site for much, as a
+/// single-page app moving to its next step does, and the page's button still takes a click: a frame that is gone is no
+/// frame a click can reach, so the check before a click does not refuse it for having no session, however many of the
+/// browser's events came between.
+#[tokio::test]
+#[ignore]
+async fn e2e_a_frame_the_page_took_away_does_not_refuse_a_click() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let mut buffer = vec![0; 4096];
+                let read = stream.read(&mut buffer).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buffer[..read]);
+                let body = if request.starts_with("GET /outer ") {
+                    format!("<!doctype html><p>outer</p><iframe src='http://127.0.0.1:{port}/inner'></iframe>")
+                } else if request.starts_with("GET /inner ") {
+                    "<!doctype html><p>inner</p>".to_string()
+                } else if request.starts_with("GET /ping") {
+                    String::new()
+                } else {
+                    format!(
+                        "<!doctype html><iframe id='f' src='http://localhost:{port}/outer'></iframe>\
+                         <button onclick=\"document.title='clicked'\">Go on</button>\
+                         <script>window.moveOn=async()=>{{document.getElementById('f').remove();\
+                         for(let i=0;i<1500;i++){{await fetch('/ping?'+i).catch(()=>{{}});}}document.title='moved';}}</script>"
+                    )
+                };
+                let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
+                let _ = stream.write_all(response.as_bytes()).await;
+            });
+        }
+    });
+    let mut state = DaemonState::new();
+    assert_success(&execute_command(&json!({"id": "1", "action": "launch", "headless": true}), &mut state).await);
+    assert_success(&execute_command(&json!({"id": "2", "action": "navigate", "url": format!("http://127.0.0.1:{port}/")}), &mut state).await);
+    for _ in 0..40 {
+        let _ = execute_command(&json!({"id": "s", "action": "snapshot"}), &mut state).await;
+        if state.iframe_sessions.len() >= 2 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    assert!(state.iframe_sessions.len() >= 2, "both cross-site frames attached: {:?}", state.iframe_sessions);
+    // The page moves on by itself, between two of the caller's commands: nothing reads the browser's events meanwhile.
+    let client = state.browser.as_ref().unwrap().client.clone();
+    let session = state.browser.as_ref().unwrap().active_session_id().unwrap().to_string();
+    client.send_command("Runtime.evaluate", Some(json!({"expression": "moveOn()"})), Some(&session)).await.unwrap();
+    for _ in 0..300 {
+        let title = client.send_command("Runtime.evaluate", Some(json!({"expression": "document.title", "returnByValue": true})), Some(&session)).await.unwrap_or_default();
+        if title["result"]["value"] == "moved" {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    let snapshot = execute_command(&json!({"id": "4", "action": "snapshot"}), &mut state).await;
+    assert_success(&snapshot);
+    let button = get_data(&snapshot)["refs"].as_object().unwrap().iter().find(|(_, n)| n["role"] == "button").map(|(r, _)| r.clone()).expect("the page's button");
+    let click = execute_command(&json!({"id": "5", "action": "click", "selector": format!("@{button}")}), &mut state).await;
+    assert_success(&click);
+    let title = execute_command(&json!({"id": "6", "action": "evaluate", "script": "document.title"}), &mut state).await;
+    assert_success(&title);
+    assert_eq!(get_data(&title)["result"], "clicked");
+    assert_success(&execute_command(&json!({"id": "close", "action": "close"}), &mut state).await);
+    server.abort();
+}
+
+/// The other side of [`e2e_a_frame_the_page_took_away_does_not_refuse_a_click`]: a frame of another process that is still
+/// on the page, whose session no longer answers, is one a dispatch may reach, and the check that can't be armed there
+/// refuses, as it always did.
+#[tokio::test]
+#[ignore]
+async fn e2e_a_frame_still_on_the_page_with_no_session_still_refuses_a_click() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let mut buffer = vec![0; 4096];
+                let read = stream.read(&mut buffer).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buffer[..read]);
+                let body = if request.starts_with("GET /child ") {
+                    "<!doctype html><p>child</p>".to_string()
+                } else {
+                    format!("<!doctype html><iframe src='http://localhost:{port}/child'></iframe><button>Go on</button>")
+                };
+                let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
+                let _ = stream.write_all(response.as_bytes()).await;
+            });
+        }
+    });
+    let mut state = DaemonState::new();
+    assert_success(&execute_command(&json!({"id": "1", "action": "launch", "headless": true}), &mut state).await);
+    assert_success(&execute_command(&json!({"id": "2", "action": "navigate", "url": format!("http://127.0.0.1:{port}/")}), &mut state).await);
+    for _ in 0..40 {
+        let _ = execute_command(&json!({"id": "s", "action": "snapshot"}), &mut state).await;
+        if !state.iframe_sessions.is_empty() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    let held = state.iframe_sessions.clone();
+    let frame_session = held.values().next().expect("the cross-site frame attached").clone();
+    let client = state.browser.as_ref().unwrap().client.clone();
+    let session = state.browser.as_ref().unwrap().active_session_id().unwrap().to_string();
+    client.send_command("Target.detachFromTarget", Some(json!({"sessionId": frame_session})), Some(&session)).await.unwrap();
+    let armed = super::unbrowse::world::arm(&client, &session, &held).await;
+    assert!(armed.is_err(), "a frame still on the page with no session is not armed past: {armed:?}");
+    let _ = super::unbrowse::world::disarm(&client, &session, &held).await;
+    assert_success(&execute_command(&json!({"id": "close", "action": "close"}), &mut state).await);
+    server.abort();
+}
+
 #[tokio::test]
 #[ignore]
 async fn e2e_presentational_cross_origin_iframe_refs_support_fill_and_inputvalue() {
@@ -11963,6 +12077,59 @@ async fn e2e_tab_new_inherits_user_agent_and_headers() {
     .await;
     assert_success(&resp);
     assert_eq!(get_data(&resp)["result"], "ab-tab-new-test/1.0");
+
+    let resp = execute_command(&json!({ "id": "99", "action": "close" }), &mut state).await;
+    assert_success(&resp);
+}
+
+/// A headless launch is still Chrome: no tab names the launch mode, in the
+/// request it sends or to the page's own script, and the client hints stay the
+/// browser's own. A site that refuses `HeadlessChrome` cuts the connection
+/// before any page, which is how the node's hands browser lost a booking site
+/// its walk could read.
+#[tokio::test]
+#[ignore]
+async fn e2e_a_headless_tab_names_chrome_not_its_launch_mode() {
+    let (base_url, _server) = start_echo_server().await;
+    let mut state = DaemonState::new();
+
+    let resp = execute_command(
+        &json!({ "id": "1", "action": "launch", "headless": true }),
+        &mut state,
+    )
+    .await;
+    assert_success(&resp);
+
+    for (n, action) in [("2", "navigate"), ("3", "tab_new")] {
+        let resp = execute_command(
+            &json!({ "id": n, "action": action, "url": format!("{}/{action}", base_url) }),
+            &mut state,
+        )
+        .await;
+        assert_success(&resp);
+
+        let resp = execute_command(
+            &json!({
+                "id": format!("{n}-read"), "action": "evaluate",
+                "script": "({ sent: JSON.parse(document.body.innerText).headers['User-Agent'], said: navigator.userAgent, brands: navigator.userAgentData.brands.map(b => b.brand) })",
+            }),
+            &mut state,
+        )
+        .await;
+        assert_success(&resp);
+        let read = &get_data(&resp)["result"];
+        for key in ["sent", "said"] {
+            let ua = read[key].as_str().unwrap_or_default();
+            assert!(
+                ua.contains("Chrome/") && !ua.contains("HeadlessChrome"),
+                "{action}: the {key} user agent names the launch mode: {read}"
+            );
+        }
+        assert!(
+            read["brands"].as_array().is_some_and(|b| !b.is_empty()),
+            "{action}: the client hints were dropped with the launch mode: {read}"
+        );
+    }
 
     let resp = execute_command(&json!({ "id": "99", "action": "close" }), &mut state).await;
     assert_success(&resp);

@@ -28,6 +28,7 @@ TOOL_NAMES = (
     "unbrowse_inspect",
     "unbrowse_judge",
     "unbrowse_whoami",
+    "unbrowse_setup",
     "unbrowse_report",
 )
 

@@ -3522,3 +3522,7 @@ mod tests {
         assert!(waiting().is_none(), "older than this program");
     }
 }
+
+#[cfg(test)]
+#[path = "update_cov_tests.rs"]
+mod update_cov_tests;

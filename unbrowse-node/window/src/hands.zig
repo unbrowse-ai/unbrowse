@@ -5,6 +5,7 @@
 //! sent may be a password's characters: wiped once sent.
 const std = @import("std");
 const nanoui = @import("nanoui");
+const handoff = @import("handoff.zig");
 const api = @import("api.zig");
 const store_mod = @import("store.zig");
 const Text = @import("live.zig").Text;
@@ -78,7 +79,7 @@ pub const Sender = struct {
             const r = job.net.post(arena.allocator(), job.item.cmd, job.item.body);
             job.status = r.status;
             if (r.status != 200) job.err.set(api.errorText(arena.allocator(), r));
-            nanoui.App.onMain(job, done);
+            handoff.toMain(job, done);
         }
 
         fn done(ctx: ?*anyopaque) callconv(.c) void {

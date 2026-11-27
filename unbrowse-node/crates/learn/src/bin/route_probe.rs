@@ -90,8 +90,11 @@ fn main() -> ExitCode {
         return fail(&format!("no captured API request (Fetch/XHR) matches {target}"));
     };
     let traces: Vec<Trace> = sessions.iter().map(|s| s.trace.clone()).collect();
+    // By what the request is, not where it sits in memory: `graph::build` reads copies of the traces.
     let target_ex = &traces[0].exchanges[target_idx];
-    let is_target = |ex: &Exchange| std::ptr::eq(ex, target_ex);
+    let is_target = |ex: &Exchange| {
+        ex.method == target_ex.method && ex.url == target_ex.url && ex.request_body == target_ex.request_body && ex.resource_type == target_ex.resource_type
+    };
     let g = match graph::build(&traces, is_target) {
         Ok(g) => g,
         Err(e) => return fail(&format!("building the graph: {e}")),
@@ -407,4 +410,229 @@ fn usage(note: &str) -> ExitCode {
 fn fail(note: &str) -> ExitCode {
     eprintln!("{note}");
     ExitCode::FAILURE
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::io::{Read, Write};
+
+    /// A site on 127.0.0.1 answering every request `200` with `body`; the head of each request it saw is kept.
+    fn site(body: &'static str) -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let kept = seen.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let mut stream = stream;
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                kept.lock().unwrap().push(String::from_utf8_lossy(&buf[..n]).replace("\r\n", " | "));
+                let _ = write!(stream, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
+            }
+        });
+        (format!("http://127.0.0.1:{port}"), seen)
+    }
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("route-probe-unit-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn runner(browser: Option<String>, jar: &[(&str, &str)]) -> Runner {
+        Runner {
+            http: HttpFetch::new().expect("the plain client builds"),
+            jar: jar.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            browser,
+            browser_exchanges: HashSet::new(),
+            seeded: None,
+            session: "route-probe-unit".into(),
+        }
+    }
+
+    fn request(url: &str, exchange: usize) -> Request {
+        Request { method: "GET".into(), url: url.parse().unwrap(), exchange, headers: vec![("x-token".into(), "t-1".into())], body: None }
+    }
+
+    /// The cookie jar of `agent-browser cookies get` is read as the CLI says it (an object holding `cookies`, or the
+    /// list itself) or as plain `name=value` lines; an entry without both a name and a value is not a cookie.
+    #[test]
+    fn a_cookie_jar_is_read_from_the_clis_json_or_from_plain_lines() {
+        let object = parse_cookie_jar(r#"{"cookies":[{"name":"sid","value":"a1"},{"name":"theme","value":"dark"},{"name":"lonely"}]}"#);
+        assert_eq!(object, HashMap::from([("sid".to_string(), "a1".to_string()), ("theme".to_string(), "dark".to_string())]));
+        let list = parse_cookie_jar(r#"[{"name":"sid","value":"b2"}]"#);
+        assert_eq!(list, HashMap::from([("sid".to_string(), "b2".to_string())]));
+        let lines = parse_cookie_jar("sid = c3\nnot a cookie\ntheme=light=1\n");
+        assert_eq!(lines, HashMap::from([("sid".to_string(), "c3".to_string()), ("theme".to_string(), "light=1".to_string())]));
+        // JSON that is not a list of cookies falls back to lines, which hold none.
+        assert!(parse_cookie_jar(r#"{"cookies":"none"}"#).is_empty());
+        assert!(parse_cookie_jar("").is_empty());
+    }
+
+    /// The first capture's inputs are what the probe asks with, each name once (the first value typed).
+    #[test]
+    fn the_inputs_of_a_capture_are_each_name_once_in_the_order_they_were_typed() {
+        let log = [
+            serde_json::json!({"type": "action", "t": 0.1, "action": "fill", "selector": "#q", "field": "q", "value": "lamp"}),
+            serde_json::json!({"type": "action", "t": 0.2, "action": "fill", "selector": "#zip", "field": "zip", "value": "0123"}),
+            serde_json::json!({"type": "action", "t": 0.3, "action": "fill", "selector": "#q", "field": "q", "value": "sofa"}),
+        ];
+        let text: String = log.iter().map(|l| format!("{l}\n")).collect();
+        let session = Session::from_log(&text).expect("the log reads");
+        let names: Vec<(String, String)> = recorded_inputs(&session).map(|i| (i.name, i.value)).collect();
+        assert_eq!(names.len(), session.trace.inputs.iter().map(|i| i.name.clone()).collect::<HashSet<_>>().len(), "{names:?}");
+        let q = names.iter().filter(|(n, _)| n == "q").count();
+        assert!(q <= 1, "a name is given once: {names:?}");
+    }
+
+    /// A session the capture's own browser made (a cookie the call sends that no response set) is what the probe
+    /// replays with until a live mint outranks it.
+    #[test]
+    fn a_cookie_the_browser_made_is_taken_from_the_capture_as_the_session() {
+        let entry = |t: f64, url: &str, cookie: &str, text: &str| {
+            serde_json::json!({"type": "exchange", "t": t, "resourceType": "Fetch", "entry": {
+                "request": {"method": "GET", "url": url, "headers": [{"name": "cookie", "value": cookie}]},
+                "response": {"status": 200, "headers": [], "content": {"mimeType": "application/json", "text": text}}}})
+        };
+        let walk = |word: &str, sid: &str| -> String {
+            let lines = [
+                serde_json::json!({"type": "action", "t": 0.5, "action": "fill", "selector": "#q", "field": "q", "value": word}),
+                entry(1.0, &format!("https://shop.example/api/search?q={word}"), &format!("sid={sid}; theme=dark"), &format!(r#"{{"found":"{word} number one"}}"#)),
+            ];
+            lines.iter().map(|l| format!("{l}\n")).collect()
+        };
+        let sessions = [Session::from_log(&walk("lamp", "b9f8e7d6c5a4-1")).unwrap(), Session::from_log(&walk("sofa", "c1d2e3f4a5b6-2")).unwrap()];
+        let traces: Vec<Trace> = sessions.iter().map(|s| s.trace.clone()).collect();
+        let g = graph::build(&traces, |ex| ex.url.path() == "/api/search").expect("the graph builds");
+        let jar = recorded_minted(&g, &sessions[0]);
+        assert_eq!(jar.get("sid").map(String::as_str), Some("b9f8e7d6c5a4-1"), "a cookie nothing set is the browser's, as the first capture had it: {jar:?}");
+        // A graph that has no minted field takes nothing.
+        let plain = Session::from_log(&format!("{}\n", serde_json::json!({"type": "exchange", "t": 1.0, "resourceType": "Fetch", "entry": {
+            "request": {"method": "GET", "url": "https://shop.example/api/plain", "headers": []},
+            "response": {"status": 200, "headers": [], "content": {"mimeType": "application/json", "text": "{}"}}}}))).unwrap();
+        let g = graph::build(std::slice::from_ref(&plain.trace), |ex| ex.url.path() == "/api/plain").expect("the graph builds");
+        assert!(recorded_minted(&g, &plain).is_empty());
+    }
+
+    /// The minted session is saved where the jar was named, one file per host, and read back whole; with no jar
+    /// named nothing is written.
+    #[test]
+    fn a_minted_session_is_saved_whole_beside_the_jar_that_was_named() {
+        let dir = scratch("save");
+        let file = dir.join("deep").join("shop.example.json");
+        let jar = HashMap::from([("sid".to_string(), "s-1".to_string())]);
+        save_jar(None, &jar);
+        assert!(!dir.join("deep").exists(), "no jar named, nothing written");
+        save_jar(Some(&file), &jar);
+        let back: HashMap<String, String> = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(back, jar);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A plain step goes over HTTP with the headers it carries; a step whose answer the browser already cached is
+    /// answered from it and never sent; a session value is the jar's.
+    #[test]
+    fn a_plain_step_is_sent_and_a_step_the_browser_answered_is_not() {
+        let (base, seen) = site(r#"{"token":"t-9"}"#);
+        let mut probe = runner(None, &[("sid", "jar-1")]);
+        let got = probe.fetch(&request(&format!("{base}/api/token"), 1)).expect("the site answers");
+        assert_eq!((got.status, got.response_body.as_deref()), (200, Some(r#"{"token":"t-9"}"#)));
+        let head = seen.lock().unwrap()[0].to_ascii_lowercase();
+        assert!(head.contains("get /api/token") && head.contains("x-token: t-1"), "{head}");
+        // A body that is text is shown as its start, a file's bytes by length; both are still sent.
+        let mut post = request(&format!("{base}/api/token"), 2);
+        post.method = "POST".into();
+        post.body = Some(b"q=lamp".to_vec());
+        probe.fetch(&post).expect("a text body is sent");
+        post.body = Some(vec![0xff, 0xfe, 0x00]);
+        probe.fetch(&post).expect("a file's bytes are sent");
+        assert!(seen.lock().unwrap()[2].contains("content-length: 3") || seen.lock().unwrap()[2].to_ascii_lowercase().contains("content-length: 3"), "{:?}", seen.lock().unwrap());
+        assert_eq!((probe.minted("sid").as_deref(), probe.minted("other")), (Some("jar-1"), None));
+        // The browser's cached answer for the root step.
+        let mut cached = got.clone();
+        cached.response_body = Some("from the browser".into());
+        probe.seeded = Some((1, cached));
+        let before = seen.lock().unwrap().len();
+        let again = probe.fetch(&request(&format!("{base}/api/token"), 1)).unwrap();
+        assert_eq!(again.response_body.as_deref(), Some("from the browser"));
+        assert_eq!(seen.lock().unwrap().len(), before, "a cached step sends nothing");
+        let other = probe.fetch(&request(&format!("{base}/api/other"), 2)).unwrap();
+        assert_eq!(other.response_body.as_deref(), Some(r#"{"token":"t-9"}"#), "another step is still the site's");
+        assert_eq!(probe.fetch_unredirected(&request(&format!("{base}/api/token"), 3)).unwrap().status, 200);
+        // No browser to reseed with: the root is left as it was.
+        let mut none = runner(None, &[]);
+        none.reseed(&request(&format!("{base}/api/token"), 1)).expect("nothing to reseed");
+        assert!(none.seeded.is_none());
+    }
+
+    /// A shell script that stands for the agent-browser: it appends `capture` to the session's capture file on
+    /// `open`, and says `lands` for `get url`.
+    fn browser(dir: &std::path::Path, capture: &str, lands: &str) -> String {
+        use std::os::unix::fs::PermissionsExt;
+        let path = dir.join("agent-browser.sh");
+        let script = format!(
+            "#!/bin/sh\nsess=$2\ncmd=$3\ncase \"$cmd\" in\n  open) mkdir -p \"$UNBROWSE_CAPTURE_DIR\"; printf '%s\\n' '{capture}' >> \"$UNBROWSE_CAPTURE_DIR/$sess.jsonl\"; echo 'opened' >&2 ;;\n  get) [ \"$4\" = url ] && echo '{lands}' ;;\nesac\nexit 0\n"
+        );
+        std::fs::write(&path, script).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    /// The browser's own capture is the raw response of the step it opened: found by the exact address first, with
+    /// the cookies it set taken as the session; kept as the answer for the retry after a reseed. A page the browser
+    /// never recorded, and a site that keeps challenging it, are failures said as such.
+    #[test]
+    fn a_step_the_browser_opened_is_answered_from_its_own_capture_or_fails_saying_why() {
+        // These runs share the probe's capture folder in the temp dir.
+        static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _turn = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = scratch("browser");
+        let url = "https://shop.example/api/token?chal_t=7";
+        let line = |u: &str, cookie: &str| {
+            serde_json::json!({"type": "exchange", "t": 1.0, "entry": {
+                "request": {"method": "GET", "url": u, "headers": []},
+                "response": {"status": 200, "headers": [{"name": "set-cookie", "value": cookie}], "content": {"mimeType": "application/json", "text": r#"{"token":"t-live"}"#}}}})
+            .to_string()
+        };
+        // The exact address is preferred over another with the same path.
+        // Lines of the capture that are no exchange, or no line at all, are passed over.
+        let noise = r#"{"type":"action","t":0.1,"action":"navigate"}"#;
+        let both = format!("{noise}\nnot json at all\n{}\n{}", line("https://shop.example/api/token?chal_t=1", "sid=stale"), line(url, "sid=fresh; Path=/"));
+        let mut probe = runner(Some(browser(&dir, &both, "https://shop.example/landed")), &[]);
+        probe.reseed(&request(url, 1)).expect("the browser answers");
+        let (at, ex) = probe.seeded.clone().expect("the root's answer is kept");
+        assert_eq!((at, ex.response_body.as_deref()), (1, Some(r#"{"token":"t-live"}"#)));
+        assert_eq!(probe.minted("sid").as_deref(), Some("fresh"), "the cookie the browser was given is the session's");
+        // A step marked for the browser is the browser's, once; the answer is cached for the retry.
+        probe.browser_exchanges.insert(1);
+        probe.seeded = None;
+        let got = probe.fetch(&request(url, 1)).expect("a step for the browser");
+        assert_eq!(got.response_body.as_deref(), Some(r#"{"token":"t-live"}"#));
+        assert!(probe.seeded.is_some());
+        // Same path, another query: the browser normalised the address, so the first with the address is the answer.
+        let mut normal = runner(Some(browser(&dir, &line("https://shop.example/api/token", "sid=norm"), "https://shop.example/landed")), &[]);
+        normal.reseed(&request("https://shop.example/api/token?chal_t=99", 1)).expect("the same address answers");
+        assert_eq!(normal.minted("sid").as_deref(), Some("norm"));
+        // Loaded, but nothing was recorded for the address.
+        let mut empty = runner(Some(browser(&dir, &line("https://elsewhere.example/other", "x=1"), "https://shop.example/landed")), &[]);
+        let err = empty.reseed(&request(url, 1)).expect_err("nothing recorded");
+        assert!(matches!(&err, ReplayError::Failed { status: 0, body, .. } if body.contains("raw response for it was not captured")), "{err}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A site that keeps answering the browser with a challenge page is a failure that says so, after the browser
+    /// has been tried again (the probe does not loop on it).
+    #[test]
+    fn a_browser_that_keeps_landing_on_a_challenge_is_a_failure_that_says_so() {
+        static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _turn = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = scratch("challenge");
+        let mut probe = runner(Some(browser(&dir, "{}", "https://shop.example/captcha?x=1")), &[]);
+        let err = probe.reseed(&request("https://shop.example/api/token", 1)).expect_err("the site never lets the browser through");
+        assert!(matches!(&err, ReplayError::Failed { status: 403, body, .. } if body.contains("kept challenging")), "{err}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

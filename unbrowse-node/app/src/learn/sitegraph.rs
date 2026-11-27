@@ -575,3 +575,7 @@ mod tests {
         assert!(for_a_proposer(graph)["walks"][0].get("session").is_none(), "a proposer is not told the session");
     }
 }
+
+#[cfg(test)]
+#[path = "sitegraph_tests.rs"]
+mod sitegraph_tests;

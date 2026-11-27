@@ -159,7 +159,7 @@ export async function bring(opts: StartOptions = {}): Promise<{ baseUrl: string;
   }
   if (!token) {
     const found = started ? "" : ` A node was running at ${baseUrl} already, and only a node this process starts gives its own key: name one (\`unbrowse agent token\` prints the node's first key).`;
-    throw errorFor(`no agent token: pass { token } or set UNBROWSE_AGENT_TOKEN (Unbrowse app, Wallet, New agent key).${found}`, 401, "unauthorized");
+    throw errorFor(`no agent token: pass { token } or set UNBROWSE_AGENT_TOKEN (\`unbrowse agent token\` prints one; \`unbrowse agent new <name>\` makes a key of the agent's own).${found}`, 401, "unauthorized");
   }
   return { baseUrl, token, started };
 }

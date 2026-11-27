@@ -1,6 +1,18 @@
-//! Route learning: capture what the agent's browser does, find where every request value
-//! comes from, and build the dependency graph that reproduces the route without recorded
-//! secrets.
+//! Route learning and browserless replay (`unbrowse-learn`).
+//!
+//! Implements the core five-stage pipeline (`mint -> walk -> trace -> route -> call`):
+//!
+//! - **Walk & capture (`walk`, `mint`, `session`, `challenge`):** Drives `agent-browser-core`
+//!   in-process, records every exchange from first navigation, and detects front-door challenges
+//!   dynamically from the walk's own traffic (never hardcoded by host or vendor).
+//! - **Trace & provenance (`trace`, `slots`, `provenance`, `identity`, `fields`):** Pairs raw
+//!   traffic into exchanges and traces each parameter back to its source (caller input, constant,
+//!   earlier response, session cookie, or page code).
+//! - **Graph & route (`graph`, `schema`, `page`, `judge`, `goal`, `answer`):** Builds the
+//!   minimal dependency graph that reproduces the target API call without recorded secrets.
+//! - **Replay & safety (`client`, `http`, `replay`, `egress`, `proxy`, `verify`, `ledger`):**
+//!   Replays routes over a Chrome-shaped TLS/HTTP2 transport with strict egress rules for
+//!   shared routes (HTTPS and public addresses only) and safe write-retry tracking.
 
 pub mod answer;
 pub mod body;
