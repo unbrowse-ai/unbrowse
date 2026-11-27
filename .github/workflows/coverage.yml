@@ -133,10 +133,25 @@ jobs:
             unbrowse-node -> target
             unbrowse-browser/cli -> target
       - run: cargo install cargo-llvm-cov --locked --version "$CARGO_LLVM_COV"
+      - name: Cache Chrome for Testing
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.agent-browser/browsers
+          key: agent-browser-chrome-${{ runner.os }}-${{ hashFiles('unbrowse-browser/cli/Cargo.lock') }}
+          restore-keys: agent-browser-chrome-${{ runner.os }}-
       # The learner's end-to-end tests drive the real browser (ci.yml's node job does the same).
       - name: Build the browser
         working-directory: unbrowse-browser/cli
         run: cargo build --locked && ./target/debug/agent-browser install
+      # The node's chain tests start an Anvil of their own (testchain::Anvil runs ~/.foundry/bin/anvil), so plain
+      # `cargo test` skips them (`#[ignore = "needs Anvil"]`) and no job ran them: payments, share, peers, watchtower,
+      # owner_nodes, erc8004 were measured without their own tests (UNB-208). The settlement job's Foundry, put where
+      # the tests look for it.
+      - uses: foundry-rs/foundry-toolchain@82dee4ba654bd2146511f85f0d013af94670c4de # v1.4.0
+        with:
+          version: v1.8.5
+      - name: Anvil where the node's tests look for it
+        run: mkdir -p "$HOME/.foundry/bin" && ln -sf "$(command -v anvil)" "$HOME/.foundry/bin/anvil" && "$HOME/.foundry/bin/anvil" --version
       - name: Tests, measured
         run: |
           mkdir -p "$RUNNER_TEMP/cov"
@@ -148,6 +163,24 @@ jobs:
           cargo llvm-cov -p unbrowse-node-app --bin unbrowse-node --locked --no-fail-fast --no-report -- --ignored --test-threads=1 \
             primitives::tests::every_person_row_asks_the_owner_and_never_runs_headless >> "$RUNNER_TEMP/cov/rust-node.log" 2>&1 || echo "::warning::a primitive-matrix row failed under coverage: see the log artifact"
           cargo llvm-cov --locked -p unbrowse-node-app --bin unbrowse-node --no-fail-fast --no-report -- --ignored --test-threads=1 the_live_view_follows_the_page_to_another_site >> "$RUNNER_TEMP/cov/rust-node.log" 2>&1 || echo "::warning::the live view test failed under coverage"
+          # Every test marked `needs Anvil`, each in its own OS process in parallel (they set the process's chain and
+          # bind ephemeral ports via testchain::free_port; LLVM_PROFILE_FILE uses %p so profiles never collide). They run
+          # against the test binary the measured runs above built (cargo llvm-cov's own, in target/llvm-cov-target: the
+          # build is already done, so this only names it), and write their profiles beside that build's, so the one
+          # report below reads every test's. `cargo llvm-cov show-env` here pointed the build and the report at target/
+          # instead: the node was built a second time there and the report read only these tests' profiles, so no unit
+          # test of the node was counted (a line only a unit test runs read 0, on staging too).
+          anvil_bin=$(CARGO_TERM_COLOR=never cargo llvm-cov -p unbrowse-node-app --bin unbrowse-node --locked --no-report -- --list 2>&1 >/dev/null \
+            | sed -nE 's/.*Running unittests src\/main\.rs \((.*)\)$/\1/p' | tail -n1)
+          [ -x "$anvil_bin" ] || { echo "::error::the measured build's node test binary wasn't found ($anvil_bin)"; exit 1; }
+          echo "Anvil tests run on $anvil_bin"
+          "$anvil_bin" --ignored --list 2>/dev/null \
+            | python3 -I ../.github/scripts/anvil_tests.py app/src > "$RUNNER_TEMP/cov/anvil-tests.txt"
+          echo "Anvil tests: $(wc -l < "$RUNNER_TEMP/cov/anvil-tests.txt")"
+          [ -s "$RUNNER_TEMP/cov/anvil-tests.txt" ] || echo "::warning::no test marked needs Anvil was found"
+          LLVM_PROFILE_FILE="$PWD/target/llvm-cov-target/unbrowse-node-anvil-%p-%10m.profraw" \
+            python3 -I ../.github/scripts/anvil_tests.py --run --binary "$anvil_bin" --tests "$RUNNER_TEMP/cov/anvil-tests.txt" \
+            --log "$RUNNER_TEMP/cov/rust-node.log" --jobs 6
           cargo llvm-cov report --json --summary-only --output-path "$RUNNER_TEMP/cov/rust-node.json"
           cargo llvm-cov report --lcov --output-path "$RUNNER_TEMP/cov/rust-node.lcov"
           grep -E '^test result:' "$RUNNER_TEMP/cov/rust-node.log" | awk '{p+=$4; f+=$6; i+=$8} END {print "node tests under coverage: " p " passed, " f " failed, " i " ignored"}' | tee "$RUNNER_TEMP/cov/rust-node.tests"
@@ -189,10 +222,26 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Coverage input key
+        id: cov-key
+        run: |
+          if [ "${{ matrix.part }}" = core ]; then
+            key=$(git ls-tree -r HEAD -- unbrowse-node/crates/browser .github/workflows/coverage.yml | sha256sum | cut -c1-64)
+          else
+            key=$(git ls-tree -r HEAD -- unbrowse-browser unbrowse-node/crates/browser .github/workflows/coverage.yml | sha256sum | cut -c1-64)
+          fi
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Restore cached coverage for unchanged browser sources
+        id: part-cache
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/cov
+          key: cov-part-browser-${{ matrix.part }}-${{ runner.os }}-rust-1.99.1-${{ steps.cov-key.outputs.key }}
       # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it. Each
       # workspace's target/ lives in the pool's shared cache, so rust-cache is skipped there. Skipped on hosted runners.
       - name: Tools and cargo cache on the local runner pool
-        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        if: steps.part-cache.outputs.cache-hit != 'true' && runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
         run: |
           dpkg -s build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl xz-utils zstd > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl xz-utils zstd > /dev/null; }
           for w in unbrowse-node/crates/browser unbrowse-browser/cli; do
@@ -200,22 +249,28 @@ jobs:
             mkdir -p "$d" && ln -sfn "$d" "$w/target"
           done
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        if: steps.part-cache.outputs.cache-hit != 'true'
         with:
           toolchain: 1.99.1
           components: llvm-tools-preview
       # One cache for both halves (a matrix shares the job's id), saved by the longer CLI half; the engine half restores
       # the dependencies it shares.
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        if: (runner.environment != 'self-hosted' || startsWith(runner.name, 'blacksmith-'))
+        if: steps.part-cache.outputs.cache-hit != 'true' && (runner.environment != 'self-hosted' || startsWith(runner.name, 'blacksmith-'))
         with:
           prefix-key: coverage
           save-if: ${{ matrix.part == 'cli' }}
           workspaces: |
             unbrowse-node/crates/browser -> target
             unbrowse-browser/cli -> target
-      - run: cargo install cargo-llvm-cov --locked --version "$CARGO_LLVM_COV"
+      - if: steps.part-cache.outputs.cache-hit != 'true'
+        run: cargo install cargo-llvm-cov --locked --version "$CARGO_LLVM_COV"
+      # Upstream's screen-recording tests in Chrome need ffmpeg, which a runner may not have.
+      - name: ffmpeg for the CLI's recording tests
+        if: matrix.part == 'cli' && steps.part-cache.outputs.cache-hit != 'true'
+        run: command -v ffmpeg || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null; }
       - name: Engine tests, measured
-        if: matrix.part == 'core'
+        if: matrix.part == 'core' && steps.part-cache.outputs.cache-hit != 'true'
         working-directory: unbrowse-node/crates/browser
         run: |
           mkdir -p "$RUNNER_TEMP/cov"
@@ -233,7 +288,7 @@ jobs:
           exit "$status"
       # Upstream's own suite, as upstream runs it, plus the fork's module (`cli/src/native/unbrowse/`).
       - name: CLI tests, measured
-        if: matrix.part == 'cli'
+        if: matrix.part == 'cli' && steps.part-cache.outputs.cache-hit != 'true'
         working-directory: unbrowse-browser/cli
         # The stack ci.yml's CLI tests run with: instrumented, test_a_confirmed_launch_keeps_the_allowed_domains_it_was_parked_with
         # overflowed the default 8 MiB and its abort took every later test of the binary with it (run 44912667286).
@@ -244,10 +299,24 @@ jobs:
           log="$RUNNER_TEMP/cov/rust-browser-cli.log"
           status=0
           cargo llvm-cov --locked --no-fail-fast --no-report > "$log" 2>&1 || { status=1; echo "::error::a CLI test failed"; }
+          # The tests that need a browser, in the runner's Chrome, one at a time, as upstream's own CI runs them (its
+          # native-e2e job): upstream's e2e suite (`native/e2e_tests.rs`), the fork's tests in Chrome, and the node's
+          # contract with this browser (`native/unbrowse/contract_cli.rs`), so an upstream release that changes what
+          # the node relies on fails here. #773 dropped this pass. A test listed in
+          # `src/native/unbrowse/tests-not-run.tsv` is skipped, each with why it fails here (UNB-208).
+          skips=$(grep -v '^#' src/native/unbrowse/tests-not-run.tsv | cut -f1 | sed 's/^/--skip /' | tr '\n' ' ')
+          # shellcheck disable=SC2086 # one word per skip
+          cargo llvm-cov --locked --no-fail-fast --no-report -- --ignored --test-threads=1 --exact $skips >> "$log" 2>&1 || { status=1; echo "::error::a CLI test in Chrome failed"; }
           cargo llvm-cov report --json --summary-only --output-path "$RUNNER_TEMP/cov/rust-browser-cli.json"
           cargo llvm-cov report --lcov --output-path "$RUNNER_TEMP/cov/rust-browser-cli.lcov"
           grep -aE '^test result:|^test .* FAILED$|^---- .* stdout ----$|panicked at' "$log" | tail -n 80
           exit "$status"
+      - name: Save coverage cache on passing push
+        if: github.event_name == 'push' && steps.part-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/cov
+          key: cov-part-browser-${{ matrix.part }}-${{ runner.os }}-rust-1.99.1-${{ steps.cov-key.outputs.key }}
       # Kept when a test failed too: the report and the ratchet read what ran.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
@@ -343,14 +412,33 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Coverage input key
+        id: cov-key
+        working-directory: ${{ github.workspace }}
+        run: echo "key=$(git ls-tree -r HEAD -- unbrowse-settlement .github/workflows/coverage.yml | sha256sum | cut -c1-64)" >> "$GITHUB_OUTPUT"
+      - name: Restore cached coverage for unchanged contracts
+        id: part-cache
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/cov
+          key: cov-part-settlement-${{ runner.os }}-${{ env.FOUNDRY_VERSION }}-${{ steps.cov-key.outputs.key }}
       - uses: foundry-rs/foundry-toolchain@82dee4ba654bd2146511f85f0d013af94670c4de # v1.4.0
+        if: steps.part-cache.outputs.cache-hit != 'true'
         with:
           version: ${{ env.FOUNDRY_VERSION }}
       - name: Tests, measured
+        if: steps.part-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/cov"
           forge coverage --ir-minimum --report lcov --report-file "$RUNNER_TEMP/cov/settlement.info" > "$RUNNER_TEMP/cov/settlement.log" 2>&1 || echo "::warning::forge coverage reported failures (coverage-mode artefacts are known): see the log"
           tail -n 5 "$RUNNER_TEMP/cov/settlement.log"
+      - name: Save coverage cache on push
+        if: github.event_name == 'push' && steps.part-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/cov
+          key: cov-part-settlement-${{ runner.os }}-${{ env.FOUNDRY_VERSION }}-${{ steps.cov-key.outputs.key }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cov-settlement
@@ -377,10 +465,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Coverage input key
+        id: cov-key
+        working-directory: ${{ github.workspace }}
+        run: echo "key=$(git ls-tree -r HEAD -- unbrowse-node/window unbrowse-node/app/icons .github/workflows/coverage.yml .github/scripts/patch_zig_std.py | sha256sum | cut -c1-64)" >> "$GITHUB_OUTPUT"
+      - name: Restore cached coverage for unchanged window sources
+        id: part-cache
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/cov
+          key: cov-part-window-${{ runner.os }}-zig-0.17.0-${{ steps.cov-key.outputs.key }}
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        if: steps.part-cache.outputs.cache-hit != 'true'
         with:
           version: 0.17.0
+      # Zig 0.17's std aborts on a connect a signal interrupted ("programmer bug caused syscall error: ISCONN"): patched
+      # in place before anything builds (.github/scripts/patch_zig_std.py; Zig 0.17.1 and master read it the same way).
+      - name: Patch Zig's std (an interrupted connect settles)
+        if: steps.part-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: if command -v python3 >/dev/null; then python3 -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; else python -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; fi
       - name: Tests, measured
+        if: steps.part-cache.outputs.cache-hit != 'true'
         run: |
           zig build test-bin
           mkdir -p "$RUNNER_TEMP/cov" "$RUNNER_TEMP/kcov"
@@ -398,6 +505,12 @@ jobs:
           tail -n 3 "$RUNNER_TEMP/cov/window.log"
           sudo cp "$(ls "$RUNNER_TEMP"/kcov/window-tests.*/coverage.json | head -n 1)" "$RUNNER_TEMP/cov/window.json"
           sudo chown "$(id -u)" "$RUNNER_TEMP/cov/window.json"
+      - name: Save coverage cache on push
+        if: github.event_name == 'push' && steps.part-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/cov
+          key: cov-part-window-${{ runner.os }}-zig-0.17.0-${{ steps.cov-key.outputs.key }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cov-window

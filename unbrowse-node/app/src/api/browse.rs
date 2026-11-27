@@ -477,7 +477,7 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
         if crate::solver::configured().is_some() {
             notes.push(SOLVER_CONFIGURED);
         }
-        notes.push("Before ask_owner, try unbrowse_challenge: it shows you the page's check as a picture and takes your clicks one step at a time (look, click, drag, hold, type, press, done). What the picture can't settle (a sign-in, a code only a person has) is the owner's.");
+        notes.push("Before ask_owner, try unbrowse_challenge: it shows you the page's check as a picture and takes your clicks one step at a time (look, click, drag, hold, type, press, solve, done). What the picture can't settle (a sign-in, a code only a person has) is the owner's.");
     }
     if !notes.is_empty() {
         reply["note"] = json!(notes.join(" "));
@@ -492,9 +492,9 @@ pub(super) async fn do_browse(node: &Arc<Node>, a: &Agent, args: Vec<String>, si
 /// is met when it stands in the way, with unbrowse_challenge.
 /// Said when a clearable check needs clearing and the owner configured a captcha solver: the node has a last
 /// source for the wall beyond a person. The owner is still never asked to solve it.
-pub(super) const SOLVER_CONFIGURED: &str = "A captcha solver is configured: the node can meet this check with it, no person needed.";
+pub(super) const SOLVER_CONFIGURED: &str = "A captcha solver is configured: unbrowse_challenge solve meets a checkbox, invisible or Turnstile check with it, no person needed.";
 
-pub(super) const CARRIES_A_CHECK: &str = "This page carries a check for a person (a widget among its own fields): it is the page asked for. Fill and click as usual; when the check stands in the way (a submit stays disabled, or the check opens), meet it with unbrowse_challenge (look, click, done) before ask_owner.";
+pub(super) const CARRIES_A_CHECK: &str = "This page carries a check for a person (a widget among its own fields): it is the page asked for. Fill and click as usual; when the check stands in the way (a submit stays disabled, or the check opens), meet it with unbrowse_challenge (solve first, else look, click, done) before ask_owner.";
 
 /// The sessions with a learn waiting to start, by site: `learn_after` adds one, `learn_starts` takes it out as the
 /// learn begins reading, so a step that comes while a learn runs queues the next and one that comes before it starts

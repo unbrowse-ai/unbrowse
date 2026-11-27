@@ -1,11 +1,15 @@
 """mcp_check.py against a fake MCP server: it passes a sound one and fails each kind of fault it is there to catch."""
+import base64
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import mcp_check  # noqa: E402
@@ -49,11 +53,107 @@ for line in sys.stdin:
 '''
 
 CHROME = r'''#!/bin/sh
-for a in "$@"; do case $a in --screenshot=*) printf '\211PNG\r\n\032\nfake' > "${a#--screenshot=}" ;; esac; done
+for a in "$@"; do case $a in --screenshot=*) printf '\211PNG\r\n\032\nfake\000\000\000\000IEND\256B\140\202' > "${a#--screenshot=}" ;; esac; done
 '''
 
 
+class ChromePictureTest(unittest.TestCase):
+    @staticmethod
+    def screenshot_path(command):
+        return Path(next(arg.split("=", 1)[1] for arg in command if arg.startswith("--screenshot=")))
+
+    def test_a_picture_written_before_chrome_times_out_counts(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "shot.png"
+
+            def wrote_then_waited(command, screenshot, timeout=60):
+                self.screenshot_path(command).write_bytes(base64.b64decode(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9WZ2QAAAAASUVORK5CYII="
+                ))
+                raise subprocess.TimeoutExpired(command, timeout)
+
+            with patch.object(mcp_check, "_run_chrome_screenshot", side_effect=wrote_then_waited) as chrome:
+                self.assertTrue(mcp_check.chrome_shot("chrome", "file:///card.html", target, target.parent / "profile"))
+                chrome.assert_called_once()
+            self.assertTrue(mcp_check.is_png(target, complete=True))
+
+    def test_a_hanging_chrome_is_stopped_promptly_once_complete_png_is_written(self):
+        with tempfile.TemporaryDirectory() as folder:
+            tmp = Path(folder)
+            chrome = tmp / "hanging-chrome"
+            chrome.write_text(
+                "#!/bin/sh\n"
+                "for a in \"$@\"; do case $a in --screenshot=*) printf '\\211PNG\\r\\n\\032\\nfake\\000\\000\\000\\000IEND\\256B\\140\\202' > \"${a#--screenshot=}\" ;; esac; done\n"
+                "exec sleep 30\n"
+            )
+            chrome.chmod(chrome.stat().st_mode | stat.S_IEXEC)
+            target = tmp / "shot.png"
+            started = __import__("time").monotonic()
+            self.assertTrue(mcp_check.chrome_shot(str(chrome), "file:///card.html", target, tmp / "profile"))
+            elapsed = __import__("time").monotonic() - started
+            self.assertLess(elapsed, 5.0, f"chrome_shot waited {elapsed:.1f}s for a hanging Chrome after PNG finished")
+            self.assertTrue(mcp_check.is_png(target, complete=True))
+
+    def test_chrome_timeouts_without_a_picture_still_fail(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "shot.png"
+            with patch.object(mcp_check, "_run_chrome_screenshot", side_effect=subprocess.TimeoutExpired("chrome", 60)) as chrome:
+                self.assertFalse(mcp_check.chrome_shot("chrome", "file:///card.html", target, target.parent / "profile"))
+                self.assertEqual(chrome.call_count, 2)
+
+    def test_a_previous_run_screenshot_does_not_count(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "shot.png"
+            target.write_bytes(base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO9WZ2QAAAAASUVORK5CYII="
+            ))
+            with patch.object(mcp_check, "_run_chrome_screenshot", side_effect=subprocess.TimeoutExpired("chrome", 60)) as chrome:
+                self.assertFalse(mcp_check.chrome_shot("chrome", "file:///card.html", target, target.parent / "profile"))
+                self.assertEqual(chrome.call_count, 2)
+            self.assertFalse(target.exists())
+
+    def test_an_interrupted_png_write_still_fails(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "shot.png"
+
+            def interrupted_write(command, screenshot, timeout=60):
+                self.screenshot_path(command).write_bytes(mcp_check.PNG + b"partial")
+                raise subprocess.TimeoutExpired(command, timeout)
+
+            with patch.object(mcp_check, "_run_chrome_screenshot", side_effect=interrupted_write) as chrome:
+                self.assertFalse(mcp_check.chrome_shot("chrome", "file:///card.html", target, target.parent / "profile"))
+                self.assertEqual(chrome.call_count, 2)
+            self.assertFalse(target.exists())
+
+
 class McpCheckTest(unittest.TestCase):
+    def test_the_nodes_browser_must_take_a_new_screenshot(self):
+        with tempfile.TemporaryDirectory() as folder:
+            shots = Path(folder)
+            previous = shots / "01-session.png"
+            previous.write_bytes(mcp_check.PNG + b"previous picture" + mcp_check.PNG_END)
+            step = {"n": 1, "id": "session", "tool": "unbrowse_browse",
+                    "shot": {"session": "session-fixture", "url": "https://example.test/"}}
+            mcp = Mock()
+            mcp.request.return_value = {"result": {"content": []}}
+            path, source, _ = mcp_check.shoot(mcp, None, shots, step, {})
+            self.assertIsNone(path)
+            self.assertIsNone(source)
+            self.assertFalse(previous.exists())
+            self.assertNotEqual(Path(mcp.request.call_args.args[1]["arguments"]["do"][1]), previous)
+
+    def test_data_url_screenshots_the_reply_from_the_live_call(self):
+        journey = json.loads(Path(__file__).with_name("mcp-journey.json").read_text())
+        step = next(step for step in journey["steps"] if step["id"] == "do-data-url")
+        step = dict(step, n=1, answer='{"result":{"data":{"text":"User-agent: *"}}}')
+        with tempfile.TemporaryDirectory() as tmp:
+            shots = Path(tmp)
+            with patch.object(mcp_check, "chrome_shot", return_value=True) as shot:
+                _, source, _ = mcp_check.shoot(None, "chrome", shots, step, {})
+            self.assertEqual(source, "the reply, drawn")
+            self.assertEqual(shot.call_args.args[1], (shots / ".01.html").as_uri())
+            self.assertIn("User-agent: *", (shots / ".01.html").read_text())
+
     def run_check(self, fault="", journey=None):
         tmp = Path(tempfile.mkdtemp())
         (tmp / "server.py").write_text(SERVER)

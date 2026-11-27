@@ -132,9 +132,13 @@ in_scratch() {
 
 # Written at the settings format's current version (`SETTINGS` in unbrowse-node/crates/files): a file without one is
 # migrated from the first, and version 4 turns `accept_bearer` off, so the bank's bearer token would be refused.
+# `SETTINGS_V` writes an older node's format instead: the floor's run builds the last promoted build (UNB-307), which can
+# be old enough to read up to version 2 and refuse a v5 file it never wrote (26 Nov 2026: every shard of the floor run
+# died in two minutes on exactly that). `wait_for` learns the version from the node's own refusal, which names it.
 settings() {
+  SETTINGS_FETCH=$1
   cat > "$home/settings.json" <<JSON
-{"v":5,"map_while_browsing":true,"hold_routes":false,"signed_in_calls":true,"paused":false,"api_port":$port,"storage_gb":1.0,
+{"v":${SETTINGS_V:-5},"map_while_browsing":true,"hold_routes":false,"signed_in_calls":true,"paused":false,"api_port":$port,"storage_gb":1.0,
  "excluded":[],"share_routes":"off","share_notice_seen":true,"private_network":${PRIVATE_NETWORK:-false},"terms_accepted":"2026-10-29",
  "peer_network":false,"light":true,"auto_update":false,"fetch_browser":$1,"headless_only":$([ "$headed" = 1 ] && echo false || echo true),"passkeys":false,"passkeys_never":[],"max_fetch_usdc":0,"accept_bearer":true}
 JSON
@@ -167,7 +171,22 @@ start() {
 
 wait_for() {
   n=0
+  adapted=0
   until curl -sf -o /dev/null "http://127.0.0.1:$port/v1/health"; do
+    # A node built from an older tag reads an older settings format, says so, and names the version it reads. Write
+    # that version and start again, once: the bench and the node it measures can be releases apart (UNB-307's floor).
+    if [ "$adapted" = 0 ] && [ -z "${SETTINGS_V:-}" ] && grep -q "was written by a newer Unbrowse node" "$dir/node.log" 2>/dev/null; then
+      older=$(sed -n 's/.*this node reads up to version \([0-9][0-9]*\).*/\1/p' "$dir/node.log" | tail -n 1)
+      if [ -n "$older" ]; then
+        echo "scratch-node: this node reads settings up to v$older; writing v$older and starting again" >&2
+        SETTINGS_V=$older
+        settings "$SETTINGS_FETCH"
+        adapted=1
+        n=0
+        start
+        continue
+      fi
+    fi
     n=$((n + 1))
     [ "$n" -lt 60 ] || { echo "the scratch node didn't start" >&2; tail -20 "$dir/node.log" >&2; exit 1; }
     sleep 2
@@ -180,17 +199,30 @@ chrome=${CHROME:-}
 done
 
 # No Chrome on this machine: the node fetches one, as it would for an owner, and the guard goes in front of that.
+# A node fetches nothing when it starts (app/src/browsers.rs): it is asked to (`download_browser`), and asked again
+# whenever it stands idle with no browser, until it has one or says why it can't.
+owner() {
+  curl -s -m 30 -X POST -H "Authorization: Bearer $(cat "$home/owner.token")" -H 'content-type: application/json' -d '{}' \
+    "http://127.0.0.1:$port/owner/$1" || true
+}
 if [ -z "$chrome" ]; then
   settings true
   start
   wait_for
   n=0
-  while [ -z "$chrome" ]; do
-    chrome=$(curl -s -X POST -H "Authorization: Bearer $(cat "$home/owner.token")" -H 'content-type: application/json' -d '{}' \
-      "http://127.0.0.1:$port/owner/browsers" | sed -n 's/.*"using":"\([^"]*\)".*/\1/p')
+  view=$(owner download_browser)
+  while :; do
+    chrome=$(printf '%s' "$view" | sed -n 's/.*"using":"\([^"]*\)".*/\1/p')
+    [ -z "$chrome" ] || break
+    why=$(printf '%s' "$view" | sed -n 's/.*"download_error":"\(.*\)","program":.*/\1/p')
+    [ -z "$why" ] || { echo "the scratch node has no browser: $why" >&2; tail -20 "$dir/node.log" >&2; exit 1; }
     n=$((n + 1))
-    [ "$n" -lt 120 ] || { echo "the scratch node has no browser" >&2; exit 1; }
-    [ -n "$chrome" ] || sleep 5
+    [ "$n" -lt 120 ] || { echo "the scratch node has no browser after 10 minutes of fetching one" >&2; tail -20 "$dir/node.log" >&2; exit 1; }
+    sleep 5
+    case "$view" in
+      *'"downloading":true'*) view=$(owner browsers) ;;
+      *) view=$(owner download_browser) ;;
+    esac
   done
   kill "$(cat "$dir/node.pid")"
   sleep 3
@@ -220,9 +252,18 @@ printf '{"path": "%s"}\n' "$dir/guard-chrome" > "$home/browser.json"
 settings false
 start
 wait_for
-# `agent new` names the agent's number and no longer prints its key; `agent token <n>` prints it.
-agent=$(in_scratch "$node" agent new bank 2>/dev/null | sed -n 's/.* agent token \([0-9][0-9]*\).*/\1/p' | head -n 1)
-[ -n "$agent" ] && in_scratch "$node" agent token "$agent" < /dev/null 2>/dev/null | grep -o 'unb_[A-Za-z0-9_.-]*' | head -n 1 > "$dir/token"
+# `agent new` prints the key itself on an older node, and names the agent's number without its key on a newer one, where
+# `agent token <n>` prints it. Take whichever this build does: the floor's run measures a release tag (UNB-307), so the
+# node can be older than this script.
+made=$(in_scratch "$node" agent new bank 2>/dev/null || true)
+token=$(printf '%s' "$made" | grep -o 'unb_[A-Za-z0-9_.-]*' | head -n 1 || true)
+if [ -z "$token" ]; then
+  agent=$(printf '%s' "$made" | sed -n 's/.* agent token \([0-9][0-9]*\).*/\1/p' | head -n 1)
+  if [ -n "$agent" ]; then
+    token=$(in_scratch "$node" agent token "$agent" < /dev/null 2>/dev/null | grep -o 'unb_[A-Za-z0-9_.-]*' | head -n 1 || true)
+  fi
+fi
+[ -n "$token" ] || { echo "couldn't make an agent key" >&2; tail -5 "$dir/node.log" >&2; exit 1; }
+printf '%s\n' "$token" > "$dir/token"
 chmod 600 "$dir/token"
-[ -s "$dir/token" ] || { echo "couldn't make an agent key" >&2; exit 1; }
 echo "scratch node on 127.0.0.1:$port, browsing through $chrome"

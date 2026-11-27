@@ -5,7 +5,7 @@ api_version: 1
 description: "Use websites through the Unbrowse node on this machine: say what you want and get the site's own JSON back. Drive the node's browser by hand when a page needs it, and the node learns a route from every step."
 author: Unbrowse
 license: Apache-2.0
-homepage: https://github.com/unbrowse-ai/unbrowse-core/tree/main/integrations/hermes
+homepage: https://github.com/unbrowse-ai/unbrowse/tree/main/integrations/hermes
 tags: [web, browser, api]
 provides_tools:
   - unbrowse_search

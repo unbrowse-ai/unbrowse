@@ -27,4 +27,4 @@ The papers define the protocol design (with `papers/params_check.py` verifying c
 | [Identity and the vault](identity-and-vault.md) | Node key acts as the wallet; no proof of personhood or per-site agent scopes yet |
 | [Decentralised from launch](decentralised.md) | Live Arc deployments pending; local Anvil devnet active in test mode |
 
-Rule-by-rule implementation tracking is in [SPEC-STATUS.md](../SPEC-STATUS.md).
+The table above is where the code stands against each concept today.

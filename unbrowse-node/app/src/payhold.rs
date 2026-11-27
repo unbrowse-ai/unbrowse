@@ -563,3 +563,7 @@ mod tests {
         release("isolated.example").unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "payhold_cov_tests.rs"]
+mod payhold_cov_tests;

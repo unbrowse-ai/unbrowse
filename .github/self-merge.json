@@ -1,23 +1,5 @@
 {
-  "_what": "pr-gate's policy for this repo (~/.claude/skills/self-merge). Read from a PR's base branch, so a PR can't loosen its own gate. *_extra keys add to the defaults, never replace them.",
-  "countersign_paths_extra": [
-    "unbrowse-settlement/src/**",
-    "unbrowse-settlement/script/**",
-    "unbrowse-node/app/src/chain/**",
-    "unbrowse-node/app/contracts/**",
-    "unbrowse-node/app/src/vault.rs",
-    "unbrowse-node/crates/core/src/vault.rs",
-    "unbrowse-node/crates/core/src/keystore.rs",
-    "unbrowse-node/app/src/keychain_logins.rs",
-    "unbrowse-node/app/src/macos_keychain.rs",
-    "unbrowse-node/app/src/passkey.rs",
-    "unbrowse-node/app/src/payhold.rs",
-    "unbrowse-node/crates/detector/src/card.rs",
-    ".deploy/**",
-    "docs/COVERAGE-EXCLUSIONS.md",
-    "docs/REQUIREMENTS.md",
-    "scripts/goals/**"
-  ],
+  "_what": "Repository merge evidence and performance targets. AGENTS.md documents the guarded GitHub CLI merge procedure.",
   "required_sections": [
     "Scorecard"
   ],

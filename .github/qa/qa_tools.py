@@ -34,6 +34,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -43,6 +44,7 @@ SHOTS = Path(ENV.get("QA_SHOTS", "qa-shots")) / "steps"
 WORK = Path(ENV.get("QA_WORK", "qa-work"))
 FIXTURES = Path(ENV.get("QA_FIXTURES", Path(__file__).resolve().parent / "fixtures"))
 PNG = b"\x89PNG\r\n\x1a\n"
+PNG_END = b"\0\0\0\0IEND\xaeB`\x82"
 LOCK = threading.Lock()
 STATE = {"seq": 0, "window": None, "script": []}
 
@@ -183,11 +185,47 @@ def log_step(entry):
         f.write(json.dumps(entry) + "\n")
 
 
-def is_png(path):
+def is_png(path, *, complete=False):
     try:
-        return path.is_file() and not path.is_symlink() and path.read_bytes()[:8] == PNG
+        if not path.is_file() or path.is_symlink():
+            return False
+        data = path.read_bytes()
+        return data.startswith(PNG) and (not complete or data.endswith(PNG_END))
     except OSError:
         return False
+
+
+CHROME_HEADLESS_FLAGS = (
+    "--headless=new",
+    "--disable-gpu",
+    "--hide-scrollbars",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-background-networking",
+    "--disable-sync",
+    "--disable-component-update",
+    "--disable-extensions",
+    "--metrics-recording-only",
+    "--use-mock-keychain",
+)
+
+
+def _stop_process_group(proc):
+    if proc.poll() is not None:
+        return
+    for sig, wait_s in ((signal.SIGTERM, 0.5), (signal.SIGKILL, 2.0)):
+        try:
+            os.killpg(proc.pid, sig)
+        except OSError:
+            try:
+                proc.send_signal(sig)
+            except OSError:
+                return
+        try:
+            proc.wait(timeout=wait_s)
+            return
+        except subprocess.TimeoutExpired:
+            continue
 
 
 def draw_terminal(target, title, text):
@@ -203,13 +241,35 @@ def draw_terminal(target, title, text):
         f"<pre style='white-space:pre-wrap;padding:12px;margin:0'>{esc(text[:12000])}</pre></body>"
     )
     unsandboxed = ["--no-sandbox"] if ENV.get("QA_CHROME_NO_SANDBOX") == "1" else []
+    target.unlink(missing_ok=True)
     try:
-        subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--window-size=1100,800",
-                        *unsandboxed, f"--user-data-dir={SHOTS / '.profile'}", f"--screenshot={target}", page.as_uri()],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, check=False)  # fmt: skip
-    except (subprocess.TimeoutExpired, OSError):
+        with tempfile.TemporaryDirectory(dir=target.parent) as folder:
+            screenshot = Path(folder) / "shot.png"
+            command = [
+                chrome, *CHROME_HEADLESS_FLAGS, "--window-size=1100,800",
+                *unsandboxed, f"--user-data-dir={SHOTS / '.profile'}", f"--screenshot={screenshot}", page.as_uri(),
+            ]
+            proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            deadline = time.monotonic() + 30
+            try:
+                while time.monotonic() < deadline:
+                    if proc.poll() is not None:
+                        break
+                    if is_png(screenshot, complete=True):
+                        try:
+                            proc.wait(timeout=0.5)
+                        except subprocess.TimeoutExpired:
+                            _stop_process_group(proc)
+                        break
+                    time.sleep(0.1)
+            finally:
+                _stop_process_group(proc)
+            if is_png(screenshot):
+                screenshot.replace(target)
+    except OSError:
         pass
-    page.unlink(missing_ok=True)
+    finally:
+        page.unlink(missing_ok=True)
     return is_png(target)
 
 
@@ -324,6 +384,20 @@ def window_alive():
     return proc is not None and proc.poll() is None
 
 
+def wait_for_owner_ask():
+    """Use the bundled signer in a child with only the scratch node's address and home."""
+    helper = Path(__file__).resolve().with_name("owner_watch.py")
+    settings = {key: ENV[key] for key in ("UNBROWSE_HOME", "UNBROWSE_NODE") if key in ENV}
+    try:
+        done = subprocess.run([sys.executable, "-I", str(helper)], env=settings, text=True, check=False,
+                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=126)
+    except subprocess.TimeoutExpired:
+        return "no owner ask became pending within 120 seconds"
+    except OSError:
+        return "the scratch owner watcher could not start"
+    return None if done.returncode == 0 else done.stdout.strip() or "the scratch owner watcher failed"
+
+
 def window(args):
     action = args.get("action")
     label = re.sub(r"[^A-Za-z0-9-]+", "-", str(args.get("name") or action or "window"))[:40]
@@ -367,14 +441,33 @@ def window(args):
             # Each picture is a new run of the window from where it opens, the steps so far done again. A step that
             # changed the node (Open my node on the terms) is gone from where it opens now: the new step alone, then.
             fresh = render(target, [step, "live:2"], wait) is None
-        log_step({"n": n, "tool": "window", "action": f"{action} {step.split(':', 1)[1]}", "name": label, "alive": window_alive(), "picture": target.name if fresh or not why else None})
-        if why and not fresh:
-            return True, f"{action} didn't happen: {why}"
+        failed = why is not None and not fresh
+        pictured = not failed
+        if failed and action == "click" and "TextNotFound" in why:
+            pictured = picture_now(target, list(script), wait) is None
+        log_step({"n": n, "tool": "window", "action": f"{action} {step.split(':', 1)[1]}", "name": label, "alive": window_alive(),
+                  "picture": target.name if pictured else None, "why": why if failed else None})
+        if failed:
+            return True, f"{action} didn't happen: {why}" + (f"; current picture: {target}" if pictured else "")
         if fresh:
             script.clear()
         script.extend([step, "live:2"])
         return False, f"done: {step}" + (" (from the window as it opens now: the earlier steps changed the node)" if fresh else "") + f"; picture: {target}"
     if action == "shot":
+        if args.get("when_owner_asks"):
+            if not window_alive():
+                return True, "no window is open: open it first"
+            n, target = step_file(f"window-{label}")
+
+            def while_asked():
+                why = wait_for_owner_ask()
+                if why is None:
+                    why = render(target, [], wait)
+                log_step({"n": n, "tool": "window", "action": "shot while owner asked", "name": label,
+                          "alive": window_alive(), "picture": None if why else target.name, "why": why})
+
+            threading.Thread(target=while_asked, daemon=True).start()
+            return False, f"the window will be pictured when an owner ask is pending, at {target}"
         after = min(float(args.get("after_s") or 0), 120)
         if after > 0:
             # Drawn `after` seconds from now by a window that opens now and watches the node all along, so what reaches
@@ -414,8 +507,8 @@ def shot(label, what, wait):
 TOOLS = [
     {"name": "terminal", "description": "Run one of Unbrowse's own commands in a terminal, as its owner or an agent types it: program unb, unbrowse-node or unbrowse (the npm package), and the words after it. No shell: one command, its words as given. Answers with what it printed, its exit code and a picture of the terminal. stdin only for `unbrowse-node vault add <site> <account> --stored`, the password.",
      "inputSchema": {"type": "object", "properties": {"program": {"type": "string", "enum": ["unb", "unbrowse-node", "unbrowse"]}, "args": {"type": "array", "items": {"type": "string"}}, "stdin": {"type": "string"}, "timeout": {"type": "integer"}}, "required": ["program", "args"]}},
-    {"name": "window", "description": "The node's window, as its owner sees it. action open: start it on this node (it stays open, watching the node, so an agent's ask reaches it) and picture it. click: click the text given in `text` (a screen's name in the sidebar, a button's label: the exact words drawn) and picture what follows. key: press a key (escape, enter, tab, up, down, left, right, home, end, page_up, page_down, backspace) and picture it. type: type `text` into what has the keys. shot: picture it now, or with after_s a few seconds later while you call another tool (the path comes back at once). close: quit it. Every picture is drawn by the window itself.",
-     "inputSchema": {"type": "object", "properties": {"action": {"type": "string", "enum": ["open", "click", "key", "type", "shot", "close"]}, "text": {"type": "string"}, "keys": {"type": "string"}, "after_s": {"type": "number"}, "name": {"type": "string"}, "wait_s": {"type": "number"}}, "required": ["action"]}},
+    {"name": "window", "description": "The node's window, as its owner sees it. action open: start it on this node (it stays open, watching the node, so an agent's ask reaches it) and picture it. click: click the text given in `text` (a screen's name in the sidebar, a button's label: the exact words drawn) and picture what follows. key: press a key (escape, enter, tab, up, down, left, right, home, end, page_up, page_down, backspace) and picture it. type: type `text` into what has the keys. shot: picture it now, or with after_s a few seconds later while you call another tool, or with when_owner_asks to picture a pending owner request (the path comes back at once). close: quit it. Every picture is drawn by the window itself.",
+     "inputSchema": {"type": "object", "properties": {"action": {"type": "string", "enum": ["open", "click", "key", "type", "shot", "close"]}, "text": {"type": "string"}, "keys": {"type": "string"}, "after_s": {"type": "number"}, "when_owner_asks": {"type": "boolean"}, "name": {"type": "string"}, "wait_s": {"type": "number"}}, "required": ["action"]}},
 ]  # fmt: skip
 
 

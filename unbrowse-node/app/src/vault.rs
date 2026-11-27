@@ -142,8 +142,13 @@ impl Keep {
     /// The secret, `None` when there is none: what `get` can't say, which is the difference between nothing kept and
     /// something kept that didn't read.
     fn find(&self, slot: Slot, site: &str, account: &str) -> Result<Option<Zeroizing<String>>, String> {
+        let all = store::read_json(&self.file, &unbrowse_files::VAULT_SEALED);
+        self.find_in(slot, site, account, &all)
+    }
+
+    fn find_in(&self, slot: Slot, site: &str, account: &str, all: &BTreeMap<String, String>) -> Result<Option<Zeroizing<String>>, String> {
         let name = sealed_name(slot, site, account);
-        let Some(b64) = store::read_json::<BTreeMap<String, String>>(&self.file, &unbrowse_files::VAULT_SEALED).get(&name).cloned() else {
+        let Some(b64) = all.get(&name) else {
             return Ok(None);
         };
         let damaged = || format!("the vault's {} for {account} on {site} is damaged", slot.label());
@@ -893,6 +898,74 @@ pub fn held_secret(keep: &Keep, keys: &dyn KeyStore, r: &Ref) -> Result<Option<Z
         Some(_) => secret_for(keep, keys, r).map(Some),
         // Nothing held: never the login keychain, which would ask the owner for a password only to hide it.
         None => Ok(None),
+    }
+}
+
+/// Checks the full outbound payload, including response keys and listing metadata. A copied password can appear
+/// on any site. Read the local vault only, with no keychain lookup or prompt, and report no match details.
+pub(crate) fn route_sharing_guard(keys: &dyn KeyStore) -> Result<impl Fn(&str) -> bool, String> {
+    let unread = "the vault could not be checked for passwords, so the route cannot be shared";
+    let logins: Vec<Login> = store::read_json_strict(&path(), &unbrowse_files::VAULT).map_err(|_| unread)?;
+    let mut passwords = Vec::new();
+    if !logins.is_empty() {
+        passwords = sharing_passwords(keys, logins).map_err(|_| unread)?;
+    }
+    Ok(move |text: &str| !passwords.iter().any(|password| password.carries(text)))
+}
+
+fn sharing_passwords(keys: &dyn KeyStore, logins: Vec<Login>) -> Result<Vec<unbrowse_learn::trace::Written>, String> {
+    let keep = crate::vault_keep(Ok(keys))?;
+    let sealed: BTreeMap<String, String> = store::read_json_strict(&keep.file, &unbrowse_files::VAULT_SEALED)?;
+    let root = RootKey::load(keys).map_err(|e| e.to_string())?;
+    let mut passwords = Vec::with_capacity(logins.len());
+    for login in logins {
+        let password = if login.kind == "derived" {
+            Some(derived(&root, &login.site, &login.account, login.counter, login.derivation))
+        } else {
+            keep.find_in(Slot::Password, &login.site, &login.account, &sealed)?
+        };
+        if let Some(password) = password {
+            passwords.push(unbrowse_learn::trace::Written::secret(&password));
+        }
+    }
+    Ok(passwords)
+}
+
+pub(crate) fn route_payload_is_safe(payload: &serde_json::Value, dynamic_keys: bool, safe: &impl Fn(&str) -> bool) -> bool {
+    use serde_json::Value;
+    match payload {
+        Value::String(text) => safe(text),
+        Value::Array(items) => items.iter().all(|item| route_payload_is_safe(item, dynamic_keys, safe)),
+        Value::Object(object) => object.iter().all(|(key, value)| {
+            (!dynamic_keys || safe(key))
+                && route_payload_is_safe(value, dynamic_keys || matches!(key.as_str(), "response" | "response_shape"), safe)
+        }),
+        _ => true,
+    }
+}
+
+pub(crate) fn listing_response_is_safe(response: Option<&serde_json::Value>, safe: &impl Fn(&str) -> bool) -> bool {
+    response.is_none_or(|response| route_payload_is_safe(response, true, safe))
+}
+
+pub(crate) fn check_route_sharing(keys: &dyn KeyStore, payload: &serde_json::Value, labels: &[&str]) -> Result<(), String> {
+    check_route_publication(keys, payload, labels, None)
+}
+
+pub(crate) fn check_route_publication(
+    keys: &dyn KeyStore,
+    payload: &serde_json::Value,
+    labels: &[&str],
+    response: Option<&serde_json::Value>,
+) -> Result<(), String> {
+    let safe = route_sharing_guard(keys)?;
+    if route_payload_is_safe(payload, false, &safe)
+        && labels.iter().all(|text| safe(text))
+        && listing_response_is_safe(response, &safe)
+    {
+        Ok(())
+    } else {
+        Err("this route cannot be shared because its public data contains a vault password".into())
     }
 }
 
@@ -1956,6 +2029,60 @@ mod tests {
         let login = Login { site: "example.com".into(), account: "me".into(), kind: "derived".into(), counter: 0, created: 0, code: false, derivation: DERIVATION };
         store::write_json(&path(), &unbrowse_files::VAULT, &vec![login]).unwrap();
         keys
+    }
+
+    #[test]
+    fn sharing_matches_blank_secrets_without_masking_page_whitespace() {
+        use unbrowse_learn::trace::Written;
+        assert!(Written::secret(" ").carries("Search items"));
+        assert_eq!(Written::of(" ").replace_all("Search items", "hidden"), "Search items");
+    }
+
+    #[test]
+    fn sharing_matches_base64_with_its_original_case() {
+        let secret = unbrowse_learn::trace::Written::secret("x");
+        assert!(secret.carries("encoded: eA=="));
+        assert!(secret.carries("encoded: e%41%3d%3D"));
+        assert!(!secret.carries("Search items"));
+    }
+
+    #[test]
+    fn sharing_checks_the_bounded_response_before_publication() {
+        let keys = with_login();
+        let keep = crate::vault_keep(Ok(&keys)).unwrap();
+        add(&keep, "other.example", "owner", "stored", Some("object"), "test").unwrap();
+        let shape = serde_json::Value::Object((0..400).map(|i| (format!("field{i}"), serde_json::json!("int"))).collect());
+        let body = serde_json::json!({"response": &shape});
+        assert!(check_route_sharing(&keys, &body, &[]).is_ok());
+        let response = crate::listing::bounded_shape(Some(shape));
+        assert_eq!(response, Some(serde_json::json!("object")));
+        assert!(check_route_publication(&keys, &body, &[], response.as_ref()).is_err());
+    }
+
+    #[test]
+    fn sharing_refuses_vault_passwords_in_any_outbound_field() {
+        let keys = with_login();
+        let keep = crate::vault_keep(Ok(&keys)).unwrap();
+        let stored = "test-password / with symbols";
+        add(&keep, "other.example", "owner", "stored", Some(stored), "test").unwrap();
+        add(&keep, "other.example", "short", "stored", Some("q9"), "test").unwrap();
+        let derived = reveal(&keep, &keys, "example.com", "me").unwrap();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(stored);
+        add(&keep, "other.example", "schema", "stored", Some("site"), "test").unwrap();
+        add(&keep, "other.example", "unicode", "stored", Some("ΟΣ"), "test").unwrap();
+        let body = serde_json::json!({"site": "public.example", "response": { &encoded: "string" }});
+        let safe_body = serde_json::json!({"site": "public.example", "endpoint": "https://public.example/items"});
+        let schema_as_data = serde_json::json!({"sign_in": {"steps": [{"response_shape": {"site": "string"}}]}});
+        let description = format!("Search with {}", derived.as_str());
+        let refusal = "this route cannot be shared because its public data contains a vault password";
+        assert_eq!(check_route_sharing(&keys, &body, &[]).unwrap_err(), refusal);
+        assert_eq!(check_route_sharing(&keys, &schema_as_data, &[]).unwrap_err(), refusal);
+        for label in [description.as_str(), "https://public.example/aq9b", "Search ΟΣΑ"] {
+            assert_eq!(check_route_sharing(&keys, &safe_body, &[label]).unwrap_err(), refusal);
+        }
+        assert!(check_route_sharing(&keys, &safe_body, &["Search items"]).is_ok());
+        std::fs::write(&keep.file, "damaged").unwrap();
+        assert!(check_route_sharing(&keys, &safe_body, &["Search items"]).is_err());
     }
 
     fn given(v: &str) -> std::collections::HashMap<String, String> {

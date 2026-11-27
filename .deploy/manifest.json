@@ -52,6 +52,21 @@
         "minRequests": 50,
         "why": "Its readers are the team, a few visits a day; its traffic is CI's posts (about 30 runs a day on staging) and the gate's rounds."
       }
+    },
+    {
+      "name": "unbrowse-ci-shots",
+      "envs": {
+        "staging": {
+          "config": "unbrowse-ci-shots/wrangler.staging.jsonc"
+        },
+        "production": {
+          "config": "unbrowse-ci-shots/wrangler.jsonc"
+        }
+      },
+      "soak": {
+        "minRequests": 50,
+        "why": "Its traffic is CI's report: each finished run on a pull request reads or puts its pictures (dozens a run, many runs a day)."
+      }
     }
   ],
   "checks": [
@@ -84,6 +99,16 @@
       "layer": "static",
       "name": "dashboard typechecks, builds and bundles for staging and production",
       "cmd": "cd unbrowse-dashboard && bun install --frozen-lockfile && npx tsc --noEmit && npx vite build && npx wrangler deploy --dry-run -c wrangler.staging.jsonc --outdir .wrangler/dry && npx wrangler deploy --dry-run -c wrangler.jsonc --outdir .wrangler/dry"
+    },
+    {
+      "layer": "unit",
+      "name": "CI pictures worker: only CI's key puts, only real pictures go in, nothing lists",
+      "cmd": "cd unbrowse-ci-shots && npm test"
+    },
+    {
+      "layer": "static",
+      "name": "CI pictures worker bundles for staging and production",
+      "cmd": "cd unbrowse-ci-shots && npx --yes wrangler deploy --dry-run -c wrangler.staging.jsonc --outdir .wrangler/dry && npx --yes wrangler deploy --dry-run -c wrangler.jsonc --outdir .wrangler/dry"
     }
   ],
   "gates": {

@@ -598,13 +598,18 @@ pub(crate) static BEFORE_RESERVE: std::sync::Mutex<Option<std::pin::Pin<Box<dyn 
 
 /// `release_within`, held to `RELEASE_DEADLINE`.
 async fn release(node: &Node, from: PeerId, content_id: &str, payment: &[u8]) -> Result<Vec<u8>, String> {
-    match tokio::time::timeout(RELEASE_DEADLINE, release_within(node, from, content_id, payment)).await {
+    let deadline = tokio::time::Instant::now() + RELEASE_DEADLINE;
+    match tokio::time::timeout_at(deadline, release_within(node, from, content_id, payment, deadline)).await {
         Ok(out) => out,
-        Err(_) => Err(format!("the release took longer than {}s, so nothing was served", RELEASE_DEADLINE.as_secs())),
+        Err(_) => Err(release_timed_out()),
     }
 }
 
-async fn release_within(node: &Node, from: PeerId, content_id: &str, payment: &[u8]) -> Result<Vec<u8>, String> {
+fn release_timed_out() -> String {
+    format!("the release took longer than {}s, so nothing was served", RELEASE_DEADLINE.as_secs())
+}
+
+async fn release_within(node: &Node, from: PeerId, content_id: &str, payment: &[u8], deadline: tokio::time::Instant) -> Result<Vec<u8>, String> {
     // The owner's pause stops what the node does for others as much as for its own agents.
     if store::load_settings().paused {
         return Err(crate::outcome::PAUSED.into());
@@ -654,9 +659,14 @@ async fn release_within(node: &Node, from: PeerId, content_id: &str, payment: &[
     if whose == Whose::Own && !ours.contains(&e.contributor) {
         return Err("the entry is another contributor's".into());
     }
+    let local_body = if ours.contains(&e.contributor) {
+        let body = serde_json::from_slice(&bytes).map_err(|_| "this node doesn't serve that body")?;
+        crate::vault::check_route_sharing(node.keys.as_ref(), &body, &[]).map_err(|_| "this node doesn't serve that body")?;
+        Some(body)
+    } else {
+        None
+    };
     network::verify_body_voucher(&node.chain, &v, entry, content_id, e.fee_units, seen, &head).await?;
-    // A body callers pay for is one the store keeps longest.
-    recipe::used_body(content_id, std::time::SystemTime::now());
     #[cfg(test)]
     {
         let hook = BEFORE_RESERVE.lock().unwrap_or_else(|e| e.into_inner()).take();
@@ -664,14 +674,21 @@ async fn release_within(node: &Node, from: PeerId, content_id: &str, payment: &[
             hook.await;
         }
     }
+    recipe::used_body(content_id, std::time::SystemTime::now());
     // The voucher's window judged again at the finalized height now, right before anything is reserved or served
     // (R11-CHAIN-1): the head above is a snapshot. It is the LAST thing a release awaits (R12-CHAIN-1): from here to
     // the bytes going out only local work runs (the reservation, the activity line), so no reply the chain is slow to
     // give can carry the release past the voucher's closing epoch after it was judged open.
     // -- last chain read --
     network::still_open_now(&node.chain, v.epoch, &head).await?;
+    if let Some(body) = local_body.as_ref() {
+        crate::vault::check_route_sharing(node.keys.as_ref(), body, &[]).map_err(|_| "this node doesn't serve that body")?;
+    }
     // The line's place in the books, reserved before the body goes out (R7-CHAIN-1): refused, nothing is released.
     // Old notes go only by a witnessed epoch (R7-CHAIN-2), read with the voucher just now (`verify_body_voucher`).
+    if tokio::time::Instant::now() >= deadline {
+        return Err(release_timed_out());
+    }
     network::reserve_served(me, &v, seen.is_some())?;
     store::log_activity(&store::Activity {
         at: store::now(),
@@ -2382,7 +2399,11 @@ mod tests {
         let after = &after[after.find("still_open_now").unwrap()..];
         let after = &after[after.find('\n').unwrap()..];
         assert!(!after.contains(".await"), "an await after the expiry check: {after}");
-        assert!(after.contains("reserve_served") && after.contains("Ok(bytes)"));
+        assert!(!after.contains("used_body"), "body timestamp I/O after the expiry check: {after}");
+        let checked = after.find("check_route_sharing").expect("check the current vault after the final chain read");
+        let reserved = after.find("reserve_served").expect("reserve the voucher before returning the body");
+        let timed = after.find(">= deadline").expect("enforce the release deadline after the synchronous vault scan");
+        assert!(checked < timed && timed < reserved && after.contains("Ok(bytes)"));
     }
 
     /// R9-CHAIN-1 and R10-CHAIN-1, through a whole release: the honest second RPC is the devnet itself, and the first

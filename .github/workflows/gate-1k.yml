@@ -1,0 +1,48 @@
+# The release gate on the top 1,000 sites (UNB-307). Lewis, 25 Nov 2026: "can we gate main releases to the benchmark
+# of 1k sites? ... it should be the same logic as the current qa slice, but it just expands to 1k top sites tranco".
+#
+#   push to release/**   the bench on the candidate: 1,000 sites of test-banks/popular-sites/top-1000.json, cold and
+#                        warm (2,000 tasks), in SHARDS jobs on one pinned kind of runner; each changed verdict run
+#                        once more; then promotion_gate.py's rates rule against test-banks/gate/promoted-1k.json. Keeps
+#                        `gate-1k-<tree>`, which release.yml and promotion-gate.yml read before a release ships.
+#   by hand              the same, once this file is on main (workflow_dispatch finds only the default branch's files).
+#                        Until then: `gh workflow run gate-bank.yml --ref <branch> -f scope=top1k -f shards=25`, the same
+#                        jobs (gate-bank.yml is on main).
+#
+# No pull request starts it. The work is gate-bank.yml's (scope top1k), where the model's credential sits only on the
+# steps that run the model. Cost, measured on the 20-site pilot (gate-bank run 45550694686, 25 Nov 2026): $0.166 a task
+# with its judge, so about $330 a run of 2,000 tasks before the reruns (an extrapolation, not measured at 2,000).
+name: Gate 1k
+
+on:
+  push:
+    branches: ["release/**"]
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: how many jobs the 1,000 sites are dealt into, side by side
+        type: string
+        default: "25"
+
+concurrency:
+  group: gate-1k-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  bench:
+    name: Gate 1k
+    # actions: read is for gate-bank.yml's resume and dashboard jobs; a called workflow's jobs may ask no more than the
+    # caller gives.
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/gate-bank.yml
+    with:
+      scope: top1k
+      shards: ${{ inputs.shards || '25' }}
+    secrets:
+      OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+      OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+      RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}

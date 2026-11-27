@@ -97,22 +97,35 @@ pub(super) async fn owner_events(State(door): State<Door>, headers: HeaderMap, b
     }
     let rx = door.node.events.0.subscribe();
     let by = by.map(|axum::Extension(by)| by);
-    let stream = futures_util::stream::unfold((rx, by, 0u64), |(mut rx, by, seq)| async move {
-        loop {
-            match rx.recv().await {
-                Ok((name, data)) => {
-                    let data = data.to_string();
-                    let mut event = Event::default().event(&name).data(&data);
-                    if let Some(by) = &by {
-                        event = event.id(event_id(by, seq, &name, &data));
+    let pending = std::collections::VecDeque::from(crate::hands::asks());
+    let replayed: std::collections::HashSet<String> = pending.iter().map(|ask| ask.id.clone()).collect();
+    let stream = futures_util::stream::unfold((rx, by, 0u64, pending, replayed), |(mut rx, by, seq, mut pending, mut replayed)| async move {
+        let (name, data) = if let Some(ask) = pending.pop_front() {
+            ("hands".to_string(), json!({ "kind": "ask", "site": ask.site, "ask": ask }))
+        } else {
+            loop {
+                match rx.recv().await {
+                    Ok((name, data)) => {
+                        // An ask added between subscribing and reading the list can also arrive on the live stream.
+                        if name == "hands" && data.get("kind").and_then(Value::as_str) == Some("ask")
+                            && data.pointer("/ask/id").and_then(Value::as_str).is_some_and(|id| replayed.remove(id))
+                        {
+                            continue;
+                        }
+                        break (name, data);
                     }
-                    return Some((Ok::<_, std::convert::Infallible>(event), (rx, by, seq + 1)));
+                    // A watcher too slow to keep up misses some; it refetches on the next event.
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(_) => return None,
                 }
-                // A watcher too slow to keep up misses some; it refetches on the next event.
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(_) => return None,
             }
+        };
+        let data = data.to_string();
+        let mut event = Event::default().event(&name).data(&data);
+        if let Some(by) = &by {
+            event = event.id(event_id(by, seq, &name, &data));
         }
+        Some((Ok::<_, std::convert::Infallible>(event), (rx, by, seq + 1, pending, replayed)))
     });
     Sse::new(stream).keep_alive(KeepAlive::default()).into_response()
 }

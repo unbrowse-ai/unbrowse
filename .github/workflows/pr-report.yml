@@ -1,0 +1,66 @@
+# A pull request's CI report, in the pull request: one comment, rewritten whole after each run on its commit finishes
+# (and, once it merged, after each run on its merge commit on staging), with each check's verdict, what failed and
+# where, and the screenshots (.github/scripts/pr_report.py).
+#
+# It starts on the runs finishing, never on the pull request, and runs only staging's own script: the runs' artifacts
+# are read as data (JSON and Markdown parsed and quoted; a mention in them can't ping), never run, and the only bytes
+# that leave are pictures, which the pictures worker (unbrowse-ci-shots) checks are pictures. It holds no model
+# credential. A fork's pull request gets no report.
+#
+#   var    CI_SHOTS_URL   the pictures worker (unbrowse-ci-shots/README.md); unset, the comment links the artifacts
+#   secret CI_SHOTS_KEY   the key that puts a picture there
+#   by hand:  gh workflow run pr-report.yml -f pr=<n>
+name: PR report
+
+on:
+  workflow_run:
+    workflows: ["PR agent checks", "PR check (no credential)", "CI", "Coverage", "Promotion gate", "QA", "Gate bank", "Bank"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        required: true
+
+# One writer per commit at a time: a newer finish rewrites everything, so the older one is cancelled, not queued.
+concurrency:
+  group: pr-report-${{ github.event.workflow_run.head_sha || inputs.pr }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  report:
+    name: Report into the pull request
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.conclusion != 'cancelled')
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      # staging's script, the only code that runs here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/pr_report.py
+          sparse-checkout-cone-mode: false
+      - name: Write the report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          PR: ${{ inputs.pr }}
+          SHOTS_URL: ${{ vars.CI_SHOTS_URL }}
+          SHOTS_KEY: ${{ secrets.CI_SHOTS_KEY }}
+        run: |
+          if [ -n "$PR" ]; then
+            python3 -I .github/scripts/pr_report.py --repo "$REPO" --pr "$PR"
+          else
+            python3 -I .github/scripts/pr_report.py --repo "$REPO" --run "$RUN_ID"
+          fi

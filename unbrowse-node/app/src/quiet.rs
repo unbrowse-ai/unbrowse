@@ -176,3 +176,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "quiet_cov_tests.rs"]
+mod quiet_cov_tests;

@@ -1,0 +1,8 @@
+{
+  "claim": "Fresh full QA and live task slice pass on the same current staging commit",
+  "test": [
+    "python3",
+    "-c",
+    "import json,subprocess,sys\ndef gh(*args):\n return json.loads(subprocess.check_output([\"gh\",*args],text=True))\nrepo=\"unbrowse-ai/unbrowse-core\"\nroot=\"repos/\"+repo\nsha=gh(\"api\",root+\"/branches/staging\")[\"commit\"][\"sha\"]\nruns=gh(\"api\",\"-X\",\"GET\",root+\"/actions/workflows/qa.yml/runs\",\"-f\",\"head_sha=\"+sha,\"-f\",\"branch=staging\",\"-f\",\"per_page=100\")[\"workflow_runs\"]\nrow=next((r for r in runs if r[\"event\"] in (\"push\",\"workflow_dispatch\",\"schedule\")),None)\nif row is None: sys.exit(\"No QA workflow on \"+sha)\njobs=gh(\"api\",\"--paginate\",\"--slurp\",f\"{root}/actions/runs/{row['id']}/jobs?per_page=100\")\njobs={j[\"name\"]:j[\"conclusion\"] for page in jobs for j in page[\"jobs\"]}\nrequired=(\"Build the node once\",\"MCP check (no model)\",\"Claude QA (1)\",\"Claude QA (2)\",\"Claude QA (3)\",\"Claude QA (4)\",\"Gate bank / Gate bank (slice)\",\"QA report\")\nprint(sha,row[\"html_url\"],row[\"status\"],row[\"conclusion\"])\nfor name in required: print(name,jobs.get(name) or \"missing\")\nif gh(\"api\",root+\"/branches/staging\")[\"commit\"][\"sha\"]!=sha: sys.exit(\"staging moved during verification\")\nif row[\"conclusion\"]!=\"success\" or any(jobs.get(name)!=\"success\" for name in required): sys.exit(1)\nprint(\"STAGING_QA_GREEN\")"
+  ]
+}

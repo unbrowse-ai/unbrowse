@@ -38,7 +38,7 @@ openclaw plugins inspect unbrowse --runtime
 ## Connect
 
 The node makes its first agent key itself on its first run, and `unbrowse agent token` prints that key's token. For
-an OpenClaw-specific key, `unbrowse agent new openclaw` (or the window's Money, Add agent) makes one and prints its
+an OpenClaw-specific key, `unbrowse agent new openclaw` (or the window's Agents, Add agent) makes one and prints its
 setup once. Set that key in this plugin's `agentToken` configuration for this agent. The plugin never reads a
 process-wide `UNBROWSE_AGENT_TOKEN`, which could belong to another agent.
 

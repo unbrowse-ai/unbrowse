@@ -1384,6 +1384,8 @@ class Reader:
                         'route': (l['saved'] or {}).get('route'), 'failed': G.hush(l['failed'], w) if l['failed'] else None, 'seen': len(l['seen']), 'sorts': sorts, 'candidates': cands,
                         'picked': {'by': l['picked'].get('by'), 'reasons': [G.hush(r, w) for r in l['picked'].get('reasons') or []]} if l['picked'] else None,
                         'set_aside': G.hush(l['set_aside'], w) if l.get('set_aside') else None, 'early': early,
+                        'door': {'said': G.door_said(l), 'calls': [{'call': '%s %s' % (c.get('method'), G.hush((c.get('host') or '') + (c.get('path') or ''), w)), 'why': G.DOOR_WHY.get(c.get('why'), c.get('why')), 'by': c.get('by')}
+                                                            for c in l['door']['calls']]} if G.door_said(l) else None,
                         'findings': [{'id': f, 'level': X.CATALOGUE[f][0], 'title': X.CATALOGUE[f][1], 'more': more} for f, more in fs], 'text': G.text(l)})
         return out
 
@@ -1681,6 +1683,56 @@ def repo_of(path):
     return None
 
 
+# ------------------------------------------------------------------------------------------------ doors
+DOOR_LINE = re.compile(r'\[door\]\s+(.*)$')
+
+
+def doors_of(home):
+    """The doors this home's node recorded (`doors.json`): each site's class, what earns a fresh pass, the credential's
+    name — never its value — its life, and the address the walk met it at."""
+    out = {}
+    try:
+        with open(os.path.join(home, 'doors.json'), encoding='utf-8') as f:
+            raw = json.load(f)
+    except (OSError, ValueError):
+        return out
+    for site, d in (raw.items() if isinstance(raw, dict) else []):
+        if isinstance(d, dict):
+            out[site] = {k: d.get(k) for k in ('kind', 'earn', 'credential', 'ttl', 'at') if d.get(k) is not None}
+    return out
+
+
+def door_lines(log, keep=6):
+    """What the node's last run said about the doors it met, `[door] …` lines by the page they are about (`the walk`
+    for its own trace). The node says why a page was not run or earned nothing; a cookie is named, never its value."""
+    out = {}
+    if not log or not os.path.isfile(log):
+        return out
+    try:
+        with open(log, errors='replace', encoding='utf-8') as f:
+            for line in f:
+                m = DOOR_LINE.search(line)
+                if not m:
+                    continue
+                said = m.group(1).strip()
+                u = re.search(r'(https?://[^\s:,]+)', said)
+                key = u.group(1) if u else 'the walk'
+                out[key] = (out.get(key) or [])[-keep - 1:] + [said]
+    except OSError:
+        return out
+    return {k: v[-keep:] for k, v in out.items()}
+
+
+def doors_view(reader, log):
+    """Everything the node says about doors: recorded per site on its routes, and what the last run tried and why."""
+    homes = [h['home'] for g in reader.groups() for h in g['homes']]
+    recorded = {}
+    for h in homes:
+        for site, d in doors_of(h).items():
+            recorded[site] = d
+    return {'doors': recorded, 'pass': door_lines(log)}
+
+
 # ------------------------------------------------------------------------------------------------ over time
 def snapshot(home, log=None):
     """One home as the diff reads it: {route key: {title, holes {place key: reading}, flags, findings, wire}}. A scratch
@@ -1809,7 +1861,7 @@ def graph_main(reader, a):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog='wiring.py', description=__doc__.split('\n\n')[0])
-    ap.add_argument('what', choices=('serve', 'render', 'state', 'diff', 'graph', 'dependents', 'needs'))
+    ap.add_argument('what', choices=('serve', 'render', 'state', 'diff', 'doors', 'graph', 'dependents', 'needs'))
     ap.add_argument('homes', nargs='*', help='diff: <home A> <home B>; dependents, needs: <route id or file>')
     ap.add_argument('--site', default=None, help='graph: only this site (as the graph names it)')
     ap.add_argument('--suffixes', default=None, help="graph: a public suffix list (public_suffix_list.dat), read as the engine's identity::site_of reads one")
@@ -1856,6 +1908,9 @@ def main(argv=None):
     reader = Reader(a.home, a.matrix, runs, a.log, engine=engine, captures=a.captures)
     if a.what == 'state':
         print(json.dumps(reader.state(all_groups=True), ensure_ascii=False, indent=1))
+        return 0
+    if a.what == 'doors':
+        print(json.dumps(doors_view(reader, a.log), ensure_ascii=False, indent=1))
         return 0
     if a.what == 'render':
         target = a.out or stdout_path()

@@ -93,7 +93,7 @@ def report(listed, records, skipped, seconds):
         verdict, why = label(records.get(name), skipped.get(name))
         record = records.get(name) or {}
         rows.append({
-            "site": name, "label": verdict, "why": why, "gate": case["hard"]["gate"],
+            "site": name, "label": verdict, "why": why, "gate": (case.get("hard") or {}).get("gate") or case.get("kind", "search"),
             "outcome": run_bank.judge_site(record.get("checks") or []) if record else None,
             "checks": {c["step"]: c.get("outcome", "not_tested") for c in record.get("checks") or []},
             "warm_in_browser": record.get("warm_in_browser") or [], "seconds": seconds.get(name),

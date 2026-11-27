@@ -26,10 +26,19 @@ class PlanTest(unittest.TestCase):
     def test_both_workflows_shard_the_same_way(self):
         self.assertEqual(m.plan((WORKFLOWS / "qa.yml").read_text()), m.plan((WORKFLOWS / "pr-agent-checks.yml").read_text()))
 
+    def test_no_window_check_uses_a_fresh_browser_session(self):
+        # PR #975, run 45777818287: reusing check 6's tab hit its script safety guard.
+        check = CHECKLIST.split("\n7. ", 1)[1].split("\n8. ", 1)[0]
+        self.assertIn("fresh browser session `qa-no-window`", check)
+        self.assertIn("In that session, call", check)
+        self.assertIn("no Unbrowse window is open", check)
+        self.assertIn('["snapshot", "-i"]', check)
+
     def test_a_check_that_leans_on_another_runs_in_its_shard(self):
-        # checklist.md: 2, 3, 12 and 13 use check 1's route; 5 to 7 check 4's page; 11 check 10's session; 15 check
-        # 14's goal; 26 and 27 check 25's window.
-        leans = {2: 1, 3: 1, 12: 1, 13: 1, 5: 4, 6: 5, 7: 4, 11: 10, 15: 14, 26: 25, 27: 25}
+        # checklist.md: 2, 3, 12 and 13 use check 1's route; 5 and 6 check 4's page; 11 check 10's session; 15 check
+        # 14's goal; 26 checks 25's window. 27 opens a window of its own, so it can run beside 25 and 26: their shard
+        # was the run's longest (6.0 minutes against 2.7 to 3.4 for the others, median of the 15 PRs before 22 Nov 2026).
+        leans = {2: 1, 3: 1, 12: 1, 13: 1, 5: 4, 6: 5, 11: 10, 15: 14, 26: 25}
         owner = {n: s for s, checks in m.plan((WORKFLOWS / "qa.yml").read_text()).items() for n in checks}
         for n, on in leans.items():
             self.assertEqual(owner[n], owner[on], f"check {n} leans on check {on}")

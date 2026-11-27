@@ -3,7 +3,7 @@
 # primitive or command deserves one, the READMEs' tables, and the unbrowse skill. It opens a pull request for a
 # person to review; nothing it does lands on staging by itself.
 #
-# The model never holds a write token. `polish` gives Claude the model credential, a read-only token and file tools
+# The model never holds a GitHub token. `polish` gives the agent its model credential and file tools
 # only (no shell), and hands on the files it may change as an artifact. `propose` holds the write token, no secret and
 # no model: from a fresh checkout it takes only those files, as data, reruns the generator from the checkout, and pushes
 # a branch of its own and opens the pull request.
@@ -27,6 +27,9 @@ on:
 concurrency:
   group: sdk-polish
   cancel-in-progress: false
+
+env:
+  AGENT_AUTH: chatgpt
 
 jobs:
   # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
@@ -55,9 +58,7 @@ jobs:
           LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
         run: python3 -I .github/scripts/place_jobs.py polish=linux
 
-  # claude-code-action runs only on events it knows (workflow_dispatch, not push), so a push that changes the spec
-  # hands over to a dispatch of this workflow. A dispatch made with the workflow's own token still starts a run, as the
-  # github-actions bot, which the polish step has to allow.
+  # A staging push hands the spec change to a dispatch of the drafting workflow.
   hand-over:
     if: github.event_name == 'push'
     runs-on: blacksmith-2vcpu-ubuntu-2404
@@ -103,15 +104,22 @@ jobs:
           fi
           git diff "$(git rev-parse "$candidate")" HEAD -- unbrowse-node/agent-api.json > sdk-polish-spec.diff
 
-      - name: Run Claude Code
-        uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # This job's own token, read-only: no OIDC exchange for the app's token, which can write.
-          github_token: ${{ github.token }}
-          # The hand-over's dispatch runs as the github-actions bot; the action refuses a bot's run otherwise.
-          allowed_bots: github-actions
-          prompt: |
+          node-version: 26
+      - name: Install the pinned opencode CLI
+        run: |
+          npm ci --ignore-scripts --prefix .github/tools/opencode
+          node .github/tools/opencode/node_modules/@opencode/cli/postinstall.mjs
+          .github/tools/opencode/node_modules/.bin/opencode --version
+          echo "$GITHUB_WORKSPACE/.github/tools/opencode/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Draft the hand-written SDK changes
+        env:
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+          PROMPT: |
             The node's machine-readable API, unbrowse-node/agent-api.json, changed on staging (commit ${{ github.sha }}).
             The generator (unbrowse-sdk/codegen/generate.py) has already rewritten the files it owns:
             unbrowse-sdk/typescript/src/generated.ts and unbrowse-sdk/python/src/unbrowse/_generated.py. Those files
@@ -141,11 +149,14 @@ jobs:
                for it. Only the files named above are taken from your work; anything else you change is dropped. A
                later job, not you, commits and opens the pull request. If nothing needs a hand-written change, write
                no sdk-polish-pr.md and say why.
-          claude_args: >-
-            --allowedTools "Read,Write,Edit,Glob,Grep"
-            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit"
+        run: |
+          python3 -I .github/scripts/agent_cli.py -p "$PROMPT" --output-format stream-json --verbose \
+            --strict-mcp-config --tools Read,Write,Edit,Glob,Grep \
+            --allowedTools "Read,Write,Edit,Glob,Grep" \
+            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(**/.env),Read(**/.env.*)" \
+            --max-turns 60 --no-session-persistence < /dev/null
 
-      # Nothing runs git in this tree after Claude had Write over it (a hook or a config it wrote would run).
+      # Nothing runs git in this tree after the agent had Write over it (a hook or a config it wrote would run).
       - name: Drop the repository
         if: always()
         run: rm -rf .git

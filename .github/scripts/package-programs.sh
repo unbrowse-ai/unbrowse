@@ -62,12 +62,12 @@ there is none (\`unbrowse-node$x browser install\` does it now). Everything else
     ./unbrowse-node$x agent new my-agent   # an agent key; prints its setup once
     ./unb$x connect                         # registers agent 0 with Claude Code
 
-Or make the key in the window (Wallet, New agent key). Any MCP client can start \`unb mcp\`, with the agent's token in
+Or make the key in the window (Agents, Add agent). Any MCP client can start \`unb mcp\`, with the agent's token in
 UNBROWSE_AGENT_TOKEN: it signs each request with the token, which never goes over the wire.
 
 ## Updates
 
-A release build keeps itself up to date. Releases: https://github.com/unbrowse-ai/unbrowse-core/releases
+A release build keeps itself up to date. Releases: https://github.com/unbrowse-ai/unbrowse/releases
 README
 
 case $platform in

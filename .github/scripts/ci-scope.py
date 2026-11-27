@@ -78,9 +78,34 @@ READS = {
 }
 
 
+# Folders whose changes cannot affect the node binary, browser engine, CLI, window, skills, SDKs or QA harness.
+# Only when EVERY changed path in a complete pull-request diff lives under one of these prefixes may PR QA skip.
+QA_SKIP_PREFIXES = (
+    "papers/",
+    "unbrowse-settlement/",
+    "docs/",
+    "unbrowse-telemetry/",
+    "unbrowse-rpc/",
+    "unbrowse-dashboard/",
+    "antithesis/",
+)
+
+
 def reaches(path):
     """The jobs a changed path can reach."""
     return next((jobs for prefix, jobs in TABLE if path.startswith(prefix)), RUST)
+
+
+def qa_scope(paths, event):
+    """(runs, reason) for whether pull-request QA (MCP check, Claude QA, skill triggers, gate slice) must run."""
+    if event != "pull_request":
+        return True, f"a {event} runs QA"
+    if not paths:
+        return True, "no full list of changed files, so QA runs"
+    for path in paths:
+        if not path.startswith(QA_SKIP_PREFIXES):
+            return True, f"{path} can affect the node, browser, window, skills or QA harness"
+    return False, f"all {len(paths)} changed file(s) are outside the node, browser, window, skills and QA harness"
 
 
 def scope(paths, event, passed=None):
@@ -132,6 +157,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--keys", action="store_true",
                         help="print `<job>-key=<hash>` for each job that reads a closed set of files, and stop")
+    parser.add_argument("--qa", action="store_true",
+                        help="print `qa=true|false` for whether pull-request QA jobs need to run")
     parser.add_argument("--event", help="github.event_name")
     parser.add_argument("--complete", choices=("true", "false"), default="true",
                         help="false when the list of changed files may have been cut short: every job runs")
@@ -147,6 +174,11 @@ def main(argv=None):
     paths = [line.strip() for line in sys.stdin if line.strip()]
     if args.complete != "true":
         paths = []
+    if args.qa:
+        runs, why = qa_scope(paths, args.event)
+        print(f"qa={'true' if runs else 'false'}")
+        print(f"qa: {'runs' if runs else 'left out'}, {why}", file=sys.stderr)
+        return
     for job, (runs, why) in scope(paths, args.event, passes(args.passed) if args.passed else None).items():
         print(f"{job}={'true' if runs else 'false'}")
         print(f"{job}: {'runs' if runs else 'left out'}, {why}", file=sys.stderr)

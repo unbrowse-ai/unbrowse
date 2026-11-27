@@ -1,0 +1,18 @@
+{
+  "claim": "A release read with the page URL can reuse the saved document when its wording lacks a read verb",
+  "test": [
+    "cargo",
+    "test",
+    "--locked",
+    "--manifest-path",
+    "unbrowse-node/Cargo.toml",
+    "-p",
+    "unbrowse-node-app",
+    "--bin",
+    "unbrowse-node",
+    "a_release_read_finds_the_saved_document_without_a_read_verb"
+  ],
+  "requires": [
+    "release-read-holds-version"
+  ]
+}

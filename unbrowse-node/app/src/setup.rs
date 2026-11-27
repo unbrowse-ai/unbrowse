@@ -415,3 +415,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 }
+
+#[cfg(test)]
+#[path = "setup_cov_tests.rs"]
+mod setup_cov_tests;

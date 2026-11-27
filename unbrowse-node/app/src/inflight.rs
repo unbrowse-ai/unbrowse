@@ -601,3 +601,7 @@ mod tests {
         assert!(kept_views(&rpc::ProviderBuilder::new().connect_http(url)).await.is_err(), "a file that doesn't read shows nothing");
     }
 }
+
+#[cfg(test)]
+#[path = "inflight_cov_tests.rs"]
+mod inflight_cov_tests;

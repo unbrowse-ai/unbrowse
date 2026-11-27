@@ -1,0 +1,12 @@
+// CI's pictures on staging: its own Worker and bucket, on workers.dev. CI's report reads the address from the
+// repository variable CI_SHOTS_URL and puts with the secret CI_SHOTS_KEY (README).
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "unbrowse-ci-shots-staging",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "preview_urls": false,
+  "r2_buckets": [{ "binding": "SHOTS", "bucket_name": "unbrowse-ci-shots-staging" }],
+  "observability": { "enabled": false }
+}

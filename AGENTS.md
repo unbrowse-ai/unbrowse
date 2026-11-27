@@ -54,6 +54,46 @@ mint   -> walk   -> trace   -> route        -> call
 5. **call** — `RouteClient` replays the route over a Chrome-shaped transport,
    drawing session values from the jar.
 
+## Finding a bug: the x-ray first
+
+Lewis, 24 November 2026: every agent in this repository uses the x-ray to set up and to understand bugs. The x-ray
+(`scripts/xray`, README beside it) reads what the engine learned and decided, against the engine's source as your
+checkout has it. It answers the question a bug starts with: what did the engine see, what did it decide, and which
+function decided it. Read it before you name a cause; a cause named from a guess is the anti-pattern this replaces (the
+hn.algolia door, 24 November: three readings of the bug were wrong before the x-ray showed the door had taken every call).
+
+**Install it once per checkout, and prove it.**
+
+- Claude Code: the repository's `.mcp.json` attaches `xray`. Approve it when asked (`/mcp` lists it).
+- Codex: `codex mcp add xray -- python3 -I scripts/xray/xray_mcp.py`, run from the checkout's root.
+- opencode (2.x): an entry in your own config's `mcp.servers` (`"xray": {"type": "local", "command": ["python3", "-I",
+  "<checkout>/scripts/xray/xray_mcp.py"]}`, the shape `agent_cli.py` writes). Never a committed `opencode.json`: every run CI's
+  `agent_cli.py` starts in the checkout reads it, beside the run's own config (`OPENCODE_CONFIG`).
+- Any agent: `python3 -I scripts/xray/xray_mcp.py --check` prints `XRAY_MCP_OK` with its tools, or what is broken.
+  Without MCP at all, the same readings are `scripts/xray/xray.sh state`, `--text` and `diff`.
+
+**Use it for every bug in learning, routes, calls or doors**: a learn that kept nothing or the wrong call, a call
+that answered wrong or needed the browser, a QA check or gate task that went red. One call at a time, each answer read
+before the next:
+
+1. `xray_pick`: each learn of a node's log, kept or not: the calls the walk's door took and why (refused, another
+   site's page, a page of script the walk went past), every candidate with its score and why it was held back, the
+   pick and its reasons, and the findings. Give `ub_dir` for a scratch node, or `log` alone for a log from elsewhere:
+   a CI run's `qa-node-log-*` artifact (`gh run download <run> -n qa-node-log-<n>`) is read as the run recorded it, so
+   a red QA check is diagnosed from the runner's own log, not re-run here. A log from a build before #895 has no door
+   line: there, "no candidate at all" with nothing else said means read it again on a current build.
+2. `xray_why`: what a finding means and the engine functions that decide it, at `file:line` in your checkout. Read
+   those functions; the cause is in them or in what they were handed.
+3. `xray_routes`: each kept route's holes, findings and the code they point at.
+4. After the fix, a fresh learn on a fresh node, and `xray_diff` from before to after: the finding is gone and
+   `new_break` is false. Paste its text in the pull request, not prose.
+
+`xray_live` starts the live page for a person to look at with you. The x-ray asks no site and shows no value of a
+route (a word the page was asked is `‹word›`); its pages and snapshots still name sites and stay outside the
+repository. When the x-ray cannot see something a bug needed (a decision the engine makes and logs nowhere, as the door
+was until #895), the fix includes teaching it: the engine logs the decision once, `xray_log.py` reads it, and a seeded
+fault in `scripts/xray/test_seeded_faults.py` raises its finding.
+
 ## Fixes are general, never hard-coded
 
 The one rule every change follows. A site that breaks is a case of a class. Fix the class.
@@ -266,14 +306,8 @@ weird deterministic code".
   counting words is the bank's reader by another name: it misreads right answers and cannot follow up.
 - **Judge by reading.** Open the data: the names, the prices, the picture. "ok: true" and a byte count are not a
   verdict. Say what you read.
-- **Read the route against the engine before naming a cause.** After a learn, run `UB_DIR=<scratch node>
-  scripts/xray/xray.sh`: the live x-ray of that node (README beside it). Each hole is strung to where its value comes
-  from, with the findings on it; a click on a hole or a finding lists the engine's functions that write its kind and
-  branch on it, read from your checkout as it stands, and `WHY`'s line for it. The pick panel shows each walk's
-  candidates and why each was dropped, including a learn that kept no route. Read those functions before saying why a
-  site failed. Without a browser: `xray.sh state` (the same state as JSON) or `xray.sh --text`. In a handback, paste
-  `xray.sh diff <home before> <home after>`, not prose; it exits 1 on a new break. A fresh learn's x-ray must not show
-  the finding. Its pages and snapshots name sites and stay outside the repository.
+- **Read the route against the engine before naming a cause**, with the x-ray ("Finding a bug: the x-ray first"
+  above): `xray_pick` on the scratch node after each learn, `xray_why` for each finding, `xray_diff` in the handback.
 - **A helper sends one call.** A small script that sends one tool call, or prints one route or one stretch of the
   node's log, is fine. One that decides what to ask next, or whether an answer is right, is not.
 - **The release task gate is the one exception, and only for the release.** It is not a way to investigate a site; see
@@ -425,38 +459,40 @@ CONTRIBUTING.md ("Branches and releases") says how each branch releases.
 
 ## Self-merging PRs
 
-Lewis, 18 November 2026: port poteto's workflow (pstack's Autopilot-full) so agents merge their own PRs, with the rules
-held by `/contract`, not by prose. The gate is `~/.claude/skills/self-merge` (`pr-gate`, on PATH); setting it up on a
-repo is the `autopilot` skill. This repo's additions to the gate's policy are in `.github/self-merge.json`. It was
-proven first on `lekt9/client-ops` (#22, #23, #24 merged through it).
+Agents may merge a pull request when Lewis authorized the work and the checks below pass. Use the guarded GitHub CLI
+installed at `~/.local/bin/gh`. When it can read GitHub, it refuses failed, cancelled, unfinished, missing, and stale PR
+checks. Missing or unreadable evidence blocks the merge.
 
-- **Agents never run a merge, approve a PR, or edit branch rules here.** Standing `/contract` guards in every
-  checkout's `.claude/contracts.jsonl` (worktrees inherit their main checkout's) refuse `gh pr merge`, the merge API,
-  `gh pr review --approve` and writes to branch protection or rulesets. `pr-gate merge` is the only way in. Lewis
-  can still merge by hand in his own terminal.
-- **A PR merges itself only when all eight cells hold at its head:** in scope (open, ready, into `staging` or a
-  `release/*` with a `fix:` title, not labelled `no-self-merge`); merge-ready (no conflicts, no unresolved review
-  threads, no review still requested); fresh (nothing landed on `staging` since it branched touches its files or which
-  checks run); CI green on the head; a PASS from a fresh agent that did not write it and ran the change, for this
-  exact patch (`git patch-id`; a swarm of three for new behaviour over 300 lines of code); the body's Verification
-  and Scorecard sections; no gate loosened without Lewis's countersign; and no new code comments where the policy
-  bans them.
-- **What needs Lewis's countersign:** workflows and anything under `.github/`, AGENTS.md and CLAUDE.md, lint and
-  coverage configs, settlement, chain and contract code, the vault, the root key's keystore, logins, the macOS
-  keychain, passkeys, cards and payment holds, `.deploy/`, the requirements ledger and the coverage exclusions, and any
-  added line that switches a check off (`#[ignore`, `.skip(`, `continue-on-error: true`, `#[allow(`, …). He runs the
-  countersign in his own shell (`!` prefix in Claude Code); an agent never does.
-- **The author runs:** `gh pr create` (ready, never draft), then `pr-gate contract`. The supervisor
-  (`pr-gate tick`, under `/loop 1h`) verifies it with a fresh agent, reruns a red check once, reports what waits on
-  Lewis, and names READY PRs; the agent judges each cell (`~/.claude/skills/contract/scripts/contract iterate`,
-  then `… _mark`) and runs `pr-gate merge`.
-- **Goals.** `.github/self-merge.json` names numbers this repo holds itself to (first reply, warm call, memory,
-  browserless share, reply size, agent steps), measured by `scripts/goals/measure.py` on a scratch node built from
-  the tree. `pr-gate goal measure` records them; each goal is a `/contract` loop that stays open until trunk meets
-  its target, and a regression reopens it. A change for a goal lands only if its own baseline and treatment show
-  the number moving the right way. Changing a target is a policy change, so Lewis countersigns it.
-- **A PR that asks for a person's decision waits for it.** Requesting steefpls' review (see below) holds the PR at
-  merge-ready until he answers.
+- Confirm the PR is ready and in scope. Its base is `staging`, or `release/*` for a fix. A `no-self-merge` label, a
+  conflict, a requested review, or an unresolved review thread stops the merge.
+- Check the current merge tree and verified head. If staging moved and the changed base touches the PR's files or
+  changes its checks, refresh the branch and rerun the whole scorecard. Use `gh pr checks <number> --watch` and confirm
+  that the required workflows ran and every check is green.
+- Record Verification and Scorecard in the PR. Require an independent PASS on the exact patch (`git patch-id`) from
+  an agent who ran the change. New behaviour over 300 lines of code takes three independent reviews. Keep the merge
+  scorecard, regression and code-comment rules above.
+- When these checks hold, run `gh pr merge <number> --squash --match-head-commit <verified-head>`. Use the guarded
+  command for the merge. Agents do not approve PRs, edit branch rules, or override a red merge guard.
+- `.github/self-merge.json` records the performance goals. Measure them with `scripts/goals/measure.py` on a scratch
+  node from the tree. Show the baseline and treatment for any change intended to move a goal.
+
+## The agents on a pull request
+
+Claude Ship's three agents run here as GitHub Actions on OpenCode, with no Claude organization, GitHub App or plan
+(`docs/CI-AGENTS.md`). `opencode-review.yml` reviews a change before the merge and writes the `Code review` check;
+`opencode-steward.yml` fixes a red check or a review's Important finding, as one commit on the branch;
+`opencode-approvals.yml` reads `.claude/approvals.yml` and writes the `Claude Approvals` check. The first two start
+from `pr-signal.yml`, a credential-free workflow, because a workflow holding a model credential takes no
+`pull_request` trigger here. The key is `OPENCODE_API_KEY`, in the `opencode-review` and `opencode-steward`
+environments only.
+
+- The review reads and edits nothing. The steward edits under `pr/` and nowhere else, with no shell, and pushes only on
+  `autofix.py guard`'s yes, without force. Neither approves or merges; a conflict with staging is a person's.
+- The knobs are repository settings, not code: `OPENCODE_REVIEW` (`push`, `manual`, `off`), `OPENCODE_STEWARD` (`on`,
+  `manual`, `off`), and the labels `no-review`, `review` and `no-steward`. By hand:
+  `gh workflow run opencode-review.yml -f pr=<n>` (or `opencode-steward.yml`).
+- No workflow answers a comment or a review. `@claude review` and `@claude steward` are not built, and an
+  `issue_comment` trigger is not the way to buy them back.
 
 ## Review: when to ping steefpls
 
@@ -478,6 +514,7 @@ The papers repo's `AGENTS.md` says the same.
 
 ## Anti-patterns
 
+- Naming a bug's cause before reading the x-ray, or re-running a red CI check here when its node log was uploaded.
 - Driving a daemon when a library call will do.
 - Reading a fingerprint instead of measuring it.
 - Treating a gate as noise to skip rather than a step to satisfy.

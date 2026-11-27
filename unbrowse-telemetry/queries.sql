@@ -1,19 +1,20 @@
 -- Aggregate questions the events answer. Each `-- name:` line names one; the worker answers only these, at
 --   GET https://telemetry.unbrowse.ai/v1/stats/<name>   with   Authorization: Bearer <ADMIN_TOKEN>
 -- (`node stats.mjs <name>` in this folder does that). GET /v1/stats/ lists the names.
--- The install id of 32 f's is the release train's gate (.deploy/manifest.json), so every question leaves it out.
+-- Every question but `gate`, `ours` and `install` leaves our own installs out: the view `ours` in schema.sql (the
+-- release train's gate, the admin's list at /v1/ours, source builds and internal source tags; UNB-303).
 
 -- name: installs
 -- Active installs a day (an install is active on a day it started or called a tool).
 SELECT date(received_hour, 'unixepoch') AS day, COUNT(DISTINCT install_id) AS installs
-FROM events WHERE install_id != 'ffffffffffffffffffffffffffffffff'
+FROM events WHERE install_id NOT IN (SELECT install_id FROM ours)
 GROUP BY day ORDER BY day DESC LIMIT 30;
 
 -- name: calls
 -- Tool calls a day, by tool and outcome, for the last 30 days.
 SELECT date(received_hour, 'unixepoch') AS day, tool, outcome, COUNT(*) AS calls
 FROM events
-WHERE event = 'tool_call' AND install_id != 'ffffffffffffffffffffffffffffffff'
+WHERE event = 'tool_call' AND install_id NOT IN (SELECT install_id FROM ours)
   AND received_hour >= strftime('%s', 'now', '-30 days')
 GROUP BY day, tool, outcome ORDER BY day DESC, calls DESC;
 
@@ -21,7 +22,7 @@ GROUP BY day, tool, outcome ORDER BY day DESC, calls DESC;
 -- What breaks: failed and refused calls in the last week, by tool and class.
 SELECT tool, outcome, error_class, COUNT(*) AS calls
 FROM events
-WHERE event = 'tool_call' AND outcome != 'ok' AND install_id != 'ffffffffffffffffffffffffffffffff'
+WHERE event = 'tool_call' AND outcome != 'ok' AND install_id NOT IN (SELECT install_id FROM ours)
   AND received_hour >= strftime('%s', 'now', '-7 days')
 GROUP BY tool, outcome, error_class ORDER BY calls DESC;
 
@@ -32,7 +33,7 @@ WITH c AS (
          ROW_NUMBER() OVER (PARTITION BY tool ORDER BY duration_ms) AS n,
          COUNT(*) OVER (PARTITION BY tool) AS total
   FROM events
-  WHERE event = 'tool_call' AND duration_ms IS NOT NULL AND install_id != 'ffffffffffffffffffffffffffffffff'
+  WHERE event = 'tool_call' AND duration_ms IS NOT NULL AND install_id NOT IN (SELECT install_id FROM ours)
     AND received_hour >= strftime('%s', 'now', '-7 days')
 )
 SELECT tool, total,
@@ -43,7 +44,7 @@ FROM c GROUP BY tool, total ORDER BY total DESC;
 -- name: versions
 -- Versions and systems in use in the last week, by install.
 SELECT version, os, COUNT(DISTINCT install_id) AS installs
-FROM events WHERE received_hour >= strftime('%s', 'now', '-7 days') AND install_id != 'ffffffffffffffffffffffffffffffff'
+FROM events WHERE received_hour >= strftime('%s', 'now', '-7 days') AND install_id NOT IN (SELECT install_id FROM ours)
 GROUP BY version, os ORDER BY installs DESC;
 
 -- name: gate
@@ -64,7 +65,7 @@ WITH firsts AS (
                    AND tool IN ('unbrowse_do', 'unbrowse_call', '/v1/do', '/v1/routes/{id}/call', '/v1/remote/call/{id}')
                   THEN received_hour END) AS good_hour,
          MAX(received_hour) AS last_hour
-  FROM events WHERE install_id != 'ffffffffffffffffffffffffffffffff'
+  FROM events WHERE install_id NOT IN (SELECT install_id FROM ours)
   GROUP BY install_id
 )
 SELECT date(first_hour - ((first_hour / 86400 + 3) % 7) * 86400, 'unixepoch') AS week,
@@ -87,7 +88,7 @@ WITH firsts AS (
                   THEN received_hour END) AS good_hour,
          MAX(received_hour) AS last_hour,
          MIN(CASE WHEN from_tag IS NOT NULL THEN printf('%012d|%s', received_hour, from_tag) END) AS first_from
-  FROM events WHERE install_id != 'ffffffffffffffffffffffffffffffff'
+  FROM events WHERE install_id NOT IN (SELECT install_id FROM ours)
   GROUP BY install_id
 )
 SELECT date(first_hour - ((first_hour / 86400 + 3) % 7) * 86400, 'unixepoch') AS week,
@@ -112,7 +113,7 @@ WITH firsts AS (
                    AND tool IN ('unbrowse_do', 'unbrowse_call', '/v1/do', '/v1/routes/{id}/call', '/v1/remote/call/{id}')
                   THEN received_hour END) AS good_hour,
          MIN(CASE WHEN from_tag IS NOT NULL THEN printf('%012d|%s', received_hour, from_tag) END) AS first_from
-  FROM events WHERE install_id != 'ffffffffffffffffffffffffffffffff'
+  FROM events WHERE install_id NOT IN (SELECT install_id FROM ours)
   GROUP BY install_id
 ),
 tagged AS (
@@ -131,6 +132,15 @@ SELECT arm,
        SUM(settled) AS settled,
        SUM(settled AND good_7d) AS settled_good_call_7d
 FROM armed GROUP BY arm ORDER BY arm;
+
+-- name: ours
+-- What the other questions leave out, in the last 30 days: our own installs and their calls, by the first reason each
+-- is ours (an install is counted once).
+WITH why AS (SELECT install_id, MIN(why) AS why FROM ours GROUP BY install_id)
+SELECT why.why, COUNT(DISTINCT e.install_id) AS installs, SUM(e.event = 'tool_call') AS calls
+FROM events e JOIN why ON why.install_id = e.install_id
+WHERE e.received_hour >= strftime('%s', 'now', '-30 days')
+GROUP BY why.why ORDER BY installs DESC;
 
 -- name: install
 -- One install, by its install id: GET /v1/stats/install?id=<32 hex>. The id is checked against its shape and bound as

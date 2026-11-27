@@ -17,19 +17,19 @@ The Unbrowse app runs the node. Install it and start it first (`npm install -g u
 
 The tools need the `unbrowse` Python SDK in the Python Hermes runs. It isn't on PyPI (the name there is another
 project's), so install the `unbrowse-<version>-py3-none-any.whl` a
-[release](https://github.com/unbrowse-ai/unbrowse-core/releases) carries, at the version of the app you run (or
+[release](https://github.com/unbrowse-ai/unbrowse/releases) carries, at the version of the app you run (or
 the newest release). A release's wheel is what that release built and signed; the
 repository's head is whatever was pushed last, so never install from it:
 
 ```bash
 VERSION=13.18.1   # the release, without its v
-pip install "https://github.com/unbrowse-ai/unbrowse-core/releases/download/v$VERSION/unbrowse-$VERSION-py3-none-any.whl"
+pip install "https://github.com/unbrowse-ai/unbrowse/releases/download/v$VERSION/unbrowse-$VERSION-py3-none-any.whl"
 ```
 
 Then install the plugin from this folder:
 
 ```bash
-hermes plugins install unbrowse-ai/unbrowse-core/integrations/hermes --enable
+hermes plugins install unbrowse-ai/unbrowse/integrations/hermes --enable
 ```
 
 Hermes asks for `UNBROWSE_AGENT_TOKEN` and saves it to `~/.hermes/.env`.
@@ -46,7 +46,7 @@ Restart Hermes. `/plugins` lists `unbrowse` with its tools.
 ## Configure
 
 The node makes its first agent key itself on its first run, and `unbrowse agent token` prints that key's token. For a
-key of Hermes's own, `unbrowse agent new hermes` (or the window's Money, Add agent) makes one and prints its setup
+key of Hermes's own, `unbrowse agent new hermes` (or the window's Agents, Add agent) makes one and prints its setup
 once, with the node's address and the token. Put them in `~/.hermes/.env`:
 
 ```bash

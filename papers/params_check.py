@@ -108,7 +108,7 @@ def read(file: str) -> str | None:
 
 def private_absent(file: str) -> bool:
     """A site in a folder the public tree leaves out (`.github/public-tree-exclude`), checked out without it."""
-    return any(file.startswith(d) and not (ROOT / d).is_dir() for d in PRIVATE)
+    return any(file.startswith(d) and not (ROOT / d).exists() for d in PRIVATE)
 
 
 def read_site(site: dict) -> tuple[Decimal | None, str, str | None]:

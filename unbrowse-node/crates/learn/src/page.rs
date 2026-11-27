@@ -372,6 +372,42 @@ pub fn a_check_not_the_page(page: &Value, asked: &[&str]) -> Option<String> {
     Some(format!("the site answered with a page that links nowhere and says nothing of what was asked ({} characters: {}): a check or a wall, not the page", said.chars().count(), said.trim().chars().take(80).collect::<String>().replace('\n', " ")))
 }
 
+/// The address an answer sends its reader on to, when the answer is nothing but a script doing that: no words, no
+/// link, no form, and a script that moves the page (`location.replace`, `location.assign`, or `location`/`href`
+/// assigned) to an address it names on the answer's own site. A call that asked for the site's data and was handed
+/// this was not answered; it was sent to the page that stands in front of the answer. `None` for anything else,
+/// including a script that sends the reader to another site.
+pub fn sent_on(body: &str, at: &url::Url) -> Option<url::Url> {
+    let head = body.trim_start();
+    if !head.starts_with('<') || !head.get(..4096).unwrap_or(head).to_ascii_lowercase().contains("<script") {
+        return None;
+    }
+    let sel = |s: &str| Selector::parse(s).expect("static selector");
+    let doc = Html::parse_document(body);
+    if doc.select(&sel("a[href], form, input, button, img, iframe")).next().is_some() {
+        return None;
+    }
+    let scripts: String = doc.select(&sel("script")).map(|s| s.text().collect::<String>()).collect::<Vec<_>>().join("\n");
+    let words: String = doc.select(&sel("body")).flat_map(|b| b.text()).collect::<String>();
+    // The body's words, less what the scripts hold (a body of only scripts reads as their source).
+    if words.split_whitespace().collect::<String>().len() > scripts.split_whitespace().collect::<String>().len() + 40 {
+        return None;
+    }
+    let moves = ["location.replace(", "location.assign(", "location.href=", "location.href =", "location=", "location ="];
+    if !moves.iter().any(|m| scripts.contains(m)) {
+        return None;
+    }
+    let here = at.host_str()?;
+    let addresses = regex::Regex::new(r#"["'](?:https?:)?//[^"'\s<>]+["']"#).ok()?;
+    let text = scripts.replace("\\/", "/");
+    let found = addresses
+        .find_iter(&text)
+        .filter_map(|m| at.join(m.as_str().trim_matches(|c| c == '"' || c == '\'')).ok())
+        .filter(|u| u.host_str().is_some_and(|h| crate::identity::same_site(h, here)))
+        .find(|u| !matches!(u.path().rsplit('.').next(), Some("js" | "css" | "png" | "gif" | "jpg" | "svg" | "ico" | "woff" | "woff2")));
+    found
+}
+
 /// Whether an answer to a request for a page at `at` is a door rather than the page: the site refused it while it
 /// decides (`trace::REFUSED`), or it is a page that only waits on its own code. Such a page runs a script, leaves the
 /// reader nothing to type in, says a few lines at most and links nowhere on its site: at most to whoever runs the

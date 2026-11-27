@@ -435,6 +435,9 @@ pub const JAR: Format = items("jar", "jars/<host>.json");
 pub const DOORS: Format = items("doors", "doors.json");
 /// What a site needs done by hand before it answers (`unbrowse_learn::setup`): the owner's, never shared.
 pub const SETUPS: Format = items("setups", "setups/<site>.json");
+/// How a site's check is redeemed for its pass with a solver's token (`app/src/redeem.rs`): learned from the node's own
+/// solve, the owner's, never shared.
+pub const REDEMPTIONS: Format = items("redemptions", "redemptions/<site>.json");
 
 /// Every format, one entry per file.
 pub const ALL: &[&Format] = &[
@@ -503,6 +506,7 @@ pub const ALL: &[&Format] = &[
     &NODE_AD,
     &JAR,
     &SETUPS,
+    &REDEMPTIONS,
 ];
 
 /// The fixture of the oldest form a node ever wrote a format's file in, which its reader is tested on:

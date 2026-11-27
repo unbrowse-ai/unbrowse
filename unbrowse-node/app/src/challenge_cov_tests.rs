@@ -73,7 +73,7 @@ fn devtools(scene: Scene) -> (String, Heard) {
 fn page_on(ws: &str) -> CdpPage {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let opened = rt.block_on(open(ws, "T1")).unwrap();
-    CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title }
+    CdpPage { rt, client: opened.client, session: opened.session, viewport: opened.viewport, url: opened.url, title: opened.title, told: None }
 }
 
 fn methods(heard: &Heard) -> Vec<String> {
@@ -377,4 +377,174 @@ fn a_challenge_on_a_site_with_no_open_tab_for_the_session_says_so() {
     browser_for("notab.example", "1:has-tab", &ws);
     let why = look("agent", "notab.example", "1:other-session", "").unwrap_err();
     assert!(why.contains("the session's tab isn't open"), "{why}");
+}
+
+/// A DevTools line for a solve: the page's main world (1) shows no check, a frame's (2) holds one, and the frame's
+/// isolated world (3) is not where the widget's code runs. It keeps each evaluation and the context it ran in.
+fn solve_devtools(frame_check: Value, handed: Value) -> (String, Heard) {
+    solve_devtools_sending(frame_check, handed, Vec::new())
+}
+
+/// [`solve_devtools`] whose page, once the token is handed over, sends `events` (network events on its line).
+fn solve_devtools_sending(frame_check: Value, handed: Value, events: Vec<Value>) -> (String, Heard) {
+    let heard: Heard = Arc::default();
+    let kept = heard.clone();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let (kept, frame_check, handed, events) = (kept.clone(), frame_check.clone(), handed.clone(), events.clone());
+            std::thread::spawn(move || {
+                let Ok(mut socket) = tokio_tungstenite::tungstenite::accept(stream) else { return };
+                let mut landed_asked = 0;
+                let send = |socket: &mut tokio_tungstenite::tungstenite::WebSocket<std::net::TcpStream>, v: Value| {
+                    let _ = socket.send(tokio_tungstenite::tungstenite::Message::text(v.to_string()));
+                };
+                while let Ok(msg) = socket.read() {
+                    let Ok(cmd) = serde_json::from_str::<Value>(msg.to_text().unwrap_or_default()) else { continue };
+                    let method = cmd["method"].as_str().unwrap_or_default().to_string();
+                    kept.locked().push((method.clone(), cmd["params"].clone()));
+                    if method == "Runtime.enable" {
+                        for (id, frame, default) in [(1, "top", true), (2, "F1", true), (3, "F1", false)] {
+                            let context = json!({ "id": id, "auxData": { "frameId": frame, "isDefault": default } });
+                            send(&mut socket, json!({ "method": "Runtime.executionContextCreated", "params": { "context": context }, "sessionId": "S1" }));
+                        }
+                    }
+                    let result = match method.as_str() {
+                        "Target.attachToTarget" => json!({ "sessionId": "S1" }),
+                        "Page.getFrameTree" => json!({ "frameTree": { "frame": { "id": "top" }, "childFrames": [{ "frame": { "id": "F1" } }] } }),
+                        "Network.getAllCookies" => json!({ "cookies": [
+                            { "name": "x5sec", "value": "the-pass", "domain": ".shop.example", "expires": 1_900_000_000.0 },
+                            { "name": "sid", "value": "s", "domain": "www.shop.example", "expires": -1.0 },
+                            { "name": "other", "value": "o", "domain": "elsewhere.example", "expires": 1_900_000_000.0 },
+                        ] }),
+                        "Runtime.evaluate" => {
+                            let expression = cmd["params"]["expression"].as_str().unwrap_or_default();
+                            let value = if expression == crate::solver::find_js() {
+                                match cmd["params"]["contextId"].as_i64() {
+                                    Some(2) => frame_check.clone(),
+                                    _ => json!({ "url": "https://www.shop.example/", "key": null, "fields": [] }),
+                                }
+                            } else if expression.starts_with(crate::solver::HAND_JS) {
+                                for e in &events {
+                                    send(&mut socket, e.clone());
+                                }
+                                handed.clone()
+                            } else if expression == LANDED_JS {
+                                // The page is still the check when first asked, and has moved on, loaded, when asked again.
+                                landed_asked += 1;
+                                let at = if landed_asked > 1 { "https://www.shop.example/results" } else { "https://www.shop.example/" };
+                                send(&mut socket, json!({ "id": cmd["id"], "result": { "result": { "type": "string", "value": json!({ "url": at, "ready": true }).to_string() } } }));
+                                continue;
+                            } else {
+                                json!({ "url": "https://www.shop.example/", "title": "x" })
+                            };
+                            json!({ "result": { "type": "string", "value": value.to_string() } })
+                        }
+                        _ => json!({}),
+                    };
+                    send(&mut socket, json!({ "id": cmd["id"], "result": result }));
+                }
+            });
+        }
+    });
+    (format!("ws://127.0.0.1:{port}/devtools/browser/fake"), heard)
+}
+
+/// A solver that answers one task with `token`, keeping the createTask body it was sent.
+fn token_solver(token: &'static str) -> (String, Arc<Mutex<Option<Value>>>) {
+    use std::io::{Read, Write};
+    let asked: Arc<Mutex<Option<Value>>> = Arc::default();
+    let kept = asked.clone();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for mut s in listener.incoming().flatten() {
+            let mut buf = vec![0u8; 65536];
+            let n = s.read(&mut buf).unwrap_or(0);
+            let req = String::from_utf8_lossy(&buf[..n]).to_string();
+            let body = if req.contains("POST /createTask") {
+                *kept.locked() = req.split("\r\n\r\n").nth(1).and_then(|b| serde_json::from_str(b).ok());
+                r#"{"errorId":0,"taskId":5}"#.to_string()
+            } else {
+                format!(r#"{{"errorId":0,"status":"ready","solution":{{"gRecaptchaResponse":"{token}"}}}}"#)
+            };
+            let _ = s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes());
+        }
+    });
+    (url, asked)
+}
+
+/// A check drawn in a frame of the page is found there, its task names that frame's document and key, and the token
+/// is handed over in the frame's main world, where the widget's callback is, never its isolated world.
+#[test]
+fn a_solve_finds_the_check_in_its_frame_and_hands_the_token_over_where_the_widget_runs() {
+    let check = json!({ "url": "https://guard.shop.example/punish?x=1", "key": "6LeKEY", "action": null, "fields": ["g-recaptcha-response"], "enterprise": false, "invisible": false });
+    let (ws, heard) = solve_devtools(check, json!({ "filled": 1, "called": 1, "submitted": false }));
+    let (url, asked) = token_solver("0cAFtoken");
+    let mut page = page_on(&ws);
+    let line = page.solve_with(Some(crate::solver::at(&url, "k"))).unwrap();
+    assert!(line.contains("1 field") && line.contains("callback"), "{line}");
+    let task = asked.locked().clone().expect("a createTask was sent")["task"].clone();
+    assert_eq!((task["type"].as_str(), task["websiteURL"].as_str(), task["websiteKey"].as_str()), (Some("RecaptchaV2TaskProxyless"), Some("https://guard.shop.example/punish?x=1"), Some("6LeKEY")));
+    let hand = heard.locked().iter().find(|(m, p)| m == "Runtime.evaluate" && p["expression"].as_str().is_some_and(|e| e.starts_with(crate::solver::HAND_JS))).map(|(_, p)| p.clone()).expect("the token was handed over");
+    assert_eq!(hand["contextId"], 2, "in the frame's main world");
+    assert!(hand["expression"].as_str().unwrap().ends_with("(\"0cAFtoken\")"), "with the solver's token");
+    let waits = heard.locked().iter().filter(|(m, p)| m == "Runtime.evaluate" && p["expression"] == LANDED_JS).count();
+    assert_eq!(waits, 2, "the solve waits for the page to leave the check: asked until it has moved on and loaded, and no more");
+}
+
+/// With no check on the page, or no solver, a solve says which and hands nothing over; a token that reached no field
+/// is no pass.
+#[test]
+fn a_solve_with_no_check_no_solver_or_no_field_says_so() {
+    let none = json!({ "url": "https://www.shop.example/", "key": null, "fields": [] });
+    let (ws, _) = solve_devtools(none, json!({}));
+    let why = page_on(&ws).solve_with(Some(crate::solver::at("http://127.0.0.1:9", "k"))).unwrap_err();
+    assert!(why.contains("no check the solver answers"), "{why}");
+
+    let check = json!({ "url": "https://guard.shop.example/punish", "key": "6LeKEY", "fields": ["g-recaptcha-response"] });
+    let (ws, heard) = solve_devtools(check.clone(), json!({}));
+    let why = page_on(&ws).solve_with(None).unwrap_err();
+    assert!(why.contains("no captcha solver"), "{why}");
+    assert!(!heard.locked().iter().any(|(_, p)| p["expression"].as_str().is_some_and(|e| e.starts_with(crate::solver::HAND_JS))), "nothing handed over");
+
+    let (ws, _) = solve_devtools(check, json!({ "filled": 0, "called": 0, "submitted": false }));
+    let (url, _) = token_solver("0cAFtoken");
+    let why = page_on(&ws).solve_with(Some(crate::solver::at(&url, "k"))).unwrap_err();
+    assert!(why.contains("no field"), "{why}");
+}
+
+/// The request the page sends with the token, whose answer sets the site's pass, is kept as the site's redemption
+/// (`redeem`): the page's own request after the hand-over, as a shop's check sent it on 2026-11-25.
+#[test]
+fn a_solve_keeps_the_request_that_redeemed_the_token() {
+    crate::store::scratch_home("solve-keeps-the-redemption");
+    let captured: Value = serde_json::from_str(&std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/checks/redeemed.json")).unwrap()).unwrap();
+    let check_url = captured["check"].as_str().unwrap().to_string();
+    let body = captured["body"].as_str().unwrap().replace("TOKEN-THE-SOLVER-GAVE", "0cAFtoken-for-this-solve");
+    let request = json!({ "method": "POST", "url": captured["url"], "headers": { "Content-Type": captured["content_type"] }, "postData": body });
+    let set = captured["set_cookie"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect::<Vec<_>>().join("\n");
+    let events = vec![
+        json!({ "method": "Network.requestWillBeSent", "params": { "requestId": "r9", "request": request }, "sessionId": "S1" }),
+        json!({ "method": "Network.requestWillBeSent", "params": { "requestId": "r8", "request": { "method": "GET", "url": "https://www.lazada.sg/x.js", "headers": {} } }, "sessionId": "S1" }),
+        json!({ "method": "Network.responseReceivedExtraInfo", "params": { "requestId": "r9", "headers": { "set-cookie": set } }, "sessionId": "S1" }),
+    ];
+    let check = json!({ "url": check_url, "key": "6LeKEY", "fields": ["g-recaptcha-response"], "enterprise": true });
+    let (ws, _) = solve_devtools_sending(check, json!({ "filled": 1, "called": 1, "submitted": false }), events);
+    let (url, _) = token_solver("0cAFtoken-for-this-solve");
+    let line = page_on(&ws).solve_with(Some(crate::solver::at(&url, "k"))).unwrap();
+    assert!(line.contains("the request that redeemed it (POST validate) is kept"), "{line}");
+    let kept = crate::redeem::load("lazada.sg");
+    assert_eq!((kept.len(), kept[0].to.as_str(), kept[0].earns.as_slice()), (1, "validate", &["x5sec".to_string()][..]));
+}
+
+/// The cookies the node's browser holds for a site are read with when each runs out; another site's are left out, and a
+/// cookie that ends with the session says no end.
+#[test]
+fn the_browsers_cookies_for_a_site_are_read_with_their_ends() {
+    let (ws, _) = solve_devtools(json!({}), json!({}));
+    let mut cookies = page_on(&ws).cookies_of("shop.example");
+    cookies.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(cookies, vec![("sid".to_string(), "s".to_string(), None), ("x5sec".to_string(), "the-pass".to_string(), Some(1_900_000_000.0))]);
 }

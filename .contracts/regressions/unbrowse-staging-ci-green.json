@@ -1,0 +1,8 @@
+{
+  "claim": "CI, Coverage and Promotion gate all pass on the current staging push",
+  "test": [
+    "python3",
+    "-c",
+    "import json,subprocess,sys\ndef gh(*args):\n return json.loads(subprocess.check_output([\"gh\",*args],text=True))\nrepo=\"unbrowse-ai/unbrowse-core\"\nroot=\"repos/\"+repo\nsha=gh(\"api\",root+\"/branches/staging\")[\"commit\"][\"sha\"]\nruns=gh(\"api\",\"-X\",\"GET\",root+\"/actions/runs\",\"-f\",\"head_sha=\"+sha,\"-f\",\"event=push\",\"-f\",\"per_page=100\")[\"workflow_runs\"]\nok=True\nfor name in (\"CI\",\"Coverage\",\"Promotion gate\"):\n row=next((r for r in runs if r[\"name\"]==name),{})\n print(sha,name,row.get(\"conclusion\") or row.get(\"status\") or \"missing\",row.get(\"html_url\",\"\"))\n ok &= row.get(\"conclusion\")==\"success\"\nif gh(\"api\",root+\"/branches/staging\")[\"commit\"][\"sha\"]!=sha: sys.exit(\"staging moved during verification\")\nif not ok: sys.exit(1)\nprint(\"STAGING_CI_GREEN\")"
+  ]
+}

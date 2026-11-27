@@ -15,7 +15,10 @@ A hit needs all of:
   - an artifact named `gate-bank-slice-<tree>` that has not expired: the slice job of pr-agent-checks.yml keeps its
     results under the tree it ran on (`git rev-parse HEAD^{tree}` of the merge commit);
   - the run that made it is pr-agent-checks.yml, for a pull_request, from a branch of this repository, completed, and
-    its conclusion is success: its last job is green only when every agent check ran and passed.
+    its conclusion is success: its last job is green only when every agent check ran and passed;
+  - pr-check.yml's run on that same commit, for a pull_request, from a branch of this repository, completed with
+    success: the MCP check runs there alone, on every pull request (pr-agent-checks.yml ran a second copy of it, with
+    the same steps, until 22 Nov 2026).
 
 A push of the same tree by qa.yml itself keeps an artifact of the same name; it is not a pull request's run and never
 counts. Anything this cannot read (no token, the API down, an answer of another shape) is no hit: everything runs.
@@ -36,6 +39,7 @@ import urllib.error
 import urllib.request
 
 WORKFLOW = ".github/workflows/pr-agent-checks.yml"
+MCP_CHECK = ".github/workflows/pr-check.yml"
 STAGING = "refs/heads/staging"
 
 
@@ -73,11 +77,33 @@ def find(repo, event, ref, tree, get):
             if not ok
         ]
         if not wrong:
-            return run, f"tree {tree} passed PR agent checks in run {run_id}"
+            mcp, why = mcp_check(repo, run, get)
+            if mcp is not None:
+                return run, f"tree {tree} passed PR agent checks in run {run_id} and the MCP check in run {mcp.get('id')}"
+            seen.append(f"run {run_id}: {why}")
+            continue
         seen.append(f"run {run_id}: {wrong[0]}")
     if not seen:
         return None, f"no pull request run kept results for tree {tree}"
     return None, f"no successful pull request run for tree {tree} (" + "; ".join(seen[:5]) + ")"
+
+
+def mcp_check(repo, run, get):
+    """(run or None, why): pr-check.yml's successful pull request run on the commit `run` (pr-agent-checks.yml's) ran on."""
+    sha = run.get("head_sha") or ""
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        return None, "no commit to look up its MCP check by"
+    listed = get(f"/repos/{repo}/actions/runs?head_sha={sha}&event=pull_request&per_page=100")
+    runs = (listed or {}).get("workflow_runs")
+    if not isinstance(runs, list):
+        return None, "the MCP check's runs could not be read"
+    for other in runs:
+        if (other.get("path") == MCP_CHECK and other.get("event") == "pull_request" and other.get("head_sha") == sha
+                and other.get("status") == "completed" and other.get("conclusion") == "success"
+                and (other.get("repository") or {}).get("full_name") == repo
+                and (other.get("head_repository") or {}).get("full_name") == repo):
+            return other, ""
+    return None, f"its MCP check (pr-check.yml) did not pass on commit {sha[:8]}"
 
 
 def api(token, base="https://api.github.com"):

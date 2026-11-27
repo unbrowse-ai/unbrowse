@@ -87,9 +87,13 @@ CATALOGUE = {
                      "A session's cookie is the jar's: earned by the call that set it (`Class::Derived`) or carried from the walk's browser (`Class::Minted`). Kept as text in the step, every caller sends the walk's own session, which the site ends or counts as one visitor."),
     'walked-header': ('note', "The caller's walked word rides in a header as walked", "Usually the page's own address sent along: harmless, and untidy."),
     # Said by the node's own log of the learn (xray_log).
+    'browser-flow-landing': ('break', 'The recorded browser navigation did not reach the requested page', 'The browser flow stopped before candidate scoring. The log shows the number of exchanges and the last main-document statuses. Zero means the request received no HTTP response.'),
     'picked-without-fields': ('risk', "The call picked as the answer holds none of the goal's fields", "The engine's own reason for its pick says so. On a page read that lists its records as text this is expected; with a second word unanswered beside it, the pick is a shell. Read the candidates it held back."),
     'shell-kept': ('break', "The pick holds none of the goal's fields, the site did not answer it for a second word, and it was kept", "Both of the engine's own lines say the route is a shell, and it stands and answers `ok`."),
     'kept-unanswered': ('risk', 'The site did not answer the route for a second word, and the route was kept', "One word found nothing. Where the route answers other words this is the word's fault; with a pick that holds none of the goal's fields beside it, the route is a shell."),
+    'door-took-the-walk': ('break', "The walk's door took its calls, and the learn kept no route", "Calls were taken away before any was a candidate, each with why (`Trace::door_why`). "
+                           "Read them before saying the site has no answer: a door read wrong takes the answer with it."),
+    'door-took-calls': ('note', "The walk's door took calls before any was a candidate", "Each with why: a refusal, another site's page, or a page of script the walk went past (`Trace::door_why`)."),
     'picked-below-top': ('risk', 'The call picked was not the one scored highest', "A candidate scored higher and was held back. The reason is beside it in the list of candidates."),
     'connection-as-refusal': ('risk', "A request that never connected was read as the site's answer", "The trial's request failed to connect, and the verdict says the site did not answer."),
     'second-walk-elsewhere': ('risk', 'The second walk went to another page', "The word it was given led to a page that made none of the first walk's calls, so nothing was measured twice."),

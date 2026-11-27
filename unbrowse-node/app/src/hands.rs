@@ -2006,3 +2006,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "hands_cov_tests.rs"]
+mod hands_cov_tests;

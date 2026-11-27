@@ -105,6 +105,7 @@ fn checks() -> Vec<Check> {
         Check { format: &f::NODE_AD, at: "network/0x1111111111111111111111111111111111111111.json", round: round::<crate::network::NodeAd>, found: |v| v["name"] == "a-node" && v["peer_id"] == "" },
         // A cookie named `v` is a cookie, never the version.
         Check { format: &f::SETUPS, at: "setups/shop.example.json", round: round::<Vec<unbrowse_learn::setup::Setup>>, found: |v| v[0]["asks"] == "Choose your country" && v[0]["steps"][0]["at"] == "#us" },
+        Check { format: &f::REDEMPTIONS, at: "redemptions/shop.example.json", round: round::<Vec<crate::redeem::Redemption>>, found: |v| v[0]["to"] == "validate" && v[0]["fields"][0]["param"] == "x5secdata" && v[0]["fields"][1]["with"]["b"] == 1 && v[0]["earns"][0] == "x5sec" },
         Check { format: &f::JAR, at: "jars/shop.example.json", round: round::<BTreeMap<String, String>>, found: |v| v["sid"] == "s-123" && v["v"] == "a cookie named v" },
         // The doors a node has met, by site: the wall's class, the statuses it answers, the credential it issues.
         Check { format: &f::DOORS, at: "doors.json", round: round::<BTreeMap<String, unbrowse_learn::graph::Door>>, found: |v| v["www.shop.example"]["credential"] == "cf_clearance" && v["www.shop.example"]["earn"] == "browser" },

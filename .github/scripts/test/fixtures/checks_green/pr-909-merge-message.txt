@@ -1,0 +1,24 @@
+fix(ci): a quick tunnel the service refused is asked for again (#909)
+
+* fix(ci): a quick tunnel the service refused is asked for again
+
+The attack bank asks Cloudflare's quick-tunnel service for two public addresses in a row. On the hosted runners the
+second came back with no tunnel at all ("failed to parse quick Tunnel ID: invalid UUID length: 0") 24 s after the
+first was registered, and `cloudflared` ended at once. `Tunnels` went on reading its log for 90 s and failed the MCP
+check with "no public address" (PR check 45350260674 on #904, 45341072360 twice on #902).
+
+Now a tunnel whose program ended without an address is asked again after a wait that doubles (15 s, then 30, 60),
+four asks in all, each appended to the same log; a service that keeps refusing still fails as before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+* test(attack): the tunnel test imports its harness without a lint waiver
+
+An import inside a function is not one E402 reads.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Lewis Tham <lewistham@Lewiss-MacBook-Pro.local>
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>

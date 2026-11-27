@@ -143,13 +143,25 @@ The stats door needs the secret `ADMIN_TOKEN` on each Worker (`npx wrangler secr
 ## Reading the counts
 
 `node stats.mjs <name>` in this folder, or `GET /v1/stats/<name>` with `Authorization: Bearer <ADMIN_TOKEN>`. The names
-are the questions in [queries.sql](queries.sql); `funnel` is the node's half of the funnel (UNB-179): by the week an
+are the questions in [queries.sql](queries.sql); `funnel` is the node's half of the funnel: by the week an
 install was first seen, how many started, had an agent call a tool, got a first good call (within 7 days, and at
 all), and came back a week on.
 `funnel_by_from` is the same split by each install's first source tag (`from_tag`, `direct` for none), over the last 12
 weeks. `arms` judges the site's hero test on the first good call: per arm (a tag ending in `-<one letter>`, so `hn-e`
 is arm `e`), installs, how many got a first good call within 7 days, and the same for `settled` installs, first seen 7
 or more days ago, whose window is over.
+**Internal installs are left out** of every question but `gate`, `ours` and `install`: the release train's
+gate, a source build (`0.x`; no release carries it), a node started with source tag `internal`, `dev`, `ci` or
+`test`, and whatever an admin put on the list. To list an install (for example a developer's node: `unbrowse-node telemetry`
+prints its id) or a version never offered to anyone (a device test build):
+
+```bash
+curl -X POST https://telemetry.unbrowse.ai/v1/ours -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"kind": "install", "value": "<32 hex>", "why": "dev machine"}'      # DELETE with kind and value takes it off
+```
+
+`ours` answers what was left out in the last 30 days: installs and calls, by reason.
+
 `install` is the one question that takes a value: `GET /v1/stats/install?id=<install id>` (32 hex, checked, then bound
 as a value, never written into the SQL) answers one install's first and last seen hour, first source tag, first tool
 call, first good call, and its call counts. The site's `/admin` Journey reads it for a node whose owner signed in.

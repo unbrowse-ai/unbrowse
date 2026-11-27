@@ -1,14 +1,18 @@
 """qa_tools.py: QA's terminal runs only the product's listed commands, hands them nothing but the node's own settings,
 scrubs keys from what comes back, and pictures and logs every call. No node: fake programs stand in."""
+import http.server
 import json
 import re
 import os
 import stat
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+from unittest.mock import patch
 
 TMP = Path(tempfile.mkdtemp())
 os.environ.update({"QA_SHOTS": str(TMP / "shots"), "QA_WORK": str(TMP / "work"), "QA_FIXTURES": str(TMP / "fixtures"),
@@ -16,7 +20,10 @@ os.environ.update({"QA_SHOTS": str(TMP / "shots"), "QA_WORK": str(TMP / "work"),
                    "UNBROWSE_AGENT_TOKEN": "agent-token-abcdef123", "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-model-credential",
                    "QA_CHROME": str(TMP / "chrome")})  # fmt: skip
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "unbrowse-sdk/python/src"))
 import qa_tools  # noqa: E402
+from unbrowse._proof import node_proof, token_key  # noqa: E402
+from unbrowse._signed import body_hash, reply_mac, request_mac  # noqa: E402
 
 # A stand-in for unb and unbrowse-node: prints its words, its environment's names, and any token it was handed.
 PROGRAM = """#!/bin/sh
@@ -74,6 +81,31 @@ class TerminalTest(unittest.TestCase):
         self.assertTrue(qa_tools.is_png(Path(picture)), picture)
         lines = [json.loads(line) for line in (TMP / "shots/steps/steps.jsonl").read_text().splitlines()]
         self.assertTrue(any(line["program"] == "unbrowse-node" and line["command"] == "network" and line["picture"] for line in lines))
+
+    def test_draw_terminal_does_not_wait_for_a_hanging_chrome_after_png_lands(self):
+        with tempfile.TemporaryDirectory() as folder:
+            tmp = Path(folder)
+            chrome = tmp / "hanging-chrome"
+            chrome.write_text(
+                "#!/bin/sh\n"
+                "for a in \"$@\"; do case $a in --screenshot=*) printf '\\211PNG\\r\\n\\032\\nfake\\000\\000\\000\\000IEND\\256B\\140\\202' > \"${a#--screenshot=}\" ;; esac; done\n"
+                "exec sleep 30\n"
+            )
+            chrome.chmod(chrome.stat().st_mode | stat.S_IEXEC)
+            target = tmp / "term.png"
+            old = qa_tools.ENV.get("QA_CHROME")
+            qa_tools.ENV["QA_CHROME"] = str(chrome)
+            try:
+                started = time.monotonic()
+                self.assertTrue(qa_tools.draw_terminal(target, "step 1", "output"))
+                elapsed = time.monotonic() - started
+            finally:
+                if old is None:
+                    qa_tools.ENV.pop("QA_CHROME", None)
+                else:
+                    qa_tools.ENV["QA_CHROME"] = old
+            self.assertLess(elapsed, 5.0, f"draw_terminal waited {elapsed:.1f}s for a hanging Chrome")
+            self.assertTrue(qa_tools.is_png(target, complete=True))
 
     def test_commands_that_print_a_key_or_reach_outside_are_refused(self):
         refused = [
@@ -153,6 +185,7 @@ class Window(unittest.TestCase):
     """The window draws itself: no screen is read, no key reaches another app, on a person's own Mac or anywhere."""
 
     def setUp(self):
+        (TMP / "shots").mkdir(exist_ok=True)
         path = TMP / "bin/unbrowse-window"
         path.write_text(WINDOW)
         path.chmod(path.stat().st_mode | stat.S_IEXEC)
@@ -182,6 +215,8 @@ class Window(unittest.TestCase):
         err, text = call("window", {"action": "click", "text": "Nope", "wait_s": 0.1})
         self.assertTrue(err)
         self.assertIn("TextNotFound", text)
+        self.assertIn("current picture: ", text)
+        self.assertTrue(qa_tools.is_png(Path(text.rsplit("current picture: ", 1)[1])))
         call("window", {"action": "click", "text": "Add a card", "wait_s": 0.1})
         self.assertIn("--nanoui-script=live:3;click:Vault;live:2;click:Add a card;live:2", self.runs()[-1])
         call("window", {"action": "click", "text": "Money", "wait_s": 0.1})
@@ -206,6 +241,70 @@ class Window(unittest.TestCase):
         drawn = self.runs()[-1]
         self.assertIn("--nanoui-wait=0 ", drawn)
         self.assertTrue(drawn.endswith("--nanoui-script=live:3;live:9"), drawn)
+
+    def test_a_picture_waits_for_the_real_owner_ask(self):
+        qa_tools.SHOTS.parent.mkdir(parents=True, exist_ok=True)
+        err, text = call("window", {"action": "open", "wait_s": 0.2})
+        self.assertFalse(err, text)
+        first_poll = threading.Event()
+        pending = threading.Event()
+        requests = []
+        token = "owner-token-zyxwvu987"
+
+        class Hands(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                parsed = urlsplit(self.path)
+                query = parse_qs(parsed.query)
+                if parsed.path != "/v1/node/proof" or query.get("key") != [token_key(token)]:
+                    self.send_error(401)
+                    return
+                challenge = bytes.fromhex(query["challenge"][0])
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps({"owner": node_proof(token, self.server.server_port, challenge)}).encode())
+
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers["Content-Length"]))
+                nonce = self.headers.get("x-unbrowse-nonce")
+                if (self.path != "/owner/hands" or "Authorization" in self.headers or not nonce
+                        or self.headers.get("x-unbrowse-key") != token_key(token)
+                        or request_mac(token, "POST", self.headers["Host"], self.path, body,
+                                       int(self.headers["x-unbrowse-time"]), nonce) != self.headers.get("x-unbrowse-signature")):
+                    self.send_error(401)
+                    return
+                requests.append(nonce)
+                asks = [{"id": "pending"}] if pending.is_set() else []
+                answer = json.dumps({"asks": asks}).encode()
+                self.send_response(200)
+                self.send_header("x-unbrowse-reply", reply_mac(token, 200, body_hash(answer), nonce))
+                self.end_headers()
+                self.wfile.write(answer)
+                first_poll.set()
+
+            def log_message(self, *_):
+                pass
+
+        with http.server.HTTPServer(("127.0.0.1", 0), Hands) as server:
+            worker = threading.Thread(target=server.serve_forever, daemon=True)
+            worker.start()
+            try:
+                with patch.dict(os.environ, UNBROWSE_NODE=f"http://127.0.0.1:{server.server_port}"):
+                    err, text = call("window", {"action": "shot", "when_owner_asks": True, "name": "pending-ask"})
+                    self.assertFalse(err, text)
+                    self.assertTrue(first_poll.wait(3), text)
+                    target = Path(text.rsplit(" at ", 1)[1])
+                    self.assertFalse(target.exists())
+                    pending.set()
+                    deadline = time.monotonic() + 4
+                    while not target.exists() and time.monotonic() < deadline:
+                        time.sleep(0.05)
+                    self.assertTrue(qa_tools.is_png(target))
+            finally:
+                server.shutdown()
+                worker.join()
+        self.assertGreaterEqual(len(requests), 2)
+        self.assertEqual(len(requests), len(set(requests)))
+        self.assertIn("--nanoui-script=live:3", self.runs()[-1])
 
     def test_a_step_that_changed_the_node_is_not_done_again(self):
         call("window", {"action": "open", "wait_s": 0.2})
@@ -245,7 +344,7 @@ class Window(unittest.TestCase):
         # #784 rewrote qa.yml from a copy older than #782 and brought back the window step that read the screen
         # (QA_OWNERS_SCREEN, --picture <pid>): its MCP check failed on the Vault click of staging QA 44912147606.
         root = Path(qa_tools.__file__).resolve().parents[2] / ".github" / "workflows"
-        for name in ("qa.yml", "pr-agent-checks.yml"):
+        for name in ("qa.yml", "pr-check.yml"):
             text = (root / name).read_text()
             with self.subTest(workflow=name):
                 for tool in ("screencapture", "osascript", "QA_OWNERS_SCREEN"):

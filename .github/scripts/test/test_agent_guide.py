@@ -75,6 +75,27 @@ class AgentGuide(unittest.TestCase):
         self.assertNotIn("Don't push to find out", flat)
         self.assertNotIn("On your own machine, when you can, build the node", flat)
 
+    def test_no_change_waits_for_a_countersign(self):
+        # Lewis, 24 Nov 2026: "remove the need for countersign" (docs/REQUIREMENTS.md).
+        import json
+        guide = (ROOT / "CLAUDE.md").read_text()
+        self.assertNotIn("needs Lewis's countersign", guide)
+        self.assertNotIn("countersigns it", guide)
+        policy = json.loads((ROOT / ".github/self-merge.json").read_text())
+        self.assertNotIn("countersign_paths_extra", policy)
+
+    def test_authorized_agent_merges_use_the_github_guard_on_the_verified_head(self):
+        merge = self.guide.split("## Self-merging PRs", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("gh pr checks", merge)
+        self.assertIn("gh pr merge", merge)
+        self.assertIn("--match-head-commit", merge)
+        self.assertIn("every check", merge)
+        self.assertIn("independent review", merge)
+        self.assertIn("independent PASS", merge)
+        self.assertIn("Agents do not approve PRs", merge)
+        self.assertIn("Missing or unreadable evidence blocks the merge", merge)
+        self.assertNotIn("pr-gate", merge)
+
 
 if __name__ == "__main__":
     unittest.main()

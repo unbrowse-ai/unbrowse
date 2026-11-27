@@ -1,11 +1,13 @@
 # Every job here runs on a fresh machine, never on the local runner pool (UNB-166): the pool runs pull-request code
 # and shares a cargo cache across jobs, so nothing built or signed for users runs there. Blacksmith gives each job a
-# fresh VM (UNB-224). Only the npm jobs run on GitHub's own machines, because npm's trusted publishing works from
+# fresh VM (UNB-224). The publishing jobs run on GitHub's own machines, because npm's trusted publishing works from
 # cloud-hosted runners only. There is no Intel Mac build (UNB-224, 22 Nov 2026): Apple silicon only.
 #
-# The programs for every machine (the Mac app on Apple silicon, Linux on x64 and arm64, Windows on x64) and
-# `unbrowse` for npm and PyPI, for each of the three places a commit goes (CONTRIBUTING.md, "Branches and releases"); the
-# version is the ref's (.github/scripts/release-version.sh):
+# The programs for every machine (the Mac app on Apple silicon, Linux on x64 and arm64, Windows on x64), the installers
+# people click (the Mac disk image, the Windows setup, the Linux packages: every one of them on the release itself, so
+# there is one release per version and no second family to keep in step) and `unbrowse` for npm and PyPI, for each of the
+# three places a commit goes (CONTRIBUTING.md, "Branches and releases"); the version is the ref's
+# (.github/scripts/release-version.sh):
 #
 #   staging       every commit on staging CI passes: X.Y.0-staging.N on npm's `staging` tag, and nothing else
 #   pre-production every commit on a release/X.Y branch CI passes: X.Y.P-rc.N on npm's `next` tag and on canary, which
@@ -13,8 +15,8 @@
 #   production    a vX.Y.Z tag pushed on main: X.Y.Z on npm's `latest`, a GitHub release, and canary, which updates.yml
 #                 gives to stable once it has soaked
 #
-# `unbrowse` and each machine's `@unbrowse/<platform>` go to npm, then (but for staging) `@unbrowse/updates`, the signed
-# metadata nodes update from (.github/scripts/updates.mjs); updates.yml promotes, halts and refreshes it. Run it by hand
+# In the public release repository, npm gets `unbrowse`, each machine's `@unbrowse/<platform>` and, outside staging,
+# the signed `@unbrowse/updates` metadata. `updates.yml` promotes, halts and refreshes it. Run it by hand
 # on staging, a release branch or a tag to release that ref again under a new run. No pull request runs it: this
 # workflow holds the signing keys, so it runs only for those refs, in the `release` environment (ci.yml's `papers` job
 # tests a pull request's changes to the release scripts, with no secret in reach).
@@ -42,9 +44,8 @@ on:
         description: Only move npm's next tag up to this shipped version (e.g. 13.0.0)
         type: string
         default: ""
-      # The commit CI passed, when the hand-over job below starts this run: it is released, though the branch moved on.
       sha:
-        description: Release only this commit (set by the hand-over from CI)
+        description: Commit approved by the triggering CI run, which must still be the dispatch branch tip
         type: string
         default: ""
 
@@ -56,25 +57,27 @@ concurrency:
 permissions: {}
 
 jobs:
-  # A CI run that passed for a push to staging or a release branch hands the release to that branch, as a run by hand
-  # on it. A workflow_run run always runs on main's ref, and the `release` environment admits only tags, release
-  # branches and staging, so every signing job of such a run was refused ("Branch main is not allowed to deploy to
-  # release", runs 45103689530 and 45174816274, 23 Nov 2026) and no staging or rc build reached npm. A run that
-  # GITHUB_TOKEN dispatches is one of the two kinds it may start. Not for a pull request's CI, nor a fork's push.
+  # In the public repo a workflow_run uses the default branch's deployment ref. Dispatch from the checked branch
+  # so GitHub evaluates the existing release environment policy for the actual source.
   hand-over:
-    permissions:
-      actions: write
     name: Hand the release to its branch
     if: >-
+      github.repository == 'unbrowse-ai/unbrowse' && toJSON(github.event.repository.private) == 'false' &&
       github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: blacksmith-2vcpu-ubuntu-2404
+    permissions:
+      actions: write
     steps:
-      - env:
+      - name: Dispatch the exact checked source
+        env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
-        run: gh workflow run release.yml -R "$GITHUB_REPOSITORY" --ref "$BRANCH" -f sha="$SHA"
+          SOURCE_REF: ${{ github.event.workflow_run.head_branch }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          case "$SOURCE_REF" in staging | release/*) ;; *) echo '::error::not a release branch'; exit 1 ;; esac
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo '::error::CI did not provide a commit SHA'; exit 1; }
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$SOURCE_REF" -f sha="$SOURCE_SHA"
 
   version:
     permissions:
@@ -82,8 +85,13 @@ jobs:
       # The promotion gate reads the coverage and task-bank artifacts CI kept for the tree it ships.
       actions: read
     name: Version
-    # A release tag pushed, or a run by hand (the hand-over above is one); release-version.sh refuses any other ref.
-    if: github.event_name == 'workflow_dispatch' && inputs.next_to == '' || github.event_name == 'push'
+    # Core builds a successful CI push directly. Public branch releases arrive by dispatch on the source ref, and
+    # public tags arrive by push. release-version.sh refuses refs outside the release branches and tags.
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.next_to == '' || github.event_name == 'push' ||
+      github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.repository != 'unbrowse-ai/unbrowse' || toJSON(github.event.repository.private) != 'false')
     runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       version: ${{ steps.free.outputs.version }}
@@ -91,20 +99,22 @@ jobs:
       channel: ${{ steps.next.outputs.channel }}
       npm_tag: ${{ steps.next.outputs.npm_tag }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.sha || github.sha }}
-          # Every branch and tag: the version counts from them, and a tag is checked against main and its release branch.
-          fetch-depth: 0
-          persist-credentials: false
-      # Handed over from CI: the commit CI passed is released even when the branch has moved on, but only a commit of
-      # the branch this run is on. The environment admits the branch, so a commit from anywhere else is refused.
-      - name: The commit is the branch's
+      # npm provenance attests GITHUB_SHA. The hand-over may only build when that is the commit CI checked.
+      - name: The checked commit is still the branch tip
         if: inputs.sha != ''
         env:
           WANT: ${{ inputs.sha }}
         run: |
-          git merge-base --is-ancestor "$WANT" "$GITHUB_SHA" || { echo "::error::$WANT is not on $GITHUB_REF: nothing is released"; exit 1; }
+          if [ "$WANT" != "$GITHUB_SHA" ]; then
+            echo '::error::the branch moved after CI approved the commit'
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # Every branch and tag: the version counts from them, and a tag is checked against main and its release branch.
+          fetch-depth: 0
+          persist-credentials: false
       - id: next
         env:
           REF: ${{ github.event_name == 'workflow_run' && format('refs/heads/{0}', github.event.workflow_run.head_branch) || github.ref }}
@@ -118,31 +128,53 @@ jobs:
           esac
           { echo "version=$version"; echo "channel=$channel"; echo "npm_tag=$npm_tag"; echo "sha=$(git rev-parse HEAD)"; } >> "$GITHUB_OUTPUT"
           echo "Releasing $version from $REF to $channel"
+      # Nothing ships from a commit whose own checks are not all green (UNB-248): every workflow its pushes started (CI,
+      # Coverage, QA, the promotion gate's harness, …), each one's latest run, waited on while it runs. CI passing is
+      # what starts this on staging and a release branch, and it was the only thing read: on 23-24 Nov 2026 merges with
+      # red and cancelled checks went out. A dry run reads it and goes on.
+      - name: Every check on this commit is green
+        if: steps.next.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.next.outputs.sha }}
+          DRY_RUN: ${{ inputs.dry_run == true }}
+        run: |
+          status=0
+          python3 -I .github/scripts/checks_green.py sha --repo "$GITHUB_REPOSITORY" --sha "$SHA" --event push \
+            --skip-run "$GITHUB_RUN_ID" --wait 3600 || status=$?
+          if [ "$status" != 0 ]; then
+            [ "$DRY_RUN" = true ] || { echo "::error::nothing is released from ${SHA:0:12}: its checks are not all green (above)"; exit 1; }
+            echo "::warning::a dry run: ${SHA:0:12}'s checks are not all green (above)"
+          fi
       # Before anything is built: one message naming every package npm doesn't have, where the publish would stop at the
-      # first, and a refusal when npm holds the version already. No key and no token, it only reads.
+      # first, and a refusal when npm holds the version already. A build in core keeps its own artifacts.
       - name: Npm has every package
         id: free
         if: steps.next.outputs.version != ''
         env:
           VERSION: ${{ steps.next.outputs.version }}
           DRY_RUN: ${{ inputs.dry_run == true }}
+          PUBLIC_PUBLISHER: ${{ github.repository == 'unbrowse-ai/unbrowse' && toJSON(github.event.repository.private) == 'false' }}
         run: |
-          if [ "$DRY_RUN" = true ]; then
+          if [ "$PUBLIC_PUBLISHER" != true ]; then
+            echo 'This repository builds and checks release artifacts. Approved source publishes from unbrowse-ai/unbrowse.' >> "$GITHUB_STEP_SUMMARY"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          elif [ "$DRY_RUN" = true ]; then
             node .github/scripts/npm-preflight.mjs "$VERSION" || echo "::warning::a dry run: npm can't take $VERSION yet (above), so it is built and signed and not published"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           else
             node .github/scripts/npm-preflight.mjs "$VERSION"
           fi
       # Public only with the bar met (UNB-208, AGENTS.md "Tests, requirements and the merge scorecard"): 90% line
-      # coverage in every gated part, and the whole task bank on this tree with no task lost from the last promotion,
-      # no confident wrong answer and no fewer passes than the floor. A tag stops here when it isn't met, each rule
+      # coverage in every gated part, the whole task bank on this tree with no task lost from the last promotion,
+      # no confident wrong answer and no fewer passes than the floor, and the bench on the top 1,000 sites (gate-1k.yml,
+      # UNB-307) with no fewer right and no higher confidently wrong rate than its floor, every task measured. A tag stops here when it isn't met, each rule
       # named. A dry run reads the gate and goes on; staging and release branches don't reach public, so they skip it.
       - name: The promotion gate
         if: steps.next.outputs.version != '' && (steps.next.outputs.channel == 'production' || inputs.dry_run == true)
         env:
           GH_TOKEN: ${{ github.token }}
           CHANNEL: ${{ steps.next.outputs.channel }}
-          VERSION: ${{ steps.next.outputs.version }}
           DRY_RUN: ${{ inputs.dry_run == true }}
         run: |
           status=0
@@ -196,6 +228,11 @@ jobs:
         with:
           version: 0.17.0
           use-cache: false
+      # Zig 0.17's std aborts on a connect a signal interrupted ("programmer bug caused syscall error: ISCONN"): patched
+      # in place before anything builds (.github/scripts/patch_zig_std.py; Zig 0.17.1 and master read it the same way).
+      - name: Patch Zig's std (an interrupted connect settles)
+        shell: bash
+        run: if command -v python3 >/dev/null; then python3 -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; else python -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; fi
 
       # The node reports its version from the workspace's; the tag is the only place it changes. The lockfile's
       # entries for the workspace's own crates follow it, so the build stays --locked to every other dependency.
@@ -452,6 +489,70 @@ jobs:
           name: platforms
           path: dist/*
           if-no-files-found: error
+
+  # The installers people click, for the two systems whose download isn't the disk image: the Windows setup and the Linux
+  # packages, packed from the archives the machines just made (package-windows-installer.sh, package-linux-deb.sh). This
+  # job builds nothing and holds no key; every file it makes is recorded, so the release publishes exactly these bytes
+  # (artifact-hashes.py). A release carries them beside the disk image, so one release is the whole download page and
+  # there is no second family of releases to keep in step.
+  installers:
+    permissions:
+      contents: read
+    name: Installers
+    outputs:
+      installers: ${{ steps.files.outputs.installers }}
+    needs: [version, platforms]
+    if: needs.version.outputs.version != '' && (needs.version.outputs.channel == 'production' || inputs.dry_run == true)
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: programs-*
+          path: programs
+          merge-multiple: true
+      - name: Install makensis
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq nsis
+      - name: Pack the installers
+        run: |
+          mkdir -p installers
+          sh .github/scripts/package-windows-installer.sh "$VERSION" "programs/unbrowse-$VERSION-windows-x64.zip" installers
+          for arch in x64 arm64; do
+            sh .github/scripts/package-linux-deb.sh "$VERSION" "programs/unbrowse-$VERSION-linux-$arch.tar.gz" installers
+          done
+          # One of each, or the release waits: a person on Windows or Linux has nothing else to click.
+          test -f "installers/Unbrowse-$VERSION-windows-x64-setup.exe"
+          test -f "installers/unbrowse_${VERSION}_amd64.deb"
+          test -f "installers/unbrowse_${VERSION}_arm64.deb"
+          ls -l installers
+      - name: Record the installers' hashes
+        id: files
+        run: python3 -I .github/scripts/artifact-hashes.py record-files installers --key installers --github-output "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: installers
+          path: installers/*
+          if-no-files-found: error
+
+  # Each installer on a fresh machine of its kind, installed and opened as a person does, the node's MCP checked from
+  # outside (installers-device-test.yml). A production run does it before npm publishes anything, so an installer that
+  # doesn't install stops the release while its version is still npm's to take; a dry run does it on a release branch,
+  # so the proof comes before the tag.
+  installer-device-test:
+    name: Installer device test
+    needs: [version, installers]
+    if: needs.version.outputs.version != '' && (needs.version.outputs.channel == 'production' || inputs.dry_run == true)
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/installers-device-test.yml
+    with:
+      run-id: ${{ github.run_id }}
 
   # The release key signs the manifest here and nowhere else. The job installs nothing and runs nothing a package
   # registry gave it: the checkout of the signing script and the node's trusted key, the manifest, and the runner's own
@@ -750,11 +851,12 @@ jobs:
 
   # The GitHub release comes last, once npm has everything: its notes tell people to `npm install -g unbrowse`, so
   # nothing says a release exists that npm doesn't have. Production's alone: a prerelease's programs are this run's
-  # artifacts.
+  # artifacts. It carries every installer (the disk image, the Windows setup, the Linux packages), each of which the
+  # device test above installed on a fresh machine of its kind.
   release:
     name: Release
-    needs: [version, programs, platforms, sdks, pack-updates, sign-artifacts, npm]
-    if: ${{ !cancelled() && !failure() && needs.version.outputs.channel == 'production' && inputs.dry_run != true }}
+    needs: [version, programs, platforms, installers, installer-device-test, sdks, pack-updates, sign-artifacts, npm]
+    if: ${{ !cancelled() && !failure() && needs.npm.result == 'success' && needs.version.outputs.channel == 'production' && inputs.dry_run != true }}
     runs-on: blacksmith-2vcpu-ubuntu-2404
     permissions:
       contents: write
@@ -779,7 +881,7 @@ jobs:
           python-version: "3.13.18"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: "{programs-*,sdks,browser-*}"
+          pattern: "{programs-*,sdks,browser-*,installers}"
           path: dist
           merge-multiple: true
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -793,13 +895,14 @@ jobs:
           PLATFORM_HASHES: ${{ needs.platforms.outputs.hashes }}
           FILES: ${{ needs.sdks.outputs.files }}
           PROGRAMS: ${{ needs.platforms.outputs.programs }}
+          INSTALLERS: ${{ needs.installers.outputs.installers }}
         run: |
           python3 -I .github/scripts/artifact-hashes.py verify-subset dist --expected "$PLATFORM_HASHES"
           python3 -I .github/scripts/artifact-hashes.py verify dist --expected "$HASHES"
           node .github/scripts/verify-artifact-manifest.mjs dist "$VERSION" "$HASHES" unbrowse-node/app/src/update.rs release-artifacts/release-artifacts.json
-          # Every file the release publishes (disk images, archives, browser programs, the sdist, the manifest) is
-          # exactly one the job that made it recorded, byte for byte.
-          python3 -I .github/scripts/artifact-hashes.py verify-files dist --expected "$FILES" --expected "$PROGRAMS"
+          # Every file the release publishes (disk images, archives, browser programs, the installers, the sdist, the
+          # manifest) is exactly one the job that made it recorded, byte for byte.
+          python3 -I .github/scripts/artifact-hashes.py verify-files dist --expected "$FILES" --expected "$PROGRAMS" --expected "$INSTALLERS"
       - name: Include the signed package inventory in the release
         run: cp release-artifacts/release-artifacts.json dist/release-artifacts.json
       - name: Tag and publish
@@ -821,17 +924,30 @@ jobs:
           and confirm."
           fi
           cd dist
-          # The newest Mac app at a name that stays: releases/latest/download/Unbrowse-macos-<arch>.dmg.
+          # Every download at a name that stays (releases/latest/download/<name>): unbrowse.ai and the READMEs link
+          # these, so a link never names a build that stops being the newest one, and never rots into an older release.
           cp "Unbrowse-$VERSION-macos-arm64.dmg" "Unbrowse-macos-arm64.dmg"
+          cp "Unbrowse-$VERSION-windows-x64-setup.exe" "Unbrowse-windows-x64-setup.exe"
+          cp "unbrowse_${VERSION}_amd64.deb" "unbrowse_amd64.deb"
+          cp "unbrowse_${VERSION}_arm64.deb" "unbrowse_arm64.deb"
           sha256sum -- * > SHA256SUMS
           # The browser's npm postinstall installs a machine's browser only when its hash is listed here.
           for p in darwin-arm64 linux-x64 linux-arm64 win32-x64.exe; do
             grep -q "  agent-browser-$p\$" SHA256SUMS || { echo "::error::SHA256SUMS lists no agent-browser-$p"; exit 1; }
           done
           cat > "$RUNNER_TEMP/notes.md" <<EOF
-          **On a Mac, download the disk image:** [\`Unbrowse-macos-arm64.dmg\`](https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/Unbrowse-macos-arm64.dmg)
-          for Apple silicon (there is no Intel Mac build). Open it and drag Unbrowse onto Applications: the app holds the window, the node, \`unb\` and the
-          browser program the node fetches when a goal first needs it. $MAC_TRUST
+          **Download the app**, the newest release's files at the names that stay
+          (\`releases/latest/download/…\`, which is what unbrowse.ai and the READMEs link):
+          - **Mac** (Apple silicon; there is no Intel Mac build): [\`Unbrowse-macos-arm64.dmg\`](https://github.com/$GITHUB_REPOSITORY/releases/latest/download/Unbrowse-macos-arm64.dmg).
+            Open it and drag Unbrowse onto Applications. $MAC_TRUST
+          - **Windows** (x64): [\`Unbrowse-windows-x64-setup.exe\`](https://github.com/$GITHUB_REPOSITORY/releases/latest/download/Unbrowse-windows-x64-setup.exe).
+            It installs for your user alone, with no administrator prompt, and opens Unbrowse when it finishes.
+          - **Linux** (Debian, Ubuntu): [\`unbrowse_amd64.deb\`](https://github.com/$GITHUB_REPOSITORY/releases/latest/download/unbrowse_amd64.deb)
+            or [\`unbrowse_arm64.deb\`](https://github.com/$GITHUB_REPOSITORY/releases/latest/download/unbrowse_arm64.deb):
+            \`sudo apt install ./unbrowse_amd64.deb\`, then Unbrowse in your apps menu.
+
+          Each installer holds the window, the node, \`unb\` and the browser program the node fetches when a goal first
+          needs it. The versioned copy of every file is below, with its SHA-256.
 
           **\`unbrowse\`**, the app, the node, the agent skill and the client in one package:
           \`npm install -g unbrowse\` (or \`pip install unbrowse-$VERSION-py3-none-<your machine>.whl\` from below), then
@@ -844,13 +960,14 @@ jobs:
           \`unbrowse browser fetch off\` stops the node fetching them itself.
 
           **The programs alone**, for each machine:
-          - macOS: \`Unbrowse-$VERSION-macos-<arch>.dmg\` is the disk image above, \`Unbrowse-$VERSION-macos-<arch>.zip\` the
+          - macOS: \`Unbrowse-$VERSION-macos-<arch>.dmg\` is the disk image, \`Unbrowse-$VERSION-macos-<arch>.zip\` the
             same app in a zip, and \`unbrowse-$VERSION-macos-<arch>.tar.gz\` the node, \`unb\` and the browser without the
             window.
-          - Linux: \`unbrowse-$VERSION-linux-<arch>.tar.gz\`, the window, the node, \`unb\` and the browser in one folder.
-            The window needs GTK 4 (or 3); on a machine without a desktop the node keeps its key in
-            \`~/.unbrowse/root.key\`, readable by its user alone.
-          - Windows: \`unbrowse-$VERSION-windows-x64.zip\`, the same four programs (\`.exe\`).
+          - Linux: \`unbrowse_${VERSION}_<arch>.deb\` is the installer, \`unbrowse-$VERSION-linux-<arch>.tar.gz\` the
+            window, the node, \`unb\` and the browser in one folder. The window needs GTK 4 (or 3); on a machine without a
+            desktop the node keeps its key in \`~/.unbrowse/root.key\`, readable by its user alone.
+          - Windows: \`Unbrowse-$VERSION-windows-x64-setup.exe\` is the installer, \`unbrowse-$VERSION-windows-x64.zip\` the
+            same four programs (\`.exe\`).
 
           The node browses in Chrome or another Chromium browser on the machine, and downloads Chrome for Testing when a
           goal first needs a browser and there's none. It needs Foundry's Anvil (\`foundryup\`).
@@ -864,32 +981,26 @@ jobs:
             --generate-notes \
             --latest
 
-  # npm: each machine's programs first, then `unbrowse`, which names them, then `@unbrowse/updates`, which sends nodes
-  # to them. Published by trusted publishing: npm takes this workflow's GitHub identity (OIDC) for each package, set on
-  # npmjs.com, so no npm token is kept anywhere. That works from GitHub's own runners only, and only for a package npm
-  # already has: a trusted publisher is set in a package's settings, so each package is published once by hand first
-  # (docs/OPERATIONS.md §10). A version npm already has with the same bytes is left as it is, so a rerun finishes what
-  # an earlier run started; one it has with other bytes fails the job. The job runs in the `release` environment, and
-  # npm's trusted publisher names it, so only a run GitHub lets into that environment can publish. A staging build has
-  # no update metadata to publish.
-  npm:
-    name: Publish to npm
-    needs: [version, sdks, platforms, sign-updates, pack-updates, sign-artifacts]
-    if: ${{ !cancelled() && !failure() && needs.version.outputs.version != '' && inputs.dry_run != true }}
+  # Check the uploaded artifact set and its signed inventory on builds that stop before publication.
+  verify-packages:
+    name: Verify release packages
+    needs: &package_jobs [version, sdks, platforms, installer-device-test, sign-updates, pack-updates, sign-artifacts]
+    if: >-
+      ${{ !cancelled() && !failure() && needs.version.outputs.version != '' &&
+      (github.repository != 'unbrowse-ai/unbrowse' || toJSON(github.event.repository.private) != 'false' || inputs.dry_run == true) }}
     runs-on: ubuntu-24.04
-    environment: release
     permissions:
       contents: read
-      id-token: write
-    env:
+    env: &package_environment
       VERSION: ${{ needs.version.outputs.version }}
       CHANNEL: ${{ needs.version.outputs.channel }}
       NPM_TAG: ${{ needs.version.outputs.npm_tag }}
       # A staging build, or a release candidate before stable's first release, publishes no @unbrowse/updates.
       WITH_UPDATES: ${{ needs.version.outputs.channel != 'staging' && needs.sign-updates.outputs.published == 'true' }}
     steps:
-      # The publishing script only.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The shared package checks and the public signing key.
+      - &package_checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.version.outputs.sha }}
           persist-credentials: false
@@ -897,26 +1008,32 @@ jobs:
             .github/scripts
             .github/tools/npm
             unbrowse-node/app/src/update.rs
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - &package_node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24.22.2
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - &package_python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13.18"
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - &package_sdks
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: sdks
           path: dist
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - &package_manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-artifacts
           path: release-artifacts
-      - if: env.WITH_UPDATES == 'true'
+      - &package_updates
+        if: env.WITH_UPDATES == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: updates
           path: updates
-      - name: Verify every published package against the build output
+      - &package_verification
+        name: Verify every package against the build output
         env:
           VERSION: ${{ needs.version.outputs.version }}
           CHANNEL: ${{ needs.version.outputs.channel }}
@@ -931,6 +1048,29 @@ jobs:
           python3 -I .github/scripts/artifact-hashes.py verify-files dist --expected "$FILES"
           if [ "$CHANNEL" = production ] && [ "$WITH_UPDATES" != true ]; then echo "::error::a production release always publishes update metadata"; exit 1; fi
           [ "$WITH_UPDATES" != true ] || python3 -I .github/scripts/artifact-hashes.py verify-files updates --expected "$UPDATES"
+
+  # The public release repository builds the approved source and publishes its own verified bytes with provenance.
+  # npm trusts this workflow in the release environment. The publisher starts with the same artifact checks as a rehearsal.
+  npm:
+    name: Publish to npm
+    needs: *package_jobs
+    if: >-
+      ${{ !cancelled() && !failure() && needs.version.outputs.version != '' && inputs.dry_run != true &&
+      github.repository == 'unbrowse-ai/unbrowse' && toJSON(github.event.repository.private) == 'false' }}
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env: *package_environment
+    steps:
+      - *package_checkout
+      - *package_node
+      - *package_python
+      - *package_sdks
+      - *package_manifest
+      - *package_updates
+      - *package_verification
       # No registry-url: with one, setup-node writes an .npmrc whose token is a placeholder, and when npm's OIDC exchange
       # fails npm publishes with that placeholder and npm answers 404, which hides why. Without it npm says it couldn't
       # authenticate.
@@ -954,7 +1094,8 @@ jobs:
     name: Move npm's next tag up to the release
     needs: [version, npm]
     if: >-
-      ${{ !cancelled() && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.next_to != '' ||
+      ${{ !cancelled() && github.repository == 'unbrowse-ai/unbrowse' && toJSON(github.event.repository.private) == 'false' &&
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.next_to != '' ||
       needs.npm.result == 'success' && needs.version.outputs.channel == 'production' && inputs.dry_run != true) }}
     runs-on: ubuntu-24.04
     environment: release

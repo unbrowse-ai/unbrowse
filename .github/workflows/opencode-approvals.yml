@@ -1,0 +1,99 @@
+# Claude Approvals, without the Claude organization: a check named `Claude Approvals` that reads .claude/approvals.yml
+# and says who still has to approve. No model is asked, so this workflow holds no model credential: its only authority
+# is GITHUB_TOKEN, and it is held to events a credential-bearing workflow here may not take (test_workflow_security.py:
+# `opencode-approvals.yml` is the one workflow allowed a `pull_request_review` trigger, and it must name no secret).
+#
+# The policy is always the one on the default branch, never the pull request's copy. A policy this checker does not
+# evaluate (`locals`, teams, classifiers but `claude/code_review`, nested files) is reported as **Cannot evaluate**,
+# never as a pass.
+#
+#   observe  the check is neutral and its title starts `(observe mode)`, reporting what the policy would decide
+#   enforce  a change that is still waiting fails the check, so a branch rule requiring it blocks the merge
+#
+# `claude: approves` posts an approving review once every rule that applies allows one and Code review passes. GitHub
+# may not count a bot's approval toward a required human review: the check is the gate this repository can rely on.
+#
+# It is a check, not a merge: branch rules still decide what merges. See docs/CI-AGENTS.md.
+name: Claude Approvals
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+  pull_request_review:
+    types: [submitted, dismissed, edited]
+  workflow_run:
+    workflows: ["Code review"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        required: true
+
+concurrency:
+  group: approvals-${{ github.event.pull_request.number || github.event.workflow_run.head_branch || inputs.pr }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  approvals:
+    name: Claude Approvals
+    # A fork's pull request gets a read-only token, so it is skipped rather than failed; the repository does not allow
+    # forks in any case (AGENTS.md).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.head_repository.full_name == github.repository) ||
+      (github.event_name != 'workflow_run' && github.event_name != 'workflow_dispatch' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      checks: write
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts/approvals.py
+            .claude/approvals.yml
+          sparse-checkout-cone-mode: false
+      - name: The pull request
+        id: who
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          INPUT: ${{ inputs.pr }}
+          NAME: ${{ github.event.workflow_run.name }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          case "$EVENT" in
+            workflow_dispatch) PR="$INPUT" ;;
+            workflow_run) PR=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number // empty' 2>/dev/null || true) ;;
+            *) PR="${{ github.event.pull_request.number }}" ;;
+          esac
+          if [ -z "$PR" ]; then echo "::warning::No pull request names this run"; exit 0; fi
+          echo "pr=$PR" >> "$GITHUB_OUTPUT"
+      - name: Evaluate the policy
+        if: steps.who.outputs.pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The check reads its own code from the default branch, never from the pull request: a pull request cannot
+          # rewrite the thing that judges it. Before this lands, or if the script is ever removed, there is nothing to
+          # run and the check says so instead of failing.
+          if [ ! -f .github/scripts/approvals.py ]; then
+            echo "::notice::Claude Approvals is not on the default branch yet: nothing to check."
+            exit 0
+          fi
+          python3 -c "import yaml" 2>/dev/null || python3 -m pip install --quiet --break-system-packages pyyaml
+          python3 -I .github/scripts/approvals.py --repo "$GITHUB_REPOSITORY" --pr "${{ steps.who.outputs.pr }}" \
+            --policy .claude/approvals.yml --out "$RUNNER_TEMP/approvals"
+      - name: Summary
+        if: always() && steps.who.outputs.pr
+        run: cat "$RUNNER_TEMP/approvals/result.json" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true

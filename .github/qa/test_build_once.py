@@ -15,11 +15,12 @@ from pathlib import Path
 from test_mac_runner import code, jobs
 
 WORKFLOWS = Path(__file__).resolve().parents[1] / "workflows"
-# workflow: (the artifact its build job keeps, the jobs that unpack it)
+# workflow: [(a build job, the artifact it keeps, the jobs that unpack it)]. One build per platform the jobs run on: Bank's
+# writes run on the Mac and its hard sites on the Steam Machine (Linux), so Bank builds once for each.
 BUILT_ONCE = {
-    "qa.yml": ("qa-node-build", {"check", "qa"}),
-    "bank.yml": ("bank-node-build", {"hard-sites", "writes"}),
-    "pr-agent-checks.yml": ("pr-node-build", {"check", "qa", "slice"}),
+    "qa.yml": [("build", "qa-node-build", {"check", "qa"})],
+    "bank.yml": [("build", "bank-node-build", {"writes"}), ("build-linux", "bank-node-build-linux", {"hard-sites", "top-sites"})],
+    "pr-agent-checks.yml": [("build", "pr-node-build", {"qa", "slice"})],
 }
 
 
@@ -39,7 +40,7 @@ def unpacks_checked(steps, artifact, digest):
     straight away by a step that checks `digest` and only then unpacks."""
     problems = []
     for i, step in enumerate(steps):
-        if "actions/download-artifact@" not in step or f"name: {artifact}" not in step:
+        if "actions/download-artifact@" not in step or not re.search(rf"name: {re.escape(artifact)}\n", step + "\n"):
             continue
         after = steps[i + 1] if i + 1 < len(steps) else ""
         if f"DIGEST: {digest}" not in after:
@@ -55,33 +56,37 @@ def unpacks_checked(steps, artifact, digest):
 
 class BuildOnce(unittest.TestCase):
     def test_one_job_builds_and_the_others_unpack_what_it_built(self):
-        for name, (artifact, users) in BUILT_ONCE.items():
+        for name, built in BUILT_ONCE.items():
             text = read(name)
             found = jobs(text)
             builders = {job for job, j in found.items() if any("cargo build" in code(s) for s in j["steps"])}
             with self.subTest(workflow=name):
-                self.assertEqual(builders, {"build"}, "one job builds the node")
-                build = "\n".join(found["build"]["steps"])
-                self.assertIn(f"name: {artifact}", build)
-                self.assertIn('echo "digest=$digest" >> "$GITHUB_OUTPUT"', build)
-                self.assertIn("shasum -a 256", build)
-                unpackers = {job for job, j in found.items() if any(f"name: {artifact}" in s and "download-artifact@" in s for s in j["steps"])}
-                self.assertEqual(unpackers, users)
-                for job in sorted(users):
-                    self.assertIn("build", needs(text, job), f"{job} needs the build job")
-                    self.assertEqual(unpacks_checked(found[job]["steps"], artifact, "${{ needs.build.outputs.digest }}"), [], job)
+                self.assertEqual(builders, {b for b, _, _ in built}, "one job builds the node for each platform")
+            for builder, artifact, users in built:
+                with self.subTest(workflow=name, build=builder):
+                    build = "\n".join(found[builder]["steps"])
+                    self.assertRegex(build + "\n", rf"name: {re.escape(artifact)}\n")
+                    self.assertIn('echo "digest=$digest" >> "$GITHUB_OUTPUT"', build)
+                    self.assertIn("shasum -a 256", build)
+                    unpackers = {job for job, j in found.items()
+                                 if any(re.search(rf"name: {re.escape(artifact)}\n", s + "\n") and "download-artifact@" in s for s in j["steps"])}
+                    self.assertEqual(unpackers, users)
+                    for job in sorted(users):
+                        self.assertIn(builder, needs(text, job), f"{job} needs {builder}")
+                        self.assertEqual(unpacks_checked(found[job]["steps"], artifact, f"${{{{ needs.{builder}.outputs.digest }}}}"), [], job)
 
     def test_the_build_job_holds_no_secret_and_runs_nothing_but_the_build(self):
         # Its cache is saved straight after the build; a node or an agent in the same job could have changed the tree.
-        for name in BUILT_ONCE:
-            build = jobs(read(name))["build"]["steps"]
-            with self.subTest(workflow=name):
-                body = "\n".join(code(s) for s in build)
-                self.assertNotIn("secrets.", body)
-                self.assertNotRegex(body, r"(start|scratch)-node\.sh|claude-cli|claude-code-action|mcp_check\.py|run_bank\.py")
-                saves = [i for i, s in enumerate(build) if "actions/cache/save@" in s]
-                for i in saves:
-                    self.assertIn("cargo build", build[i - 1], "a cache is saved straight after the build")
+        for name, built in BUILT_ONCE.items():
+            for builder, _, _ in built:
+                build = jobs(read(name))[builder]["steps"]
+                with self.subTest(workflow=name, build=builder):
+                    body = "\n".join(code(s) for s in build)
+                    self.assertNotIn("secrets.", body)
+                    self.assertNotRegex(body, r"(start|scratch)-node\.sh|claude-cli|claude-code-action|mcp_check\.py|run_bank\.py")
+                    saves = [i for i, s in enumerate(build) if "actions/cache/save@" in s]
+                    for i in saves:
+                        self.assertIn("cargo build", build[i - 1], "a cache is saved straight after the build")
 
     def test_no_job_that_starts_a_node_or_an_agent_saves_a_cache(self):
         for name in BUILT_ONCE:
@@ -123,7 +128,7 @@ class BuildOnce(unittest.TestCase):
         self.assertTrue(unpacks_checked([download, good.replace("needs.build.outputs.digest", "github.sha")], "qa-node-build", digest))
 
     def test_a_node_unpacked_on_another_runner_is_told_where_its_browser_is(self):
-        # Built on Blacksmith (/Users/runner), unpacked on Lewis's Mac (/Users/owner/actions-runner): the debug
+        # Built on Blacksmith (/Users/runner), unpacked on a person's Mac (/Users/<owner>/actions-runner): the debug
         # node's built-in browser path was the build machine's, so Claude QA's browser checks came back
         # "blocked: browser_missing" (9 of 27) with a passing verdict, staging QA 44917313753.
         for name in ("qa.yml", "pr-agent-checks.yml", "gate-bank.yml", "bank.yml"):

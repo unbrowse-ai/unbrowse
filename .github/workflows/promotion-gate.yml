@@ -2,8 +2,9 @@
 #
 #   harness   the gate and the bank's runner, tested with a stand-in model and made-up numbers; then the gate is run
 #             on staging as measured on 17 Nov 2026 (programme 887958 step 1) and must refuse it, naming each part
-#   release   a pull request into main ships a release: the gate's verdict on the release branch's tree, from the
-#             coverage and the whole task bank CI kept for it (the same check release.yml makes before a tag publishes)
+#   release   a pull request into main ships a release: every check the release branch's head ran is green, then the
+#             gate's verdict on its tree, from the coverage, the whole task bank and the bench on the top 1,000 sites
+#             (gate-1k.yml, UNB-307) CI kept for it (the same checks release.yml makes before a tag publishes)
 #
 # The task bank itself runs in gate-bank.yml, where the model's credential is; no pull request can start it.
 name: Promotion gate
@@ -60,6 +61,14 @@ jobs:
       - name: Tools the local runner may lack
         if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
         run: dpkg -s gh > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq gh > /dev/null; }
+      # The release branch's head passed every check its pushes ran (UNB-248), waited on while they run. This pull
+      # request's own checks are its own runs and are not read here; release.yml reads the tag's commit the same way.
+      # Up to three hours: the bench on the top 1,000 sites (gate-1k.yml, UNB-307) is one of those runs.
+      - name: Every check on the release branch's head is green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 -I .github/scripts/checks_green.py sha --repo "$GITHUB_REPOSITORY" --sha "$HEAD_SHA" --event push --wait 10800
       # The tree of the release branch, which is what the squash-merge into main ships and the tag releases.
       - env:
           GH_TOKEN: ${{ github.token }}

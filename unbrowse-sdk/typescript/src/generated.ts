@@ -902,7 +902,7 @@ export interface AgentPrimitives {
   };
   unbrowse_challenge: {
     args: {
-      action: "look" | "click" | "drag" | "hold" | "type" | "press" | "wait" | "done";
+      action: "look" | "click" | "drag" | "hold" | "type" | "press" | "wait" | "done" | "solve";
       /** Opened first; omit for the open page. */
       url?: string;
       site?: string;

@@ -996,3 +996,7 @@ mod tests {
         assert!(!constant_time_eq("", tok), "empty is refused against a token");
     }
 }
+
+#[cfg(test)]
+#[path = "agents_cov_tests.rs"]
+mod agents_cov_tests;

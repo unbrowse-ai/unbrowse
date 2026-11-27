@@ -25,13 +25,12 @@ The copies come from the papers commit in `SOURCE.json`, and they are the route-
 route, 30% to the website and 5% burned; one coin per route on a permanent curve against UNB; a fetch that pays the
 coin's earlier stakers and then buys the coin for its payer; staking in lots by exit delay; bounties as limit orders;
 domains proven by DNSSEC only; no bond, no slashing and no fraud court. This repository's contracts and node build
-that design ([Spec status](../docs/SPEC-STATUS.md)).
+that design.
 
 *Mining the Machine Web* and *Internal APIs Drift* are earlier PDFs, from before route coins, and still give earlier
 fee splits. They change in unbrowse-papers, as every copy here does.
 
-The papers are the design and the protocol is normative. [Spec status](../docs/SPEC-STATUS.md) records, chapter by
-chapter, what this repository's code builds of it and what it doesn't yet.
+The papers are the design and the protocol is normative.
 
 ## Licence
 

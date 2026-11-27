@@ -22,7 +22,20 @@ The Unbrowse plugin gives you the node's tools in the `unbrowse` toolset (`unbro
 `unbrowse_search`, `unbrowse_call`, `unbrowse_logins`, `unbrowse_judge`, `unbrowse_report` and the rest). They reach
 the node with your key's token, from `UNBROWSE_AGENT_TOKEN` in `~/.hermes/.env`. `unbrowse agent token` prints the
 token of the key the node made on its first run; the owner makes another with `unbrowse agent new <name>` or in the
-app (Money, Add agent).
+app (Agents, Add agent).
+
+## Set up (once, with no terminal)
+
+You set the node up with your own tools.
+
+1. **Call `unbrowse_setup`.** It answers the node's setup as a list: each step `done` or not, a line saying where it
+   stands (`said`), and the call that does it (`next`). `left` names what setup still needs (the terms, at first).
+2. **Do a step with `do`:** `accept_terms`, `sign_in`, `connect_apps` (the other agent apps on this computer), `web`
+   (an address for ChatGPT and Claude on the web), or `connect_site` with `host` (the person's own sign-in for a site,
+   taken from their browser). The node asks your person on their screen first; you see their answer, never what they
+   type. Tell them what you asked for, so the question on their screen is no surprise.
+3. **Hand them `person`** when an answer has one: a link to open (`kind: link`), a question on their screen
+   (`dialog`), or a place in the Unbrowse app (`app`), with the words to say.
 
 ## Work
 
@@ -116,17 +129,11 @@ unbrowse_browse  do: ["fill", "@e9", "vault:code:github.com:me"]    # two-step s
 - The sign-in you drive becomes a route whose password input is the reference. Every later call (`unbrowse_do` or
   `unbrowse_call`) signs in again from the vault with no browser. You may also pass a reference yourself for a
   route's **secret** input on the login's own site; any other input refuses it.
-- A login the vault doesn't have: ask the owner to sign in on the page themselves (below), to add it in the Unbrowse
-  app (Vault), or to import it. Imports are the owner's, from the window or from a shell with no window (`unbrowse
-  start` nodes too); you never run them and never see what they hold:
-  - passwords from a browser's or password manager's export: `unbrowse vault import export.csv` (a Bitwarden or
-    CXF `.json` too);
-  - a site's signed-in session, one host at a time: `unbrowse session import github.com` (from the owner's browser)
-    or `unbrowse session import github.com --from cookies.txt` (from an exported cookie file). Calls and the node's
-    browser are then signed in to that host, with nothing for you to fill;
-  - passkeys a password manager exported (Bitwarden `.json`, CXF, KeePassXC `.passkey`):
-    `unbrowse passkey import bitwarden.json`. iCloud Keychain, Google Password Manager, Windows Hello and security
-    keys never let a passkey out; for those sites the owner enrols one for the node (`unbrowse passkey enrol <site>`).
+- A login the vault doesn't have: `unbrowse_setup` with `do: connect_site` and the site's `host` asks the owner to
+  let the node take their own browser's sign-in for it; calls and the node's browser are then signed in, with nothing
+  for you to fill. With no sign-in to take, open the site's sign-in page with `unbrowse_browse` and `ask_owner`: they
+  sign in on their own screen (below). They can also add a login in the Unbrowse app (Vault, Add login, or Import
+  passwords). Imports are the owner's; you never run them and never see what they hold.
 
 ## Cards
 
@@ -160,15 +167,19 @@ unbrowse_browse  do: ["fill", "@e15", "vault:card:visa:name"]
   what it costs as the input `card_amount` and that fits their limit. When it asks, the window shows
   the card, the site, what the route does and the values you send, so send what you mean to buy. The card goes only
   to the route's own site.
-- A card the vault doesn't have: the owner adds it (`unbrowse vault card add <label>`); you never do.
+- A card the vault doesn't have: the owner adds it in the Unbrowse app (Vault, Add card); you never do.
 
 ## When a page asks a person (a check, a queued page)
 
 When `unbrowse_browse` says the page needs the owner and the check is one you can see — a checkbox, an image grid, a
 slider, a queued page — meet it yourself with `unbrowse_challenge`: the node shows you the page as a picture and takes
-one step at a time.
+one step at a time. For a checkbox, an invisible check or a Turnstile, try `solve` first: the node's captcha solver
+(the owner's own, or Unbrowse's once the owner is signed in on unbrowse.ai) reads the check's key, gets a token and
+hands it to the page, and the reply is the page after it. When it says no solver is configured, or the page still
+asks, go on by hand.
 
 ```
+unbrowse_challenge  action: "solve", url: "https://example.com/verify"
 unbrowse_challenge  action: "look", url: "https://example.com/verify"
 unbrowse_challenge  action: "click", x: 120, y: 88
 unbrowse_challenge  action: "drag", x: 40, y: 120, to_x: 220, to_y: 120
@@ -233,8 +244,9 @@ report becomes a public GitHub issue. The node scrubs it and the reply shows exa
 
 - `the node is paused by its owner`: wait, or ask the owner.
 - `browser_missing` (`this needs the node's browser`): the goal needs a browser the node doesn't have. Routes, search
-  and calls still work: search for a route that does it. Else tell the user to run `unbrowse browser install`; with
-  `browser: installing` the node is fetching it, so try again in a minute.
+  and calls still work: search for a route that does it. Else ask the owner to download it in the Unbrowse app
+  (Settings, Browser, Download Chrome for Testing); with `browser: installing` the node is fetching it, so try again in
+  a minute.
 - `no route does that yet: give url`: pass the url of a page that does it.
 - A read that fails is walked again by the node, and learned afresh from `url` if it still fails (`route_failed`
   says which route broke). A call that fails is never charged.

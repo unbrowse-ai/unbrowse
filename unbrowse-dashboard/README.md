@@ -1,8 +1,6 @@
 # unbrowse-dashboard
 
-How Unbrowse does on its tests over time, run by run (UNB-250). A TanStack Start page on a Cloudflare Worker with D1.
-
-Staging: https://unbrowse-dashboard-staging.lewistham9x.workers.dev (`?branch=main`, `?branch=all`).
+CI benchmark and quality-tracking dashboard for Unbrowse, built with TanStack Start on Cloudflare Workers + D1.
 
 ## Where the numbers come from
 

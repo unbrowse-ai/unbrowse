@@ -1,0 +1,6 @@
+# Paths the public unbrowse-ai/unbrowse owns, which a sync from unbrowse-core never replaces or removes
+# (.github/scripts/public_tree.py). One path per line, a folder ends in /.
+
+# The release notes and the release waivers are written on public main when a release ships.
+CHANGELOG.md
+.github/promotion-waivers

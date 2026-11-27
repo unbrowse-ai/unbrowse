@@ -58,7 +58,7 @@ test("a batch the store can't take is refused whole, and nothing is half kept", 
 
 test("queries.sql names its questions, and every one runs on the schema", async () => {
   const q = namedQueries(QUERIES);
-  assert.deepEqual(Object.keys(q), ["installs", "calls", "breaks", "times", "versions", "gate", "funnel", "funnel_by_from", "arms", "install"]);
+  assert.deepEqual(Object.keys(q), ["installs", "calls", "breaks", "times", "versions", "gate", "funnel", "funnel_by_from", "arms", "ours", "install"]);
   const { env } = store();
   await handle(post([event(), event({ outcome: "failed", error_class: "site" })]), env);
   for (const name of Object.keys(q)) {
@@ -257,4 +257,55 @@ test("install binds its id only after the id's shape is checked, and asks nothin
   const r = await handle(get(`installs?id=${encodeURIComponent("x') UNION SELECT 1 --")}`), ok.env);
   assert.equal(r.status, 200);
   assert.equal((await r.json()).rows[0].installs, 1);
+});
+
+// UNB-303 (Lewis, 25 Nov 2026: "can we exclude our usage counts as users"): our own nodes and test builds were counted
+// as people. The Steam Deck's source-build node sent 34% of a month's calls, and test builds that were never offered to
+// anyone filled the installs. Ours is: the gate, a source build (0.x: no release is), a node started with an internal
+// source tag, an install on the list, or one that sent a version on the list.
+const ours = (body, method = "POST", token = TOKEN) =>
+  new Request("https://t/v1/ours", { method, headers: { "content-type": "application/json", ...(token === null ? {} : { authorization: `Bearer ${token}` }) }, body: JSON.stringify(body) });
+
+test("the funnel and the counts leave our own installs out, and `ours` says how many and why", async () => {
+  const { env } = store();
+  const person = "a".repeat(32), source = "b".repeat(32), tagged = "c".repeat(32), listed = "d".repeat(32), tester = "e".repeat(32);
+  assert.equal((await handle(ours({ kind: "install", value: listed, why: "Lewis's Mac" }), env)).status, 204);
+  assert.equal((await handle(ours({ kind: "version", value: "13.21.0-installers.6", why: "device test build, never offered" }), env)).status, 204);
+  await handle(post([
+    event({ install_id: person, event: "node_start", tool: undefined, version: "13.21.0-installers.4" }),
+    event({ install_id: person, version: "13.21.0-installers.4" }),
+    event({ install_id: source, version: "0.1.0" }),
+    event({ install_id: tagged, event: "node_start", tool: undefined, from: "internal" }),
+    event({ install_id: tagged }),
+    event({ install_id: listed }),
+    event({ install_id: tester, version: "13.21.0-installers.6" }),
+    event({ install_id: GATE }),
+  ]), env);
+  const funnel = (await (await handle(get("funnel"), env)).json()).rows;
+  assert.deepEqual(funnel.map(({ week, ...c }) => c), [{ installs: 1, called: 1, good_call: 1, good_call_7d: 1, back_after_7d: 0 }]);
+  for (const name of ["installs", "versions"]) {
+    const rows = (await (await handle(get(name), env)).json()).rows;
+    assert.equal(rows.reduce((n, r) => n + r.installs, 0), 1, name);
+  }
+  const calls = (await (await handle(get("calls"), env)).json()).rows;
+  assert.equal(calls.reduce((n, r) => n + r.calls, 0), 1, "only the person's call");
+  const why = Object.fromEntries((await (await handle(get("ours"), env)).json()).rows.map((r) => [r.why, [r.installs, r.calls]]));
+  assert.deepEqual(why, { gate: [1, 1], listed: [1, 1], "listed version": [1, 1], "source build": [1, 1], "internal tag": [1, 1] });
+});
+
+test("only the admin token adds or removes one of ours, and only a value of its kind's shape", async () => {
+  const { env } = store();
+  const id = "a".repeat(32);
+  assert.equal((await handle(ours({ kind: "install", value: id, why: "x" }, "POST", null), env)).status, 404);
+  assert.equal((await handle(ours({ kind: "install", value: id, why: "x" }, "POST", "wrong-token-of-a-length"), env)).status, 404);
+  assert.equal((await handle(ours({ kind: "install", value: "not-hex", why: "x" }), env)).status, 400);
+  assert.equal((await handle(ours({ kind: "version", value: "https://evil.example", why: "x" }), env)).status, 400);
+  assert.equal((await handle(ours({ kind: "person", value: id, why: "x" }), env)).status, 400);
+  assert.equal((await handle(ours({ kind: "install", value: id, why: "" }), env)).status, 400);
+  assert.equal((await handle(ours({ kind: "install", value: id, why: "w".repeat(81) }), env)).status, 400);
+  assert.equal((await handle(ours({ kind: "install", value: id, why: "our test box" }), env)).status, 204);
+  await handle(post([event({ install_id: id })]), env);
+  assert.equal((await (await handle(get("installs"), env)).json()).rows.length, 0);
+  assert.equal((await handle(ours({ kind: "install", value: id }, "DELETE"), env)).status, 204);
+  assert.equal((await (await handle(get("installs"), env)).json()).rows[0].installs, 1, "a removed install counts again");
 });

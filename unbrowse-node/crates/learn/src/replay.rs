@@ -1106,6 +1106,24 @@ fn run(
     let found_nothing = crate::answer::found_nothing(last, inputs, &target);
     if let Some(asked) = steps.last().and_then(|(u, _)| url::Url::parse(u).ok()).filter(|_| !found_nothing) {
         if let Some(why) = crate::answer::replayed_not_an_answer(last, &asked, &target) {
+            // An answer that names the check to pass (`refusal::read`: `Wall::Check`) is the site's door, whatever its
+            // status: it is met by what may clear a door, as a refusal is, not judged as the route gone wrong.
+            let read = crate::refusal::read(&crate::refusal::Answer { status: target.status, body: target.response_body.as_deref().unwrap_or_default(), url: &target.url, asked: Some(&asked) });
+            if let Some(wall @ crate::refusal::Wall::Check { .. }) = read {
+                let at = match &wall {
+                    crate::refusal::Wall::Check { url } => Some(url.clone()),
+                    _ => None,
+                };
+                let door = graph.door.clone().or_else(|| crate::graph::Door::answered(&target)).unwrap_or(crate::graph::Door {
+                    kind: crate::graph::DoorKind::Unknown,
+                    statuses: vec![target.status],
+                    credential: None,
+                    ttl: None,
+                    earn: crate::graph::Earn::BrowserOrOwner,
+                    at,
+                });
+                return Err(ReplayError::Door { step: steps.len(), url: asked.to_string(), status: target.status, door, wall: Some(wall) });
+            }
             return Err(ReplayError::NotAnAnswer { status: target.status, why, challenge: crate::answer::a_challenge(&target) });
         }
     }
@@ -1114,6 +1132,20 @@ fn run(
         // unpacks was turned into its answer above: the shape was recorded of that).
         let got = target.json_body_like(Some(expected)).map(|v| shape(&v));
         if !got.as_ref().is_some_and(|g| answers_like(expected, g)) {
+            // An answer that is only a pointer to a page, where the route records data, was sent to that page: the
+            // site's door there (a check to pass, or its word that it won't answer), not the route gone wrong.
+            if let Some(url) = target.own_json().as_ref().and_then(crate::answer::pointer_url) {
+                let wall = crate::refusal::Wall::Check { url: url.clone() };
+                let door = graph.door.clone().unwrap_or(crate::graph::Door {
+                    kind: crate::graph::DoorKind::Unknown,
+                    statuses: vec![target.status],
+                    credential: None,
+                    ttl: None,
+                    earn: crate::graph::Earn::BrowserOrOwner,
+                    at: Some(url),
+                });
+                return Err(ReplayError::Door { step: steps.len(), url: target.url.to_string(), status: target.status, door, wall: Some(wall) });
+            }
             return Err(ReplayError::ShapeMismatch { expected: expected.clone(), got: got.unwrap_or(Value::Null) });
         }
     }
@@ -2266,6 +2298,44 @@ mod tests {
         let blocked = "<html><title>Just a moment...</title></html>".to_string();
         let r = replay(&graph, &inputs, &mut Page(blocked));
         assert!(matches!(r, Err(ReplayError::ShapeMismatch { .. })), "{:?} {:?}", r.as_ref().err(), graph.steps.last().unwrap().response_shape);
+    }
+
+    /// An answer that is only a pointer to a page, where the route recorded data, is the site's door at that page
+    /// (captured 2026-11-25: a shop's results call answered with its "unusual traffic" page's address, after a pass).
+    /// A route whose own recorded answer is a link answers with its link.
+    #[test]
+    fn a_pointer_to_a_page_in_place_of_recorded_data_is_the_sites_door_there() {
+        let json_ex = |url: &str, body: &str| Exchange {
+            method: "GET".into(), url: url::Url::parse(url).unwrap(), request_headers: vec![], request_body: None, status: 200,
+            response_headers: vec![("content-type".into(), "application/json".into())], response_body: Some(body.into()),
+            response_mime: "application/json".into(), resource_type: Some("XHR".into()), main_frame: Some(false),
+        };
+        struct Answers(String);
+        impl Fetch for Answers {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                Ok(Exchange { method: "GET".into(), url: req.url.clone(), request_headers: vec![], request_body: None, status: 200, response_headers: vec![("content-type".into(), "application/json".into())], response_body: Some(self.0.clone()), response_mime: "application/json".into(), resource_type: None, main_frame: None })
+            }
+        }
+        let trace = crate::trace::Trace {
+            exchanges: vec![json_ex("https://www.shop.example/tag/lamp/?ajax=true&q=lamp", r#"{"mods":{"listItems":[{"name":"green lamp","price":"$9"},{"name":"red lamp","price":"$8"}]},"mainInfo":{"q":"lamp"}}"#)],
+            inputs: vec![crate::trace::Input::new("q", "lamp")],
+        };
+        let graph = build(&[trace], |_| true).unwrap();
+        let inputs = HashMap::from([("q".to_string(), "chair".to_string())]);
+        let deny = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/answers/a-pointer-to-a-page-in-place-of-data.json")).unwrap();
+        let r = replay(&graph, &inputs, &mut Answers(deny));
+        assert!(matches!(&r, Err(ReplayError::Door { wall: Some(crate::refusal::Wall::Check { url }), .. }) if url.starts_with("https://bixi.alicdn.com/punish/")), "{:?}", r.as_ref().err());
+
+        let links = crate::trace::Trace {
+            exchanges: vec![json_ex("https://short.example/api/shorten?u=lamp", r#"{"url":"https://short.example/a1","ok":true}"#)],
+            inputs: vec![crate::trace::Input::new("u", "lamp")],
+        };
+        let graph = build(&[links], |_| true).unwrap();
+        let inputs = HashMap::from([("u".to_string(), "chair".to_string())]);
+        assert!(replay(&graph, &inputs, &mut Answers(r#"{"url":"https://short.example/b2","ok":true}"#.into())).is_ok(), "a route whose answer is a link answers with its link");
     }
 
     /// A form that can carry a file sends multipart: what was typed into its text parts, and into JSON held in a

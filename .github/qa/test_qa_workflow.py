@@ -176,7 +176,7 @@ class QaWorkflowTest(unittest.TestCase):
             self.assertEqual([n for n in needs_of(text, job) if n != "place"], ["build"], job)
             self.assertNotRegex(self.conditions[job], r"always\(\)|cancelled\(\)|failure\(\)", f"{job} would run past a skipped build")
         self.assertNotIn("if:", text.split("\n  place:\n", 1)[1].split("\n    steps:\n", 1)[0])
-        self.assertEqual(self.conditions["report"], "always() && needs.qa.outputs.ran == 'true'")
+        self.assertEqual(self.conditions["report"], "always() && needs.qa.result != 'skipped'")
         self.assertFalse(evaluate("needs.qa.outputs.ran == 'true'", looked_up(PUSH, "true")))
         self.assertNotIn("passed", self.conditions)  # the lookup itself runs on every event
 

@@ -183,6 +183,43 @@ reads an answer as wrong, or the calls fail), needs a browser (right only throug
 hands), walled (a wall, a sign-in or a rate limit) or unknown (no record, a timeout, a safety stop). It decides no answer
 itself: `run_bank.py`'s rule does. A wrong site is read by hand before it is called a regression (AGENTS.md).
 
+## The top 1,000 web-facing sites (UNB-260)
+
+`top-1000.json` holds the first 1,000 domains of the same Tranco list (GQ3LK, 2026-10-27, the SHA-256 in `sites.json`)
+that are web pages, in rank order, each with a task `run_bank.py` judges. `top_sites.py` makes it from one probe of
+every front page, and names no site:
+
+- **Which domains.** Each domain in rank order gets one GET of `https://<domain>/` (then `https://www.<domain>/`),
+  with a browser's headers and a cookie jar; what did not answer is asked once more, few at a time (`probe --again`).
+  A domain is passed over only for a property of its own front page, written beside it in `passed_over`:
+  `unreachable` (nothing answers: an API, CDN or tracking host), `redirect_only` (it hands its visitors to another
+  domain, which is read under its own name), `loaded_not_visited` (3% or more of the probed front pages load from it
+  and under a quarter as many link to it: an ad, tracking, font or CDN host), `no_page` (404 at the root, or an
+  untitled refusal or a blank page no two front pages link to), `same_site` (the bank's case for another domain). A
+  wall is never a reason: a challenge page, a titled refusal or one that front pages link to stays in.
+- **Which task.** The bank's own hand-checked case where it has one (`staging-hard-sites.json`, `search-cases.json`).
+  Else a **search**, where the front page declares one (a schema.org SearchAction, an OpenSearch description, or a GET
+  form with a search box, on the site's own domain), with three values taken from the words the page links with (a
+  one-word link counts three times; menu words and the site's own name are left out). Else a **read** of the front
+  page (`kind: read`): asked for, asked for again (it must be a call of the same route) and the route called; each
+  answer must hold at least 5 lines of words and the warm two at least half the first one's lines.
+- **The run.** `bank.yml` by hand with `scope=top1000` (`limit` for a pilot, `shards`, `parallel`): every read on
+  Lewis's own runners (the steam-machine labels, no Blacksmith fallback), a scratch node with no decision model, one
+  site a call, 900 s at most a site. The report job sorts each site into `hard_sites.py`'s five labels, adds the
+  hours, each job's peak memory and the ten commonest reasons a site was not right, writes them to the run's summary
+  and keeps them as the `top-sites-report` artifact. It is report-only: it gates nothing.
+
+```sh
+curl -L https://tranco-list.eu/download/GQ3LK/1000000 -o /tmp/tranco-GQ3LK.csv
+python3 top_sites.py probe --tranco-csv /tmp/tranco-GQ3LK.csv --upto 2200 --out /tmp/probe.jsonl --workers 24
+python3 top_sites.py probe --tranco-csv /tmp/tranco-GQ3LK.csv --upto 2200 --out /tmp/probe.jsonl --workers 4 --again
+python3 top_sites.py build --tranco-csv /tmp/tranco-GQ3LK.csv --probe /tmp/probe.jsonl --probe-date <date>
+gh workflow run bank.yml --ref <branch> -f scope=top1000 -f limit=20 -f shards=4
+```
+
+A probe is one vantage point on one day: a site that refused it, or answered it differently, may be kept or passed
+over differently on another. The file says the probe's date.
+
 ## Findings of a run
 
 `run_bank.py run` writes these per site under `findings`, and `report` prints them as a

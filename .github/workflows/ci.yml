@@ -145,6 +145,19 @@ jobs:
         run: cmp CLAUDE.md AGENTS.md
       - name: Every test of the workflows' scripts
         run: python3 -m unittest discover -s .github/scripts/test -p 'test_*.py' -v
+      # The QA checks' own tests and the attack bank's, as the MCP check runs them first ("Test the checks" in
+      # pr-check.yml), here too: on Linux, at the start of the run, they fail in about a minute instead of after the
+      # MCP check's three-minute macOS build (#793's broken unpack showed only there, 22 Nov 2026).
+      - name: The QA checks' own tests
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet jsonschema==4.23.0
+          "$RUNNER_TEMP/venv/bin/python" -m unittest discover -s .github/qa -p 'test_*.py'
+          python3 -I -m unittest discover -s test-banks/attack -p 'test_*.py'
+      # The live-site benchmarks' own code (the 30 hardest sites, the top 1,000: UNB-249, UNB-260), offline: their
+      # inventory, cases, shards and report, on tables, no network.
+      - name: The site benchmarks' own tests
+        run: python3 -m unittest discover -s test-banks/popular-sites -p 'test_*_sites.py' -v
       - run: python3 -I papers/sync.py check
       # Every number core hard-codes equals papers/params.toml (papers/params-map.json says where each one lives).
       # Report-only until the contracts follow spec §84 and §85: it fails today on the retired priced bond, the domain
@@ -217,6 +230,19 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: integrations/hermes
         run: python3 -m unittest discover -s tests -v
+      # The Claude Code plugin's hooks module (integrations/claude-code/tests): WebFetch through the node, the receipts,
+      # the band with the balance and Add funds, the /unb pane, route tools and watches, in the host's theme colours. Run
+      # by the locked CLI's own test kit (.github/tools/claude-cli, lifecycle scripts off) under an empty home: no
+      # credential, no model is asked, no node is started.
+      - name: Agent plugins, the Claude Code plugin
+        if: ${{ !cancelled() }}
+        run: |
+          npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
+          node .github/tools/claude-cli/node_modules/@anthropic-ai/claude-code/install.cjs
+          .github/tools/claude-cli/node_modules/.bin/claude --version
+          home=$(mktemp -d)
+          HOME=$home .github/tools/claude-cli/node_modules/.bin/claude plugin validate integrations/claude-code
+          HOME=$home .github/tools/claude-cli/node_modules/.bin/claude plugin test integrations/claude-code
       # The route x-ray (scripts/xray): it reads a route by shape and writes no value, keeps its pages out of a
       # repository, and every function of the engine it names is still in the source. Standard library only; no site
       # is asked.
@@ -354,6 +380,19 @@ jobs:
         env:
           RUST_MIN_STACK: "16777216"
         run: cargo test --locked
+      # The CLI's tests that need a browser, in the runner's Chrome, one at a time: upstream's e2e suite, the fork's
+      # tests in Chrome and the node's contract with this browser. coverage.yml runs the same pass measured; a test
+      # in `src/native/unbrowse/tests-not-run.tsv` is skipped there and here, each with why (UNB-208).
+      - name: ffmpeg for the CLI's recording tests
+        run: command -v ffmpeg || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null; }
+      - name: Test the CLI in a real browser
+        working-directory: unbrowse-browser/cli
+        env:
+          RUST_MIN_STACK: "16777216"
+        run: |
+          skips=$(grep -v '^#' src/native/unbrowse/tests-not-run.tsv | cut -f1 | sed 's/^/--skip /' | tr '\n' ' ')
+          # shellcheck disable=SC2086 # one word per skip
+          cargo test --locked --no-fail-fast -- --ignored --test-threads=1 --exact $skips
 
   node:
     permissions:
@@ -380,7 +419,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           toolchain: 1.99.1
-          components: clippy
       # BoringSSL with Chrome's extensions, vendored by the script (vendor/ isn't committed): made once per patch.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: vendor
@@ -394,6 +432,12 @@ jobs:
           workspaces: |
             unbrowse-node -> target
             unbrowse-browser/cli -> target
+      - name: Cache Chrome for Testing
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.agent-browser/browsers
+          key: agent-browser-chrome-${{ runner.os }}-${{ hashFiles('unbrowse-browser/cli/Cargo.lock') }}
+          restore-keys: agent-browser-chrome-${{ runner.os }}-
       # The learner's end-to-end tests drive the real browser through a test shop; without a build they fail, never
       # skip. The browser fetches Chrome for Testing when the runner has no Chrome.
       - name: Build the browser
@@ -406,17 +450,17 @@ jobs:
       # Agents as an OS user of their own, for real: the user is made, reads none of the owner's secrets, runs a
       # program with its own token, and is removed (scripts/agent-user-e2e.sh).
       - name: Agents' OS user, end to end
-        run: cargo build --locked -p unbrowse-node-app --bin unbrowse-node && sh scripts/agent-user-e2e.sh target/debug/unbrowse-node
+        run: cargo build --locked -p unbrowse-node-app --bins && sh scripts/agent-user-e2e.sh target/debug/unbrowse-node
       # `unb connect` on a machine the hosted Unbrowse set up, for real: a fresh node leaves the v1 key's
       # ~/.unbrowse/config.json byte-identical, and connect shows, checks against the node, replaces and undoes, with no
       # token on a command line (scripts/connect-e2e.sh).
       - name: Connect, end to end
-        run: cargo build --locked -p unbrowse-node-app --bins && sh scripts/connect-e2e.sh target/debug/unbrowse-node target/debug/unb
+        run: sh scripts/connect-e2e.sh target/debug/unbrowse-node target/debug/unb
       # The install with no terminal (UNB-266): with only a GUI app's PATH, the window's Connect (`agent_connect`)
       # writes Claude Code, Claude Desktop, Cursor and Codex, each entry answers with the node's tools, a stopped node
       # is started by the entry, no token is written anywhere, and undo puts every file back (scripts/install-e2e.sh).
       - name: Install with no terminal, end to end
-        run: cargo build --locked -p unbrowse-node-app --bins && sh scripts/install-e2e.sh target/debug/unbrowse-node target/debug/unb
+        run: sh scripts/install-e2e.sh target/debug/unbrowse-node target/debug/unb
       # The MCP entries an older Unbrowse wrote (`npx -y unbrowse mcp`, `… dist/cli.js mcp --account x`), run against
       # this build through the npm command: they list the node's tools at its default address, and the old hosted
       # sign-in is left byte-identical (scripts/legacy-mcp-e2e.sh).
@@ -455,7 +499,74 @@ jobs:
         with:
           workspaces: unbrowse-node -> target
       - name: Clippy
+        id: clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # A red lint on one of our own pull requests is fixed by CI when clippy can fix it, so nobody waits on a one-word
+      # change (`.last()` to `.next_back()` held #817). This job stays read-only: it hands clippy's fixes to `lint-fix`
+      # below as a patch, and that job commits them to the branch without building or running anything from it.
+      - name: Clippy's own fixes
+        id: fix
+        if: failure() && steps.clippy.outcome == 'failure' && github.event_name == 'pull_request'
+        run: |
+          cargo clippy --fix --allow-dirty --allow-staged --workspace --all-targets --locked
+          git diff --binary --relative=unbrowse-node -- . > "$RUNNER_TEMP/clippy-fix.patch"
+          if [ -s "$RUNNER_TEMP/clippy-fix.patch" ]; then echo found=true >> "$GITHUB_OUTPUT"; fi
+          git diff --stat
+      - if: failure() && steps.fix.outputs.found == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: clippy-fix
+          path: ${{ runner.temp }}/clippy-fix.patch
+          retention-days: 1
+
+  # Commits clippy's fixes to the pull request's branch, then runs CI on it again. It holds a write token, so it checks
+  # out nothing with actions/checkout and runs no file from the branch: it fetches the commit the lint ran on, applies
+  # the patch to unbrowse-node/ only, and pushes without force, so a push made since wins and gets its own run. A
+  # commit pushed with GitHub's own token starts no `push` or `pull_request` run, so CI is started by hand
+  # (workflow_dispatch is the one event that token may start). Clippy's lint on that run is not fixed again.
+  lint-fix:
+    permissions:
+      contents: write
+      actions: write
+    name: Lint fixed on the branch
+    needs: lint
+    if: ${{ always() && needs.lint.result == 'failure' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        continue-on-error: true
+        with:
+          name: clippy-fix
+          path: ${{ runner.temp }}/fix
+      - name: Commit the fixes and run CI again
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          patch="$RUNNER_TEMP/fix/clippy-fix.patch"
+          say() { echo "$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+          if [ ! -s "$patch" ]; then say "Clippy could fix none of it itself: the lint stays red for a person."; exit 0; fi
+          git init -q "$RUNNER_TEMP/branch" && cd "$RUNNER_TEMP/branch"
+          git remote add origin "https://github.com/$REPO.git"
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.extraheader="$auth" fetch -q --depth=1 origin "$HEAD_SHA"
+          git checkout -q --detach FETCH_HEAD
+          if ! git apply --index --directory=unbrowse-node "$patch"; then
+            say "Clippy's fixes no longer apply to the branch (staging moved under them): the lint stays red."; exit 0
+          fi
+          if git diff --cached --name-only | grep -qv '^unbrowse-node/'; then
+            say "The fix patch reaches outside unbrowse-node/: refused."; exit 1
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "style(node): clippy's own fixes, committed by CI"
+          if ! git -c http.extraheader="$auth" push -q origin "HEAD:refs/heads/$BRANCH"; then
+            say "The branch moved since this run started: its newer push has its own run."; exit 0
+          fi
+          gh workflow run ci.yml --repo "$REPO" --ref "$BRANCH"
+          say "Clippy's fixes are on $BRANCH as $(git rev-parse --short HEAD); CI runs on it again."
 
   # The node, the browser and the window build on Linux and Windows as they are released there, and the node finds
   # the machine's browsers the way that system keeps them.
@@ -464,6 +575,9 @@ jobs:
       contents: read
     name: Builds on ${{ matrix.os }}
     needs: scope
+    # A Windows build runs about 6 minutes (median of the 15 pull requests before 22 Nov 2026); with no limit, a step
+    # that never returns held a paid Windows machine for GitHub's 6 hours (staging push of 72a44a5b, 22 Nov 2026).
+    timeout-minutes: 45
     if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.elsewhere == 'true')) }}
     strategy:
       fail-fast: false
@@ -507,16 +621,41 @@ jobs:
         with:
           workspaces: |
             unbrowse-node -> target
+            unbrowse-node/crates/browser -> target
             unbrowse-browser/cli -> target
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.17.0
+      # Zig 0.17's std aborts on a connect a signal interrupted ("programmer bug caused syscall error: ISCONN"): patched
+      # in place before anything builds (.github/scripts/patch_zig_std.py; Zig 0.17.1 and master read it the same way).
+      - name: Patch Zig's std (an interrupted connect settles)
+        shell: bash
+        run: if command -v python3 >/dev/null; then python3 -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; else python -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; fi
       - name: Build the node
         working-directory: unbrowse-node
-        run: cargo build --workspace --all-targets --locked
+        run: cargo build --workspace --bins --locked
       - name: Find the browsers
         working-directory: unbrowse-node
         run: cargo test --locked -p unbrowse-node-app --bin unbrowse-node browsers
+      # The engine drives the machine's own Chrome on Windows, and its browser goes with the launch: on 22 Nov 2026 the
+      # system Chrome 157 never answered the engine's debugger pipe on a Windows 11 machine (UNB-277). The runner's Chrome
+      # is installed first where the image has none.
+      - name: The engine drives the runner's Chrome
+        if: matrix.os == 'Windows'
+        # It sat here for hours on 22 Nov 2026 (the staging push of 72a44a5b and pull request 828): a debugger test that
+        # never answers fails at 15 minutes instead.
+        timeout-minutes: 15
+        working-directory: unbrowse-node/crates/browser
+        run: |
+          chrome="/c/Program Files/Google/Chrome/Application/chrome.exe"
+          [ -f "$chrome" ] || choco install googlechrome -y --no-progress --ignore-checksums
+          # The version is read from the file: on Windows `chrome.exe --version` prints nothing and starts Chrome, which
+          # never exits, so the step waited out its 15 minutes on staging cfb2625f (run 45042377439) before any test ran.
+          powershell -NoProfile -Command "(Get-Item '$(cygpath -w "$chrome")').VersionInfo.ProductVersion"
+          cargo test --locked --test system_chrome_debugger -- --ignored --nocapture
+          cargo test --locked --lib -- --ignored --nocapture a_real_chrome_on_a_port
+          # Whether a process is alive, asked of Windows itself: the unit tests elsewhere run on macOS and Linux only.
+          cargo test --locked --lib -- --nocapture a_live_launchers_record_is_kept_on_every_system a_process_is_alive_until_it_has_gone
       # Agents as an OS user of their own, for real: the user is made, reads none of the owner's secrets, runs a
       # program with its own token, and is removed.
       - name: Agents' OS user, end to end
@@ -552,6 +691,11 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.17.0
+      # Zig 0.17's std aborts on a connect a signal interrupted ("programmer bug caused syscall error: ISCONN"): patched
+      # in place before anything builds (.github/scripts/patch_zig_std.py; Zig 0.17.1 and master read it the same way).
+      - name: Patch Zig's std (an interrupted connect settles)
+        shell: bash
+        run: if command -v python3 >/dev/null; then python3 -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; else python -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; fi
       - run: zig build test
       - run: zig build
 

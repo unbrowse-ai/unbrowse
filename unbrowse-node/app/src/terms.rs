@@ -172,3 +172,7 @@ mod tests {
         assert_eq!(TERMS_VERSION, version_of(TERMS).max(version_of(PRIVACY)));
     }
 }
+
+#[cfg(test)]
+#[path = "terms_cov_tests.rs"]
+mod terms_cov_tests;

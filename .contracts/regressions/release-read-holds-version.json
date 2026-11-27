@@ -1,0 +1,14 @@
+{
+  "claim": "A read asking for a published version or latest software tag requires a release number in the answer",
+  "test": [
+    "cargo",
+    "test",
+    "--locked",
+    "--manifest-path",
+    "unbrowse-node/Cargo.toml",
+    "-p",
+    "unbrowse-learn",
+    "--lib",
+    "a_release_read_requires_a_version_in_the_answer"
+  ]
+}

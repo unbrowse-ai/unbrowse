@@ -32,8 +32,38 @@ concurrency:
 permissions: {}
 
 jobs:
+  scope:
+    name: What this change reaches (PR check)
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      qa: ${{ steps.scope.outputs.qa }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+          sparse-checkout: .github/scripts/ci-scope.py
+          sparse-checkout-cone-mode: false
+      - id: scope
+        run: |
+          complete=true
+          : > changed.txt
+          if git rev-parse --verify HEAD^1 >/dev/null 2>&1; then
+            git diff --name-only --no-renames HEAD^1 HEAD > changed.txt || complete=false
+          else
+            complete=false
+          fi
+          python3 -I .github/scripts/ci-scope.py --event pull_request --complete "$complete" --qa < changed.txt 2> why.txt >> "$GITHUB_OUTPUT"
+          cat why.txt
+          { echo "### What this change reaches"; sed 's/^/- /' why.txt; } >> "$GITHUB_STEP_SUMMARY"
+
   check:
     name: MCP check (no model)
+    needs: scope
+    if: ${{ !cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.qa == 'true') }}
     runs-on: blacksmith-6vcpu-macos-latest
     timeout-minutes: 45
     permissions:
@@ -66,18 +96,26 @@ jobs:
           restore-keys: |
             qa-${{ runner.os }}-rust-1.99.1-${{ hashFiles('unbrowse-node/Cargo.lock', 'unbrowse-browser/cli/Cargo.lock') }}-
             qa-${{ runner.os }}-rust-1.99.1-
-      - name: Build the node and its browser
-        run: |
-          cargo build --locked --manifest-path unbrowse-browser/cli/Cargo.toml
-          cargo build --locked --manifest-path unbrowse-node/Cargo.toml --bin unbrowse-node --bin unb
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.17.0
-      - name: Patch Zig's interrupted socket connect
-        run: python3 -I .github/scripts/patch_zig_std.py
+      # Zig 0.17's std aborts on a connect a signal interrupted ("programmer bug caused syscall error: ISCONN"): patched
+      # in place before anything builds (.github/scripts/patch_zig_std.py; Zig 0.17.1 and master read it the same way).
+      - name: Patch Zig's std (an interrupted connect settles)
+        shell: bash
+        run: if command -v python3 >/dev/null; then python3 -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; else python -I "$GITHUB_WORKSPACE/.github/scripts/patch_zig_std.py"; fi
+      # The window (zig) builds beside the node and its browser (cargo) instead of after them: 41 s off this job, which
+      # every check waits for (PR 822's run). "Build the window" waits for it and fails with its log.
+      - name: Build the node and its browser
+        run: |
+          (cd unbrowse-node/window && zig build -Doptimize=ReleaseSafe > "$RUNNER_TEMP/window-build.log" 2>&1; echo $? > "$RUNNER_TEMP/window-build.exit") &
+          cargo build --locked --manifest-path unbrowse-browser/cli/Cargo.toml
+          cargo build --locked --manifest-path unbrowse-node/Cargo.toml --bin unbrowse-node --bin unb
       - name: Build the window
-        working-directory: unbrowse-node/window
-        run: zig build
+        run: |
+          for _ in $(seq 600); do [ -s "$RUNNER_TEMP/window-build.exit" ] && break; sleep 1; done
+          cat "$RUNNER_TEMP/window-build.log"
+          [ "$(cat "$RUNNER_TEMP/window-build.exit" 2>/dev/null)" = 0 ] || { echo "::error::the window didn't build"; exit 1; }
       # The build is this job's own: a debug node finds its browser program by the path it was built at, and the checks
       # below find it by name.
       - name: Name the browser this job built
@@ -88,13 +126,12 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
-      # The checks' own tests first: a checker that can't fail proves nothing (fake server, fake browser, no node).
-      - name: Test the checks
+      # The QA checks' own unit tests and attack-bank unit tests run in ci.yml's `papers` job on Linux (~7 s);
+      # here we only set up the jsonschema venv needed by mcp_check.py.
+      - name: Install jsonschema
         run: |
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet jsonschema==4.23.0
-          "$RUNNER_TEMP/venv/bin/python" -m unittest discover -s .github/qa -p 'test_*.py'
-          python3 -I -m unittest discover -s test-banks/attack -p 'test_*.py'
       # A person's Mac keeps what an earlier job left running (a node on the port this job wants): stop it.
       - name: Stop what an earlier job left running
         run: sh .github/qa/stop-left-nodes.sh
@@ -143,7 +180,7 @@ jobs:
           # Claude on the web, whose Not now ends on You're set, and Open Unbrowse opens the node. A node with an app
           # connected already skips all of it.
           clicked=fail
-          for script in "click:Skip;live:2;click:Not now;live:2;click:Open Unbrowse;live:2;click:Vault;live:2" "click:Next;live:2;click:Not now;live:2;click:Open Unbrowse;live:2;click:Vault;live:2" "click:Vault;live:2"; do
+          for script in "click:Next;live:2;click:Not now;live:2;click:Open Unbrowse;live:2;click:Vault;live:2" "click:Skip;live:2;click:Not now;live:2;click:Open Unbrowse;live:2;click:Vault;live:2" "click:Vault;live:2"; do
             python3 -I .github/qa/qa_tools.py --picture "$shots/window-vault.png" "$script" >> "$RUNNER_TEMP/check/window.log" 2>&1 && { clicked=pass; break; }
           done
           size=$(wc -c < "$shots/window.png" 2>/dev/null || echo 0)
@@ -222,18 +259,25 @@ jobs:
 
   verdict:
     name: PR check (no credential)
-    needs: [check, coverage]
+    needs: [scope, check, coverage]
     if: always()
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 5
     permissions: {}
     steps:
-      - name: Both checks ran and passed
+      - name: All required checks ran and passed
         env:
           RESULTS: ${{ toJSON(needs) }}
+          QA_SCOPE: ${{ needs.scope.outputs.qa }}
           SHA: ${{ github.sha }}
           DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          echo "$RESULTS" | jq -e 'length == 2 and (to_entries | all(.value.result == "success"))' > /dev/null || { echo "::error::A check did not pass: see the jobs above"; exit 1; }
-          echo "PR_CHECK_OK checks=mcp,journey-coverage draft=$DRAFT sha=${SHA:0:8}"
+          if [ "$QA_SCOPE" = false ]; then
+            echo "$RESULTS" | jq -e 'length == 3 and .scope.result == "success" and .coverage.result == "success" and (.check.result == "skipped" or .check.result == "success")' > /dev/null || { echo "::error::A check did not pass: see the jobs above"; exit 1; }
+            checks="journey-coverage(mcp-scoped)"
+          else
+            echo "$RESULTS" | jq -e 'length == 3 and (to_entries | all(.value.result == "success"))' > /dev/null || { echo "::error::A check did not pass: see the jobs above"; exit 1; }
+            checks="mcp,journey-coverage"
+          fi
+          echo "PR_CHECK_OK checks=$checks draft=$DRAFT sha=${SHA:0:8}"

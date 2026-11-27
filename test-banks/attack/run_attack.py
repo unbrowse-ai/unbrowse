@@ -42,19 +42,34 @@ class Tunnels:
 
     def __init__(self, program, out):
         self.program, self.out, self.procs = program, out, []
+        # How long a registered name is given to be published; how often the log is read; how long to wait before a
+        # tunnel the service refused is asked again, the wait doubling each time; how many times it is asked.
+        self.published_wait, self.poll, self.again_after, self.asks = 20, 1, 15, 4
 
     def __call__(self, local):
         import re
         log = self.out / f"tunnel-{len(self.procs)}.log"
-        proc = subprocess.Popen([self.program, "tunnel", "--no-autoupdate", "--url", local], stdout=open(log, "w"), stderr=subprocess.STDOUT)
-        self.procs.append(proc)
-        for _ in range(90):
-            text = log.read_text(errors="ignore")
-            found = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", text)
-            if found and "Registered tunnel connection" in text:
-                time.sleep(20)
-                return found.group(0)
-            time.sleep(1)
+        wait = self.again_after
+        for ask in range(self.asks):
+            if ask:
+                time.sleep(wait)
+                wait *= 2
+            # Each ask appends to the one log: what the service said each time stays to be read.
+            proc = subprocess.Popen([self.program, "tunnel", "--no-autoupdate", "--url", local], stdout=open(log, "a"), stderr=subprocess.STDOUT)
+            self.procs.append(proc)
+            for _ in range(int(90 / self.poll) if self.poll else 90):
+                text = log.read_text(errors="ignore").split("Requesting new quick Tunnel")[-1]
+                found = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", text)
+                if found and "Registered tunnel connection" in text:
+                    time.sleep(self.published_wait)
+                    return found.group(0)
+                # The service refused this tunnel (a second one asked too soon from one address gets no tunnel id) and
+                # the program has ended: it is asked again after a wait, not waited on.
+                if proc.poll() is not None:
+                    break
+                time.sleep(self.poll)
+            else:
+                break
         raise RuntimeError(f"no public address for {local}: see {log}")
 
     def close(self):

@@ -81,7 +81,8 @@ class MacRunner(unittest.TestCase):
                 checked += 1
                 with self.subTest(workflow=name, job=job):
                     self.assertEqual(node_before_setup(j["steps"]), [])
-        self.assertGreaterEqual(checked, 7, "the jobs that can run on the Mac were found")
+        # Six since pr-agent-checks.yml's copy of the MCP check went (22 Nov 2026).
+        self.assertGreaterEqual(checked, 6, "the jobs that can run on the Mac were found")
 
     def test_no_qa_job_or_script_talks_to_the_owners_port(self):
         for path in [ROOT / ".github/workflows" / n for n in WORKFLOWS] + [ROOT / ".github/qa/start-node.sh"]:

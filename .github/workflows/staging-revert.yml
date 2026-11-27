@@ -1,0 +1,66 @@
+# A merge that turns staging red is taken back out, so the pull requests cut from staging stop inheriting its red
+# (19-22 Nov 2026: 32 failed core runs, many on pull requests that were fine but were tested against a red staging).
+# When CI fails on a push to staging, its failed jobs run once more first, so a flaky test reverts nothing. If they fail
+# again, and the staging commit before was green, this opens a pull request that reverts the merge, starts CI on it and
+# tells the merged pull request why. It merges nothing: a person merges the revert, or fixes forward and closes it.
+# A red staging whose commit before was red too is left alone: this merge is not what broke it.
+name: Staging revert
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [staging]
+
+permissions: {}
+
+concurrency:
+  group: staging-revert
+  cancel-in-progress: false
+
+jobs:
+  revert:
+    name: Revert the merge that turned staging red
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.repository.full_name == github.repository
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      # The script that opens the revert (shared with pr-closed.yml's red-merge backstop, UNB-248).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/open-revert.sh
+          sparse-checkout-cone-mode: false
+      - name: Retry once, then revert
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          say() { echo "$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+          if [ "$ATTEMPT" -lt 2 ]; then
+            gh run rerun "$RUN_ID" --failed --repo "$REPO"
+            say "Staging CI failed on ${SHA:0:8}; its failed jobs run once more before anything is reverted."; exit 0
+          fi
+          head=$(gh api "repos/$REPO/commits/staging" --jq .sha)
+          if [ "$head" != "$SHA" ]; then say "Staging has moved past ${SHA:0:8}; the newer push has its own run."; exit 0; fi
+          parent=$(gh api "repos/$REPO/commits/$SHA" --jq '.parents[0].sha')
+          before=$(gh api -X GET "repos/$REPO/actions/runs" -f head_sha="$parent" -f event=push -f per_page=20 \
+            --jq '[.workflow_runs[] | select(.name == "CI")] | sort_by(.run_attempt) | last | .conclusion // ""')
+          if [ "$before" != success ]; then
+            say "Staging was not green before ${SHA:0:8} (CI on ${parent:0:8}: ${before:-no run}), so this merge is not reverted."; exit 0
+          fi
+          pr=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.base.ref == "staging")][0].number // ""')
+          what=${pr:+#$pr}; what=${what:-${SHA:0:8}}
+          url=$(bash .github/scripts/open-revert.sh "$SHA" "revert: $what turned staging red" \
+            "CI failed on staging at ${SHA:0:8} twice ($RUN_URL); the commit before it was green. This takes $what back out so pull requests cut from staging stop inheriting the red. Merge it, or fix forward and close it.")
+          [ -n "$pr" ] && gh pr comment "$pr" --repo "$REPO" \
+            --body "Staging went red after this merged ($RUN_URL, failed twice; the commit before was green). Revert opened: $url"
+          say "Revert of $what opened: $url"

@@ -680,6 +680,12 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
         // What the node can do against a wall that the client can't (`clearance`): for its own routes only.
         if browser_setups {
             client = client.with_clearer(unbrowse_learn::refusal::Source::OwnerSession, crate::clearance::owners_session(root_host.clone(), who.to_string(), node.clone()));
+            // A check the node has met and passed before is passed again by its solver and the request that redeemed
+            // the token then, with no browser (`redeem`); one it has no such request for is met by the solver in the
+            // node's own browser. Either serves the agent's own request, as a choice made again does (`setups`), so
+            // neither waits on the heals the node holds: a call that fails at the wall opens the browser for the ask
+            // anyway.
+            client = client.with_clearer(unbrowse_learn::refusal::Source::Solver, crate::redeem::clearer(root_host.clone(), true));
         }
         // A choice the route's calls depend on that the jar has lost is made again first: a store picked on the page asks
         // nothing back, so nothing later would show it had gone. A write's own steps are left as they were learned.

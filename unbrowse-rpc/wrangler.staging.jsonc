@@ -1,5 +1,6 @@
 // The RPC gateway on staging: its own Worker and its own member list, at rpc-staging.unbrowse.ai. Same code as wrangler.jsonc; the
-// name, the routes and the origins differ. Secrets: ALCHEMY_KEY (the same Alchemy app).
+// name, the routes and the origins differ. Secrets: ALCHEMY_KEY (the same Alchemy app), GAS_KEY,
+// SOLVER_KEY (the same solver account).
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
   "name": "unbrowse-rpc-staging",

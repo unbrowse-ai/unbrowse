@@ -7,17 +7,30 @@
 #                         ("changed" until a person re-reads that site by hand). QA (qa.yml) calls it on those pushes,
 #                         so its verdict sits in the same report as every journey (UNB-235)
 #                         and it runs the node QA's run built once (`build_digest`), not a build of its own
-#   nightly, on staging   the whole bank: a number to read, and the floor's early warning
+#   nightly, on staging   the whole bank: the floor's early warning, red when the promotion gate would refuse it
 #   push to release/**    the whole bank on the candidate: the run the promotion gate (release.yml, promotion-gate.yml)
 #                         reads, kept as the artifact `gate-bank-full-<tree>`
-#   by hand               either, on any branch
+#   by hand               either, on any branch; or `top1k`, the bench (UNB-307): the top 1,000 sites of
+#                         test-banks/popular-sites/top-1000.json, cold and warm (2,000 tasks, made by run_gate.py's
+#                         one rule), dealt into `shards` jobs side by side (`only` picks some), `sites` to take the
+#                         first N in rank order, `resume_run` to keep what an earlier run of the same tree's shard
+#                         finished, `node_ref` to run the bench on another build's node (the floor's run on the last
+#                         promoted build).
+#   top1k, the release    gate-1k.yml calls it on every push to a release branch: the release gate on the bench
+#   gate (UNB-307)        (Lewis, 25 Nov 2026: rates, not every task). Every shard runs on one pinned kind of runner
+#                         (vars.GATE_1K_RUNNER, else blacksmith-6vcpu-macos-latest), the kind the floor was taken on;
+#                         each shard runs once more every task whose verdict measured nothing or is not the floor's
+#                         (test-banks/gate/promoted-1k.json), on fresh nodes; the last job reads every shard together
+#                         with promotion_gate.py and keeps `gate-1k-<tree>` (results, meta.json, rereads.json, verdict),
+#                         the artifact the promotion gate reads. Red when it refuses: fewer right than the floor, a
+#                         higher confidently wrong rate, or a task not measured (a shard that did not run counts so).
 #
 # No pull request starts it. A ready pull request into staging from a branch of this repository runs the same slice
 # in pr-agent-checks.yml (UNB-248), the one pull request workflow allowed a model's credential, under its own rules in
 # .github/scripts/test/test_workflow_security.py. promotion-gate.yml checks the gate itself on every pull request.
 #
 # The model's credential sits only on the two steps that run the model, and they run nothing of this repository's but
-# the node's own MCP program, which the client starts: the locked Claude CLI is run on argument files a step without
+# the node's own MCP program, which the client starts: OpenCode reads argument files a step without
 # the credential wrote (run_gate.py prepare and judges), and a step without it reads the results. The scratch nodes are
 # started before, without it. The agent gets only the node's tools: no shell, no web or files of its own.
 # Live sites change on their own: a red run is read, site by site, before anything is called a regression.
@@ -30,11 +43,15 @@ on:
   workflow_call:
     inputs:
       scope:
-        description: slice or full
+        description: slice, full or top1k
         type: string
         default: slice
       # QA builds the node once for its jobs and this one (qa.yml's `build`): the SHA-256 of the archive it kept as
       # the artifact `qa-node-build`. Empty (a release branch's push, the nightly run, a run by hand): this job builds.
+      shards:
+        description: "top1k: how many jobs the sites are dealt into, side by side"
+        type: string
+        default: "1"
       build_digest:
         description: SHA-256 of the calling run's qa-node-build archive (empty = build here)
         type: string
@@ -48,11 +65,10 @@ on:
         type: string
         default: ""
     secrets:
-      ANTHROPIC_API_KEY:
+      # Callers pass the broker key and optional short-lived access token explicitly.
+      OPENCODE_CHATGPT_ACCESS_TOKEN:
         required: false
-      CLAUDE_CODE_OAUTH_TOKEN:
-        required: false
-      CLAUDE_CODE_OAUTH_TOKEN_2:
+      OPENCODE_CHATGPT_CREDENTIAL_KEY:
         required: false
       DASHBOARD_INGEST_KEY:
         required: false
@@ -63,16 +79,40 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: slice or full
+        description: slice, full, or top1k (the top 1,000 sites, cold and warm; UNB-307)
         type: choice
-        options: [slice, full]
+        options: [slice, full, top1k]
         default: slice
+      sites:
+        description: "top1k: only the first N sites in rank order (empty: all 1,000)"
+        type: string
+        default: ""
+      shards:
+        description: "top1k: how many jobs the sites are dealt into, side by side"
+        type: string
+        default: "1"
+      only:
+        description: "top1k: which shards to run, from 0, comma-separated (empty: every one)"
+        type: string
+        default: ""
+      resume_run:
+        description: "top1k: an earlier run's id; each shard keeps what that run's same shard of the same tree finished"
+        type: string
+        default: ""
+      node_ref:
+        description: "top1k: build the node from this ref (a release tag) with this commit's bench: the floor's run"
+        type: string
+        default: ""
 
 concurrency:
   group: gate-bank-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions: {}
+
+# Model calls use ChatGPT subscription OAuth through agent_cli.py.
+env:
+  AGENT_AUTH: chatgpt
 
 jobs:
   # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
@@ -87,6 +127,9 @@ jobs:
       contents: read
     outputs:
       bank: ${{ steps.place.outputs.bank }}
+      runner: ${{ steps.place.outputs.runner }}
+      scope: ${{ steps.shards.outputs.scope }}
+      shards: ${{ steps.shards.outputs.shards }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -100,8 +143,13 @@ jobs:
           MAC_POOL: ${{ vars.MAC_RUNNER }}
           LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
           PLACED: ${{ inputs.runs_on }}
+          # top1k: one pinned kind of runner, never placed, so the run is held to a floor taken on the same kind: a
+          # data centre's address is walled where a home one is not (bank.yml's 16 of 30 hard sites, Blacksmith Macs).
+          PINNED: ${{ inputs.scope == 'top1k' && (vars.GATE_1K_RUNNER || 'blacksmith-6vcpu-macos-latest') || '' }}
         run: |
-          if [ -n "$PLACED" ]; then
+          if [ -n "$PINNED" ]; then
+            python3 -I -c 'import json, sys; print("bank=" + json.dumps(sys.argv[1])); print("runner=" + sys.argv[1])' "$PINNED" | tee -a "$GITHUB_OUTPUT"
+          elif [ -n "$PLACED" ]; then
             # A runs-on label or label list, nothing else.
             python3 -I -c 'import json, sys; v = json.loads(sys.argv[1]); assert isinstance(v, str) or (isinstance(v, list) and v and all(isinstance(x, str) for x in v))' "$PLACED"
             echo "bank=$PLACED" >> "$GITHUB_OUTPUT"
@@ -109,44 +157,107 @@ jobs:
           else
             python3 -I .github/scripts/place_jobs.py bank=mac
           fi
+      # The scope, and the jobs the bank runs as: one for the slice or the whole bank, one per shard for top1k.
+      - id: shards
+        env:
+          SCOPE: ${{ inputs.scope == 'top1k' && 'top1k' || ((inputs.scope == 'slice' || github.event_name == 'push' && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')) && 'slice' || 'full') }}
+          SHARDS: ${{ inputs.shards }}
+          ONLY: ${{ inputs.only }}
+          SITES: ${{ inputs.sites }}
+        run: |
+          said=$(python3 -I -c '
+          import json, os
+          scope = os.environ["SCOPE"]
+          n = int(os.environ.get("SHARDS") or 1) if scope == "top1k" else 1
+          assert 1 <= n <= 64, f"shards {n}: want 1 to 64"
+          assert (os.environ.get("SITES") or "0").isdigit(), "sites: a number"
+          only = sorted({int(x) for x in (os.environ.get("ONLY") or "").split(",") if x.strip()}) or list(range(n))
+          assert all(0 <= i < n for i in only), f"only {only}: shards are 0 to {n - 1}"
+          label = (lambda i: f"top1k, shard {i + 1} of {n}") if scope == "top1k" else (lambda i: scope)
+          print("scope=" + scope)
+          print("shards=" + json.dumps([{"i": i, "n": n, "label": label(i)} for i in only]))
+          ')
+          echo "$said" | tee -a "$GITHUB_OUTPUT"
 
   bank:
     needs: place
     if: github.event_name != 'schedule' || github.ref == 'refs/heads/staging'
-    name: Gate bank (${{ (inputs.scope == 'slice' || github.event_name == 'push' && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')) && 'slice' || 'full' }})
+    name: Gate bank (${{ matrix.shard.label }})
     runs-on: ${{ fromJSON(needs.place.outputs.bank) }}
     timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.place.outputs.shards) }}
     permissions:
+      # actions: read for `resume_run` (an earlier run's artifact); a caller (qa.yml) already gives it.
+      actions: read
       contents: read
     env:
-      SCOPE: ${{ (inputs.scope == 'slice' || github.event_name == 'push' && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')) && 'slice' || 'full' }}
-      CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
+      SCOPE: ${{ needs.place.outputs.scope }}
+      # top1k: this job's shard of the sites (i/n, i from 0), and the first N sites when the run takes only some.
+      SHARD: ${{ matrix.shard.i }}/${{ matrix.shard.n }}
+      SITES: ${{ inputs.sites }}
+      # The bank passes Claude-style arguments through the wrapper to OpenCode.
+      CLAUDE_BIN: ${{ github.workspace }}/.github/scripts/agent_cli.py
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - run: echo "GATE=$RUNNER_TEMP/gate" >> "$GITHUB_ENV"
+      - id: tree
+        run: echo "tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+      # node_ref: the node and its browser from another build (the last promoted tag), the bench from this commit.
+      - if: ${{ env.SCOPE == 'top1k' && inputs.node_ref != '' && inputs.node_ref != null }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.node_ref }}
+          path: node-ref
+          sparse-checkout: |
+            unbrowse-node
+            unbrowse-browser
+      - if: ${{ env.SCOPE == 'top1k' && inputs.node_ref != '' && inputs.node_ref != null }}
+        name: Build the node of node_ref
+        run: |
+          rm -rf unbrowse-node unbrowse-browser
+          mv node-ref/unbrowse-node node-ref/unbrowse-browser .
+          rm -rf node-ref
+          if [ "$NODE_REF" = v13.18.1 ]; then
+            echo "SETTINGS_V=2" >> "$GITHUB_ENV"
+            echo "HISTORICAL_BEARER_MCP=1" >> "$GITHUB_ENV"
+          fi
+          echo "the node's code and its browser are $NODE_REF's; the bench is $(git rev-parse --short HEAD)'s"
+        env:
+          NODE_REF: ${{ inputs.node_ref }}
+      # A shard started again keeps what an earlier run of the same tree's same shard finished (run_gate.py resumes:
+      # a task in results.jsonl is not prepared again, unless it hit infrastructure).
+      - if: ${{ env.SCOPE == 'top1k' && inputs.resume_run != '' }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          run-id: ${{ inputs.resume_run }}
+          github-token: ${{ github.token }}
+          pattern: gate-bank-top1k-${{ steps.tree.outputs.tree }}-${{ matrix.shard.i }}of${{ matrix.shard.n }}${{ inputs.node_ref && format('-node-{0}', inputs.node_ref) || '' }}
+          path: ${{ runner.temp }}/resume
+      - if: ${{ env.SCOPE == 'top1k' && inputs.resume_run != '' }}
+        name: Keep the earlier run's results
+        run: |
+          mkdir -p "$GATE"
+          found=$(find "$RUNNER_TEMP/resume" -name results.jsonl 2>/dev/null | head -1)
+          [ -n "$found" ] || { echo "::error::run $RESUME has no artifact for shard $SHARD of tree ${{ steps.tree.outputs.tree }}"; exit 1; }
+          cp "$found" "$GATE/results.jsonl"
+          echo "kept $(wc -l < "$GATE/results.jsonl") result line(s) from run $RESUME"
+        env:
+          RESUME: ${{ inputs.resume_run }}
       # Node before the CLI's npm ci: a self-hosted Mac's runner service has no npm on its PATH ("npm: command not
       # found", run 44870008228 on lewis-macbook-pro); a hosted image ships one.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
-      # The Claude CLI the bank runs: the locked one, its lifecycle scripts off, in a step with no secret.
-      - name: Install the pinned Claude CLI
+      - name: The model CLI (opencode)
         run: |
-          npm ci --silent --ignore-scripts --prefix .github/tools/claude-cli
-          # The CLI is a stub until its own install.cjs, from the same locked package, links in the native binary of
-          # the platform's locked optional package; skipped, every ask says "claude native binary not installed" (UNB-235).
-          node .github/tools/claude-cli/node_modules/@anthropic-ai/claude-code/install.cjs
-          .github/tools/claude-cli/node_modules/.bin/claude --version
-      - name: Pick the Claude credential that answers
-        id: credential
-        env:
-          CLAUDE_BIN: ${{ github.workspace }}/.github/tools/claude-cli/node_modules/.bin/claude
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          TOKEN_2: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
-          TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: sh .github/scripts/claude-credential.sh TOKEN_2 TOKEN
+          npm i --silent --no-audit --no-fund --prefix "$RUNNER_TEMP/agent-cli" @opencode/cli@2.4.1
+          echo "$RUNNER_TEMP/agent-cli/node_modules/.bin" >> "$GITHUB_PATH"
       # Called by QA with the build its run made: checked against the SHA-256 QA's build job gave, then unpacked, and
       # nothing is built here. A push has no inputs and a run by hand has no build_digest: both are null, which is
       # false, so `!inputs.build_digest` is true exactly when this job must build.
@@ -201,6 +312,16 @@ jobs:
         run: |
           cargo build --locked --manifest-path unbrowse-browser/cli/Cargo.toml
           cargo build --locked --manifest-path unbrowse-node/Cargo.toml --bin unbrowse-node --bin unb
+          # The historical build takes a bearer MCP adapter. Other tagged nodes use this bench's signed MCP client.
+          if [ -n "${NODE_REF:-}" ] && [ "${HISTORICAL_BEARER_MCP:-0}" != 1 ]; then
+            git worktree add --detach "$RUNNER_TEMP/bench" HEAD
+            cargo build --locked --manifest-path "$RUNNER_TEMP/bench/unbrowse-node/Cargo.toml" --bin unb
+            cp "$RUNNER_TEMP/bench/unbrowse-node/target/debug/unb" "$RUNNER_TEMP/unb-bench"
+            echo "UNB_MCP=$RUNNER_TEMP/unb-bench" >> "$GITHUB_ENV"
+            echo "the client's MCP server is this commit's unb; the node and its browser are $NODE_REF's"
+          fi
+        env:
+          NODE_REF: ${{ inputs.node_ref }}
       - name: Save the build's folders before anything else runs
         if: ${{ !inputs.build_digest && steps.build-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -216,51 +337,67 @@ jobs:
       # A person's Mac keeps what an earlier job left running (a node on the port this job wants): stop it.
       - name: Stop what an earlier job left running
         run: sh .github/qa/stop-left-nodes.sh
-      # One fresh scratch node per round of twelve tasks, all started now, each stopped when its round ends: on 17 Nov
-      # 2026 one debug node grew from 57 MB to 3.6 GB in 13 minutes of bank tasks (programme 887958, BASELINE.md §4),
-      # and a node that big times tasks out.
+      # 17810 is where the search starts. A node already answering there is left alone. 7788 is never used.
       - name: Start the scratch nodes and write the clients' runs
-        run: |
-          mkdir -p "$GATE"
-          if [ "$SCOPE" = slice ]; then pick="--slice test-banks/gate/slice.json"; per=6; else pick=""; per=12; fi
-          left=$(python3 -I test-banks/gate/run_gate.py left --out "$GATE/none.jsonl" $pick)
-          rounds=$(( (left + per - 1) / per ))
-          mcps=""
-          r=0
-          while [ "$r" -lt "$rounds" ]; do
-            dir="$RUNNER_TEMP/n$r"
-            PORT=$((17810 + r)) sh test-banks/popular-sites/scratch-node.sh "$dir" > "$GATE/node-$r.log" 2>&1 || { cat "$GATE/node-$r.log"; exit 1; }
-            token=$(cat "$dir/token")
-            echo "::add-mask::$token"
-            jq -n --arg unb "$GITHUB_WORKSPACE/unbrowse-node/target/debug/unb" --arg token "$token" --arg node "http://127.0.0.1:$((17810 + r))" \
-              '{mcpServers: {unbrowse: {command: $unb, args: ["mcp"], env: {UNBROWSE_NODE: $node, UNBROWSE_AGENT_TOKEN: $token}}}}' > "$dir/mcp.json"
-            rm -f "$dir/token"
-            mcps="$mcps --mcp $dir/mcp.json"
-            r=$((r + 1))
-          done
-          python3 -I test-banks/gate/run_gate.py prepare --dir "$GATE/runs" $mcps --per "$per" $pick \
-            --claude "$CLAUDE_BIN" --build "$GITHUB_SHA debug"
-          echo "$left task(s) in $rounds round(s)"
+        run: sh test-banks/gate/start-rounds.sh "$GATE/runs" n 17810
 
       # The credential is here and in the judges' step alone. Each run is the locked CLI on its argument file, three at
       # a time, under an alarm (20 minutes a task, as the unbrowse6 harness gives); a round's node stops when it ends.
       - name: The clients
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          RUNS: ${{ env.GATE }}/runs
+          NODES: n
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
         run: |
-          r=0
-          while [ -d "$GATE/runs/round-$r" ]; do
-            for f in "$GATE/runs/round-$r"/*.args; do
-              while [ "$(jobs -rp | wc -l)" -ge 3 ]; do sleep 2; done
-              perl -e '$t=shift; $b=shift; local $/; open F, shift or die; @a=split /\0/, <F>; alarm $t; exec $b, @a' \
-                1200 "$CLAUDE_BIN" "$f" < /dev/null > "${f%.args}.out" 2> "${f%.args}.err" &
-            done
-            wait
-            kill "$(cat "$RUNNER_TEMP/n$r/node.pid")" 2>/dev/null || true
-            echo "round $r done"
-            r=$((r + 1))
+          runs="$RUNS"
+          nodes="$NODES"
+          scope="$SCOPE"
+
+          one() {
+            # Keep the round going when a client times out or its provider refuses it.
+            perl -e '$t=shift; $b=shift; local $/; open F, shift or die; @a=split /\0/, <F>; alarm $t; exec $b, @a' \
+              1200 "$CLAUDE_BIN" "$1" < /dev/null > "${1%.args}.out" 2> "${1%.args}.err" \
+              || echo "::warning::the client on $1 exited $?: its result reads what it left"
+          }
+
+          chrome_count() {
+            local count
+            [ -f "$1" ] || return 0
+            count=$(awk '/^chrome_(headless|headed)_launch([[:space:]]|$)/ { n++ } END { print n+0 }' "$1") || return 0
+            echo "$count"
+          }
+
+          record_launches() {
+            local after count=missing
+            after=$(chrome_count "$guard")
+            if [[ "$1" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]]; then count=$((after - $1)); fi
+            echo "$count" > "$2"
+          }
+
+          round=0
+          while [ -d "$runs/round-$round" ]; do
+            (
+              folder="$runs/round-$round"
+              guard="$RUNNER_TEMP/$nodes$round/guard.log"
+              for f in "$folder"/*.args; do
+                if [ "$scope" = slice ]; then before=$(chrome_count "$guard"); fi
+                one "$f"
+                if [ "$scope" = slice ]; then record_launches "$before" "${f%.args}.chrome-launches.txt"; fi
+              done
+              if [ -d "$folder/warm" ]; then
+                if [ "$scope" = slice ]; then before=$(chrome_count "$guard"); fi
+                for f in "$folder"/warm/*.args; do one "$f" & done
+                wait
+                if [ "$scope" = slice ]; then record_launches "$before" "$folder/warm/chrome-launches.txt"; fi
+              fi
+              kill "$(cat "$RUNNER_TEMP/$nodes$round/node.pid")" 2>/dev/null || true
+              echo "round $round done"
+            ) &
+            round=$((round + 1))
           done
+          wait
 
       - name: Write the judges' runs
         run: |
@@ -269,16 +406,123 @@ jobs:
 
       - name: The judges
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.credential.outputs.name == 'TOKEN' && secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.CLAUDE_CODE_OAUTH_TOKEN_2 || secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          RUNS: ${{ env.GATE }}/runs
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
         run: |
-          for f in "$GATE/runs/judge"/*.args; do
+          for f in "$RUNS/judge"/*.args; do
             [ -e "$f" ] || continue
             while [ "$(jobs -rp | wc -l)" -ge 3 ]; do sleep 2; done
             perl -e '$t=shift; $b=shift; local $/; open F, shift or die; @a=split /\0/, <F>; alarm $t; exec $b, @a' \
               300 "$CLAUDE_BIN" "$f" < /dev/null > "${f%.args}.out" 2> "${f%.args}.err" &
           done
           wait
+
+      - name: Collect the clients' and the judges' verdicts
+        if: ${{ !cancelled() }}
+        run: |
+          flags=()
+          if [ "$SCOPE" = slice ]; then flags+=(--require-cold-browser); fi
+          python3 -I test-banks/gate/run_gate.py collect "${flags[@]}" --dir "$GATE/runs" --out "$GATE/results.jsonl"
+
+      # top1k: a verdict that measured nothing (infra, error) or is not the floor's is run once more before it counts
+      # (Lewis, 25 Nov 2026), with its twin, on nodes that never saw the first run; the second verdict is the one
+      # counted, and promotion_gate.py refuses a changed verdict that was never run again.
+      - name: What to run again
+        id: again
+        if: ${{ !cancelled() && env.SCOPE == 'top1k' }}
+        run: |
+          python3 -I test-banks/gate/run_gate.py again --out "$GATE/results.jsonl" --floor test-banks/gate/promoted-1k.json \
+            --bank test-banks/popular-sites/top-1000.json --shard "$SHARD" ${SITES:+--first "$SITES"} \
+            --write "$GATE/again.ids" | sed 's/^/n=/' | tee -a "$GITHUB_OUTPUT"
+      # 18810 is where the search starts. A node already answering there is left alone. 7788 is never used.
+      - name: Start the scratch nodes again and write the clients' runs
+        if: ${{ !cancelled() && steps.again.outputs.n > 0 }}
+        run: sh test-banks/gate/start-rounds.sh "$GATE/again" a 18810 --again "$GATE/again.ids"
+
+      - name: The clients, again
+        if: ${{ !cancelled() && steps.again.outputs.n > 0 }}
+        env:
+          RUNS: ${{ env.GATE }}/again
+          NODES: a
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+        run: |
+          runs="$RUNS"
+          nodes="$NODES"
+          scope="$SCOPE"
+
+          one() {
+            # Keep the round going when a client times out or its provider refuses it.
+            perl -e '$t=shift; $b=shift; local $/; open F, shift or die; @a=split /\0/, <F>; alarm $t; exec $b, @a' \
+              1200 "$CLAUDE_BIN" "$1" < /dev/null > "${1%.args}.out" 2> "${1%.args}.err" \
+              || echo "::warning::the client on $1 exited $?: its result reads what it left"
+          }
+
+          chrome_count() {
+            local count
+            [ -f "$1" ] || return 0
+            count=$(awk '/^chrome_(headless|headed)_launch([[:space:]]|$)/ { n++ } END { print n+0 }' "$1") || return 0
+            echo "$count"
+          }
+
+          record_launches() {
+            local after count=missing
+            after=$(chrome_count "$guard")
+            if [[ "$1" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]]; then count=$((after - $1)); fi
+            echo "$count" > "$2"
+          }
+
+          round=0
+          while [ -d "$runs/round-$round" ]; do
+            (
+              folder="$runs/round-$round"
+              guard="$RUNNER_TEMP/$nodes$round/guard.log"
+              for f in "$folder"/*.args; do
+                if [ "$scope" = slice ]; then before=$(chrome_count "$guard"); fi
+                one "$f"
+                if [ "$scope" = slice ]; then record_launches "$before" "${f%.args}.chrome-launches.txt"; fi
+              done
+              if [ -d "$folder/warm" ]; then
+                if [ "$scope" = slice ]; then before=$(chrome_count "$guard"); fi
+                for f in "$folder"/warm/*.args; do one "$f" & done
+                wait
+                if [ "$scope" = slice ]; then record_launches "$before" "$folder/warm/chrome-launches.txt"; fi
+              fi
+              kill "$(cat "$RUNNER_TEMP/$nodes$round/node.pid")" 2>/dev/null || true
+              echo "round $round done"
+            ) &
+            round=$((round + 1))
+          done
+          wait
+
+      - name: Write the judges' runs, again
+        if: ${{ !cancelled() && steps.again.outputs.n > 0 }}
+        run: |
+          n=$(python3 -I test-banks/gate/run_gate.py judges --dir "$GATE/again" --claude "$CLAUDE_BIN")
+          echo "$n answer(s) to judge"
+
+      - name: The judges, again
+        if: ${{ !cancelled() && steps.again.outputs.n > 0 }}
+        env:
+          RUNS: ${{ env.GATE }}/again
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+        run: |
+          for f in "$RUNS/judge"/*.args; do
+            [ -e "$f" ] || continue
+            while [ "$(jobs -rp | wc -l)" -ge 3 ]; do sleep 2; done
+            perl -e '$t=shift; $b=shift; local $/; open F, shift or die; @a=split /\0/, <F>; alarm $t; exec $b, @a' \
+              300 "$CLAUDE_BIN" "$f" < /dev/null > "${f%.args}.out" 2> "${f%.args}.err" &
+          done
+          wait
+
+      - name: Collect the verdicts of the run again
+        if: ${{ !cancelled() && steps.again.outputs.n > 0 }}
+        run: python3 -I test-banks/gate/run_gate.py collect --dir "$GATE/again" --out "$GATE/results.jsonl"
 
       - name: The gate's verdict
         id: verdict
@@ -287,23 +531,112 @@ jobs:
           tree=$(git rev-parse 'HEAD^{tree}')
           echo "tree=$tree" >> "$GITHUB_OUTPUT"
           [ "$SCOPE" = slice ] && pick="--slice test-banks/gate/slice.json" || pick=""
-          python3 -I test-banks/gate/run_gate.py collect --dir "$GATE/runs" --out "$GATE/results.jsonl"
+          if [ "$SCOPE" = top1k ]; then
+            # A shard reports; the gate is the `top1k` job's, on every shard together. Red only when it ran nothing.
+            pick="--bank test-banks/popular-sites/top-1000.json --shard $SHARD${SITES:+ --first $SITES}"
+            python3 -I test-banks/gate/run_gate.py score --out "$GATE/results.jsonl" $pick --md "$GATE/score.md" > /dev/null
+            echo "top1k shard $SHARD${SITES:+ of the first $SITES sites}" > "$GATE/verdict.md"
+            { echo "### Gate bank (top1k, shard $SHARD), tree \`$tree\`"; cat "$GATE/score.md"; } >> "$GITHUB_STEP_SUMMARY"
+            [ -s "$GATE/results.jsonl" ] || { echo "::error title=Gate bank (top1k) ran nothing::shard $SHARD has no result"; exit 1; }
+            echo "TOP1K_SHARD_OK shard=$SHARD tree=${tree::12}"
+            exit 0
+          fi
           python3 -I test-banks/gate/run_gate.py score --out "$GATE/results.jsonl" $pick --md "$GATE/score.md" > /dev/null
           status=0
           python3 -I .github/scripts/promotion_gate.py check --tasks-only --bank-results "$GATE/results.jsonl" $pick --md "$GATE/verdict.md" || status=$?
+          if [ "$SCOPE" = slice ]; then
+            python3 -I test-banks/gate/run_gate.py browser-verdict --dir "$GATE/runs" --results "$GATE/results.jsonl" >> "$GATE/verdict.md" || status=$?
+          fi
           { echo "### Gate bank ($SCOPE), tree \`$tree\`"; cat "$GATE/verdict.md"; cat "$GATE/score.md"; } >> "$GITHUB_STEP_SUMMARY"
           [ "$status" = 0 ] && echo "GATE_OK scope=$SCOPE tree=${tree::12}"
-          # The slice's verdict is this run's; the whole bank's is the promotion gate's to give, so here it is read.
-          [ "$SCOPE" = full ] || exit "$status"
+          # Either scope's run is red when its verdict refuses. The whole bank's run once stayed green on a refusal
+          # (nightly 45323992199, 24 Nov 2026: 80 of 91 tasks not run, PROMOTION_REFUSED), so a refused promotion read as
+          # a passing night (Steve QA 2026-11-24, UNB-300). The artifact below is still kept for the promotion gate.
+          [ "$status" = 0 ] || echo "::error title=Gate bank ($SCOPE) refused::$(grep -m1 -o 'PROMOTION_REFUSED.*' "$GATE/verdict.md" || echo "the gate exited $status")"
+          exit "$status"
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: gate-bank-${{ env.SCOPE }}-${{ steps.verdict.outputs.tree || github.sha }}
+          name: gate-bank-${{ env.SCOPE }}-${{ steps.verdict.outputs.tree || github.sha }}${{ env.SCOPE == 'top1k' && format('-{0}of{1}', matrix.shard.i, matrix.shard.n) || '' }}${{ inputs.node_ref && format('-node-{0}', inputs.node_ref) || '' }}
           path: |
             ${{ env.GATE }}/results.jsonl
             ${{ env.GATE }}/score.md
             ${{ env.GATE }}/verdict.md
           if-no-files-found: ignore
+          retention-days: 90
+
+  # top1k: every shard's results as one, scored, and judged by the release gate (promotion_gate.py check --top1k-only:
+  # the rates rule against test-banks/gate/promoted-1k.json; a shard that did not run leaves its tasks not measured,
+  # which refuses). Kept as `gate-1k-<tree>`, the artifact promotion-gate.sh reads; a run of another build's node
+  # (node_ref) is kept under a name of its own, so it never stands for this tree.
+  top1k:
+    needs: [place, bank]
+    if: ${{ !cancelled() && needs.place.outputs.scope == 'top1k' }}
+    name: Gate bank (top1k, every shard)
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      SITES: ${{ inputs.sites }}
+      NODE_REF: ${{ inputs.node_ref }}
+      RUNNER_KIND: ${{ needs.place.outputs.runner }}
+      SHARDS: ${{ needs.place.outputs.shards }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: tree
+        run: echo "tree=$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+      # This tree's shards only. One artifact is unpacked straight into the path, several each into a folder of its
+      # name (pilot 45550694686 scored nothing when this read the folders' names), so the results are found by name.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: gate-bank-top1k-${{ steps.tree.outputs.tree }}-*of*
+          path: ${{ runner.temp }}/shards
+      - name: Every shard's score
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          out="$RUNNER_TEMP/top1k"
+          mkdir -p "$out"
+          find "$RUNNER_TEMP/shards" -name results.jsonl | sort | xargs -r cat > "$out/results.jsonl"
+          [ -s "$out/results.jsonl" ] || { echo "::error title=Gate bank (top1k) every shard::no shard of tree $tree left results"; exit 1; }
+          python3 -I test-banks/gate/run_gate.py score --out "$out/results.jsonl" --bank test-banks/popular-sites/top-1000.json \
+            ${SITES:+--first $SITES} --md "$out/score.md" > /dev/null
+          { echo "### Gate bank (top1k, every shard), tree \`$tree\`"; cat "$out/score.md"; } >> "$GITHUB_STEP_SUMMARY"
+          head -6 "$out/score.md"
+          echo "tree=$tree" >> "$GITHUB_ENV"
+      # Where it ran, on what, and which shards: the gate holds the run to a floor taken on the same kind of runner.
+      - name: The gate's verdict on every shard
+        run: |
+          out="$RUNNER_TEMP/top1k"
+          python3 -I -c '
+          import json, os, sys
+          shards = json.loads(os.environ.get("SHARDS") or "[]")
+          json.dump({"runner": os.environ.get("RUNNER_KIND") or None, "tree": os.environ["tree"], "commit": os.environ["GITHUB_SHA"],
+                     "node_ref": os.environ.get("NODE_REF") or None, "run": os.environ.get("GITHUB_RUN_ID"),
+                     "shards": shards[0]["n"] if shards else None, "ran": [s["i"] for s in shards],
+                     "sites": int(os.environ["SITES"]) if os.environ.get("SITES") else None}, open(sys.argv[1], "w"), indent=1)
+          ' "$out/meta.json"
+          status=0
+          python3 -I .github/scripts/promotion_gate.py check --top1k-only --top1k-results "$out/results.jsonl" \
+            --top1k-meta "$out/meta.json" --top1k-rereads "$out/rereads.json" --md "$out/verdict.md" || status=$?
+          { echo "### The release gate on the bench, tree \`$tree\`"; cat "$out/verdict.md"; } >> "$GITHUB_STEP_SUMMARY"
+          [ -z "$NODE_REF" ] && name="gate-1k-$tree" || name="gate-1k-$tree-node-$NODE_REF"
+          echo "name=$name" >> "$GITHUB_ENV"
+          [ "$status" = 0 ] && echo "GATE_1K_OK tree=${tree::12}"
+          [ "$status" = 0 ] || echo "::error title=Gate 1k refused::$(grep -m1 -o 'PROMOTION_REFUSED.*' "$out/verdict.md" || echo "the gate exited $status")"
+          exit "$status"
+      - if: ${{ !cancelled() && env.name != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ env.name }}
+          path: |
+            ${{ runner.temp }}/top1k/results.jsonl
+            ${{ runner.temp }}/top1k/score.md
+            ${{ runner.temp }}/top1k/meta.json
+            ${{ runner.temp }}/top1k/rereads.json
+            ${{ runner.temp }}/top1k/verdict.md
           retention-days: 90
 
   # The run's numbers to the test dashboard (UNB-250): dashboard-post.yml. Never turns the run red. Called from QA, QA

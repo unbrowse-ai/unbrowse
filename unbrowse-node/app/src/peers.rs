@@ -253,10 +253,22 @@ impl ServedListings {
     }
 }
 
+fn local_listing_is_safe(listing: &Listing, safe: &impl Fn(&str) -> bool) -> bool {
+    let signed = listing.signed.as_ref()
+        .and_then(|proof| proof.get("listing"))
+        .and_then(|listing| serde_json::from_value::<listing::SignedListing>(listing.clone()).ok());
+    signed.is_some_and(|signed| {
+        [listing.site.as_str(), listing.description.as_str(), &signed.route_id, &signed.site, &signed.terms.description]
+            .into_iter().all(safe)
+            && crate::vault::listing_response_is_safe(signed.terms.response.as_ref(), safe)
+    })
+}
+
 impl Listings for ServedListings {
     async fn site(&self, site: &str) -> Vec<Listing> {
         let Ok(me) = chain::owner_address(self.0.keys.as_ref()) else { return vec![] };
         let mut out: Vec<Listing> = self.own(me).await.into_iter().filter(|l| l.site == site).collect();
+        let own_count = out.len();
         // When holding is on, also serve the routes this node holds for others (§6 serving role), each as its
         // contributor signed it: a seeker keeps only signed listings, so a held route whose listing this node hasn't
         // checked itself isn't offered.
@@ -280,6 +292,12 @@ impl Listings for ServedListings {
                 out.push(l);
             }
         }
+        let foreign = out.split_off(own_count);
+        if !out.is_empty() {
+            let safe = crate::vault::route_sharing_guard(self.0.keys.as_ref());
+            out.retain(|listing| safe.as_ref().is_ok_and(|safe| local_listing_is_safe(listing, safe)));
+        }
+        out.extend(foreign);
         out
     }
 }
@@ -783,6 +801,39 @@ pub async fn find(node: &Node, query: &str) -> Option<(Vec<network::NetworkRoute
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sharing_checks_listing_content_without_matching_generated_terms() {
+        use serde_json::json;
+
+        let mut signed = listing::SignedListing {
+            route_id: "route-1".into(),
+            site: "shop.example".into(),
+            content_id: "sha256:body".into(),
+            agent_id: "1".into(),
+            version: 1,
+            supersedes: None,
+            terms: listing::Terms {
+                description: "Search items".into(),
+                response: Some(json!({"items": [{"name": "string"}]})),
+                price: listing::Price::default(),
+            },
+            sig: "fixture".into(),
+        };
+        let mut listing = Listing {
+            entry_id: "entry-1".into(),
+            site: signed.site.clone(),
+            description: signed.terms.description.clone(),
+            contributor: "owner".into(),
+            fee: 0.05,
+            signed: Some(json!({"listing": &signed})),
+        };
+        let safe = |text: &str| !text.contains("USDC");
+        assert!(local_listing_is_safe(&listing, &safe));
+        signed.terms.response = Some(json!({"items": [{"USDC": "string"}]}));
+        listing.signed = Some(json!({"listing": signed}));
+        assert!(!local_listing_is_safe(&listing, &safe));
+    }
 
     /// Audit 1118 M17: a lookup tells peer-network strangers the site it asks about, so a page under a name no public
     /// registry hands out (an intranet's, a home network's, a reserved one) is never asked of them; a public site is.

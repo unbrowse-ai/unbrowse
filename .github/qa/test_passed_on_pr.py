@@ -18,8 +18,11 @@ def artifact(run_id, name=f"gate-bank-slice-{TREE}", expired=False, head_repo=1,
     return {"id": run_id * 10, "name": name, "expired": expired, "workflow_run": {"id": run_id, "repository_id": repo, "head_repository_id": head_repo}}
 
 
+SHA = "9" * 40
+
+
 def run(run_id, **changed):
-    base = {"id": run_id, "path": ".github/workflows/pr-agent-checks.yml", "event": "pull_request", "status": "completed",
+    base = {"id": run_id, "path": ".github/workflows/pr-agent-checks.yml", "event": "pull_request", "status": "completed", "head_sha": SHA,
             "conclusion": "success", "repository": {"full_name": REPO}, "head_repository": {"full_name": REPO},
             "html_url": f"https://github.com/{REPO}/actions/runs/{run_id}"}  # fmt: skip
     base.update(changed)
@@ -29,13 +32,19 @@ def run(run_id, **changed):
 class Api:
     """GitHub's answers, made up: the artifacts of one name and the runs by id. Records what was asked."""
 
-    def __init__(self, artifacts, runs):
-        self.artifacts, self.runs, self.asked = artifacts, {r["id"]: r for r in runs}, []
+    def __init__(self, artifacts, runs, checks=None):
+        # pr-check.yml's runs, by commit: by default one that passed on every commit a run here names.
+        default = [run(900 + r["id"], path=".github/workflows/pr-check.yml", head_sha=r.get("head_sha")) for r in runs]
+        self.artifacts, self.runs, self.checks, self.asked = artifacts, {r["id"]: r for r in runs}, default if checks is None else checks, []
 
     def __call__(self, path):
         self.asked.append(path)
         if "/actions/artifacts?" in path:
             return {"total_count": len(self.artifacts), "artifacts": self.artifacts}
+        if "/actions/runs?" in path:
+            sha = path.split("head_sha=", 1)[1].split("&", 1)[0]
+            found = [c for c in self.checks if c.get("head_sha") == sha]
+            return {"total_count": len(found), "workflow_runs": found}
         return self.runs[int(path.rsplit("/", 1)[1])]
 
 
@@ -46,8 +55,19 @@ class Find(unittest.TestCase):
 
     def test_a_successful_pull_request_run_on_the_same_tree_is_a_hit(self):
         api = Api([artifact(7)], [run(7)])
-        self.assertEqual(self.hit(api), (True, f"tree {TREE} passed PR agent checks in run 7"))
+        self.assertEqual(self.hit(api), (True, f"tree {TREE} passed PR agent checks in run 7 and the MCP check in run 907"))
         self.assertEqual(api.asked[0], f"/repos/{REPO}/actions/artifacts?name=gate-bank-slice-{TREE}&per_page=100")
+
+    def test_the_mcp_check_must_have_passed_on_the_same_commit(self):
+        # The MCP check runs only in pr-check.yml: a green PR agent checks run is not enough without it.
+        check = lambda **c: run(907, path=".github/workflows/pr-check.yml", **c)
+        for checks in ([], [check(conclusion="failure")], [check(status="in_progress", conclusion=None)], [check(head_sha="8" * 40)],
+                       [check(head_repository={"full_name": "someone/unbrowse-core"})], [run(907)]):
+            with self.subTest(checks=checks):
+                hit, why = self.hit(Api([artifact(7)], [run(7)], checks))
+                self.assertFalse(hit)
+                self.assertIn("MCP check", why)
+        self.assertTrue(self.hit(Api([artifact(7)], [run(7)], [check(conclusion="failure"), check()]))[0])
 
     def test_only_a_push_to_staging_is_looked_up(self):
         for event, ref in (("schedule", "refs/heads/staging"), ("workflow_dispatch", "refs/heads/staging"), ("push", "refs/heads/main"), ("pull_request", "refs/pull/1/merge")):
@@ -109,8 +129,8 @@ class WhatItReads(unittest.TestCase):
         self.assertIn("tree=$(git rev-parse 'HEAD^{tree}')\n          echo \"tree=$tree\" >> \"$GITHUB_OUTPUT\"", slice_job)
         self.assertIn("name: gate-bank-slice-${{ steps.verdict.outputs.tree || github.sha }}", slice_job)
         self.assertEqual(pp.WORKFLOW, ".github/workflows/pr-agent-checks.yml")
-        # Its last job is green only when every agent check passed: that is the conclusion a hit needs. Eight needs since
-        # the place job joined them (#787).
+        # Its last job is green only when every agent check passed (or was explicitly scoped out with scope+security
+        # passing, in which case slice never runs and no gate-bank-slice-<tree> artifact exists to match).
         self.assertIn('length == 8 and (to_entries | all(.value.result == "success"))', workflow)
 
 

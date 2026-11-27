@@ -596,3 +596,7 @@ mod tests {
         assert!(tty::test::said().iter().any(|l| l.contains("type y or n")));
     }
 }
+
+#[cfg(test)]
+#[path = "onboard_cov_tests.rs"]
+mod onboard_cov_tests;

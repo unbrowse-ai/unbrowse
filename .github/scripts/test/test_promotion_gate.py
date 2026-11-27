@@ -7,6 +7,7 @@ Run: python3 -m unittest discover -s .github/scripts/test -p 'test_promotion_gat
 import importlib.util
 import io
 import json
+import re
 import pathlib
 import tempfile
 import unittest
@@ -544,12 +545,6 @@ class TaskGate(unittest.TestCase):
     def check(self, results, baseline=None, rereads=()):
         return gate.check_tasks(self.BANK, results, baseline or self.BASELINE, list(rereads))
 
-    def test_patent_list_uses_the_grant_date_cutoff(self):
-        tasks = json.loads((ROOT / "test-banks/gate/bank.json").read_text())["tasks"]
-        task = next(task for task in tasks if task["id"] == "u6:patent-analyst-1")
-        self.assertIn("were granted on or after January 1, 2020", task["task"])
-        self.assertEqual(task["check"], "count>=10:patent_number")
-
     def test_same_or_better_passes(self):
         problems, stats = self.check([result("a", "right"), result("b", "right"), result("c", "right")])
         self.assertEqual(problems, [])
@@ -572,6 +567,26 @@ class TaskGate(unittest.TestCase):
         problems, stats = self.check([result("a", "right"), result("b", "right"), result("c", "confidently_wrong")])
         self.assertEqual(stats["confidently_wrong"], 1)
         self.assertTrue(any("confidently wrong" in p and "c" in p for p in problems), problems)
+
+    def test_a_warm_ask_that_needed_the_browser_refuses_with_no_reference(self):
+        # Lewis, 25 Nov 2026: a warm ask the learned route did not answer is a fail ("needs the browser = fail"), named,
+        # even for a twin with no reference verdict yet.
+        results = {"c": {"id": "c", "outcome": "right"}, "c#warm": {"id": "c#warm", "outcome": "warm_browsed"}}
+        problems, stats = gate.check_tasks(["c", "c#warm"], results, {"verdicts": {"c": "right", "c#warm": "new"}}, [], slice_mode=True)
+        self.assertEqual(stats["warm_browsed"], 1)
+        self.assertTrue(any("needed the browser again" in p and "c#warm" in p for p in problems), problems)
+        results["c#warm"]["outcome"] = "right"
+        self.assertEqual(gate.check_tasks(["c", "c#warm"], results, {"verdicts": {"c": "right", "c#warm": "new"}}, [], slice_mode=True)[0], [])
+
+    def test_a_failed_warm_answer_still_counts_browser_use(self):
+        results = [result("c", "right"), {
+            "id": "c#warm", "phase": "warm", "outcome": "honest_fail",
+            "warm_browser": "unbrowse_call answered with browser: true",
+        }]
+        problems, stats = gate.check_tasks(["c", "c#warm"], results, {"verdicts": {"c": "right"}}, [], slice_mode=True)
+        self.assertEqual(stats["honest_fail"], 1)
+        self.assertEqual(stats["warm_browsed"], 1)
+        self.assertTrue(any("needed the browser again" in p and "c#warm" in p for p in problems), problems)
 
     def test_a_check_fault_found_by_hand_is_not_a_confident_wrong_answer_and_not_a_pass(self):
         wrong = result("c", "confidently_wrong")
@@ -606,6 +621,24 @@ class TaskGate(unittest.TestCase):
         problems, _ = gate.check_tasks(["a"], [result("a", "right")], self.BASELINE, [], slice_mode=True)
         self.assertEqual(problems, [])
 
+    def test_a_task_the_model_never_answered_is_unmeasured_not_changed(self):
+        """A model that answered nothing (a spent credential, a provider that refused) says nothing about the site.
+        Measured as "changed", it demands a hand re-read of every task it touched and reads as six sites that drifted
+        (staging QA, 24 Nov 2026: nine tasks, every one "Credit balance is too low"). It still refuses the promotion:
+        a run in which the model did not run measured nothing."""
+        problems, _ = self.check([result("a", "right"), result("b", "error"), result("c", "right")])
+        self.assertTrue(any("b" in p and "could not be measured" in p for p in problems), problems)
+        self.assertFalse(any("re-read" in p for p in problems), problems)
+
+    def test_an_added_slice_task_without_a_model_answer_refuses(self):
+        for reference in ("new", "set_aside"):
+            with self.subTest(reference=reference):
+                baseline = {"verdicts": {"new-case": reference}}
+                problems, stats = gate.check_tasks(
+                    ["new-case"], [result("new-case", "error")], baseline, [], slice_mode=True)
+                self.assertEqual(stats["error"], 1)
+                self.assertTrue(any("could not be measured" in p and "new-case" in p for p in problems), problems)
+
     def test_a_bank_that_did_not_finish_refuses(self):
         problems, _ = self.check([result("a", "right"), result("b", "right"), result("c", "infra")])
         self.assertTrue(any("not run" in p and "c" in p for p in problems), problems)
@@ -620,6 +653,308 @@ class TaskGate(unittest.TestCase):
             path = pathlib.Path(tmp) / "r.jsonl"
             path.write_text(json.dumps(result("a", "infra")) + "\n" + json.dumps(result("a", "right")) + "\n")
             self.assertEqual(gate.load_results(str(path))["a"]["outcome"], "right")
+
+
+class KnownFailing(unittest.TestCase):
+    """Steve QA 2026-11-24, UNB-300: a bug someone saw on a site and nobody has fixed yet is a bank task marked expected
+    to fail (`known`: its ticket). It runs like any task; its wrong answer refuses nothing, and a right one refuses until
+    the mark is taken off, so the fix is seen."""
+
+    BANK = ["a", "steve:x"]
+    BASELINE = {"build": "v13.18.1", "pass_count": 1, "verdicts": {"a": "right"}}
+
+    def check(self, outcome):
+        results = [result("a", "right")] + ([result("steve:x", outcome)] if outcome else [])
+        return gate.check_tasks(self.BANK, results, self.BASELINE, [], known={"steve:x": "UNB-300"})
+
+    def test_a_known_bugs_wrong_answer_is_counted_apart_and_refuses_nothing(self):
+        problems, stats = self.check("confidently_wrong")
+        self.assertEqual((problems, stats["known_failing"], stats["confidently_wrong"]), ([], 1, 0))
+
+    def test_a_known_bug_answered_right_refuses_until_its_mark_is_off(self):
+        problems, _ = self.check("right")
+        self.assertTrue(any("steve:x (UNB-300)" in p and "known" in p for p in problems), problems)
+
+    def test_a_known_bug_that_did_not_run_is_still_not_run(self):
+        problems, _ = self.check(None)
+        self.assertTrue(any("not run" in p and "steve:x" in p for p in problems), problems)
+
+    def test_the_banks_marks_name_a_ticket(self):
+        tasks = json.loads((ROOT / "test-banks/gate/bank.json").read_text())["tasks"]
+        marked = [t for t in tasks if "known" in t]
+        self.assertTrue(marked)
+        for t in marked:
+            self.assertRegex(t["known"], r"^UNB-\d+$", t["id"])
+
+    def test_sq321_task_follows_the_route_the_baseline_verified(self):
+        tasks = json.loads((ROOT / "test-banks/gate/bank.json").read_text())["tasks"]
+        task = next(t for t in tasks if t["id"] == "u6:airline-revenue-4")
+        self.assertIn("SQ321 (London Heathrow to Singapore)", task["task"])
+
+    def test_patent_list_uses_the_grant_date_cutoff(self):
+        tasks = json.loads((ROOT / "test-banks/gate/bank.json").read_text())["tasks"]
+        task = next(t for t in tasks if t["id"] == "u6:patent-analyst-1")
+        self.assertIn("were granted on or after January 1, 2020", task["task"])
+
+    def slice_verdict(self, outcome, overrides=None):
+        """The slice's verdict, through the gate's own command line, on the real bank, slice and baseline."""
+        ids = json.loads((ROOT / "test-banks/gate/slice.json").read_text())["ids"]
+        with tempfile.TemporaryDirectory() as d:
+            path = pathlib.Path(d) / "results.jsonl"
+            path.write_text("".join(json.dumps(result(i, (overrides or {}).get(i, outcome))) + "\n" for i in ids))
+            out = io.StringIO()
+            with redirect_stdout(out):
+                code = gate.main(["check", "--tasks-only", "--slice", str(ROOT / "test-banks/gate/slice.json"),
+                                  "--bank", str(ROOT / "test-banks/gate/bank.json"), "--bank-results", str(path),
+                                  "--baseline", str(ROOT / "test-banks/gate/promoted.json"),
+                                  "--rereads", str(ROOT / "test-banks/gate/rereads.json")])
+        return code, out.getvalue()
+
+    def test_the_slice_marks_no_task_known_that_the_bank_does_not(self):
+        # UNB-300: the slice once took the baseline's verdicts for the bank's `known` marks, so six slice tasks right on
+        # the baseline read as expected to fail: all nine right refused, and their wrong answers refused nothing.
+        code, text = self.slice_verdict("right")
+        self.assertEqual(code, 0, text)
+        code, text = self.slice_verdict("confidently_wrong")
+        self.assertEqual(code, 1, text)
+        self.assertNotIn("known failing", text.replace("known failing 0", ""), text)
+
+    def test_a_new_slice_reference_is_compared_alongside_promoted_cases(self):
+        code, text = self.slice_verdict("right", {"phases:booking.com#warm": "honest_fail"})
+        self.assertEqual(code, 1, text)
+        self.assertIn("changed 1", text)
+        self.assertIn("phases:booking.com#warm", text)
+
+
+def runs(*outcomes, tid="s"):
+    return [{"id": tid, "outcome": o, "answer": {"status": "answered", "answer": f"{tid} {k}"}} for k, o in enumerate(outcomes)]
+
+
+class TheBenchGate(unittest.TestCase):
+    """The release gate on the top 1,000 sites (UNB-307; Lewis, 25 Nov 2026): rates, not every task. Fewer right than
+    the floor, or a higher confidently wrong rate, refuses; a run that did not measure every task refuses; a changed
+    verdict is rerun once before it counts; a regression that survives the rerun is listed for a hand re-read."""
+
+    IDS = ["top1k:a", "top1k:a#warm", "top1k:b", "top1k:b#warm"]
+    META = {"runner": "blacksmith-6vcpu-macos-latest", "tree": "t" * 40}
+    FLOOR = {"build": "v13.1.0", "runner": "blacksmith-6vcpu-macos-latest", "right": 2, "answered": 3,
+             "confidently_wrong": 1, "verdicts": {"top1k:a": "right", "top1k:a#warm": "right",
+                                                  "top1k:b": "confidently_wrong", "top1k:b#warm": "honest_fail"}}
+
+    def check(self, attempts, floor=None, meta=None):
+        return gate.check_top1k(self.IDS, attempts, self.FLOOR if floor is None else floor,
+                                self.META if meta is None else meta)
+
+    def as_floor(self, **changed):
+        return {i: runs(o, tid=i) for i, o in {**self.FLOOR["verdicts"], **changed}.items()}
+
+    def test_a_run_as_good_as_the_floor_passes(self):
+        problems, stats, rereads = self.check(self.as_floor())
+        self.assertEqual(problems, [])
+        self.assertEqual((stats["right"], stats["answered"], stats["confidently_wrong"]), (2, 3, 1))
+        self.assertEqual(rereads, [])
+
+    def test_a_better_run_passes_after_its_changed_verdicts_ran_again(self):
+        attempts = self.as_floor()
+        attempts["top1k:b"] = runs("right", "right", tid="top1k:b")
+        attempts["top1k:b#warm"] = runs("right", "right", tid="top1k:b#warm")
+        problems, stats, _ = self.check(attempts)
+        self.assertEqual(problems, [])
+        self.assertEqual(stats["right"], 4)
+
+    def test_fewer_right_than_the_floor_refuses(self):
+        attempts = self.as_floor()
+        attempts["top1k:a#warm"] = runs("honest_fail", "honest_fail", tid="top1k:a#warm")
+        problems, _, _ = self.check(attempts)
+        self.assertTrue(any("1 right is below the floor's 2" in p for p in problems), problems)
+
+    def test_a_higher_confidently_wrong_rate_refuses_though_as_many_are_right(self):
+        attempts = self.as_floor()
+        attempts["top1k:b#warm"] = runs("confidently_wrong", "confidently_wrong", tid="top1k:b#warm")
+        problems, stats, _ = self.check(attempts)
+        self.assertEqual(stats["right"], 2)
+        self.assertTrue(any("confidently wrong 2 of 4 answered (50.00%) is above the floor's 1 of 3" in p for p in problems),
+                        problems)
+
+    def test_a_lower_confidently_wrong_rate_passes(self):
+        attempts = self.as_floor()
+        attempts["top1k:b"] = runs("confidently_wrong", "honest_fail", tid="top1k:b")
+        attempts["top1k:b#warm"] = runs("honest_fail", tid="top1k:b#warm")
+        problems, stats, _ = self.check(attempts)
+        self.assertEqual(problems, [])
+        self.assertEqual(stats["confidently_wrong"], 0)
+
+    def test_a_run_that_skipped_a_shard_is_not_measured(self):
+        # The plant: a sharded run with one shard's sites gone (a job that never started, `only`, `sites`) is no pass,
+        # however good the tasks it did run look.
+        attempts = self.as_floor()
+        del attempts["top1k:b"], attempts["top1k:b#warm"]
+        problems, stats, _ = self.check(attempts)
+        self.assertTrue(any("NOT MEASURED: 2 of 4 tasks have no result" in p and "top1k:b" in p for p in problems), problems)
+        self.assertEqual(stats["not_run"], 2)
+
+    def test_a_task_still_infra_or_error_after_its_run_again_is_not_measured(self):
+        for still in ("infra", "error", "not_run"):
+            attempts = self.as_floor()
+            attempts["top1k:b#warm"] = runs("error", still, tid="top1k:b#warm")
+            problems, _, _ = self.check(attempts)
+            self.assertTrue(any("still measured nothing after their run again" in p and "top1k:b#warm" in p
+                                for p in problems), (still, problems))
+
+    def test_a_changed_verdict_never_run_again_is_not_measured(self):
+        attempts = self.as_floor()
+        attempts["top1k:b#warm"] = runs("right", tid="top1k:b#warm")
+        problems, _, _ = self.check(attempts)
+        self.assertTrue(any("never run again" in p and "top1k:b#warm" in p for p in problems), problems)
+        attempts["top1k:b#warm"] = runs("error", tid="top1k:b#warm")
+        problems, _, _ = self.check(attempts)
+        self.assertTrue(any("never run again" in p for p in problems), problems)
+
+    def test_a_run_on_another_kind_of_runner_or_none_named_is_not_held_to_the_floor(self):
+        problems, _, _ = self.check(self.as_floor(), meta={"runner": "lewis-mbp"})
+        self.assertTrue(any("ran on lewis-mbp, the floor on blacksmith-6vcpu-macos-latest" in p for p in problems), problems)
+        problems, _, _ = self.check(self.as_floor(), meta={})
+        self.assertTrue(any("does not say which runner" in p for p in problems), problems)
+
+    def test_an_incomplete_existing_floor_refuses_even_a_complete_candidate(self):
+        for verdict in (None, "error"):
+            with self.subTest(verdict=verdict):
+                floor = dict(self.FLOOR, verdicts=dict(self.FLOOR["verdicts"]))
+                if verdict is None:
+                    del floor["verdicts"]["top1k:b#warm"]
+                else:
+                    floor["verdicts"]["top1k:b#warm"] = verdict
+                problems, _, _ = self.check(self.as_floor(), floor=floor)
+                self.assertTrue(any("floor has 1 of 4 tasks missing or unmeasured" in p for p in problems), problems)
+
+    def test_no_floor_refuses(self):
+        problems, _, _ = self.check(self.as_floor(), floor={})
+        self.assertTrue(any("no floor recorded" in p for p in problems), problems)
+
+    def test_a_task_the_site_blocks_is_counted_apart_and_never_a_pass(self):
+        attempts = self.as_floor()
+        attempts["top1k:a#warm"] = runs("set_aside", "set_aside", tid="top1k:a#warm")
+        problems, stats, rereads = self.check(attempts)
+        self.assertEqual((stats["set_aside"], stats["right"]), (1, 1))
+        self.assertTrue(any("below the floor" in p for p in problems), problems)
+        self.assertEqual(rereads, [], "a wall is not a regression to re-read")
+
+    def test_only_a_regression_that_survived_its_run_again_is_listed_for_a_re_read(self):
+        attempts = self.as_floor()
+        attempts["top1k:a"] = runs("confidently_wrong", "honest_fail", tid="top1k:a")
+        attempts["top1k:a#warm"] = runs("honest_fail", "right", tid="top1k:a#warm")
+        # Right at first, and run again only beside its changed twin: a verdict that did not hold, not one that survived.
+        attempts["top1k:b#warm"] = runs("right", "honest_fail", tid="top1k:b#warm")
+        attempts["top1k:b"] = runs("honest_fail", "honest_fail", tid="top1k:b")
+        floor = dict(self.FLOOR, verdicts=dict(self.FLOOR["verdicts"], **{"top1k:b#warm": "right"}))
+        problems, stats, rereads = self.check(attempts, floor=floor)
+        self.assertEqual([(r["id"], r["first"], r["again"]) for r in rereads], [("top1k:a", "confidently_wrong", "honest_fail")])
+        self.assertEqual(rereads[0]["answer_sha"], gate.answer_sha(attempts["top1k:a"][-1]))
+        self.assertEqual(stats["right"], 1, "the second verdict is the one counted")
+        self.assertTrue(any("below the floor" in p for p in problems), problems)
+
+    def test_the_bench_ids_are_run_gates_own(self):
+        spec = importlib.util.spec_from_file_location("run_gate", ROOT / "test-banks/gate/run_gate.py")
+        run_gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(run_gate)
+        sites = ROOT / gate.TOP1K_SITES
+        cases = json.loads(sites.read_text())["cases"]
+        self.assertEqual(gate.top1k_ids(cases), [t["id"] for t in run_gate.load_bank(str(sites))])
+        self.assertEqual(len(gate.top1k_ids(cases)), 2000)
+
+
+class TheBenchCommands(unittest.TestCase):
+    """`check --top1k-results` and `record-1k` from the files a run leaves (gate-1k-<tree>)."""
+
+    def setUp(self):
+        self.dir = pathlib.Path(tempfile.mkdtemp())
+        cases = [{"site": s, "tranco_rank": n, "goal": "g", "url": "https://x/"} for n, s in enumerate(("a", "b"))]
+        (self.dir / "sites.json").write_text(json.dumps({"cases": cases}))
+        (self.dir / "meta.json").write_text(json.dumps({"runner": "blacksmith-6vcpu-macos-latest", "tree": "t" * 40}))
+        self.write({"top1k:a": "right", "top1k:a#warm": "right", "top1k:b": "honest_fail", "top1k:b#warm": "set_aside"})
+
+    def write(self, outcomes, name="results.jsonl"):
+        with open(self.dir / name, "w") as f:
+            for i, o in outcomes.items():
+                for r in runs(*([o] if isinstance(o, str) else o), tid=i):
+                    f.write(json.dumps(r) + "\n")
+
+    def run_gate(self, *argv):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = gate.main(list(argv))
+        return code, out.getvalue()
+
+    def files(self, *names):
+        return [str(self.dir / n) for n in names]
+
+    def test_a_floor_recorded_from_a_run_passes_that_run_and_refuses_a_worse_one(self):
+        sites, results, meta, floor = self.files("sites.json", "results.jsonl", "meta.json", "floor.json")
+        code, text = self.run_gate("record-1k", "--top1k-results", results, "--top1k-meta", meta, "--top1k-sites", sites,
+                                   "--build", "v13.1.0", "--out", floor)
+        self.assertEqual(code, 0, text)
+        rec = json.loads(pathlib.Path(floor).read_text())
+        self.assertEqual((rec["right"], rec["answered"], rec["set_aside"], rec["runner"]),
+                         (2, 2, 1, "blacksmith-6vcpu-macos-latest"))
+        check = ["check", "--top1k-only", "--top1k-results", results, "--top1k-meta", meta, "--top1k-sites", sites,
+                 "--top1k-floor", floor, "--top1k-rereads", str(self.dir / "rereads.json"), "--md", str(self.dir / "v.md")]
+        code, text = self.run_gate(*check)
+        self.assertEqual(code, 0, text)
+        self.assertTrue(text.rstrip().endswith("PROMOTION_OK"), text)
+        self.write({"top1k:a": "right", "top1k:a#warm": ["honest_fail", "honest_fail"], "top1k:b": "honest_fail",
+                    "top1k:b#warm": "set_aside"})
+        code, text = self.run_gate(*check)
+        self.assertEqual(code, 1, text)
+        self.assertIn("REFUSE bench: 1 right is below the floor's 2", text)
+        self.assertEqual([r["id"] for r in json.loads((self.dir / "rereads.json").read_text())], ["top1k:a#warm"])
+
+    def test_the_verdict_line_reads_as_the_dashboard_reads_a_bank_verdict(self):
+        """unbrowse-dashboard's parseVerdict finds the line by `right N, set aside N` and the tasks by `(N tasks`."""
+        sites, results, meta = self.files("sites.json", "results.jsonl", "meta.json")
+        _, text = self.run_gate("check", "--top1k-only", "--top1k-results", results, "--top1k-meta", meta,
+                                "--top1k-sites", sites)
+        line = next((ln for ln in text.splitlines() if re.search(r"\bright \d+, set aside \d+", ln)), None)
+        self.assertIsNotNone(line, text)
+        self.assertRegex(line, r"right 2, set aside 1, confidently wrong 0, honest fail 1, error 0\b")
+        self.assertRegex(text, r"\(4 tasks")
+
+    def test_no_results_at_all_is_unmeasured(self):
+        sites, meta = self.files("sites.json", "meta.json")
+        code, text = self.run_gate("check", "--top1k-only", "--top1k-results", str(self.dir / "none.jsonl"),
+                                   "--top1k-meta", meta, "--top1k-sites", sites)
+        self.assertEqual(code, 1, text)
+        self.assertIn("REFUSE bench: no results at", text)
+        code, text = self.run_gate("check", "--top1k-only")
+        self.assertEqual(code, 1, text)
+
+    def test_a_partial_or_unmeasured_run_cannot_replace_the_floor(self):
+        # UNB-307: run 45750120438 left 1,970 tasks unmeasured after reruns.
+        sites, results, meta, floor = self.files("sites.json", "results.jsonl", "meta.json", "floor.json")
+        previous = pathlib.Path(floor)
+        previous.write_text("previous floor")
+        for verdict in (None, "error", "infra", "unknown"):
+            with self.subTest(verdict=verdict):
+                outcomes = {"top1k:a": "right", "top1k:a#warm": "right", "top1k:b": "honest_fail"}
+                if verdict is not None:
+                    outcomes["top1k:b#warm"] = ["error", verdict]
+                self.write(outcomes)
+                with self.assertRaisesRegex(SystemExit, "1 of 4 tasks .*unmeasured"):
+                    self.run_gate("record-1k", "--top1k-results", results, "--top1k-meta", meta,
+                                  "--top1k-sites", sites, "--build", "v13.18.1", "--out", floor)
+                self.assertEqual(previous.read_text(), "previous floor")
+
+    def test_a_floor_must_say_where_it_was_taken(self):
+        (self.dir / "meta.json").write_text("{}")
+        with self.assertRaises(SystemExit):
+            self.run_gate("record-1k", "--top1k-results", str(self.dir / "results.jsonl"), "--top1k-meta",
+                          str(self.dir / "meta.json"), "--top1k-sites", str(self.dir / "sites.json"), "--build", "x",
+                          "--out", str(self.dir / "floor.json"))
+
+    def test_the_release_reads_the_bench_with_coverage_and_the_bank(self):
+        sh = (ROOT / ".github/scripts/promotion-gate.sh").read_text()
+        self.assertIn('"gate-1k-$tree"', sh)
+        self.assertIn('--top1k-results "$dir/gate-1k-$tree/results.jsonl"', sh)
+        self.assertIn('--top1k-meta "$dir/gate-1k-$tree/meta.json"', sh)
 
 
 class TheBaselineDryRun(unittest.TestCase):
@@ -643,58 +978,6 @@ class TheBaselineDryRun(unittest.TestCase):
         self.assertIn("not run", text)
         self.assertIn("baseline", text)
         self.assertTrue(text.rstrip().splitlines()[-1].startswith("PROMOTION_REFUSED"), text)
-
-
-class WaiverLines(unittest.TestCase):
-    """promotion-gate.sh skips the one rule a release's waiver names, and only for that version (UNB-224: 13.1.0 was
-    refused by a task bank the Deck runner could not pass, and by coverage before it)."""
-
-    ROOT = pathlib.Path(__file__).resolve().parents[3]
-
-    def run_gate(self, waivers, version):
-        import os
-        import subprocess
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp = pathlib.Path(tmp)
-            (tmp / ".github/scripts").mkdir(parents=True)
-            (tmp / "bin").mkdir()
-            (tmp / "bin/gh").write_text("#!/bin/sh\nexit 0\n")
-            (tmp / "bin/gh").chmod(0o755)
-            (tmp / ".github/scripts/promotion_gate.py").write_text(
-                "import sys\nopen(sys.argv[0] + '.args', 'w').write(' '.join(sys.argv[2:]))\n")
-            if waivers is not None:
-                (tmp / ".github/promotion-waivers").write_text(waivers)
-            env = {"PATH": f"{tmp / 'bin'}:{os.environ['PATH']}", "GITHUB_REPOSITORY": "x/y"}
-            if version:
-                env["VERSION"] = version
-            done = subprocess.run(["sh", str(self.ROOT / ".github/scripts/promotion-gate.sh"), "tree", str(tmp / "out")],
-                                  cwd=tmp, env=env, capture_output=True, text=True)
-            args = tmp / ".github/scripts/promotion_gate.py.args"
-            return done, args.read_text() if args.exists() else None
-
-    def test_a_coverage_waiver_leaves_the_task_bank(self):
-        done, args = self.run_gate("13.1.0 coverage why\n", "13.1.0")
-        self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertIn("--tasks-only", args)
-
-    def test_a_bank_waiver_leaves_coverage(self):
-        done, args = self.run_gate("13.1.0 bank why\n", "13.1.0")
-        self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertIn("--coverage-only", args)
-        self.assertNotIn("--tasks-only", args)
-
-    def test_both_waived_has_nothing_to_measure(self):
-        done, args = self.run_gate("13.1.0 coverage a\n13.1.0 bank b\n", "13.1.0")
-        self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertIsNone(args)
-        self.assertIn("PROMOTION_WAIVED", done.stdout)
-
-    def test_another_version_or_none_is_still_gated_on_both(self):
-        for version in ("13.1.1", "13.1.0-rc.2", ""):
-            done, args = self.run_gate("13.1.0 coverage a\n13.1.0 bank b\n", version)
-            self.assertEqual(done.returncode, 0, done.stderr)
-            self.assertNotIn("--tasks-only", args)
-            self.assertNotIn("--coverage-only", args)
 
 
 if __name__ == "__main__":

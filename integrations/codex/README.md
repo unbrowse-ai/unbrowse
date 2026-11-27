@@ -16,7 +16,7 @@ optional, only for cashing out ([ONBOARDING.md](../../docs/ONBOARDING.md#2-linki
 
 Codex sends the agent token to the node from `UNBROWSE_AGENT_TOKEN`. Set it where Codex starts. The node makes its
 first agent key itself on its first run, and `unbrowse agent token` prints that key's token; for a key of Codex's own,
-`unbrowse agent new codex` (or the window's Money, Add agent) makes one and prints its setup once:
+`unbrowse agent new codex` (or the window's Agents, Add agent) makes one and prints its setup once:
 
 ```sh
 # Nothing to set: the plugin starts `unbrowse mcp --agent first`, which reads the first key's token from the node's
@@ -26,7 +26,7 @@ first agent key itself on its first run, and `unbrowse agent token` prints that 
 Then add the repository as a marketplace and install the plugin:
 
 ```sh
-codex plugin marketplace add unbrowse-ai/unbrowse-core   # or ./ from a checkout
+codex plugin marketplace add unbrowse-ai/unbrowse   # or ./ from a checkout
 codex plugin add unbrowse@unbrowse
 ```
 

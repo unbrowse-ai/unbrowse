@@ -3,11 +3,12 @@
 
 Zig 0.17's `Io.Threaded.posixConnect` asks `connect` again after EINTR. A connect a signal interrupted goes on in the
 kernel (POSIX), so asking again answers EALREADY while it does and EISCONN once it has; Zig reads EISCONN as a
-programmer's bug and panics ("programmer bug caused syscall error: ISCONN"). After an interrupted connect the
-patched function waits for the connection to settle and reads its outcome from SO_ERROR. macOS can answer EISCONN
-for a connection that was refused.
+programmer's bug and panics ("programmer bug caused syscall error: ISCONN"), which killed the window in a QA run
+(PR #843, run 45040934221). Zig 0.17.1 and master read it the same way (2026-11-23). As Rust's std does, after an
+interrupted connect the patched function waits for it to settle and reads its outcome from SO_ERROR: macOS can answer
+EISCONN for a connect that was refused.
 
-Usage: patch_zig_std.py [LIB_DIR] (defaults to the library directory from `zig env`). Safe to apply repeatedly.
+Usage: patch_zig_std.py [LIB_DIR]  (default: `zig env`'s lib_dir). Idempotent: a patched library is left as it is.
 Fails, naming the function, when the source isn't the one this patch was written for.
 """
 import pathlib

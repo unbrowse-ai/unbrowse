@@ -1425,3 +1425,7 @@ mod tests {
         std::fs::remove_dir_all(dir).ok();
     }
 }
+
+#[cfg(test)]
+#[path = "reputation_cov_tests.rs"]
+mod reputation_cov_tests;

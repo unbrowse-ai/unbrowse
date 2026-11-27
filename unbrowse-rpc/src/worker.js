@@ -4,15 +4,19 @@
 //                                  becomes a member under that Privy user (at most MAX_NODES_PER_USER of them)
 //   POST /<network>/<pass>         a member node's JSON-RPC, one call or a batch; <pass> is <node>.<expiry>.<signature>,
 //                                  signed by the node's own key (gate.js `passMessage`)
+//   POST /<network>/<pass>/createTask, /getTaskResult
+//                                  a member node's captcha task, relayed to the solver Unbrowse pays for (captcha.js)
 //
 // A member node's gas is Unbrowse's: the first time it reads a network here holding less than drip.js LOW_WEI there, it
 // is sent DRIP_WEI from the gas wallet (GAS_KEY), once a node a network, within a daily budget (drip.js).
 //
-// The provider's key is a secret (ALCHEMY_KEY), never in a URL a node sees. Nothing a request carries is logged.
+// The providers' keys are secrets (ALCHEMY_KEY, SOLVER_KEY), never in anything a node sees. Nothing a request carries
+// is logged.
 
 import { DurableObject } from "cloudflare:workers";
 import { NETWORKS, MAX_BATCH, privyUser, readPass, refusal, cachedMember, withinRate } from "./gate.js";
 import { day, dripCost, feeCap, send, withheld } from "./drip.js";
+import { SOLVER, CALLS, MAX_BODY_BYTES, taskRefusal, taskIdOf, forSolver, overCap, solverError } from "./captcha.js";
 
 /** How many nodes one Privy user may have as members. */
 const MAX_NODES_PER_USER = 10;
@@ -30,6 +34,32 @@ export class Members extends DurableObject {
     this.sql.exec("CREATE TABLE IF NOT EXISTS members (node TEXT PRIMARY KEY, user TEXT NOT NULL, at INTEGER NOT NULL)");
     this.sql.exec("CREATE INDEX IF NOT EXISTS members_user ON members (user)");
     this.sql.exec("CREATE TABLE IF NOT EXISTS drips (node TEXT NOT NULL, network TEXT NOT NULL, tx TEXT, wei TEXT NOT NULL, day INTEGER NOT NULL, PRIMARY KEY (node, network))");
+    this.sql.exec("CREATE TABLE IF NOT EXISTS tasks (slot INTEGER PRIMARY KEY AUTOINCREMENT, task TEXT, node TEXT NOT NULL, user TEXT NOT NULL, day INTEGER NOT NULL)");
+    this.sql.exec("CREATE INDEX IF NOT EXISTS tasks_day ON tasks (day, user)");
+  }
+
+  /** A slot for one captcha task by `node` today, counted against its Privy user's day and every member's before the
+   *  task is sent (so two at once can't both pass the cap), or why not. */
+  async reserveTask(node, today) {
+    const owner = this.sql.exec("SELECT user FROM members WHERE node = ?", node).toArray()[0];
+    if (!owner) return { why: "this node isn't a member" };
+    const mine = this.sql.exec("SELECT COUNT(*) AS n FROM tasks WHERE day = ? AND user = ?", today, owner.user).one().n;
+    const all = this.sql.exec("SELECT COUNT(*) AS n FROM tasks WHERE day = ?", today).one().n;
+    const why = overCap(mine, all);
+    if (why) return { why };
+    this.sql.exec("INSERT INTO tasks (task, node, user, day) VALUES (NULL, ?, ?, ?)", node, owner.user, today);
+    return { slot: this.sql.exec("SELECT last_insert_rowid() AS id").one().id };
+  }
+
+  /** The solver's id for the task in `slot`, or, when the solver started none, the slot given back. */
+  async settleTask(slot, task) {
+    if (task) this.sql.exec("UPDATE tasks SET task = ? WHERE slot = ?", task, slot);
+    else this.sql.exec("DELETE FROM tasks WHERE slot = ?", slot);
+  }
+
+  /** Whether `node` started the task `task`: a node reads only its own tasks' answers. */
+  async ownsTask(node, task) {
+    return this.sql.exec("SELECT 1 FROM tasks WHERE task = ? AND node = ?", task, node).toArray().length > 0;
   }
 
   /** Gasses `node` on `network` when it is due (drip.js `withheld`): one send at a time, so the gas wallet's nonces never
@@ -165,13 +195,59 @@ async function relay(request, env, ctx, network, pass) {
   return new Response(up.body, { status: up.status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 }
 
+/** A member node's captcha task (`createTask`) or its answer (`getTaskResult`), relayed to the solver with Unbrowse's
+ *  key. Refusals are said in the solver's own shape (`errorId`, `errorCode`), which the node already reads. */
+async function solve(request, env, network, pass, call) {
+  const no = (code, why, status) => json(solverError(code, why), status);
+  if (!NETWORKS[network]) return no("ERROR_NO_NETWORK", `no network ${network}: arc-mainnet or arc-testnet`, 404);
+  if (request.method !== "POST") return no("ERROR_METHOD", "a task is POSTed", 405);
+  if (!env.SOLVER_KEY) return no("ERROR_NO_SOLVER", "this gateway has no captcha solver", 503);
+  const p = readPass(network, pass, Math.floor(Date.now() / 1000));
+  if (!p.node) return no("ERROR_NOT_A_MEMBER", `not a member's pass: ${p.why}`, 401);
+  if (!(await isMember(env, p.node))) return no("ERROR_NOT_A_MEMBER", "this node isn't a member: its owner signs in with Privy on unbrowse.ai first", 403);
+  if (env.PER_NODE && !(await withinRate(env.PER_NODE, p.node, [null]))) return no("ERROR_RATE", "rate limit exceeded", 429);
+  if (Number(request.headers.get("content-length") || 0) > MAX_BODY_BYTES) return no("ERROR_TOO_BIG", `a task is at most ${MAX_BODY_BYTES} bytes`, 413);
+  let body;
+  try {
+    const text = await request.text();
+    if (text.length > MAX_BODY_BYTES) return no("ERROR_TOO_BIG", `a task is at most ${MAX_BODY_BYTES} bytes`, 413);
+    body = JSON.parse(text);
+  } catch {
+    return no("ERROR_BAD_PARAMETERS", "a JSON body", 400);
+  }
+  const list = members(env);
+  let slot = null;
+  if (call === "createTask") {
+    const why = taskRefusal(body);
+    if (why) return no("ERROR_BAD_PARAMETERS", why, 400);
+    const held = await list.reserveTask(p.node, day(Date.now()));
+    if (!held.slot) return no("ERROR_DAILY_CAP", held.why, 429);
+    slot = held.slot;
+  } else {
+    const id = taskIdOf(body);
+    if (!id) return no("ERROR_WRONG_ID_FORMAT", "a getTaskResult body names its taskId", 400);
+    if (!(await list.ownsTask(p.node, id))) return no("ERROR_NO_SUCH_CAPCHA_ID", "not a task this node started", 404);
+  }
+  let answer;
+  try {
+    const up = await fetch(`${SOLVER}/${call}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(forSolver(call, body, env.SOLVER_KEY)) });
+    answer = await up.json();
+  } catch (e) {
+    if (slot) await list.settleTask(slot, null);
+    return no("ERROR_SOLVER_UNREACHED", `the solver didn't answer: ${String(e.message || e)}`, 502);
+  }
+  if (slot) await list.settleTask(slot, answer && answer.errorId === 0 && answer.taskId != null ? String(answer.taskId) : null);
+  return json(answer);
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const parts = url.pathname.split("/").filter(Boolean);
     if (parts.length === 1 && parts[0] === "members") return join(request, env);
     if (parts.length === 2) return relay(request, env, ctx, parts[0], parts[1]);
-    if (parts.length === 0) return new Response("Arc JSON-RPC for Unbrowse nodes whose owners signed in on unbrowse.ai.\n", { headers: { "content-type": "text/plain" } });
+    if (parts.length === 3 && CALLS.has(parts[2])) return solve(request, env, parts[0], parts[1], parts[2]);
+    if (parts.length === 0) return new Response("Arc JSON-RPC, and a captcha solver, for Unbrowse nodes whose owners signed in on unbrowse.ai.\n", { headers: { "content-type": "text/plain" } });
     return json({ error: "not found" }, 404);
   },
 };

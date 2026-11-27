@@ -21,6 +21,28 @@ CREATE INDEX IF NOT EXISTS events_by_hour ON events (received_hour, event);
 CREATE INDEX IF NOT EXISTS events_by_install ON events (install_id, received_hour);
 -- A store made before from_tag gets it from src/sql.js's `migrate` (CREATE TABLE IF NOT EXISTS leaves a table as it is).
 
+-- Our own installs, kept out of every count but `gate` and `ours` (UNB-303). An entry is an install id, or a version
+-- that was never offered to anyone (a device test build): every install that sent it is ours. Added and removed by an
+-- admin at /v1/ours.
+CREATE TABLE IF NOT EXISTS ours_list (
+  kind TEXT NOT NULL CHECK (kind IN ('install', 'version')),
+  value TEXT NOT NULL,
+  why TEXT NOT NULL,
+  added_hour INTEGER NOT NULL,
+  PRIMARY KEY (kind, value)
+);
+
+-- Every install that is ours, with the reason that makes it so: the release train's gate, an install on the list, one
+-- that sent a version on the list, a source build (0.x: no release carries it), or a node started with an internal
+-- source tag. Made again on every start, so a change here reaches a store that already has the view.
+DROP VIEW IF EXISTS ours;
+CREATE VIEW ours AS
+  SELECT 'ffffffffffffffffffffffffffffffff' AS install_id, 'gate' AS why
+  UNION SELECT value, 'listed' FROM ours_list WHERE kind = 'install'
+  UNION SELECT DISTINCT e.install_id, 'listed version' FROM events e JOIN ours_list l ON l.kind = 'version' AND l.value = e.version
+  UNION SELECT DISTINCT install_id, 'source build' FROM events WHERE version LIKE '0.%'
+  UNION SELECT DISTINCT install_id, 'internal tag' FROM events WHERE from_tag IN ('internal', 'dev', 'ci', 'test');
+
 -- Bug reports (POST /v1/reports). A report's text is never kept here: it goes into the public GitHub issue. What is
 -- kept is which issue each problem (fingerprint) has and how often it was reported, and today's count of reports per
 -- install, under a hash of the install id and the day, so a count can't be followed from one day to the next.

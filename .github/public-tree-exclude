@@ -1,5 +1,22 @@
-# Paths unbrowse-core holds that the public unbrowse-ai/unbrowse leaves out (UNB-158, Lewis 2026-11-17: the smart
-# contracts stay private, in a repo of their own). Each public sync builds one commit of core's tree without these.
-# One path per line, a folder ends in /. papers/params_check.py reads this list; ci.yml runs the contracts jobs only
-# in unbrowse-core.
+# Paths unbrowse-core holds that the public unbrowse-ai/unbrowse leaves out. One path per line, a folder ends in /.
+# .github/scripts/public_tree.py reads this list and public-sync.yml makes the public tree with it; papers/params_check.py
+# reads it too, and ci.yml runs the contracts jobs only in unbrowse-core. A file public CI reads stays public
+# (docs/OPERATIONS.md: test_release_order.py; docs/GENERALITY.md: engine_is_general.rs; docs/COVERAGE-EXCLUSIONS.md).
+
+# The smart contracts stay private, in a repo of their own (UNB-158, Lewis 2026-11-17).
 unbrowse-settlement/
+
+# Internal ledgers and the agents' and CI's process docs (Lewis 2026-11-27: "scrub public repo on CI for unnecessary
+# docs like REQUIREMENTS.md").
+docs/REQUIREMENTS.md
+docs/REBUILD.md
+docs/ROADMAP.md
+docs/SPEC-STATUS.md
+docs/spec-status/
+docs/CI-AGENTS.md
+docs/HARNESS.md
+docs/PERFORMANCE.md
+
+# The sync itself runs only here, and the names it keeps out are private too.
+.github/workflows/public-sync.yml
+.github/public-tree-forbidden

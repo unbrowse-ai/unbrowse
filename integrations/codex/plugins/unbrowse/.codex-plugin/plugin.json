@@ -7,7 +7,7 @@
     "url": "https://unbrowse.ai"
   },
   "homepage": "https://unbrowse.ai",
-  "repository": "https://github.com/unbrowse-ai/unbrowse-core",
+  "repository": "https://github.com/unbrowse-ai/unbrowse",
   "license": "Apache-2.0",
   "keywords": ["web", "browser", "api", "scraping", "automation", "mcp"],
   "skills": "./skills/",

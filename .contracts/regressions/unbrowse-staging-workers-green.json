@@ -1,0 +1,8 @@
+{
+  "claim": "Every staging release-train gate passes against the deployed Worker endpoints",
+  "test": [
+    "bash",
+    "-c",
+    "set -euo pipefail\nrepo=unbrowse-ai/unbrowse-core\nsha=$(gh api \"repos/$repo/branches/staging\" --jq .commit.sha)\ngit cat-file -e \"$sha^{commit}\"\nsnapshot=$(mktemp -d /tmp/unbrowse-worker-staging-gate.XXXXXX)\nprintf \"Staging %s. Gate snapshot %s\\n\" \"$sha\" \"$snapshot\"\ngit archive \"$sha\" .deploy unbrowse-telemetry unbrowse-rpc unbrowse-dashboard unbrowse-ci-shots | tar -x -C \"$snapshot\"\ncd \"$snapshot\"\nnode .deploy/deploy.mjs gate staging\ntest \"$(gh api \"repos/$repo/branches/staging\" --jq .commit.sha)\" = \"$sha\""
+  ]
+}

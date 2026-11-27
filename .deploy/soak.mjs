@@ -2,7 +2,7 @@
 // Soak verdict for one Cloudflare Worker: has the version that is live now been live long enough, with real use and
 // no trouble, to be promoted? Reads Cloudflare's own records (deployments + GraphQL analytics); stores nothing.
 //
-//   node soak.mjs --worker client-memory-staging [--hours 6] [--min-requests 50] [--max-error-rate 0.01]
+//   node soak.mjs --worker my-worker-staging [--hours 6] [--min-requests 50] [--max-error-rate 0.01]
 //                 [--probe https://…/healthz] [--account <id>] [--end <ISO time>] [--json]
 //
 // Three more questions, each asked only when its option is given:

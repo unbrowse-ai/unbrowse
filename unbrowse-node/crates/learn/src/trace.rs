@@ -916,11 +916,12 @@ pub fn written_forms(value: &str) -> Vec<(String, bool)> {
 /// A value's [`written_forms`], ready to find in text and to replace: built once per value and kept a while.
 pub struct Written {
     forms: Vec<(String, bool)>,
-    /// The forms in lower case, found overlapping, each with whether it may stand inside longer text.
+    /// The search forms, found overlapping, each with whether it may stand inside longer text.
     detect: Option<(aho_corasick::AhoCorasick, Vec<bool>)>,
     /// The forms as written, longest first where they overlap, for a mask.
     replace: Option<aho_corasick::AhoCorasick>,
     long: bool,
+    exact: bool,
 }
 
 /// The values a [`Written`] was built for lately; dropped whole when it grows past this.
@@ -938,34 +939,43 @@ impl Written {
         if map.len() >= WRITTEN_KEPT {
             map.clear();
         }
-        let w = std::sync::Arc::new(Written::build(value));
+        let w = std::sync::Arc::new(Written::build(value, false));
         map.insert(value.to_string(), w.clone());
         w
     }
 
-    fn build(value: &str) -> Written {
-        let forms: Vec<(String, bool)> = if value.trim().is_empty() { Vec::new() } else { written_forms(value).into_iter().filter(|(f, _)| !f.is_empty()).collect() };
-        let mut lower: Vec<(String, bool)> = Vec::new();
-        for (f, within) in &forms {
-            let l = f.to_lowercase();
-            match lower.iter_mut().find(|(g, _)| *g == l) {
+    /// Checks a secret even inside longer strings, without putting it in the shared cache.
+    pub fn secret(value: &str) -> Written {
+        Written::build(value, true)
+    }
+
+    fn build(value: &str, secret: bool) -> Written {
+        let forms: Vec<(String, bool)> = if value.is_empty() || (!secret && value.trim().is_empty()) {
+            Vec::new()
+        } else {
+            written_forms(value).into_iter().filter(|(f, _)| !f.is_empty()).collect()
+        };
+        let mut patterns: Vec<(String, bool)> = Vec::new();
+        for (form, within) in &forms {
+            let form = if secret { form.clone() } else { form.to_lowercase() };
+            match patterns.iter_mut().find(|(pattern, _)| *pattern == form) {
                 Some((_, w)) => *w |= *within,
-                None => lower.push((l, *within)),
+                None => patterns.push((form, *within)),
             }
         }
-        let detect = (!lower.is_empty())
-            .then(|| aho_corasick::AhoCorasick::new(lower.iter().map(|(f, _)| f.as_str())).ok().map(|ac| (ac, lower.iter().map(|(_, w)| *w).collect())))
+        let detect = (!patterns.is_empty())
+            .then(|| aho_corasick::AhoCorasick::new(patterns.iter().map(|(f, _)| f.as_str())).ok().map(|ac| (ac, patterns.iter().map(|(_, w)| *w).collect())))
             .flatten();
         let replace = (!forms.is_empty())
             .then(|| aho_corasick::AhoCorasick::builder().match_kind(aho_corasick::MatchKind::LeftmostLongest).build(forms.iter().map(|(f, _)| f.as_str())).ok())
             .flatten();
-        Written { forms, detect, replace, long: value.chars().count() >= WRITTEN_ANYWHERE }
+        Written { forms, detect, replace, long: secret || value.chars().count() >= WRITTEN_ANYWHERE, exact: secret }
     }
 
     /// The reader for `value` with no finder, as one that couldn't build reads: for tests of that path.
     #[cfg(test)]
     pub(crate) fn without_finder(value: &str) -> Written {
-        Written { detect: None, replace: None, ..Written::build(value) }
+        Written { detect: None, replace: None, ..Written::build(value, false) }
     }
 
     /// The forms, the value's own first.
@@ -977,15 +987,19 @@ impl Written {
     /// past its own limits), each form is looked for on its own: slower, never a reading that found nothing because it
     /// didn't run.
     pub fn carries(&self, text: &str) -> bool {
+        if self.long && self.forms.first().is_some_and(|(literal, _)| text.contains(literal)) {
+            return true;
+        }
         let counts = |r: &str, at: usize, end: usize, within: bool| {
             let before = r[..at].chars().next_back();
             let after = r[end..].chars().next();
             self.long || within || (!before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric))
         };
-        readings(text).iter().any(|r| match &self.detect {
+        let text_forms = if self.exact { readings_as(text, str::to_owned) } else { readings(text) };
+        text_forms.iter().any(|r| match &self.detect {
             Some((ac, within)) => ac.find_overlapping_iter(r.as_str()).any(|m| counts(r, m.start(), m.end(), within[m.pattern().as_usize()])),
             None => self.forms.iter().any(|(f, within)| {
-                let f = f.to_lowercase();
+                let f = if self.exact { f.clone() } else { f.to_lowercase() };
                 r.match_indices(f.as_str()).any(|(at, _)| counts(r, at, at + f.len(), *within))
             }),
         })
@@ -1021,7 +1035,11 @@ pub const WRITTEN_ANYWHERE: usize = 12;
 
 /// Every layer of a text, from as sent to fully unescaped, in lower case.
 fn readings(text: &str) -> Vec<String> {
-    let mut out = vec![text.to_lowercase()];
+    readings_as(text, str::to_lowercase)
+}
+
+fn readings_as(text: &str, normalize: impl Fn(&str) -> String) -> Vec<String> {
+    let mut out = vec![normalize(text)];
     let mut cur = text.to_string();
     // Each pass undoes one layer; the depth is bounded so a text that keeps changing can't loop.
     for _ in 0..8 {
@@ -1030,8 +1048,8 @@ fn readings(text: &str) -> Vec<String> {
         if next == cur {
             break;
         }
-        out.push(unquoted.to_lowercase());
-        out.push(next.to_lowercase());
+        out.push(normalize(&unquoted));
+        out.push(normalize(&next));
         cur = next;
     }
     out

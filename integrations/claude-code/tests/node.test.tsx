@@ -3,7 +3,7 @@ import type { On } from 'claude-code'
 
 import {
   addMeasured, addTo, answers, cardText, failedRoute, fmtTokens, fmtUsdc, forModel, ledgerSaved, parseActivity,
-  parseOutput, persistedPath, promptSection, receiptFrom, routeIndex, routeTools, savedTokens,
+  moneyText, parseMoney, parseOutput, persistedPath, promptSection, receiptFrom, routeIndex, routeTools, savedTokens,
 } from '../hooks/register'
 import type { Ledger } from '../types'
 
@@ -222,4 +222,147 @@ test('the band shows calls, payments and tokens saved', async ($, on) => {
   expect(all).toContain('≈248k tokens saved')
   expect(all).toContain('286 routes')
   await ui.unmount()
+})
+
+// ── native in Claude Code (programme cb1e42 step 5) ──
+// `unbrowse-node money` as money_cli prints it (unbrowse-node/app/src/main.rs); the node address is a fixture.
+const FUND = 'https://unbrowse.ai/fund/#node=0xFfef56d7688E55dF0295C6C615EDc58A6F156BD3&chain=5042002&min=0.00&nonce=n1'
+const MONEY_TEST = `Balance: $2.99715 (test mode)\nAvailable to spend: $2.49715\n  Your agents: $0.00 of a $5.00 daily limit spent today\nEarnings: $0.00 ready to take (\`unbrowse-node coin\` lists your route coins and what their stake earned)\nAdd funds: ${FUND}\n`
+const MONEY_SHORT = `Balance: $0.10\nAvailable to spend: $0.00\nAdd $1.90 to start.\nEarnings: $0.00 ready to take\nAdd funds: ${FUND}\n`
+const MONEY_CLOSED = "Payments aren't open on this network yet.\nEarnings: $0.00 ready to take\n"
+
+test('reads the balance and the Add funds page the way the node CLI prints them', () => {
+  expect(parseMoney(MONEY_TEST)).toEqual({ state: 'test', balance: '2.99715', needed: null, addFundsUrl: FUND })
+  expect(parseMoney(MONEY_SHORT)).toEqual({ state: 'open', balance: '0.10', needed: '1.90', addFundsUrl: FUND })
+  expect(parseMoney(MONEY_CLOSED)).toEqual({ state: 'not_open', balance: null, needed: null, addFundsUrl: null })
+  expect(parseMoney('usage: unbrowse-node [--from <tag>]\n')).toBe(null)
+  expect(moneyText(parseMoney(MONEY_TEST)!)).toBe('$2.99715 test')
+  expect(moneyText(parseMoney(MONEY_CLOSED)!)).toBe('payments not open on this network')
+})
+
+// Captured 2026-11-24 from `unbrowse-node money` (staging-47a2c8a1 build) on an Arc testnet node, word for word but
+// for the fund page's host, which was a staging site's and reads unbrowse.ai here.
+const MONEY_LIVE = "Balance: $2.99715\nAvailable to spend: $2.635619\n  Your agents: $0.00 of a $5.00 daily limit spent today\nEarnings: $0.00 ready to take (`unbrowse-node coin` lists your route coins and what their stake earned)\nAdd funds: https://unbrowse.ai/fund/#node=0xffef56d7688e55df0295c6c615edc58a6f156bd3&chain=5042002&min=0.00&nonce=10fc895d4eb782191e5558591f886563\n"
+
+test('reads a real node\'s money output', () => {
+  const m = parseMoney(MONEY_LIVE)!
+  expect(m.state).toBe('open')
+  expect(m.balance).toBe('2.99715')
+  expect(m.addFundsUrl).toContain('/fund/#node=0xffef56d7688e55df0295c6c615edc58a6f156bd3&chain=5042002')
+})
+
+const BAND = { plugin: 'unbrowse', component: 'AbovePrompt', surface: 'terminal', props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 10, bodyColumns: 140 } }
+
+function moneyNode(on: On, stdout: string) {
+  const ran: string[] = []
+  const commands: string[] = []
+  node(on, { unbrowse_search: SEARCH })
+  on('process.run', (_, e) => {
+    const argv = (e as unknown as { argv: string[] }).argv
+    ran.push(argv.join(' '))
+    const out = argv[0] === 'printenv' ? '/Users/me\n' : argv.join(' ') === 'unbrowse-node money' ? stdout : ''
+    return { value: { exitCode: 0, stdout: out, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  on('command.register', (_, e) => {
+    commands.push((e as unknown as { name: string }).name)
+    return { value: { command: (e as unknown as { name: string }).name } }
+  })
+  on('tool.register', (_, e) => ({ value: { tool: `mcp__unbrowse__${(e as unknown as { name: string }).name}` } }))
+  on('clock.every', () => ({ value: undefined }))
+  on('fs.stat', () => ({ value: null }) as never)
+  on('session.start', (_, e) => ({ cwd: (e as unknown as { cwd: string }).cwd }))
+  return { ran, commands }
+}
+
+test('the band carries the node balance and an Add funds link to the page the window badge opens', async ($, on) => {
+  const { ran } = moneyNode(on, MONEY_TEST)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await settle()
+  expect(ran).toContain('unbrowse-node money')
+  const ui = await $.ui.mount(BAND as never)
+  const text = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('')
+  expect(text).toContain('Unbrowse')
+  expect(text).toContain('$2.99715 test')
+  const links = await ui.findAll({ type: 'Link' })
+  expect(links.map(l => l.props.href)).toEqual([FUND])
+  expect(links[0]?.text).toContain('Add funds')
+  await ui.unmount()
+})
+
+test('a node that cannot start yet says how much to add, in the warning colour', async ($, on) => {
+  moneyNode(on, MONEY_SHORT)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await settle()
+  const ui = await $.ui.mount(BAND as never)
+  const warn = (await ui.findAll({ type: 'Text' })).filter(t => t.props.color === 'warning').map(t => t.text).join('')
+  expect(warn).toContain('add $1.90 to start')
+  await ui.unmount()
+})
+
+test('/unb opens the pane, which shows the balance and Add funds first', async ($, on) => {
+  moneyNode(on, MONEY_TEST)
+  const opened: string[] = []
+  on('ui.open', (_, e) => {
+    opened.push((e as unknown as { id: string }).id)
+    return { value: { isPlaced: true } }
+  })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await settle()
+  await $.command.run({ command: 'unb' } as never)
+  expect(opened).toEqual(['unb'])
+  const pane = await $.ui.mount({ plugin: 'unbrowse', component: 'Pane', requestId: 'unb', surface: 'terminal', props: { bodyColumns: 100, bodyRows: 40 } } as never)
+  const texts = (await pane.findAll({ type: 'Text' })).map(t => t.text)
+  expect(texts[0]).toBe('Balance')
+  expect(texts).toContain('Ledger')
+  expect(texts).not.toContain('LEDGER')
+  expect((await pane.findAll({ type: 'Link' })).map(l => l.props.href)).toEqual([FUND])
+  await pane.unmount()
+})
+
+test('it draws in the host theme: no fixed hex colour on the receipt, the band or the pane', async ($, on) => {
+  moneyNode(on, MONEY_TEST)
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>row</Text>
+  })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await settle()
+  const mounts = [
+    { plugin: 'unbrowse', component: 'ToolUse', surface: 'terminal', props: { tool_use_id: 't1', tool: 'mcp__plugin_unbrowse_unbrowse__unbrowse_do', input: { goal: 'g', url: 'https://example.com/' }, isRunning: false, isErrored: false, isInterrupted: false, output: mcpText(NETWORK).content } },
+    BAND,
+    { plugin: 'unbrowse', component: 'Pane', requestId: 'unb', surface: 'terminal', props: { bodyColumns: 100, bodyRows: 40 } },
+  ]
+  for (const m of mounts) {
+    const ui = await $.ui.mount(m as never)
+    const colours = (await ui.findAll({ type: 'Text' })).map(t => t.props.color).filter((c): c is string => typeof c === 'string')
+    expect(colours.filter(c => c.startsWith('#'))).toEqual([])
+    await ui.unmount()
+  }
+})
+
+test('the receipt reads as the second line of the tool result, not a banner', async ($, on) => {
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>row</Text>
+  })
+  const ui = await $.ui.mount({
+    plugin: 'unbrowse', component: 'ToolUse', surface: 'terminal',
+    props: { tool_use_id: 't2', tool: 'mcp__plugin_unbrowse_unbrowse__unbrowse_do', input: { goal: 'g', url: 'https://example.com/' }, isRunning: false, isErrored: false, isInterrupted: false, output: mcpText(NETWORK).content },
+  } as never)
+  const texts = await ui.findAll({ type: 'Text' })
+  const line = texts.map(t => t.text).join('')
+  expect(line).toContain('     Unbrowse network · example.com')
+  expect(line).not.toContain('▌')
+  expect(texts.find(t => t.text.includes('Unbrowse'))?.props.dimColor).toBe(true)
+  await ui.unmount()
+})
+
+// Seen live 2026-11-24 (programme cb1e42 step 5): a /unbrowse command sat beside the plugin's skill `unbrowse`, and
+// typing /unbrowse + Enter ran the skill (a model turn) in place of opening the pane.
+test('no slash command takes the name of the plugin\'s own skill', async ($, on) => {
+  const { commands } = moneyNode(on, MONEY_TEST)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: false })
+  await settle()
+  expect(commands).toEqual(['unb'])
 })

@@ -1,0 +1,308 @@
+# PR Steward, the Claude Ship agent, without the Claude organization: OpenCode works on a pull request's own branch —
+# a failing check, a review's Important finding, or a person's ask — and pushes one commit with the fix. It never
+# approves and never merges.
+#
+# It replaces pr-autofix.yml (same envelope, a different engine) and adds the two asks Claude Ship's Steward answers:
+# a review's findings, and a person's `gh workflow run opencode-steward.yml -f pr=12`. Its rules are held by
+# test_workflow_security.py (`_agent_workflow_problems`) and autofix.py (`steer`, `plan_pr`, `guard`):
+#
+# - It starts only from workflow_run, after CI, Coverage, the credential-free PR check or Code review, on a pull request
+#   from a branch of this repository; or from a person's dispatch. `autofix.py steer` then refuses a draft, a fork, a
+#   pull request not into staging, one labelled `no-autofix` or `no-steward`, one whose head moved on since the run,
+#   one whose last commit is the steward's own or that has two of them, and any failure staging shows too.
+# - Only trusted code runs. The work tree at the root is staging's; the pull request is checked out into `pr/` as data.
+# - The agent may read anywhere and edit only under `pr/` (`steward` in .github/opencode/opencode.json): no shell, no
+#   web, no GitHub token, no MCP server, and a home of its own, so the pull request's config and AGENTS.md load nothing.
+# - `autofix.py guard`, from staging, refuses a fix that changes what only a person changes, switches a check off, or
+#   takes assertions out of a test. A fix that passes is one commit, pushed without force (a newer push by the author
+#   wins), with an `Autofix-Run:` trailer; CI and Coverage start on it. It merges only through the merge checks in AGENTS.md.
+# - A conflict with staging is reported in the comment, never merged here.
+#
+# `OPENCODE_STEWARD` accepts `on`, `manual` (dispatch only), or `off`. The `no-steward` label skips a pull request.
+name: PR Steward
+
+on:
+  workflow_run:
+    workflows: [CI, Coverage, "PR check (no credential)", "Code review"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        required: true
+
+concurrency:
+  group: pr-steward-${{ github.event.workflow_run.head_branch || inputs.pr }}
+  cancel-in-progress: false
+
+permissions: {}
+
+# Model calls use ChatGPT subscription OAuth through agent_cli.py.
+env:
+  AGENT_AUTH: chatgpt
+
+jobs:
+  place:
+    name: Where the agent job runs
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       ((github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.name != 'Code review') ||
+        (github.event.workflow_run.name == 'Code review' && github.event.workflow_run.conclusion == 'success')))
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      fix: ${{ steps.place.outputs.fix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/place_jobs.py
+          sparse-checkout-cone-mode: false
+      - id: place
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+          MAC_POOL: ${{ vars.MAC_RUNNER }}
+          LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
+        run: python3 -I .github/scripts/place_jobs.py fix=linux
+
+  steward:
+    needs: place
+    name: Steward
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       ((github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.name != 'Code review') ||
+        (github.event.workflow_run.name == 'Code review' && github.event.workflow_run.conclusion == 'success')))
+    environment: opencode-steward
+    runs-on: ${{ fromJSON(needs.place.outputs.fix) }}
+    timeout-minutes: 45
+    permissions:
+      actions: write
+      checks: read
+      contents: write
+      pull-requests: write
+    steps:
+      # Which pull request, and which of the three asks this is.
+      - name: The pull request
+        id: who
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          INPUT: ${{ inputs.pr }}
+          NAME: ${{ github.event.workflow_run.name }}
+          RUN: ${{ github.event.workflow_run.id }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            PR="$INPUT"; FAILED=""; REVIEWED=""; REVIEW_RUN=""
+          else
+            PR=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number // empty' 2>/dev/null || true)
+            if [ "$NAME" = "Code review" ]; then
+              FAILED=""; REVIEWED="$SHA"; REVIEW_RUN="$RUN"
+            else
+              FAILED="$RUN"; REVIEWED=""; REVIEW_RUN=""
+            fi
+          fi
+          if [ -z "$PR" ]; then echo "::warning::No pull request names this run"; echo "act=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          pr_info=$(gh api "repos/$REPO/pulls/$PR" --jq '[.head.sha, .state, (.draft|tostring), .base.ref] | @tsv')
+          IFS=$'\t' read -r HEAD STATE IS_DRAFT BASE_REF <<< "$pr_info"
+          if [ "$EVENT" != "workflow_dispatch" ]; then
+            if [ "$STATE" != "open" ] || [ "$IS_DRAFT" = "true" ] || [ "$BASE_REF" != "staging" ]; then
+              echo "Skipping PR #$PR before checkout (state=$STATE, draft=$IS_DRAFT, base=$BASE_REF)"
+              echo "act=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$NAME" = "Code review" ]; then
+              check_verdict=$(gh api "repos/$REPO/commits/$SHA/check-runs?check_name=Code%20review" \
+                --jq '([.check_runs[] | select(.status == "completed")] | last) as $c | if $c == null then "none" elif ($c.output.title // "") == "Code review complete — 0 important" and (($c.output.summary // "") | contains("\"nit\": 0")) then "clean" else "findings" end' 2>/dev/null || echo "unknown")
+              if [ "$check_verdict" = "none" ] || [ "$check_verdict" = "clean" ]; then
+                echo "Skipping PR #$PR before checkout: Code review verdict=$check_verdict on $SHA"
+                echo "act=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+          fi
+          echo "PR: #$PR at $HEAD (failed run: ${FAILED:-none}, review run: ${REVIEW_RUN:-none})"
+          {
+            echo "pr=$PR"
+            echo "head_sha=$HEAD"
+            echo "failed=$FAILED"
+            echo "reviewed=$REVIEWED"
+            echo "review_run=$REVIEW_RUN"
+          } >> "$GITHUB_OUTPUT"
+      # staging's work tree at the root: the only code this job runs.
+      - if: steps.who.outputs.pr
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: staging
+          persist-credentials: false
+      # The pull request's commit, as data in pr/.
+      - if: steps.who.outputs.pr
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.who.outputs.head_sha }}
+          path: pr
+          persist-credentials: false
+      - name: Whether the steward may work here, and what it reads
+        id: plan
+        if: steps.who.outputs.pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.who.outputs.pr }}
+          FAILED: ${{ steps.who.outputs.failed }}
+          REVIEWED: ${{ steps.who.outputs.reviewed }}
+          MODE: ${{ vars.OPENCODE_STEWARD || 'on' }}
+          DISPATCH: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          if [ "$MODE" = "off" ] && [ "$DISPATCH" != "true" ]; then
+            echo "act=false" >> "$GITHUB_OUTPUT"; echo "The OPENCODE_STEWARD setting is off"; exit 0
+          fi
+          if [ "$MODE" = "manual" ] && [ "$DISPATCH" != "true" ]; then
+            echo "act=false" >> "$GITHUB_OUTPUT"; echo "The OPENCODE_STEWARD setting is manual: dispatch it"; exit 0
+          fi
+          if [ -n "$FAILED" ]; then
+            python3 -I .github/scripts/autofix.py steer --pr "$PR" --run "$FAILED" --out pr/.autofix --repo "$REPO"
+          elif [ -n "$REVIEWED" ]; then
+            python3 -I .github/scripts/autofix.py steer --pr "$PR" --head "$REVIEWED" --out pr/.autofix --repo "$REPO"
+          else
+            python3 -I .github/scripts/autofix.py steer --pr "$PR" --out pr/.autofix --repo "$REPO"
+          fi
+      - name: The review's findings
+        if: steps.plan.outputs.act == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REVIEW_RUN: ${{ steps.who.outputs.review_run }}
+        run: |
+          mkdir -p pr/.autofix/review
+          if [ -n "$REVIEW_RUN" ]; then
+            gh run download "$REVIEW_RUN" -R "$REPO" -n code-review -D pr/.autofix/review 2>/dev/null \
+              || echo "::warning::The review left no findings artifact; the comment on the pull request is the list"
+          fi
+          if [ -f pr/.autofix/review/findings.json ]; then
+            {
+              echo
+              echo "Code review's findings are in review/findings.json: fix every Important one, and a Nit only when it is in a file this change already touches."
+            } >> pr/.autofix/run.md
+          fi
+      - if: steps.plan.outputs.act == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+      # Both CLIs, lifecycle scripts off and proven before any key: Claude Code is tried first, a refusal runs opencode.
+      - name: Install the pinned opencode CLI
+        if: steps.plan.outputs.act == 'true'
+        run: |
+          npm ci --silent --ignore-scripts --prefix .github/tools/opencode
+          node .github/tools/opencode/node_modules/@opencode/cli/postinstall.mjs
+          .github/tools/opencode/node_modules/.bin/opencode --version
+          echo "$GITHUB_WORKSPACE/.github/tools/opencode/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Place the agent's config
+        if: steps.plan.outputs.act == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/opencode-home/.config/opencode"
+          cp -R .github/opencode/. "$RUNNER_TEMP/opencode-home/.config/opencode/"
+      # The agent: it reads anywhere, edits only under pr/, and holds no GitHub token.
+      - name: Steer
+        if: steps.plan.outputs.act == 'true'
+        env:
+          HOME: ${{ runner.temp }}/opencode-home
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+        run: |
+          # The wrapper applies these permissions in OpenCode. The agent reads anywhere in the
+          # checkout, edits only under pr/, runs no shell, fetches nothing and reads no .env.
+          timeout 35m python3 -I .github/scripts/agent_cli.py \
+            -p "Read pr/.autofix/run.md and do what it asks, as your instructions say." \
+            --append-system-prompt "$(awk 'NR==1 && /^---$/ {f=1; next} f && /^---$/ {f=0; next} !f' .github/opencode/agents/steward.md)" \
+            --output-format stream-json --verbose --strict-mcp-config --setting-sources project --no-session-persistence \
+            --tools Read,Grep,Glob,Edit,Write --allowedTools "Read,Grep,Glob,Edit(pr/**),Write(pr/**)" \
+            --disallowedTools "Bash,NotebookEdit,WebFetch,WebSearch,Read(**/.env),Read(**/.env.*)" \
+            --max-turns 80 \
+            > "$RUNNER_TEMP/steward-events.jsonl" < /dev/null
+        continue-on-error: true
+      # From here on no step holds a model credential, and only staging's scripts run.
+      - name: Refuse a fix that loosens a check
+        id: guard
+        if: steps.plan.outputs.act == 'true'
+        env:
+          BASE: ${{ steps.who.outputs.head_sha }}
+        run: python3 -I .github/scripts/autofix.py guard --base "$BASE" --dir pr
+      - name: Say so when the steward changed nothing
+        if: steps.plan.outputs.act == 'true' && steps.guard.outputs.ok != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.plan.outputs.pr }}
+        run: |
+          {
+            echo "**PR Steward read this and changed nothing.** A person looks next."
+            echo
+            [ -f pr/.autofix/summary.md ] && cat pr/.autofix/summary.md || echo "It left no summary; the run's log says why."
+            echo
+            echo "To keep it off this branch, add the \`no-steward\` label."
+          } > "$RUNNER_TEMP/nothing.md"
+          gh pr comment "$PR" -R "$REPO" --body-file "$RUNNER_TEMP/nothing.md"
+      - name: Push the fix onto the branch
+        if: steps.plan.outputs.act == 'true' && steps.guard.outputs.ok == 'true'
+        working-directory: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ steps.plan.outputs.branch }}
+          PR: ${{ steps.plan.outputs.pr }}
+          RUN: ${{ github.event.workflow_run.id || 'dispatch' }}
+          URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          [ -f .autofix/summary.md ] || echo "The steward left no summary." > .autofix/summary.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- . ':!.autofix'
+          git commit -q -m "fix: what ${URL:-the steward's ask} found, proposed by PR Steward" \
+            -m "$(head -c 4000 .autofix/summary.md)" -m "Autofix-Run: $RUN"
+          # Without force: a push by the author since the run wins, and this fix is dropped.
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "HEAD:refs/heads/${BRANCH}"
+          {
+            echo "**PR Steward pushed a fix** for ${URL:-the ask on this pull request}. It read what failed or what was found, edited files under \`pr/\` only, and \`autofix.py guard\` found nothing it loosened. CI and Coverage start on it now. Undo it with a revert; add the \`no-steward\` label to keep the steward off this branch."
+            echo
+            cat .autofix/summary.md
+          } > "$RUNNER_TEMP/comment.md"
+          gh pr comment "$PR" -R "$REPO" --body-file "$RUNNER_TEMP/comment.md"
+          gh workflow run ci.yml -R "$REPO" --ref "$BRANCH"
+          gh workflow run coverage.yml -R "$REPO" --ref "$BRANCH"
+      - name: A refused fix is said on the pull request
+        if: failure() && steps.plan.outputs.act == 'true' && steps.guard.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.plan.outputs.pr }}
+        run: |
+          {
+            echo "**PR Steward proposed a change that \`autofix.py guard\` refused.** Nothing was pushed. The guard refuses a change to a file only a person changes (workflows, the agent guide, the ledger, coverage exclusions, fixtures, generated files, lockfiles), a check switched off, or assertions taken out of a test. The run's log names the file."
+            echo
+            echo "A person looks next; the \`no-steward\` label keeps the steward off this branch."
+          } > "$RUNNER_TEMP/refused.md"
+          gh pr comment "$PR" -R "$REPO" --body-file "$RUNNER_TEMP/refused.md"
+      - name: Summary
+        if: always()
+        env:
+          ACT: ${{ steps.plan.outputs.act || 'false' }}
+          GUARD: ${{ steps.guard.outputs.ok || 'not run' }}
+        run: |
+          {
+            echo "### PR Steward"
+            [ -f pr/.autofix/run.md ] && cat pr/.autofix/run.md
+            echo
+            echo "Asked: $ACT; guard: $GUARD"
+            if [ -f pr/.autofix/summary.md ]; then echo; cat pr/.autofix/summary.md; fi
+          } >> "$GITHUB_STEP_SUMMARY"

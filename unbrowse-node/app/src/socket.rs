@@ -311,3 +311,7 @@ mod tests {
         assert_eq!(after_a_failed_frame(true, false), (false, false));
     }
 }
+
+#[cfg(test)]
+#[path = "socket_cov_tests.rs"]
+mod socket_cov_tests;

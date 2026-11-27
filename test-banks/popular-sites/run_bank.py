@@ -83,6 +83,13 @@ SITE_OUTCOMES = (
     "safety_stop",  # a route marked write
     "not_tested",
 )
+SEARCH_STEPS = ("first", "replay", "call_unrelated", "no_results", "recheck")
+READ_STEPS = ("first", "replay", "recheck")
+# A read of a site's homepage (a `kind: read` case): the answer holds at least this many lines that say words, and a
+# warm call of its route finds at least this share of the first answer's lines again. A front page changes between two
+# asks a minute apart (a headline, a counter); most of it doesn't.
+MIN_READ_LINES = 5
+READ_OVERLAP = 0.5
 PASSES = ("pass", "pass_after_retry", "pass_after_judge", "pass_after_hands")
 CHECK_OUTCOMES = ("pass", "ok_but_wrong", "false_failure", "fail", "blocked", "requires_account", "safety_stop", "unstable", "not_tested")
 
@@ -478,7 +485,8 @@ def judge_site(checks, retried=False, judgments=0, hands=False):
     outcomes = [c.get("outcome", "not_tested") for c in final.values()]
     if "safety_stop" in outcomes:
         return "safety_stop"
-    needed = ("first", "replay", "call_unrelated", "no_results", "recheck")
+    # A read of a page with no search (a `kind: read` case, top-1000.json) has no values to vary: its own three steps.
+    needed = READ_STEPS if final and all(c.get("read") for c in final.values()) else SEARCH_STEPS
     if any(o == "blocked" for o in outcomes):
         return "blocked"
     if any(o == "requires_account" for o in outcomes):
@@ -1304,12 +1312,114 @@ def door_stops(step, read):
     return bool(door) and not (step == "no_results" and door[0] == "requires_account")
 
 
+def judge_read(step, check, read, first, error):
+    """(outcome, why) of one step of a page read. `first` is the first ask's answer, for the warm steps to find again."""
+    door = door_in(read["head"])
+    if door:
+        return door
+    if check["how"] == "browse":
+        category = error_category(check["status"], {"why": error})
+        return ("blocked", category) if category in ("challenge", "refused") else ("fail", "needs_hands")
+    if check["result_ok"] is not True:
+        category = error_category(check["status"], {"e": error})
+        return ("blocked", category) if category in ("challenge", "refused", "rate_limited") else ("fail", category)
+    said = [l for l in dict.fromkeys(read["lines"]) if says_words(l)]
+    check["evidence"] = {"kind": read["kind"], "count": read["count"], "lines": len(said), "titles": [shorten(l) for l in said[:3]]}
+    if read["kind"] == "empty" or len(said) < MIN_READ_LINES:
+        return "ok_but_wrong", "too_little_to_read"
+    if read["kind"] == "records" and sum(says_words(l) for l in read["lines"]) * 2 < len(read["lines"]):
+        return "ok_but_wrong", "records_known_only_by_ids"
+    if step == "first":
+        return "pass", None
+    same = overlap(first["lines"], read["lines"]) if first and first["lines"] else 0.0
+    check["evidence"]["overlap_with_first"] = round(same, 2)
+    return ("pass", None) if same >= READ_OVERLAP else ("unstable", "reads_differently_now")
+
+
+def run_read(node, case, files, gap=GAP_SECS, one_ask=False):
+    """A site with no search to vary (`kind: read`): its page is asked for, then asked for again and its route called,
+    and each answer must hold the page's words, the warm two the first one's. The search's checks need values; this
+    needs none, so a site without a search box is judged on whether its page can be read at all."""
+    site, goal, url = case["site"], case["goal"], case["url"]
+    checks, kept, errors, stop, route = [], {}, {}, None, None
+    calls = 0
+    began, model_seen, log_seen = time.time(), len(files.model_lines()), len(files.node_log_lines())
+    preexisting = [r for r in node.routes() if first_party(r, site)]
+    chrome_before = files.chrome_left()
+    for step in READ_STEPS:
+        if step == "recheck" and not (route and route.get("id")):
+            break
+        log_before, guard_before = len(files.node_log_lines()), len(files.guard_lines())
+        started = time.monotonic()
+        status, reply = node.call(route["id"], {}) if step == "recheck" else node.do(goal, url)
+        calls += 1
+        took = int((time.monotonic() - started) * 1000)
+        got = reply.get("route") if isinstance(reply.get("route"), dict) else None
+        route = route if step == "recheck" else (got or route)
+        check = record_step(step, None, status, reply, route, kept)
+        check.update({"ms": took, "read": True})
+        if step == "recheck":
+            check["how"] = "call"
+        errors[step] = str((reply.get("result") or {}).get("error") or reply.get("error") or reply.get("why") or "")
+        said = files.node_log_lines()[log_before:]
+        check["healed"] = any("[heal]" in l for l in said)
+        door = saw_a_door(said) or (held_a_clean_browser(files.guard_lines()[guard_before:]) and "HELD_CLEAN")
+        checks.append(check)
+        if one_ask and door:
+            check["outcome"], check["why"], check["door"] = "blocked", "the_walk_met_a_door", door_said(door)
+            stop = "blocked"
+            break
+        if status == 0 and one_ask:
+            stop = "timeout"
+            break
+        if route and (route.get("write") or looks_like_a_write(route)):
+            check["outcome"], check["why"] = "safety_stop", "the_route_reads_as_a_write"
+            stop = "safety_stop"
+            break
+        check["outcome"], check["why"] = judge_read(step, check, kept[step][1], kept.get("first", (None, None))[1], errors[step])
+        if step == "replay" and check["outcome"] == "pass" and (check["how"] != "called" or check["route_id"] != checks[0].get("route_id")):
+            check["outcome"], check["why"] = "ok_but_wrong" if check["how"] == "learned" else "fail", "replay_was_not_a_call_of_the_same_route"
+        if check["outcome"] in ("blocked", "requires_account"):
+            stop = "blocked" if check["outcome"] == "blocked" else None
+            break
+        if status == 429 or check.get("why") == "rate_limited":
+            stop = "rate_limited"
+            break
+        time.sleep(gap)
+    warm_checks = [c for c in checks if c["step"] == "recheck" or (c["step"] == "replay" and c.get("how") == "called")]
+    answered = [c["ms"] for c in warm_checks if c["result_ok"] is True and not c.get("healed")]
+    lines = files.model_lines()[model_seen:]
+    learned = next((c for c in reversed(checks) if c.get("how") == "learned"), None)
+    if judge_site(checks) in ("blocked", "requires_account"):
+        findings = {name: {"outcome": "blocked", "why": stop or "a_wall_answered"} for name in FINDINGS}
+    else:
+        findings = {name: {"outcome": "not_run", "why": "a_page_read"} for name in FINDINGS}
+        findings["correct"] = correct_finding(checks)
+        findings["browserless"] = browserless_finding(warm_checks)
+    return {
+        "site": site, "goal": goal, "url": strip_query(url), "values": [], "kind": "read", "category": case.get("category"), "market": case.get("market"),
+        "retest": False, "url_source": case.get("url_source", "known"), "phase": "preexisting" if preexisting else "fresh",
+        "bound_input": None, "route_first_party": first_party(route, site) if route else None,
+        "route_is_page": same_page(route.get("path"), url, "\x00") if route else None,  # no value: a placeholder only matches itself
+        "findings": findings,
+        "model": {"asked": len(lines), "picked_by": learned.get("picked_by") if learned else None, "offered": len(offered_rows(lines)), "picks": [],
+                  "no_answer_said": sum("no answer, so the rule decides" in line for line in files.node_log_lines()[log_seen:])},
+        "checks": checks, "calls": calls, "stopped": stop, "retried_timeout": False, "paid_usdc": sum(c["paid_usdc"] or 0 for c in checks),
+        "vary": None, "warm_steps": [c["step"] for c in warm_checks], "warm_in_browser": [c["step"] for c in warm_checks if c.get("browser") is True],
+        "warm_ms": [c["ms"] for c in warm_checks], "warm_answered_ms": answered, "warm_median_ms": median([c["ms"] for c in warm_checks]),
+        "browser_ms": None, "faster_than_browser": None, "chrome_before": chrome_before, "chrome_after": files.chrome_left(),
+        "next_page": {"offered": None, "asked": False, "listed": 0}, "followed_link": {"link": None, "asked": False, "listed": 0},
+    }
+
+
 def run_site(node, case, nonsense, files, samples=None, after_judge=False, gap=GAP_SECS, browser_program=None, one_ask=False):
     """The plan's steps for one site. It stops at a write, at a rate limit and at the call budget.
 
     Every ask is timed: a warm call (a call to the route the first ask stored) is the whole point of learning one, so
     its seconds are kept beside its answer. `browser_program` times the same URL in a real browser once, which is what
     a warm call has to beat to have been worth learning."""
+    if case.get("kind") == "read":
+        return run_read(node, case, files, gap, one_ask)
     site, goal, values = case["site"], case["goal"], case["values"]
     # What a case's values stand for, when an answer never says them itself (`bjs` is Beijing: a flight list names
     # airports and never IATA codes). A case may say so with `aliases`; without it the value must be said.

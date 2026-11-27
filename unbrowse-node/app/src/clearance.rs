@@ -1,9 +1,8 @@
 //! What this node can do against a wall that a call's own client can't: the sources it hands the client
 //! (`RouteClient::with_clearer`), each tried where the wall's own list names it (`refusal::Wall::sources`).
 //!
-//! One source lives here so far: the owner's own browser session. The engine, the site's own page and the check's
-//! script in the sandbox are the client's own; a solver's token still has to be handed to the check's page before it
-//! is a pass (`solver`), so it is not a source yet.
+//! The owner's own browser session lives here; the solver, with the redemption the node learned for a site, lives in
+//! `redeem`. The engine, the site's own page and the check's script in the sandbox are the client's own.
 
 use crate::{import, store};
 use std::collections::HashMap;
@@ -34,7 +33,7 @@ fn owners_session_from(host: String, mut reach: impl FnMut(&str) -> Option<Resul
             return None;
         }
         let jar: HashMap<String, String> = store::read_json(&store::jar_path(&host), &unbrowse_files::JAR);
-        (!jar.is_empty()).then(|| Cleared { cookies: jar.into_iter().collect(), ttl: None, bound_to: Some(OWNERS_BROWSER.into()), by: Some(Source::OwnerSession) })
+        (!jar.is_empty()).then(|| Cleared { browser: false, cookies: jar.into_iter().collect(), ttl: None, bound_to: Some(OWNERS_BROWSER.into()), by: Some(Source::OwnerSession) })
     })
 }
 
