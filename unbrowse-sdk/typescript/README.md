@@ -8,8 +8,7 @@ A **route** is a website's own API call, learned once by the node's browser and 
 The node keeps the routes, the logins and, once something needs it, the browser; the client is how an agent or a
 script talks to it.
 
-> This is the client for the **local node** (`http://127.0.0.1:7788`). For the hosted API at unbrowse.ai, use
-> [`@unbrowse/sdk`](https://www.npmjs.com/package/@unbrowse/sdk).
+> This is the client for the **local node** (`http://127.0.0.1:7788`). Legacy hosted API users should migrate to the local node.
 
 **Install the app** (no Node or npm needed): [Mac](https://github.com/unbrowse-ai/unbrowse/releases/latest/download/Unbrowse-macos-arm64.dmg) · [Windows](https://github.com/unbrowse-ai/unbrowse/releases/latest/download/Unbrowse-windows-x64-setup.exe) ·
 [Linux](https://github.com/unbrowse-ai/unbrowse/releases/latest/download/unbrowse_amd64.deb) · [Linux ARM](https://github.com/unbrowse-ai/unbrowse/releases/latest/download/unbrowse_arm64.deb). Every file with its SHA-256 is on [the release](https://github.com/unbrowse-ai/unbrowse/releases/latest); the guide is at
