@@ -1,84 +1,47 @@
 # Search and ranking
 
-When more than one contributor has listed a route for the same thing, something has to choose which entry to call. In
-the design the software does it: no human picks, and nobody rates. Each route body's rank comes from its coin's market
-and the stake its own users hold behind it ([*Keeping the Map True*](../../papers/selection.md), spec chapter 5). Rule names here
-are those of the specification ([`papers/protocol.md`](../../papers/protocol.md)).
+When several contributors have mapped the same website, the calling node has to decide which route to try first. Unbrowse does this locally in software — there are no human curators and no 5-star ratings.
 
-## How the design chooses
+## How a node picks a route
 
-- **Scope and recall.** Candidates come from the site the agent named, then are recalled by words (BM25) and by meaning
-  (embeddings from a pinned open model), merged (R3.2). Contributors never supply embeddings (R2.24).
-- **Price.** Each contributor sets its own price. A client only picks entries whose price fits the agent's budget and
-  never pays more than the agent's maximum (R3.3). A site's own price floor is honoured (R4.17).
-- **Rank.** An entry's rank is `S = √(Q·M)`, and nothing else enters: no identity weight, no payout factor, no clock
-  (`rank.score`).
-  - `Q`, **counted stake**: coins staked by wallets that have checked the route and whose own latest paid call on it
-    passed. Each stake counts in proportion to the exit delay its holder chose. It is valued at the lower of the coin's
-    time-weighted price over 24 hours and what selling it now would return, as if every unstaked coin had been sold
-    first, so capital that isn't staked adds nothing (`rank.counted-stake`, `rank.collateral`, `rank.last-out`).
-  - `M`, **market cap**: the coin's fixed supply (1,000,000,000) times its time-weighted price over 24 hours.
-- **The pick.** A client picks among an intent's entries in proportion to rank: a route with twice the rank is picked
-  about twice as often. The pass rate on paid use is still computed and shown, but it doesn't pick (`rank.pick`).
-- **A newcomer's share.** 5% of picks go to unverified entries (fewer than 30 counted uses), so a new entry can earn a
-  first record (R3.4).
-- **Capacity.** A wallet's entries take paid fees up to a daily cap that grows with clean fees earned, never with stake;
-  over it, clients pick the next entry until the next epoch (R5.22, R6.12).
+1. **Scope by site.** The node looks up its own routes first, then queries the peer network for listings under the target site's registrable domain (search is free).
+2. **Recall by goal.** Listings matching the agent's goal words (BM25 over description, site, path, and response field names) become candidates.
+3. **Filter by budget & site policy.** Any listing priced above the owner's per-fetch maximum ($0.05 by default) or below a verified website's fee floor (or on a delisted site) is skipped.
+4. **Rank by verified stake and market value.** Each candidate entry is scored by:
 
-A route that breaks loses rank on its own: each user's stake stops counting the moment that user's call fails, and
-holders sell.
+   $$S = \sqrt{Q \cdot M}$$
 
-## If a pick fails
+   - **$Q$ (verified locked collateral):** Route stake locked by wallets that have verified the route (through a real counterparty call) and whose own latest paid call passed. Longer notice periods carry higher weight. Stake is valued conservatively at the lower of the 24-hour time-weighted price and its **last-out** sale value (as if all unlocked units sold first), so unlocked speculation adds zero collateral (`rank.collateral`, `rank.last-out`).
+   - **$M$ (market value):** The route stake's 1,000,000,000 fixed supply multiplied by its 24-hour time-weighted price.
 
-The caller tries the next entry, then the next, and finally its own browser (R3.19). A failed call costs its payer
-nothing. An entry none of whose providers served it in an epoch is **dark**: it is off the
-ranking for one epoch, then two, four and so on up to 32 (R7.11, R7.12). A route that stops working stops being picked,
-quickly.
+5. **Proportional pick + newcomer exploration.** Clients pick among candidates in proportion to `S` (so an entry with twice the rank is picked roughly twice as often). **5%** of public read-only picks go to unverified entries (fewer than 30 counted uses) so new routes can earn their first real track record (spec R3.4).
 
-## Gaming, plainly
+## When a route breaks
 
-There are no star ratings to push. What an attacker can do is pay its own route over and over. A call an identity pays
-to its own entry is never a check, so it makes no stake count that wasn't counting already. Each self-paid call gives
-up the 30% website share on a site the attacker doesn't own and the 5% burn on any site; the route's 65% pays the
-coin's earlier stakers and buys the payer more of the coin, at a price its own buying pushes up. So a wash is a dearer
-way of doing what anyone may do openly: buy the coin and stake it. Rank can be bought by locking capital, and the
-capital is lost from rank once its holder's own calls fail or it sells. What the network does **not** do is re-run
-every call to prove its answer.
+A broken route loses traffic automatically without any central intervention:
+- **Immediate fallback:** If a route fails the client's mechanical check (status, bound host, response schema), the failed fetch costs **$0**. The node immediately tries the next candidate, and if none work, falls back to its browser to relearn the site (spec R3.19).
+- **Rank drops automatically:** The moment a stakeholder's own paid call fails, its stake drops out of $Q$. Holders exit the broken route's stake and adopt the working replacement.
+- **Dark-set backoff:** If none of an entry's providers serve its recipe body during an epoch, the entry is sidelined on an exponential backoff schedule (1, 2, 4, … up to 32 epochs) without forfeiting any stake (spec R7.12).
+
+## Gaming and trade-offs, plainly
+
+Because there are no ratings to fake, the main attack is self-dealing (wash-calling your own route):
+- A call an identity pays to its own entry **never counts as a verification check**, so it cannot activate unchecked stake.
+- Every self-paid call forfeits the **30%** website share (on any domain the attacker doesn't control) and the **5%** burn, while pushing up the curve price on its own buys. Wash-calling is strictly more expensive than simply buying and locking stake openly.
+- **Accepted trade-offs:** Locking capital *can* buy rank (though failed fetches still cost callers $0 and earn stakers $0), a well-funded copy can out-earn an under-staked original, and dormant holders who never re-test or sell slow down rank decay.
 
 ## In the code today
 
-**Built.**
+**Built:**
+- **BM25 recall & site scoping:** `unbrowse-node/app/src/rank.rs` (`scores`, `ranked`) and `api/goal.rs` (`network_goal`, `goal_words`).
+- **Budget & site-policy filters:** `over_max` checks (`max_fetch_usdc`) and `app/src/sitepolicy.rs`.
+- **Verified-collateral ranking (`S = √(Q · M)`):** `unbrowse-node/app/src/rank/coin.rs` and `chain/coins.rs` compute `Q`, `M`, proportional selection, and 5% newcomer exploration from chain state.
+- **Fallback & dark-set backoff:** `network_goal`, `share::Dark`, and `crates/net/src/providers.rs`.
 
-- **Route coins are built.** The contracts are in `unbrowse-settlement/src/coins/` (private repository; the coin, its curve, staking, the fetch path and bounties), Settlement pays the 65 / 30 / 5 split and calls them on every claimed line, and the node trades, stakes, claims and ranks through them (`unbrowse-node/app/src/chain/coins.rs`, `rank/coin.rs`). The earlier economy (entry bond, route pool, fraud court, HTTP domain witnesses) is removed. Nothing is deployed yet: Arc mainnet has no deployment, and the earlier Arc testnet contracts are no longer supported.
-- **Words.** The node ranks by BM25 over what each route does, its site, its path, and the names of its answer's
-  fields, with its own routes and other nodes' scored as one list (`unbrowse-node/app/src/rank.rs` `scores`,
-  `ranked`; `unbrowse_search`).
-- **Scope by site.** `unbrowse_do` with a url asks the peer network for the page's site and tries listings whose
-  description says the goal's words (`api/goal.rs` `network_goal`, `goal_words`).
-- **The agent's maximum.** A listing over the owner's `max_fetch_usdc` (0.05 USDC by default) is passed over as if it
-  weren't offered, and the fee is checked once more on chain before paying (`over_max`;
-  [SHARING.md §3](../SHARING.md#3-how-a-caller-finds-pays-for-keeps-and-runs-a-body)).
-- **Falling back.** One entry fails, the next is tried, then the browser (`network_goal`).
-- **The dark set.** `share::Dark`, on the doubling schedule up to 32 epochs, and providers that serve nothing or the
-  wrong bytes set aside on the same schedule (`crates/net/src/providers.rs`).
-  [NETWORK.md §8](../NETWORK.md#8-seeding-light-mode-and-the-dark-set).
-- **Rank and the pick.** The node computes `S = √(Q·M)` for each entry from chain reads: the stake lots of wallets that checked the entry and whose latest paid call on it passed, each weighted by its exit delay, valued at the lower of the 24-hour average price and what selling would return, and the coin's market cap (`unbrowse-node/app/src/rank/coin.rs`, `chain/coins.rs`). It picks in proportion to rank, with 5% of picks for entries with no rank yet. The pass rate is still computed and shown.
+**Differences & not built yet:**
+- Candidate matching uses exact goal words (`goal_words`) and BM25; semantic embeddings from a pinned open model (spec R2.24) are not wired in yet.
+- Each contributor sets one on-chain fee (`setFee`) across its entries rather than per-entry payer-dependent schedules (spec R3.30–R3.31).
+- Dark-set state is held locally in memory per node and resets on restart.
+- Daily wallet fee capacity (spec R3.6, R6.12) and commit-reveal failure reports (spec R5.7) are not built yet.
 
-**Differs from the design.**
-
-- **Matching a listing is by its words.** A listing is a candidate when its description's words are the goal's words, in
-  any order (`goal_words`); there is no recall by meaning.
-- **One price per contributor**, set on chain with `setFee` for all its entries, and moved by auto pricing at most once
-  an epoch ([SHARING.md §6](../SHARING.md#6-fees-and-pricing)). The spec has a price schedule per entry that may depend on
-  the payer's record (R3.30, R3.31).
-- **Dark state is each node's own and in memory**; a restart starts it afresh. The spec leaves who reports a dark entry
-  open (R7.11).
-
-**Not built yet.**
-
-- Embeddings and the pinned model (R2.24), the reported pass rate and default entry (R5.16 to R5.19), commit-and-reveal
-  reports (R5.7), and the false-fail gate (R4.26 to R4.29).
-- Capacity, which in the spec skips a wallet's entries once they take their day's fees (R3.6, R6.12). See
-  [Payments and UNB](payments-and-unb.md).
-
-Related: [Routes and the registry](routes-and-registry.md) · [Payments and UNB](payments-and-unb.md).
+Related: [Routes and the registry](routes-and-registry.md) · [Payments, Staking & UNB](payments-and-unb.md).

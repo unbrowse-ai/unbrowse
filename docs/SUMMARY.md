@@ -9,7 +9,7 @@
 * [Three parties, one node](concepts/the-node.md)
 * [Routes and the registry](concepts/routes-and-registry.md)
 * [Search and ranking](concepts/search-and-ranking.md)
-* [Payments and UNB](concepts/payments-and-unb.md)
+* [Payments, Staking & UNB](concepts/payments-and-unb.md)
 * [Identity and the vault](concepts/identity-and-vault.md)
 * [Decentralised from launch](concepts/decentralised.md)
 * [The papers](concepts/papers.md)
@@ -55,3 +55,4 @@
 
 * [Operations](OPERATIONS.md)
 * [Testing](TESTING.md)
+* [The agents on a pull request](CI-AGENTS.md)

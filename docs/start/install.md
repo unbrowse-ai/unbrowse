@@ -25,8 +25,8 @@ there's no Chromium, the first time a goal needs a browser ([the-browser.md](../
 | `npm install -g unbrowse` | the node, `unb` and the window for this machine, as the optional dependency `@unbrowse/<platform>-<arch>`, plus the client and the skill; no browser | put in `~/.claude/skills/unbrowse` when `~/.claude` exists (`cli.ts` `postinstall`) | yes |
 | The release's wheel, `unbrowse-<v>-py3-none-<machine>.whl` | the same, for Python | not placed: run `unbrowse skill` | yes |
 | `unbrowse-<v>-py3-none-any.whl` | the Python client alone, for any other machine | not placed | yes, but it finds no programs |
-| The Mac disk image or `Unbrowse-<v>-macos-<arch>.zip` | `Unbrowse.app`: the window, with the node and `unb` in `Contents/MacOS`; the browser comes when a goal needs it | copy [`skills/unbrowse`](../../skills/unbrowse) by hand | no |
-| `unbrowse-<v>-<os>-<arch>.tar.gz` or `.zip` | the four programs in a folder, with a README (`.github/scripts/package-programs.sh`) | copy it by hand | no |
+| The Mac disk image or `Unbrowse-<v>-macos-<arch>.zip` | `Unbrowse.app`: the window, with the node and `unb` in `Contents/MacOS`; the browser comes when a goal needs it | put in the skills folder of every agent found on this machine, from the copy the app carries: on the first start after the terms are accepted, and again when a newer version carries a different skill | yes: `unb`, `unbrowse-node` and `unbrowse` in `~/.local/bin`, from the same start |
+| `unbrowse-<v>-<os>-<arch>.tar.gz` or `.zip` | the four programs in a folder, with a README (`.github/scripts/package-programs.sh`) | the same, on the node's first start after the terms are accepted | the same |
 
 The wheels are attached to the GitHub release; nothing is published to PyPI ([OPERATIONS.md §10](../OPERATIONS.md#10-known-gaps)).
 npm still serves an older `unbrowse` today; until the current releases reach it, install from the release page
@@ -38,11 +38,21 @@ package's, `/Applications` or `~/Applications`), else the platform package's `bi
 vendor's team, and `UNBROWSE_UNCHECKED_APP=<absolute path>` runs a build of one's own with signature checks off,
 warning on every run.
 
-`unbrowse skill [dir]` copies the skill the package carries into `dir`, by default `~/.claude/skills/unbrowse`,
-replacing what was there ([the-skill.md](../reference/the-skill.md)).
+`unbrowse skill [dir]` copies the skill the package carries into `dir`, by default every agent's skills folder found
+here, replacing what was there ([the-skill.md](../reference/the-skill.md)).
 
-**The Mac app is signed ad hoc, not notarized**, so macOS stops its first launch. Open it once by hand as the root
-README says, or from a terminal: `xattr -dr com.apple.quarantine /Applications/Unbrowse.app`.
+**The Mac app and the archives put both halves in place themselves**, since dragging a disk image in runs no code of its
+own (`unbrowse-node/app/src/install.rs`): once the terms are accepted, the node writes the skill into the skills folder
+of every agent found on this machine, links `unb`, `unbrowse-node` and `unbrowse` into `~/.local/bin`, and — when the
+shell's own file doesn't name `~/.local/bin` already — adds one guarded line to the file that shell reads at login
+(`~/.zprofile` for zsh, `~/.bash_profile` for bash, `~/.config/fish/config.fish` for fish, `~/.profile` otherwise).
+Anything already at the skill's name that Unbrowse didn't write is kept beside it, never deleted. `unbrowse install
+--dry-run` says what it would do, `--skill` or `--commands` does one half, and the same step is in the app's setup list
+(`unbrowse_setup`, `do: "tools"`). A program running from a mounted disk image or a translocated copy puts no commands
+on the PATH — the links would break when the image went away — and says to open the app from Applications first.
+Windows keeps the commands in the installer's own folder: nothing adds it to the user PATH yet.
+
+**macOS signing:** Production releases are signed with Unbrowse's Developer ID and notarized by Apple, so the app opens normally. Unsigned local or dev builds are blocked by Gatekeeper on first launch; open via right-click → Open, or `xattr -dr com.apple.quarantine /Applications/Unbrowse.app`.
 
 ---
 
@@ -64,7 +74,7 @@ Chromium. Safari and Firefox open links but carry no Chromium, so the node can't
 
 | Machine | Release | Window |
 |---|---|---|
-| macOS, Apple silicon (no Intel Mac build) | npm, wheel, disk image, zip, `.tar.gz` without the window | native |
+| macOS, Apple silicon and Intel | npm, wheel, disk image, zip, `.tar.gz` without the window | native |
 | Linux x64 and arm64, glibc 2.35 or later | npm, wheel, `.tar.gz` | native (GTK) |
 | Windows x64 | npm, wheel, `.zip` | native |
 

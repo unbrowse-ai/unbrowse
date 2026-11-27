@@ -171,7 +171,7 @@ find other nodes' routes.
 
 **Why.** The current releases aren't on npm yet: npm still serves the older `unbrowse` package.
 
-**Fix.** Install from the [latest release](https://github.com/unbrowse-ai/unbrowse-core/releases): the macOS app, or
+**Fix.** Install from the [latest release](https://github.com/unbrowse-ai/unbrowse/releases): the macOS app, or
 the `unbrowse-<version>-<os>-<arch>` download for your machine, whose README says how to start it.
 
 ## `unb` says the node "took the request but hadn't answered after 330 s"
