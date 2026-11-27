@@ -186,8 +186,7 @@ Two of them print what they measure:
 
 ## 4. The contracts (forge)
 
-The suites, the invariants and the 6-decimal runs are described in the
-contracts reference (private repository) §8 and §9.
+The Foundry contract test suites, invariants, and 6-decimal runs live in the separate settlement contracts directory (`unbrowse-settlement/`, excluded from the public mirror). When working in a checkout that includes `unbrowse-settlement/`:
 
 ```sh
 cd unbrowse-settlement

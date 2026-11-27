@@ -1,212 +1,146 @@
-# Payments and UNB
+# Payments, Staking & UNB
 
-## In plain words
+This page explains how you earn from routes and how Unbrowse's economy works — starting with the plain-English summary, followed by the full route-staking, verification, ranking, and bounty mechanics.
 
-What an owner sees in the window, and what sits under it:
+---
 
-- **You add dollars.** By card, Apple Pay or bank, or by sending USDC (a dollar stablecoin) on the Arc network to your
-  node's address. The balance shows in dollars. USDC sent on any other network doesn't reach it.
-- **Your agents spend from that balance** on routes other people shared, each fetch up to your per-fetch maximum
-  ($0.05 by default) and each agent key within its daily limit. Search is free, and running a route is free.
-- **Your shared routes earn.** Each time another agent pays for a route you shared and its call passes, you earn the
-  route's share of the fee (65%), while the route has no coin. Cash out adds it to your balance. Amounts shown are
-  what was paid, never a projection.
-- **Payments settle on a public network.** That is how nodes that don't know each other pay each other with no
-  company in the middle holding the money: each payment is signed by the payer's agent key and claimed against its
-  deposit. Your node has its own address there, and needs no sign-up.
-- **UNB is the network's own token.** Agents never pay in it. Route coins trade against it, bounties are posted in it,
-  and 5% of every fee buys it and burns it. Its price, and a route coin's, can go down as well as up, and nothing
-  supports either.
-- **What the node does with coins by itself, and how to stop it.** A paid fetch your agents make on a route that has a
-  coin buys some of that coin for you and stakes it. Once a route you listed is first paid for, the node launches its
-  coin with 1% of the UNB you hold; with no UNB it launches nothing. Set that share to 0 in Settings, under "Launch my
-  entries' coins". Everything else (buying, selling, staking, withdrawing) happens only when you ask. All of it is
-  under Money, Advanced.
+## The short version
 
-The rest of this page is the full design.
+If you just want to use Unbrowse and earn when you share routes, here is all you need to know:
 
-Agents pay for routes in dollars (USDC, a dollar stablecoin), never in UNB. UNB is a fixed-supply token with three jobs
-in the design: each route's coin trades against it, bounties are posted in it, and a share of every fee buys it and
-burns it. The money is the subject of [*Paying for the Map*](../../papers/economy.md). Rule names on this page are those of the protocol specification ([`papers/protocol.md`](../../papers/protocol.md)).
+1. **Browsing and sharing are free.** Your node learns routes as you and your agents browse. Sharing proven routes to the open index costs nothing and requires no deposit or bond.
+2. **Your own routes and cached routes are free.** Calling routes your node learned — or routes you already fetched and cached — costs **$0**. Search is free. Failed fetches always cost **$0**.
+3. **Callers pay once per version, in dollars (USDC).** When another agent fetches a route from the index for the first time, it pays the route's fee in USDC (up to the owner's per-fetch limit, $0.05 by default).
+4. **Every passed fee splits 65 / 30 / 5:**
+   - **65% goes to the route** (paid to the contributor directly before route staking opens on that route, or to verified stakeholders once staked).
+   - **30% goes to the website's domain escrow** (claimable by the site owner via DNSSEC).
+   - **5% buys UNB and burns it.**
+5. **Callers become stakeholders automatically.** Once staking is open on a route, part of every passed fetch automatically buys and locks a stake in that route for the calling agent — without the caller ever needing to hold UNB.
 
-## Who pays, and in what
+*(Status: local learning, calling, and devnet testing work today. Real-money settlement, route staking, website escrow, and bounties open on Arc mainnet after contract audit, legal review, and the closed pilot.)*
 
-Nobody sets a central price. Each contributor sets the price of its own entry in USDC, and the only floor is USDC's
-smallest unit, $0.000001. The client suggests no price; entries that work equally well compete on it (R3.30, R3.33). A
-site that has proved its domain may set a floor for its own routes (R4.17). A node never pays more than its owner's
-maximum for one fetch (R3.3).
+---
 
-A node pays **once** when it fetches a route version. It keeps the body and reuses it with no new payment while that
-version works (R3.12). Search is free, running a route is free, and no price feed sits on the payment path (R3.29,
-R3.34).
+## Why the economy is built this way
 
-Each passed fee splits three ways (R4.1):
+A shared map of website APIs is a commons problem: websites change constantly, fixing broken routes takes real work, and if everyone copies routes for free, nobody maintains them. Conversely, if anyone can get paid to list routes, spammers will flood the index with broken or fake ones.
 
-| Share | Goes to |
-|---|---|
-| **65%** | the **route**: it pays the coins already staked on the route, and buys the route's coin for the payer with the rest |
-| **30%** | the **website's** escrow, claimed by proving the domain |
-| **5%** and rounding | buys UNB and **burns** it |
+Unbrowse solves both problems without a central company, human moderators, or star ratings:
+- **Contributors get paid** in USDC whenever agents adopt their working routes.
+- **Route staking** turns real users into verifiers. Because every paying user automatically gets a locked stake in the route, and a stake only counts while the holder's own calls work, working routes accumulate verified stake and rise to the top while broken routes lose rank and earnings automatically.
 
-The node that served the body and the platform take no share of a fee. There are no skill fees and no execute prices.
+---
 
-Payments are off chain until claimed. The owner deposits USDC and authorises each agent key with a cap per epoch and an
-expiry. Each paid fetch adds a line to the agent's running **voucher**, a message its key signs. Each payee later
-**claims** its line on chain, with a Merkle proof, and is paid from the payer's deposit at once (R3.13, R3.22). An epoch
-is 24 hours.
+## 1. Pricing, vouchers & failed calls
 
-## When a use fails
+- **Market-set prices in USDC:** Each contributor sets its own price in dollars (USDC). The only protocol floor is `$0.000001`. Equivalent working routes compete on price. A verified website owner may also set a price floor for its own domain (spec R4.17).
+- **Pay once per route version:** A caller pays on a cache miss when fetching a route body. Once fetched and verified, the node caches the recipe and replays it for **$0** as long as that version works (spec R3.12).
+- **Off-chain signed vouchers:** Calling a route never waits on a blockchain transaction. The node owner deposits USDC into Settlement and authorises each agent key with a daily spending cap ($5/day by default) and expiry. Each paid fetch appends a signed EIP-712 receipt line to the agent's running voucher. Payees (or the payer's backstop / watchtowers) batch-claim settled lines on chain (spec R3.13, R3.22). One **epoch** is 24 hours.
+- **Failed calls are always free:** The calling node checks every response mechanically (HTTP status, bound host, response schema) before signing pass or fail into the receipt line. A failed fetch costs the caller **$0** and pays nobody, regardless of how many calls fail. Servers may independently stop serving a payer that reports excessive failures.
 
-The caller's client checks each answer mechanically (status, final host, answer shape) and signs the result into the
-line (R3.17). A failed line pays nobody and costs its payer nothing, however many of its lines fail. The contract
-keeps no count of failures. Since the payer signs pass or fail itself, a payer that marks every use failed gets every
-answer unpaid, and nothing on chain stops it: the owner accepted that cost on 12 Nov 2026. Each voucher carries the
-payer's own count of lines and passed lines, which the contract doesn't read. A server is paid nothing for a failed
-use and may stop serving a payer from what it saw itself; that choice is each server's own.
+---
 
-## Route coins
+## 2. How the 65 / 30 / 5 split works
 
-### One coin per entry
+When a passed receipt line is claimed on chain, its USDC fee splits three ways (spec R4.1):
 
-An entry is one route body, named by its hash, and it may have one coin with a fixed supply of **1,000,000,000**. An
-exact copy is the same entry and can't launch a second coin; a changed body is a new entry with its own coin
-(`coin.per-entry`). Listing is free and launches nothing. A coin launches only with a buy, the credited lister's own
-(`coin.launch`); a bounty never launches one.
+```
+Passed USDC fee
+ ├── 65% ──▶ The Route (CoinFetch)
+ │            ├── Before route staking opens: owed directly to the credited contributor in USDC
+ │            └── Once route staking is open:
+ │                 ├── Locked, verified stake earns its pro-rata share in USDC
+ │                 └── Remainder swaps to UNB → buys route stake on its curve → locks for caller
+ ├── 30% ──▶ Website Escrow (held per domain; claimable via DNSSEC proof after 14 epochs)
+ └──  5% ──▶ Burn Buffer (batch-swapped once per epoch into UNB and permanently burned)
+```
 
-The whole supply sells on a curve against UNB, and the price rises as coins are bought, so the earliest buyers pay
-least. Each curve trade pays **1%** of its UNB to the platform. A buy in the first **5 minutes** after launch also pays
-a snipe tax that starts at **50%** and falls to nothing, and the tax is burned. The curve is the
-coin's permanent market: nothing is held back, and a coin never moves to a pool (`coin.curve`, `coin.snipe-tax`,
-`decide.no-graduation`).
+Neither the serving peer (0%) nor the platform (0%) takes a cut of route fees. There are no skill fees and no execute tolls.
 
-### What a fetch does
+---
 
-1. A passed fetch pays the route's **65%** in USDC.
-2. Every coin of the fixed supply earns the same part of it. Coins staked before this epoch, by a wallet that has
-   checked the route, are paid their part in USDC.
-3. The part of every other coin (unsold on the curve, held unstaked, or staked too recently) is swapped to UNB and buys
-   the route's coin for the payer in the same transaction. The payer never handles UNB.
-4. Those coins are staked for the payer with its client's exit delay (**24 hours** by default). The payer has just seen
-   the route work, so its stake counts in the route's rank at once and earns from the next epoch.
+## 3. Stake your routes: how route staking works
 
-There is no lister cut: the lister earns as a staker of its own coin, like anyone. If an entry has no coin yet, or the
-part is too small to buy, the credited lister is paid it, so nothing is stranded (`coin.fetch-pays`, `coin.split`). On a
-new route almost nothing is staked, so nearly all of a fetch buys; as more of the supply is staked, more is paid out.
+### One fixed-supply stake per route body
+Every unique route body is identified by the SHA-256 hash of its canonical recipe bytes (`content_id`). Each entry can have **at most one route stake** with a fixed supply of **1,000,000,000** standard ERC-20 stake units (`coin.per-entry`).
 
-### Staking, checks and exit
+- An exact copy of a recipe has the same hash and cannot open a duplicate stake.
+- A modified recipe (such as a fix when a website changes) has a new hash, becomes a new entry, and can open its own stake to compete on rank.
+- **Listing is free and launches nothing.** Staking on a route only opens when the entry's credited contributor makes the first buy on its price curve (by default, the node uses 1% of its UNB balance if it holds any; set `coin_dev_buy` to `0` to disable; a wallet with no UNB still lists and earns the 65% route share directly in USDC).
 
-- **Stake.** Coins earn only while staked, from the epoch after they were staked. Coins held unstaked earn nothing
-  (`coin.stake`).
-- **Check.** Staked coins earn only once the wallet has checked the route: it paid the route's listed price for a
-  passed call another identity served, or its own listing served a passed call another identity paid. The check is
-  recorded once and never lapses. A call a wallet pays to its own entry is never a check (`coin.check`).
-- **Exit delay.** The staker names its exit delay when it stakes. Unstaking takes that long, earning nothing, and a
-  longer delay counts for more in rank; how much is open (`rank.exit-delay`).
-- **Claim.** Earnings are USDC claims of the wallet, taken whenever it chooses (`coin.claims`).
-- **Sell.** A holder exits by selling into the curve. Coins never expire
-  (`coin.no-expiry`).
+### The permanent price curve
+Every route stake's entire 1B unit supply trades on a constant-product price curve against **UNB** (`coin.curve`):
+- **Early backers pay less:** Price increases along the curve as more stake units are bought, rewarding early contributors and verifiers.
+- **Permanent market:** Route stakes never expire and never graduate off the curve; holders can buy from or sell back into the curve at any time (`coin.no-expiry`).
+- **Curve fees:** Every curve trade pays a **1%** fee in UNB to the platform. Buys during the first **5 minutes** after a route stake opens also pay a decaying **early-buyer fee** (snipe tax) starting at **50%** and falling linearly to **0%**, sent to the UNB burn buffer (`coin.snipe-tax`).
 
-Beyond what a fetch buys, a node buys, stakes or sells a coin only when its owner asks.
+### How a paid fetch pays stakeholders and stakes the caller
+When an agent's passed fetch is claimed on a staked route:
+1. Every unit of the 1,000,000,000 supply is allocated an equal fraction of the **65%** route share.
+2. **Existing verified stakeholders get USDC:** Any stake units that were locked before the current epoch closed — by wallets that have verified the entry — receive their exact fraction immediately as claimable USDC.
+3. **Unlocked/unsold supply buys and locks stake for the caller:** The remainder (for units still on the curve, held unlocked, or locked too recently) is swapped into UNB through the UNB/USDC pool, buys stake in the route on its price curve, and automatically locks it for the calling agent's wallet (with its default 24-hour notice period).
+4. **Price-movement protection:** If a route stake is younger than 15 minutes or its spot price has moved more than 1% from its 15-minute average or recent settled price, the USDC is safely parked (`completeBuy`) and completed once prices settle.
 
-### Capacity
+On a brand-new route with little stake, nearly all of each fetch buys and locks stake for early callers. As more of the supply becomes locked by verified users, a larger share of each fetch flows directly to stakeholders as USDC.
 
-A wallet's entries take at most $2.00 of paid fees a day plus 0.2 times its clean fees to date; past that, clients
-skip them until the next epoch (R6.12). Capacity reads no price and no stake. Whether it stays now that stake earns
-from route coins is open (R6.13).
+### Staking rules, checks & exiting
+- **Lock to earn:** Unlocked stake earns nothing. Locked stake begins earning USDC from the next epoch close (`coin.stake`).
+- **Check-once verification:** Locked stake only earns after the wallet has **checked** the route — either by paying the listed price for a passed fetch served by another identity, or by having its own live listing serve a passed fetch paid by another identity. Self-paid calls never count as a check (`coin.check`). Once verified, a check does not expire on a timer.
+- **Notice period (exit delay):** When locking stake, you pick an exit delay (**24 hours** by default). Longer notice periods carry higher weight in route ranking. Requesting an unlock stops earnings and ranking weight immediately; after the delay passes, you withdraw the units and can sell them into the curve.
+- **Claim anytime, zero slashing:** There is **no entry bond, no payout withholding, no vesting period, no fraud court, and no slashing** (`bond.none`, `fraud.none`). Nobody can forfeit your stake. A stakeholder's only risk is that the route breaks or loses demand, causing its stake value and fee flow to drop.
+- **Owner control:** Aside from automatic stake buys triggered by passed fetches and the optional 1% opening buy (configurable to 0), a node never buys, locks, or sells route stakes unless the owner explicitly asks.
 
-## What you can lose
+### How staking drives route ranking
+Staking isn't just for splitting fees — it is how clients decide which route to call when multiple contributors map the same site. Clients rank each entry by `S = √(Q · M)`, combining **verified locked collateral** (`Q`, valued last-out and weighted by notice period) and **24-hour time-weighted market value** (`M`). The moment a stakeholder's own paid call fails, its stake stops counting in `Q`. See [Search and ranking](search-and-ranking.md) for the full ranking logic.
 
-There is no bond, no withholding, no slashing and no fraud court, and nothing can forfeit stake (`bond.none`,
-`fraud.none`). Claims are paid whole in USDC, at once: nothing vests
-(`decide.no-claims-vest`). A holder's only risk is the route's coin losing its price and its calls. A slow site, downtime or a changed page
-costs the route picks and fees.
+---
 
-## Bounties
+## 4. Bounties
 
-A bounty is UNB posted by anyone who needs a route that doesn't exist yet, for a site or an intent, and held by the
-bounty contract (`coin.bounty-launch`).
+Anyone who needs a route for an unmapped website can post a **bounty** in UNB (`CoinBounties`):
 
-- **A limit order.** The poster names the most it pays per coin, fees and tax included. A release buys only what fills
-  at or under that price, and what doesn't fill stays the poster's. With no limit, it buys at market
-  (`coin.bounty-limit`).
-- **Release by confirmation.** Once the poster's own paid call on an entry has passed and been claimed, the poster may
-  confirm once the entry's coin trades and is past its snipe window: the release buys on its curve (a bounty never
-  launches a coin). **50%** of the coins bought go to the entry's credited lister and the rest to the poster, both staked
-  and both checked (`coin.bounty-confirm`).
-- **Release by use.** Every counted paid call on the site after posting, from any wallet, releases a share of the
-  bounty to that entry, in proportion to the USDC it paid and at most **5%** of that USDC. That is the burn's share,
-  which a faker who owns the site and the stake never gets back (`coin.bounty-by-use`). An entry with no coin when
-  the bounty is settled gives its share to the poster. A lister has to launch by the bounty's deadline to get the share.
-- **Deadline.** A bounty that approves no entry by its deadline goes back to the poster, and the poster takes back
-  whatever nobody used.
+- **Standing limit order in UNB:** The poster locks UNB in the bounty contract, names the target site, sets a maximum price per stake unit (`limit`, fees and early-buyer fee included), and sets a deadline (30 days by default).
+- **Two ways a bounty releases (no human judge):**
+  1. **Sponsor confirmation:** After the poster's own paid call on a listed route passes and is claimed (and once the route's stake is past its 5-minute opening window), the poster can confirm. The bounty buys the route stake up to its limit price and splits the bought stake **50% to the credited contributor, 50% to the poster**, both locked and verified.
+  2. **Automatic release by use:** Even if the poster stays silent, every counting paid fetch on that site after posting reserves up to **5%** of that call's USDC value from the bounty (matching the 5% burn so wash-calling cannot profit). After settlement, each qualifying entry's stake is bought automatically.
+- **Refunds:** Unfilled or unused UNB returns to the poster after the deadline. Nothing is burned for silence.
 
-There is no judge and no reserve bounty pool. The founder posts bounties from its own UNB on the same terms as anyone,
-and its wallet may hold the coins they bought across many routes; that is disclosed (R8.12). How a bounty matches an
-entry's site is still open.
+---
 
-## Getting started, in the design
+## 5. UNB supply, allocation & trade-offs
 
-A node joins on its own wallet. It needs a few cents of USDC on Arc once, to register its identity, and every fee is
-paid from a deposit and splits like any other.
+**Supply:** **1,000,000,000 UNB**, minted once at genesis on Arc mainnet with **0 minted afterward** (spec R9.1, R10.2). Burns only shrink circulating supply.
 
-## Supply and allocation, in the design
+**Genesis allocation (protocol spec R9.3):**
+- **67% (proposed):** Public launch pool / open market (UNB's public UNB–USDC pool on Arc)
+- **10%:** Rewards reserve (locked in a utility contract solely to post hourly listing Merkle roots; never stakes or pays bounties)
+- **15%:** Treasury (5% locked 3 months, 10% locked 6 months from genesis)
+- **8%:** Team (locked 3 months from genesis; team may also buy up to 7% on the open market from disclosed wallets)
+- **0%:** No airdrop
 
-**1,000,000,000 UNB**, minted once at genesis on Arc mainnet, with no minter; burns only remove it (R9.1). Genesis
-allocates: a public launch pool of 67% (proposed), a rewards reserve of 10% locked in the utility contract (it posts
-listing roots and pays no bounty), a treasury of 5% and 10% locked 3 and 6 months, and the team's 8% locked 3 months.
-No airdrop (R9.3, R9.12). The team intends to buy up to 7% at launch from disclosed wallets, which is insider UNB, not
-outside demand (R9.4a). Every UNB trade in the public pool pays its 4% fee, the trade tax, to Unbrowse (R9.28a). The
-network opens to everyone on gates, not a date: audited contracts, a legal opinion and the pilot's measures (R11.8).
+**Pool fees:** UNB's public UNB–USDC pool charges a **4%** trade fee, which funds Unbrowse.
 
-## The caveats
+**Explicit trade-offs & risks:**
+- **UNB carries no governance vote.** Contracts have no owner or admin key; rule changes happen only through new deployments that users choose to adopt (spec R10.3, R10.14).
+- **Capital can buy rank.** Because ranking reads market value and locked collateral, well-funded actors can push a route up — though failed calls always cost callers $0 and pay stakeholders $0.
+- **Well-funded copies can compete.** A copy of a working recipe backed by more capital can out-earn an under-staked original.
+- **Dormant holders slow decay.** Until holders sell or their own calls fail, stale stake decays slowly.
+- **Market and stablecoin risks.** UNB and route stakes can fall to zero; the 5% burn is a fee-funded buyback, not a price floor. Fees settle in USDC, whose issuer can freeze addresses.
 
-- **UNB carries no vote.** Rules change only by a new deployment that users choose to move to (R10.14).
-- **Rank can be bought by locking capital.** Rank reads a coin's market and the stake behind it, so a holder with more
-  capital can outrank a better route until its own calls fail or it sells.
-- **A far larger copy can out-earn the original.** A copy of a working route launched with much more capital than its
-  lister staked is accepted as competition.
-- **A silent holder keeps a broken route ranked.** Only failed calls and sales take stake out of rank.
-- **It can rise and it can fall.** Supply only falls, but nothing promises a price, and a thin early pool moves on small
-  swaps.
-- **The burn is a buyback**, and is called one. It grows only with paid use (R4.7).
-- **USDC's issuer can freeze it.** Fees are in dollars, so that risk is real.
+*Nothing in this documentation is an offer of any token or a promise of any price or return.*
 
-Nothing here is an offer of any token or a promise of any price or return.
+---
 
-## In the code today
+## 6. In the code today
 
-**Built.** Everything above that is a contract rule is in this repository, and the node uses it.
+**Built in this repository:**
+- **Node chain & economy logic:** 65 / 30 / 5 fee split (`unbrowse-node/app/src/chain/wallet.rs`), route-stake opening, trading, locking, claiming, held-buy completion, bounties, and `S = √(Q · M)` ranking (`app/src/chain/coins.rs`, `rank/coin.rs`, `autobounty.rs`).
+- **Compiled contract interfaces:** `unbrowse-node/app/contracts/` holds the ABIs for Settlement, Listings, Domains (DNSSEC), RouteCoins, CoinStakes, CoinFetch, and CoinBounties.
+- **Local test mode:** Source builds spin up a local Anvil devnet with test USDC and test UNB so every payment, route-staking, and bounty path can be exercised locally.
 
-- **The split.** Settlement pays 65% to the route, 30% to the website's escrow, and buffers the rest, at least 5%, to
-  buy and burn UNB (`unbrowse-settlement/src/lean/LeanSettlement.sol`; the node's copy is `SPLIT` in
-  `unbrowse-node/app/src/chain/wallet.rs`).
-- **Route coins.** One fixed-supply coin per entry, launched with a first buy, sold on a curve with the 1% trade fee and
-  the snipe tax (`RouteCoin`, `RouteCoins`); staking in lots, each with its own exit delay, checks, and USDC paid from
-  a running sum (`CoinStakes`); the fetch that pays earlier stake and buys and stakes for the payer, held and completed
-  later when a buy can't run safely (`CoinFetch`); bounties as limit orders with release by use (`CoinBounties`). The
-  reference is `unbrowse-settlement/src/coins/README.md` (private repository).
-- **Failed lines.** Free whatever their share: a claim marks a failed line spent and pays nobody from it.
-- **Website escrow.** A domain claims with a DNSSEC proof (`Domains`); there are no HTTP witnesses.
-- **The node.** It launches its listing's coin with a first buy of 1% of the wallet's UNB by default, shows what each
-  fetch bought and staked, stakes, asks back, withdraws and claims on the owner's word, completes its own held buys,
-  posts and confirms bounties, and ranks entries from chain reads
-  ([CLI.md](../CLI.md), [MONEY.md](../MONEY.md)).
-- **The model.** The rules were written first as an executable model and the contracts are replayed against its traces
-  step by step (`unbrowse-settlement/spec/coins/` (private repository)).
+**Differences & deployment status:**
+- Daily wallet fee capacity (spec R6.12) is not implemented yet.
+- The curve's 1% trade fee goes to a deployment-configured address; price-movement protection bounds (1% / 15 min) are deployment settings.
+- **Not deployed on live networks yet:** `arc-mainnet.json` and `arc-testnet.json` currently set `"deployment": null`. Mainnet deployment is gated on an independent security audit, legal opinion, and closed pilot measurements.
 
-**Differs from the design.**
-
-- **The curve's 1% trade fee goes to one address fixed at deployment**, which pulls it. Who that should be is the
-  owner's open decision.
-- **A fetch's buy is held, not made, when the coin's price has moved** more than 1% from its 15-minute average or from
-  its settled price, and for a coin younger than 15 minutes. Those two numbers are deployment settings, not yet protocol
-  parameters.
-- **Capacity (R6.12) is not built**: nothing skips a wallet's entries once they have taken a day's fees.
-
-**Not deployed.** Arc mainnet has no deployment (`unbrowse-node/app/networks/arc-mainnet.json`). The earlier Arc testnet
-contracts are no longer supported; a node on Arc testnet says so and sends nothing until the route-coin set is deployed
-there. No contract here mints UNB or holds an allocation: devnets use a test UNB, and on a live network the operator
-names the token at deployment.
-
-**Not yet audited by an outside party.** The coin contracts have had two internal audit rounds, with every finding
-fixed or removed; an independent audit and a legal opinion gate any mainnet deployment.
+For exact gas measurements, claim batching, and balance rules, see [MONEY.md](../MONEY.md).
