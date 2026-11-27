@@ -110,12 +110,21 @@ export class EventStream {
     const reader = body.getReader();
     const decoder = new TextDecoder();
     let buf = "";
+    let halfCr = false;
     const seq = { next: 0 };
     try {
       for (;;) {
         const { done, value } = await reader.read();
         if (done) return;
-        buf += decoder.decode(value, { stream: true }).replace(/\r\n?/g, "\n");
+        let text = decoder.decode(value, { stream: true });
+        if (text) {
+          // A CRLF cut between its CR and its LF across two chunks is one line end, not two: the CR already
+          // closed its line, so an LF opening the next chunk is that line end's other half and is dropped
+          // (UNB-181).
+          if (halfCr && text.startsWith("\n")) text = text.slice(1);
+          halfCr = text.endsWith("\r");
+          buf += text.replace(/\r\n?/g, "\n");
+        }
         let end: number;
         while ((end = buf.indexOf("\n\n")) >= 0) {
           await this.dispatch(buf.slice(0, end), nonce, seq);

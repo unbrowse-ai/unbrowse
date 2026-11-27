@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import hmac
 import json
 import os
@@ -16,6 +17,32 @@ from .client import DEFAULT_NODE, _send, error_for
 
 # A call the owner runs may heal by walking the site again: it can take minutes.
 DEFAULT_TIMEOUT = float(wire.CALL_WAIT_SECS)
+
+
+def _stream_lines(res: Any) -> Iterator[str]:
+    """The lines of an event stream, read a chunk at a time: the response's own line reading knows LF alone,
+    and the format allows CRLF, LF and a lone CR (UNB-181). A CRLF cut between its CR and its LF across two
+    chunks is one line end, not two: the CR closes its line, and an LF opening the next chunk is dropped as
+    that line end's other half."""
+    decoder = codecs.getincrementaldecoder("utf-8")("replace")
+    buf = ""
+    half_cr = False
+    while True:
+        chunk = res.read1(65536) if hasattr(res, "read1") else res.read(65536)
+        if not chunk:
+            break
+        text = decoder.decode(chunk)
+        if not text:
+            continue
+        if half_cr and text.startswith("\n"):
+            text = text[1:]
+        half_cr = text.endswith("\r")
+        buf += text.replace("\r\n", "\n").replace("\r", "\n")
+        while "\n" in buf:
+            line, buf = buf.split("\n", 1)
+            yield line
+    if buf:
+        yield buf
 
 
 class UnbrowseOwner(OwnerCommands):
@@ -99,8 +126,7 @@ class UnbrowseOwner(OwnerCommands):
         with res:
             yield "open", None
             name, data, ident = "message", [], ""
-            for raw in res:
-                line = raw.decode("utf-8", "replace").rstrip("\r\n")
+            for line in _stream_lines(res):
                 if not line:
                     if data:
                         text = "\n".join(data)

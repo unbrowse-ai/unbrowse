@@ -48,10 +48,8 @@ class EventLines(WithoutOwnerToken, unittest.TestCase):
         text = ': keep-alive\r\n\r\nevent: call\r\ndata: {"phase":"start",\r\ndata: "route":"hn-search"}\r\n\r\nevent: eye\r\ndata: not json\r\n\r\nevent: activity\r\ndata: null\r\n\r\n'
         self.assertEqual(self.events(text), EXPECTED)
 
-    # UNB-181. Fails on the current src: the reader splits on LF only, so a stream whose lines end in a lone CR (which
-    # the event-stream format allows) reads as one long line and no event comes out of it. Marked as the failure it is
-    # until src/unbrowse/owner.py reads such a stream; then this reports an unexpected success, and the mark goes.
-    @unittest.expectedFailure
+    # UNB-181: a stream whose lines end in a lone CR (which the event-stream format allows) is read event by event;
+    # a reader that splits on LF only reads it as one long line and no event comes out of it.
     def test_a_stream_with_bare_cr_line_endings_is_read_event_by_event(self):
         text = ': keep-alive\r\revent: call\rdata: {"phase":"start",\rdata: "route":"hn-search"}\r\revent: eye\rdata: not json\r\revent: activity\rdata: null\r\r'
         self.assertEqual(self.events(text), EXPECTED)
