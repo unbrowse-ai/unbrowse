@@ -645,5 +645,57 @@ class TheBaselineDryRun(unittest.TestCase):
         self.assertTrue(text.rstrip().splitlines()[-1].startswith("PROMOTION_REFUSED"), text)
 
 
+class WaiverLines(unittest.TestCase):
+    """promotion-gate.sh skips the one rule a release's waiver names, and only for that version (UNB-224: 13.1.0 was
+    refused by a task bank the Deck runner could not pass, and by coverage before it)."""
+
+    ROOT = pathlib.Path(__file__).resolve().parents[3]
+
+    def run_gate(self, waivers, version):
+        import os
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            (tmp / ".github/scripts").mkdir(parents=True)
+            (tmp / "bin").mkdir()
+            (tmp / "bin/gh").write_text("#!/bin/sh\nexit 0\n")
+            (tmp / "bin/gh").chmod(0o755)
+            (tmp / ".github/scripts/promotion_gate.py").write_text(
+                "import sys\nopen(sys.argv[0] + '.args', 'w').write(' '.join(sys.argv[2:]))\n")
+            if waivers is not None:
+                (tmp / ".github/promotion-waivers").write_text(waivers)
+            env = {"PATH": f"{tmp / 'bin'}:{os.environ['PATH']}", "GITHUB_REPOSITORY": "x/y"}
+            if version:
+                env["VERSION"] = version
+            done = subprocess.run(["sh", str(self.ROOT / ".github/scripts/promotion-gate.sh"), "tree", str(tmp / "out")],
+                                  cwd=tmp, env=env, capture_output=True, text=True)
+            args = tmp / ".github/scripts/promotion_gate.py.args"
+            return done, args.read_text() if args.exists() else None
+
+    def test_a_coverage_waiver_leaves_the_task_bank(self):
+        done, args = self.run_gate("13.1.0 coverage why\n", "13.1.0")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("--tasks-only", args)
+
+    def test_a_bank_waiver_leaves_coverage(self):
+        done, args = self.run_gate("13.1.0 bank why\n", "13.1.0")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("--coverage-only", args)
+        self.assertNotIn("--tasks-only", args)
+
+    def test_both_waived_has_nothing_to_measure(self):
+        done, args = self.run_gate("13.1.0 coverage a\n13.1.0 bank b\n", "13.1.0")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIsNone(args)
+        self.assertIn("PROMOTION_WAIVED", done.stdout)
+
+    def test_another_version_or_none_is_still_gated_on_both(self):
+        for version in ("13.1.1", "13.1.0-rc.2", ""):
+            done, args = self.run_gate("13.1.0 coverage a\n13.1.0 bank b\n", version)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertNotIn("--tasks-only", args)
+            self.assertNotIn("--coverage-only", args)
+
+
 if __name__ == "__main__":
     unittest.main()
