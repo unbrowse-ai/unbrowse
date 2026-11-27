@@ -9,14 +9,22 @@ file itself is the source.
 | Install | The skill |
 |---|---|
 | `npm install -g unbrowse` | copied into `~/.claude/skills/unbrowse` when `~/.claude` exists (`unbrowse-sdk/typescript/src/cli.ts`, `postinstall`); never fails the install |
+| The Mac app (disk image or zip) | carried in the binary (`unbrowse-node/app/src/install.rs`) and put in the skills folder of every agent found on this machine: the first start after the terms are accepted, again when a newer version carries a different skill, and on `unbrowse install`, `unb install` or the setup step `tools` |
+| A release archive (`.tar.gz`, `.zip`) | the same: the node does it on its first start after the terms are accepted |
 | A release wheel (`pip install unbrowse-<v>-…whl`) | carried in the package, not placed: run `unbrowse skill` |
-| The Mac app or a release archive | not carried: copy `skills/unbrowse` from the repository |
 | An agent plugin ([integrations/](../../integrations/README.md)) | Claude Code's plugin links `skills/unbrowse`; Codex's, OpenClaw's and Hermes's carry copies, written by `python3 integrations/sync-skills.py` (CI fails on a stale copy) |
 
 ```sh
-unbrowse skill          # into ~/.claude/skills/unbrowse
-unbrowse skill <dir>    # anywhere an agent reads skills
+unbrowse skill          # into every agent's skills folder found here
+unbrowse skill <dir>    # into that folder
+unbrowse install        # the skill and the commands, as the app puts them in place: --dry-run shows it, --skill or
+                        # --commands does one half
 ```
+
+The agents it writes for, each only when it is installed here: Claude Code (`~/.claude/skills`), Codex
+(`~/.codex/skills` or `$CODEX_HOME`), opencode (`~/.config/opencode/skills` or `$XDG_CONFIG_HOME`), Hermes
+(`~/.hermes/skills`), Kiro (`~/.kiro/skills`) and OpenClaw (`~/.openclaw/skills`). It never writes into an agent's
+folder that isn't there: a settings folder a skills sync made on a machine with no agent isn't one.
 
 What is already there is replaced only when it is a copy we wrote, unchanged: one an install of this package wrote
 (it leaves `.unbrowse-installed.json` beside the skill), or an older Unbrowse's (12.x and the hosted service's

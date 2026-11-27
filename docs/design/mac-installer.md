@@ -159,6 +159,27 @@ add one only if peer-network uptime needs the node running when no agent is.
 `.pkg` installers, a Homebrew cask, a LaunchAgent / login item, Windows and Linux installers, and changes to the
 update channel (`updates.yml`).
 
+## The rest of the install (2026-11-23)
+
+Everything above is about the *agent*: an MCP entry in each app's config. It left two things a drag-install doesn't do
+and this design didn't cover — the skill, and the commands on the PATH — until
+[`unbrowse-node/app/src/install.rs`](../../unbrowse-node/app/src/install.rs) (Lewis, 23 November 2026: "installing the
+unbrowse dmg should automatically install the skill and cli into path etc"):
+
+- **The skill** goes into the skills folder of every agent found on the machine (`Client::found` is the reader of
+  "installed"), from the copy the binary carries, on the first start after the terms are accepted and again when a
+  newer build carries a different skill. A folder that isn't a copy an Unbrowse install wrote is moved to
+  `unbrowse-kept` beside the skills folder, never deleted.
+- **The commands** — `unb`, `unbrowse-node`, `unbrowse` — are linked into `~/.local/bin`, at the programs of the
+  install that is running, with one guarded PATH line added to the shell's login file when it doesn't name that folder
+  already. A program running from a disk image or a translocated copy links nothing (the link would break with the
+  image) and says to open the app from Applications first.
+- It is the setup step `tools` (so the window, `onboard status` and `unbrowse_setup` all show it, with the owner's yes
+  in the node's dialog), `unb install [--skill|--commands|--dry-run]`, `unb skill [dir]` and `unb where`.
+
+Not covered: Windows (the commands stay in the installer's folder; nothing adds it to the user PATH yet), and a
+Homebrew cask, which would do the same two things in a formula instead.
+
 ## Open, owner's to answer
 
 - **Notarization needs an App Store Connect team key (`APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`) in the

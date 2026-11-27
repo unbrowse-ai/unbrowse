@@ -60,7 +60,6 @@ value, value seen only once, vault reference and value the contributor typed, an
 than scrub when a credential would have to be removed to share the route (a quiet scrub changes the call). It refuses
 a route that:
 
-- was learned from the owner's own browsing (`yours`): it acts as them;
 - is a socket's: its opening frames can't be told apart from the session that sent them;
 - carries a value in `authorization` or `proxy-authorization` the site never served publicly;
 - carries a token-shaped header value (16 or more characters, letters and digits, no spaces) with no public source;
@@ -69,6 +68,17 @@ a route that:
 `recipe::check` runs on every body, on the contributor's side before it is listed and on the caller's before it runs:
 the right format, no cookie with a value, no credential or token-shaped header without a public source, and no string
 anywhere that names a vault login. A route whose body would carry anything of the session is never listed.
+
+**A body may carry its site's sign-in** (`Recipe::sign_in`, `credential.never`: a secret is an input each caller fills
+from its own vault). A route that needs a session is listed with the node's own kept sign-in for the site, made
+anyone's: its password is the secret `login.secret` and the account it typed `login.account`, neither with a value,
+and the owner's account, the login's name and the password are looked for in the whole body before it goes
+(`setups::shared`). It is held to `recipe::sign_in_admitted` on both sides: someone else's code's rules, https to fixed
+hosts on the site itself, and the two values sent only in the body of its last request, which changes the site. A
+caller's node with no session on the site asks its owner whether to sign in as the login its own vault holds there;
+on yes the sign-in becomes its own kept sign-in (`setups::adopt`, `run::signs_in_as_its_owner`), sealed under that
+login and sent as one it walked itself is. With no login for the site the call says how to add one. A node can sign in
+with another's sign-in only as its own owner.
 
 Bodies a node lists or keeps live in `~/.unbrowse/bodies/sha256-<hex>.json`, and are read back only if they still hash
 to their id (`load_body`). The folder is bounded by `storage_gb` ([§3](#3-how-a-caller-finds-pays-for-keeps-and-runs-a-body),

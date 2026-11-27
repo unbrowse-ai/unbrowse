@@ -7,26 +7,16 @@ earns. Written for an owner, with the code named so an engineer can follow each 
 **The node has its own wallet, and needs no account** (spec §86, which replaces §75's sign-in step). Its root key is
 an ordinary Arc wallet (§1). It joins the network with that wallet; nobody signs in.
 
-1. **On the network, with its own wallet.** Once the owner has acknowledged the terms, on the window's first-run screen
-   or with `unbrowse-node terms accept`, and with the peer network on (the default), the node joins the peer network, registers itself once from its own wallet, sets up its agents' keys with their daily limits and
-   renews them (`agents::keep_granted`), and lists the routes it learns by default, after showing the owner which
-   (`share_status`). Registering costs a few cents of USDC on Arc, once (§3); until the wallet holds it, the node's
-   health says so and it joins as soon as it does. Its first agent key is made for it on its first run
-   (`agents::ensure_first`), so `unbrowse connect` works at once: `npm i -g unbrowse && unbrowse connect`. On a Mac
-   the disk image needs no terminal: the app is dragged to Applications, and the window's Connect screen writes every
-   agent `connect.rs` knows that is installed on the Mac, by its program (24: Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI,
-   opencode, Hermes, OpenClaw and the rest, `agent_connect`) with `<app>/Contents/MacOS/unb mcp --agent first`, which starts the node
-   when a client opens it, then offers ChatGPT and Claude on the web by the node's remote address (`remote_set`,
-   screens/cloud.zig). The window opens on Agents, which holds both ([design](design/mac-installer.md)).
+1. **On the network, with its own wallet.** Once you accept the terms on the window's first-run screen (or via `unbrowse-node terms accept`) with the peer network on (the default), the node joins with its own wallet, registers its on-chain identity once, sets up its agent keys with daily spending limits (`agents::keep_granted`), and automatically shares routes you have proven (`share_status`). Registering costs a few cents of USDC on Arc once (§3). Its first agent key is created automatically (`agents::ensure_first`), so `npm i -g unbrowse && unbrowse connect` works right away. On macOS, drag the app to Applications and open it: the **Agents** screen connects every installed local agent automatically (Claude Code, Claude Desktop, Cursor, Codex, VS Code, Gemini CLI, OpenCode, Hermes, OpenClaw, and more) and offers a remote MCP address for ChatGPT and Claude on the web ([design](design/mac-installer.md)).
 2. **Local, if the owner keeps it off.** With the peer network off (`unbrowse-node network off`, or "Keep my node off
    the network" in the window), and until the terms are acknowledged, the node learns and calls its owner's routes and shares nothing
-   (`health::LOCAL`). Its chain work goes on: it still claims what its agents paid, and keeps its route coins
+   (`health::LOCAL`). Its chain work goes on: it still claims what its agents paid, and keeps its route stakes
    ([NETWORK.md §10](NETWORK.md#10-opting-out)). Routes learned while it was off stay on it for good (`Route::local`).
 3. **Linking a wallet, optional** (§2). An owner who wants earnings to cash out to a wallet of theirs, or one deposit
    to pay for several nodes, links it with email or Google, or with their own wallet. Joining never needs it.
-4. **The listing's first buy, on by default.** When a listing of yours is credited, the node launches its route coin
-   with 1% of the wallet's UNB at that moment and stakes the coins for you (`coin_dev_buy`; 0 turns it off). A wallet
-   with no UNB launches nothing, and the route still lists and earns. Raising the share past the default asks the
+4. **The listing's first buy, on by default.** When a listing of yours is credited, the node opens its route stake
+   with 1% of the wallet's UNB at that moment and locks it for you (`coin_dev_buy`; 0 turns it off). A wallet
+   with no UNB opens nothing, and the route still lists and earns. Raising the share past the default asks the
    owner in the node's own dialog (`decide.dev-buy-default-on`).
 
 The window opens first on the terms, with the choice to keep the node off the network; the node joins only once the
@@ -120,8 +110,8 @@ draw on its deposit; `unbrowse-node nodes`, run before unlinking, lists them.
 
 - **Not the network.** The node joins with its own wallet whether or not a wallet is linked; linking changes nothing
   about what it shares (`link::on_network_since`).
-- **Cash out** takes everything waiting on the chain to this node's wallet (`collect_earnings`): what staked route
-  coins earned and the route shares owed to you as a contributor. `wallet_send` sends it on to an address you name.
+- **Cash out** takes everything waiting on the chain to this node's wallet (`collect_earnings`): what locked route
+  stakes earned and the route shares owed to you as a contributor. `wallet_send` sends it on to an address you name.
   A withdrawal from the deposit goes to the linked wallet when one is linked.
 - **Your telemetry account.** While telemetry is on, a linked node tells the site `node_started`, `owner_linked` and
   `owner_unlinked`, each signed by the node's key and carrying the owner's link, so the site counts only events a
@@ -221,13 +211,13 @@ Arc's own CCTP v2 or Gateway (`other_chains`). A write the node can't pay for is
    route is listed once your agents have used it successfully on 3 days or 5 times, at most 5 a day; the first
    listing sets the node's fee to $0.01 ([SHARING.md §4](SHARING.md#4-automatic-sharing)).
 6. **Earn.** Another node's agent fetches your route and its use passes, and the usage is collected automatically.
-   65% of the fee is the route's share. While your entry has no coin, that share is owed to you in USDC as its
-   contributor. Once it has a coin (your node launches it with the listing's first buy, if the wallet holds UNB), the
-   share goes to the coin: the coins staked by wallets that have checked the route are paid their part in USDC, and
-   the rest buys the coin for the payer. So what you earn after that is what your staked coins earn, and you hold the
-   first of them. Money shows it as **Ready to take**, and **Cash out** takes all of it to this node's wallet. Nothing
+   65% of the fee is the route's share. Before route staking opens on your entry, that share is owed to you in USDC as its
+   contributor. Once staking is open (your node opens it with the listing's first buy, if the wallet holds UNB), the
+   share goes to the route: locked stake held by wallets that have checked the route is paid its part in USDC, and
+   the rest buys and locks stake in the route for the payer. So what you earn after that is what your locked stake earns, and you hold the
+   first of it. Money shows it as **Ready to take**, and **Cash out** takes all of it to this node's wallet. Nothing
    is held back and nothing vests ([MONEY.md §3](MONEY.md#3-where-money-flows),
-   [Payments and UNB](concepts/payments-and-unb.md)).
+   [Payments, Staking & UNB](concepts/payments-and-unb.md)).
 
 **Advanced: the same, in the contract's terms.** The line's payee claims its receipts once a claim is worth its gas,
 and always just after the epoch (a day) ends; the payer's node claims what the payee left

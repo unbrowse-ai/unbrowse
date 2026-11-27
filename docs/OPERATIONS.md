@@ -50,7 +50,8 @@ Cargo features, all off by default (`unbrowse-node/app/Cargo.toml`):
 
 ### The release repository variables
 
-`release.yml` passes three repository variables to the build (`programs` job, `env`):
+`release.yml` reads build variables from the repository running it (`programs` job, `env`). Configure these in
+`unbrowse-ai/unbrowse` for published artifacts. Core's repository variables apply to its own build runs.
 
 ```yaml
 UNBROWSE_DEFAULT_CHAIN: ${{ vars.UNBROWSE_DEFAULT_CHAIN || 'arc-testnet' }}
@@ -60,17 +61,20 @@ UNBROWSE_SHARE_DEFAULT: ${{ vars.UNBROWSE_SHARE_DEFAULT }}
 
 and reads one more, `MACOS_NOTARIZED` (`true` changes the release notes' Mac text).
 
-| Variable | Set now (read 30 Oct 2026) | What it should be |
+| Variable | Core setting on 30 October 2026 | Public release setting |
 |---|---|---|
-| `UNBROWSE_SITE` | `https://unbrowse-landing.lewis-6d8.workers.dev` | the landing site, until it serves at unbrowse.ai (§5) |
+| `UNBROWSE_SITE` | the landing Worker's `workers.dev` address | the landing site, until it serves at unbrowse.ai (§5) |
 | `UNBROWSE_DEFAULT_CHAIN` | unset: releases now start on `arc-testnet`, the workflow's fallback | unset or `arc-testnet` for the testnet launch, `arc-mainnet` for mainnet |
 | `UNBROWSE_SHARE_DEFAULT` | unset, so `used` | `used` unless decided otherwise |
 
 ```sh
-gh variable set UNBROWSE_DEFAULT_CHAIN --repo unbrowse-ai/unbrowse-core --body arc-testnet
-gh variable set UNBROWSE_SITE --repo unbrowse-ai/unbrowse-core --body https://unbrowse-landing.lewis-6d8.workers.dev
-gh variable list --repo unbrowse-ai/unbrowse-core
+gh variable set UNBROWSE_DEFAULT_CHAIN --repo unbrowse-ai/unbrowse --body arc-testnet
+gh variable set UNBROWSE_SITE --repo unbrowse-ai/unbrowse --body "https://unbrowse-landing.<account>.workers.dev"
+gh variable list --repo unbrowse-ai/unbrowse
 ```
+
+The example selects testnet. For a mainnet release, set `UNBROWSE_DEFAULT_CHAIN` to `arc-mainnet` and confirm
+the public repository's site and signing environment before tagging.
 
 `UNBROWSE_SITE` matters while unbrowse.ai is still the centralised app: a node built without it tries
 `https://unbrowse.ai/link/` first, which isn't this site's page.
@@ -87,7 +91,8 @@ place. On the owner's Mac, `NOTARY_PROFILE` names a profile `xcrun notarytool st
 
 ## 2. Cutting a release
 
-[`release.yml`](../.github/workflows/release.yml) releases three refs, each to its own place (the branches are in
+[`release.yml`](../.github/workflows/release.yml) publishes from the approved tree in `unbrowse-ai/unbrowse`.
+Core keeps signed and verified build artifacts in Actions. The public repo publishes three kinds of refs (see
 [CONTRIBUTING.md](../CONTRIBUTING.md), "Branches and releases"):
 
 | Ref | When | Version | Goes to |
@@ -101,13 +106,15 @@ run has a version npm hasn't seen. A tag releases only from a commit on `main` w
 ships is what pre-production ran. No release is below 13.0.0, because npm already has `unbrowse@12.5.0`. A prerelease's
 programs (the dmgs among them) are its run's artifacts; only a tag makes a GitHub release.
 
-So to ship a release:
+To ship from the public release repository:
 
-1. Set the repository variables (§1) for the network the release is for.
+1. Verify the public release repository's variables and `release` environment against the intended network (§1).
 2. Raise [`unbrowse-node/MIN_VERSION`](../unbrowse-node/MIN_VERSION) (now `13.0.0`) in a change on the release branch if
    older nodes must leave the network: it goes into the signed manifest and, once stable runs that version, into the
    update targets as `min_version` (below).
-3. Squash-merge the pull request from `release/X.Y` into `main`, then tag its commit and push the tag:
+3. After promotion approval, sync the approved core tree through the public mirror's pull request, applying
+   `.github/public-tree-exclude` as described below. In a checkout of `unbrowse-ai/unbrowse`, squash-merge the
+   `release/X.Y` pull request into `main`, then tag its commit and push the tag:
 
    ```sh
    git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z
@@ -120,16 +127,42 @@ So to ship a release:
 last promoted build had right, holds no confident wrong answer, and passes at least as many tasks as that build did
 (`test-banks/gate/promoted.json`, the floor). release.yml's `version` job runs it before anything is built
 (`.github/scripts/promotion-gate.sh`), reading the artifacts CI kept for that tree when the release branch was pushed:
-`coverage-summary-<tree>` (coverage.yml) and `gate-bank-full-<tree>` (gate-bank.yml, the whole bank, a few hours on
-macOS). A pull request into `main` shows the same verdict (promotion-gate.yml). When it refuses it names each rule
+`coverage-summary-<tree>` (coverage.yml), `gate-bank-full-<tree>` (gate-bank.yml, the whole bank, a few hours on
+macOS) and `gate-1k-<tree>` (gate-1k.yml, the top 1,000 sites, below). A pull request into `main` shows the same verdict (promotion-gate.yml). When it refuses it names each rule
 unmet; nothing ships until the release branch meets them. A changed task verdict is re-read by hand, one site at a
 time, and recorded in `test-banks/gate/rereads.json` before it is called a regression or cleared. After a release goes
 out, record its bank run as the new floor in a pull request: `python3 .github/scripts/promotion_gate.py record
 --bank-results results.jsonl --build vX.Y.Z --out test-banks/gate/promoted.json`. Exclusions from the coverage count
 are in `docs/COVERAGE-EXCLUSIONS.md`, each approved by Lewis.
 
-To release a ref again (a new run, so a new prerelease number), run it by hand on that ref:
-`gh workflow run release.yml --repo unbrowse-ai/unbrowse-core --ref release/X.Y`.
+**The top 1,000 sites (UNB-307).** Lewis, 25 Nov 2026: main releases are gated on the top 1,000 Tranco sites, the
+slice's logic over `test-banks/popular-sites/top-1000.json`, cold and warm: 2,000 tasks, made from the list by
+`run_gate.py`'s one rule (`bench_tasks`). Every push to a release branch runs it (`gate-1k.yml`, which calls gate-bank.yml
+with scope `top1k`, 25 shards side by side), all on one pinned kind of runner (`vars.GATE_1K_RUNNER`, else
+`blacksmith-6vcpu-macos-latest`). Each shard then runs once more, on fresh nodes, every task whose verdict measured
+nothing (infra, error) or is not the floor's, with its twin; the second verdict is the one counted. The last job
+reads every shard together and keeps `gate-1k-<tree>` (results, `meta.json`: where it ran and which shards; `rereads.json`;
+the verdict), which promotion-gate.sh reads beside the other two. The rule is Lewis's, rates not every task: it refuses
+when fewer tasks are right than on the floor, or the confidently wrong rate (over every answer the judge read) is above
+the floor's, and it refuses as not measured a task with no result (a shard that did not run), one still infra or error
+after its run again, a changed verdict never run again, a run on another kind of runner than the floor's, or no floor.
+A site that blocked the task is counted apart, never a pass. A task right on the floor and not right on both runs does
+not refuse by itself; it is listed in `rereads.json`, to be re-read by hand, one site at a time.
+
+The floor, `test-banks/gate/promoted-1k.json`, is a run on the last promoted build, on the same kind of runner: by hand,
+`gh workflow run gate-bank.yml --ref staging -f scope=top1k -f shards=25 -f node_ref=vX.Y.Z` (the bench from staging,
+the node from the tag; its artifact is `gate-1k-<tree>-node-vX.Y.Z`, so it never stands for a tree), then
+`python3 .github/scripts/promotion_gate.py record-1k --top1k-results results.jsonl --top1k-meta meta.json --build vX.Y.Z
+--out test-banks/gate/promoted-1k.json` in a pull request. Until one is recorded every release is refused ("no floor
+recorded"). After a release goes out, its own `gate-1k-<tree>` is recorded the same way as the next floor. Other hand
+runs: `-f sites=20` for the first 20 sites, `-f only=3` for one shard, `-f resume_run=<run id>` to keep what an earlier
+run of the same tree finished; any of them leaves tasks without a result, so its verdict refuses as not measured and
+its score still reads. `gate-1k.yml` itself starts by hand only once it is on main (workflow_dispatch reads the default
+branch's files); gate-bank.yml is there already. Cost, from the 20-site pilot (run 45550694686): $0.166 a task with its
+judge, so about $330 a run of 2,000 before reruns (extrapolated, not measured at 2,000).
+
+To publish an already approved public release branch again (a new run and a new prerelease number), dispatch the
+workflow in the public repository with `gh workflow run release.yml --repo unbrowse-ai/unbrowse --ref release/X.Y`.
 
 A pull request that changes the release workflow or its scripts gets a dry run: everything is built and packed, and
 nothing is published.
@@ -138,28 +171,48 @@ To prove the keys sign in a repository or environment before anything ships ther
 with `dry_run`: every job up to the publish runs with the keys, npm lacking a package is a warning, and nothing goes to
 npm or a GitHub release: `gh workflow run release.yml --repo unbrowse-ai/unbrowse --ref staging -f dry_run=true`.
 
-The public repository `unbrowse-ai/unbrowse` gets core's tree as one squashed commit per sync, through a pull request,
+The public repository `unbrowse-ai/unbrowse` gets an approved core tree as one squashed commit per sync, through a pull request,
 without the paths in `.github/public-tree-exclude`. Today that is `unbrowse-settlement/`: the contracts' sources,
 tests and deploy scripts stay private, in `unbrowse-ai/unbrowse-settlement` and here. The node's compiled contracts
 (`unbrowse-node/app/contracts/`) stay in the public tree, since the node deploys and checks deployments from them.
 The contracts' CI jobs run only in unbrowse-core, and `papers/params_check.py` reports their sites as PRIVATE where
 the folder is absent.
 
+Core builds, signs and verifies release packages in its own Actions artifacts. The public repository builds the
+approved mirror tree again and is the npm trusted publisher. Its existing branch, installer, and production promotion
+checks still govern publication. npm can attest a public repository, so the public workflow keeps `--provenance`.
+When CI passes on public `staging` or a public release branch, a job with workflow-dispatch permission starts the
+release on that branch with the checked commit SHA. GitHub evaluates the signing environment against that branch.
+The release stops before checkout if its GitHub event SHA differs from the checked commit. npm uses the event SHA
+for the provenance attestation, so the checkout and attestation name the same source.
+
 | Job | Runner | Does |
 |---|---|---|
 | `version` | `blacksmith-2vcpu-ubuntu-2404` | the ref's version and channel, and that npm has every package a release publishes and not yet this version (`npm-preflight.mjs`), so a missing package or a spent version stops the run before anything is built |
 | `programs` | darwin-arm64 `blacksmith-6vcpu-macos-15` (there is no Intel Mac build since 22 November 2026, UNB-224); linux-x64 `blacksmith-4vcpu-ubuntu-2204`; linux-arm64 `blacksmith-4vcpu-ubuntu-2204-arm`; win32-x64 `blacksmith-4vcpu-windows-2025` | `UNBROWSE_RELEASE=1 cargo build --release --locked --bin unbrowse-node --bin unb`, the UI (`bun run build`), the window (`zig build`), the Mac app and dmg, a smoke test |
 | `sdks` | `blacksmith-2vcpu-ubuntu-2404` | signs `manifest.json` (checked against `update.rs`'s key), packs the npm packages and Python wheels (a prerelease's in PEP 440's form, `13.19.0rc7`, `13.20.0.dev9`), and but for staging writes and signs the update metadata (`updates.mjs release`), checked against the root nodes trust |
-| `npm` | `ubuntu-24.04` (trusted publishing needs GitHub's own runners), environment `release` | each `@unbrowse/<platform>`, then `unbrowse`, under the ref's dist-tag, then `@unbrowse/updates` (`npm-publish.sh`); a version npm has with the same bytes is skipped, so a rerun finishes the job, and one it has with other bytes fails the run |
-| `release` | `blacksmith-2vcpu-ubuntu-2404` | a tag's alone, last, once npm has everything: `gh release create v$VERSION --verify-tag --latest`, with `SHA256SUMS` and stable-named dmgs (`releases/latest/download/Unbrowse-macos-<arch>.dmg`) |
+| `installers` | `blacksmith-2vcpu-ubuntu-2404` | a production release's, and a dry run's: the Windows setup and the Linux packages, packed from the archives `programs` made (`package-windows-installer.sh`, `package-linux-deb.sh`), and each file's hash recorded |
+| `installer-device-test` | a fresh Mac, Windows machine and Ubuntu (`installers-device-test.yml`) | each installer installed and opened as a person does, the node it starts answering MCP (`DEVICE_TEST_OK`); npm publishes nothing until all three pass |
+| `verify-packages` | `ubuntu-24.04` | verifies the uploaded archives against their signed inventory for core builds and rehearsals |
+| `npm` | `ubuntu-24.04` (trusted publishing needs GitHub's own runners), environment `release` | in `unbrowse-ai/unbrowse`, verifies and publishes each `@unbrowse/<platform>`, then `unbrowse`, under the ref's dist-tag, then `@unbrowse/updates` (`npm-publish.sh`); a version npm has with the same bytes is skipped, and one it has with other bytes fails the run |
+| `release` | `blacksmith-2vcpu-ubuntu-2404` | a tag's alone, last, once npm has everything: `gh release create v$VERSION --verify-tag --latest`, with `SHA256SUMS` and every installer at a name that stays (`releases/latest/download/{Unbrowse-macos-arm64.dmg,Unbrowse-windows-x64-setup.exe,unbrowse_amd64.deb,unbrowse_arm64.deb}`) |
+
+**One release is the whole download page.** A production release carries the Mac disk image, the Windows setup and the
+Linux packages, and the site, the README and the SDKs link the names that stay (`releases/latest/download/…`), so a
+download link never names a build that stops being the newest one. There is no second, installer-only family of
+releases to keep in step with it, and no draft to publish by hand: a branch that needs the installers proven before a
+tag runs `release.yml` with `dry_run` on the public release branch (`gh workflow run release.yml --repo
+unbrowse-ai/unbrowse --ref release/X.Y -f dry_run=true`). It packs them, installs all three on fresh machines,
+and publishes nothing.
 
 **Every published file is the one its job made.** The job that makes a file records its SHA-256 as a job output, which
 no later job can change (`artifact-hashes.py record-files`): `platforms` records each program archive, disk image and
-browser program before `sdks` runs any third-party build code, `sdks` records every file it hands on (the sdist and the
-manifest too), and `pack-updates` records `@unbrowse/updates`. `npm` and `release` publish a folder only when its files
-are exactly those, byte for byte (`verify-files`); an artifact replaced in between, or a file nobody recorded, stops the
-run. Packages are also checked against the release-signed inventory (`verify-artifact-manifest.mjs`), and the Python
-build tools are installed from hashes (`.github/scripts/requirements-release.txt`, `pip --require-hashes`).
+browser program before `sdks` runs any third-party build code, `installers` records the Windows setup and the Linux
+packages, `sdks` records every file it hands on (the sdist and the manifest too), and `pack-updates` records
+`@unbrowse/updates`. `npm` and `release` publish a folder only when its files are exactly those, byte for byte
+(`verify-files`); an artifact replaced in between, or a file nobody recorded, stops the run. Packages are also checked
+against the release-signed inventory (`verify-artifact-manifest.mjs`), and the Python build tools are installed from
+hashes (`.github/scripts/requirements-release.txt`, `pip --require-hashes`).
 
 **When a run stops part way.** The GitHub release is the last thing a run makes, so it never names a release npm
 doesn't have, and the run is red.
@@ -368,8 +421,7 @@ root never expires.
 
 A live network's contracts are deployed once, by hand, by one node's key: `unbrowse-node chain deploy`
 (`chain_deploy` in [`main.rs`](../unbrowse-node/app/src/main.rs), `chain::deploy_shared` and `chain::deploy_as` in
-[`chain/`](../unbrowse-node/app/src/chain/)). The contracts themselves are in the
-contracts reference (private repository).
+[`chain/`](../unbrowse-node/app/src/chain/)). The compiled contract ABIs used by the node are in [`unbrowse-node/app/contracts/`](../unbrowse-node/app/contracts) (the Solidity sources live in the separate settlement contracts repository).
 
 ### Network files
 
@@ -380,10 +432,10 @@ read instead from `~/.unbrowse/networks/<name>.json` when that exists (`chain::n
 |---|---|---|
 | `chain_id` | 5042002 | 5042 |
 | `registry_from` (the block ERC-8004 registrations are read from) | 69,700,000 | 28,500,000 |
-| `deployment` | the route-coin set, deployed 18 November 2026 from block 72,792,533 (Settlement `0x2043…1ca5`, test UNB `0x577e…c9d0`, stand-in pool `0xb680…5b13` seeded with 5 USDC and 370,000 UNB); the one before route coins (Settlement `0xdb93…272f`) is no longer read | `null` |
+| `deployment` | the route-coin set, deployed 18 November 2026 from block 72,792,533 (Settlement `0x2043…1ca5`, test UNB `0x577e…c9d0`, stand-in pool `0xb680…5b13` seeded with 5 USDC and 370,000 UNB); the one before route coins (Settlement `0xdb93…272f`) is no longer read | deployed 23 November 2026 in blocks 32,740,267 to 32,740,301 (Settlement `0xfcfd…8d4d` on UNB's v4 pool through the adapter `0xeeac…85db`); every address and deploy transaction is in [Arc mainnet's deployment](#arc-mainnets-deployment) |
 | `existing.usdc` | Arc's USDC, `0x3600…0000` | Arc's USDC, `0x3600…0000` |
-| `existing.unb` | `null`: the deploy makes a test UNB | `null`: named on the deploying machine with `UNBROWSE_ARC_MAINNET_UNB` |
-| `existing.pool` | `null`: the deploy makes a stand-in pool | `null`: the same |
+| `existing.unb` | `null`: the deploy makes a test UNB | UNB `0x1232…AE2C`, as the deploy wrote it (named on the deploying machine with `UNBROWSE_ARC_MAINNET_UNB`) |
+| `existing.pool` | `null`: the deploy makes a stand-in pool | `null`: UNB trades in a v4 pool, which has no address of its own |
 
 Until `deployment` is filled, a node on that network runs its identity and the peer network, and Settlement calls
 say it isn't deployed. A node also refuses a deployment whose code on the chain isn't its own ("update the node",
@@ -409,7 +461,7 @@ from a day is accepted, since nothing on chain corrects for it. The owner's numb
 | Network | `epoch_blocks` | From |
 |---|---|---|
 | arc-testnet | 170,000 | about 0.507 s a block, measured 1 to 6 November 2026 (issue #199) |
-| arc-mainnet | not set | measured for a week before its deploy, then set in `arc-mainnet.json` |
+| arc-mainnet | 170,400 | 170,448 blocks a day, measured over the 1.2 million blocks to 32,653,608 (16 to 23 November 2026) |
 
 Nothing can change it afterwards, and a node refuses a deployment whose `epochBlocks()` isn't the file's. If the chain's block time later moves, every epoch moves with it:
 blocks made faster shorten the escrow wait and the withdrawal and claim windows in proportion, until a new deployment.
@@ -427,7 +479,8 @@ needs no running node. It refuses:
   the key would take the nonce Settlement is to go at (`chain::key_is_quiet`);
 - when the RPC's chain id isn't the network's (`check_rpc`);
 - when the network file already names a Settlement with code on chain ("a second deployment would split the network");
-- when the key holds less gas than 16,000,000 at twice the gas price (0.80 USDC at 25 gwei);
+- when the key holds less gas than 45,000,000 at twice the gas price (`DEPLOY_GAS` in `chain/gas.rs`: 2.25 USDC at
+  25 gwei; the mainnet deploy then spent 0.47 USDC);
 - when a contract the file names has no code, a named pool's tokens differ from the named ones, or a named UNB isn't
   18 decimals;
 - when a stand-in pool would sit beside a token the network names and no `--pool` seed is given;
@@ -469,7 +522,7 @@ unbrowse-node chain arc-testnet       # or run the next line with UNBROWSE_CHAIN
 unbrowse-node chain deploy --pool 1000 1000
 ```
 
-The deployer needs the gas (0.80 USDC at 25 gwei) plus the pool's USDC seed. The test UNB is minted for the seed, and
+The deployer needs the gas (2.25 USDC at 25 gwei to pass the check above) plus the pool's USDC seed. The test UNB is minted for the seed, and
 the deployer owns its faucet.
 
 ### Arc mainnet
@@ -507,7 +560,32 @@ claim goes on without the swap and no USDC is lost, but no swap goes through unt
 against a buy on a fork right before deploying. For a pool that already speaks `IUnbPool`, name it with
 `UNBROWSE_ARC_MAINNET_POOL` instead.
 
-The deployer needs real USDC for the gas. Nothing is minted or seeded. Mainnet is not deployed yet.
+The deployer needs real USDC for the gas. Nothing is minted or seeded.
+
+#### Arc mainnet's deployment
+
+Deployed 23 November 2026 (about 14:00 UTC) by `0x9879A80c063eC4D0CEadA3225f865867b8462bEf` with the node built
+from staging `47a2c8a1` (its `unbrowse-settlement/` is the same as staging `c1262e86`), after a rehearsal on a fork
+of Arc mainnet with the same key and values. Values: UNB `0x12329F0D6E930CB6266B91E4A94a9b990E00AE2C`, v4 PoolManager
+`0x8366a39CC670B4001A1121B8F6A443A643e40951`, hook `0x05e803544851e2c9aB0157360173B047EB5820CC`, fee `0x800000`, tick
+spacing 200, buy fee 500 bps (the hook's 400 plus its base 100, read from the hook that day), LP fee 0, fee recipient
+the Safe `0x9F3b4e0bc5fA502F107b0274010f8BC998218E8c`, `epoch_blocks` 170,400, escrow wait 14 epochs. Seven
+transactions, all succeeded, 0.4697 USDC of gas in all:
+
+| Nonce | Contract | Address | Deploy transaction | Block |
+|---|---|---|---|---|
+| 0 | `V4UnbPool` (the adapter over UNB's v4 pool; `pool` in the file) | `0xeeac1d470b2ca72c7c5eeb539e03129bf98685db` | `0x5d60716e3751a0a579c200d0440c9dd5d71ea8a091f1c0a488e167db9d91ae8d` | 32,740,267 |
+| 1 | `Domains` (domain proofs) | `0x21d9788308222107aa35996a5e99f837a13ad39e` | `0x7fcd3c30074fe39f3de4a1b19a53bb8705331693ba54f8459fc09b31f64e9e02` | 32,740,274 |
+| 1 | DNSSEC verifier, made by `Domains`' constructor | `0xbd372b9c952fded4076e76003455ed9dc691901e` | the same as nonce 1 | 32,740,274 |
+| 2 | `RouteCoins` | `0xdb4573b4e0a046da2476cbd13fdd235218514b3c` | `0x4abb501aa49494510481932a953bf7f815c205c442a233f743989edbac5dcc4b` | 32,740,280 |
+| 2 | route-coin implementation, made by `RouteCoins`' constructor | `0x75b87ec8feb7d13feda95fc21f6f15b8429daec9` | the same as nonce 2 | 32,740,280 |
+| 3 | `CoinStakes` | `0x96a66af09501be6fe3cd609e02237864a8b2d6ce` | `0x8cec17d9e68c546bbf3286994aa1be31a0dfc07d1bd52ba5a7328af7df850950` | 32,740,285 |
+| 4 | `CoinFetch` | `0x401a3c751a930183e4a05f8fdd8bfb8169131c73` | `0xd69580bd2a4532784a259de7dc571f4877f6e57c52ffe7eb21fb6512c00bf2f4` | 32,740,290 |
+| 5 | `CoinBounties` | `0x464d60e167c4f6cf39476958e2ec4ccfb3d1bb7b` | `0x222d8f87355113174050f1c9c810bc06ce5d6c347acf64fab49f0f099950e9a1` | 32,740,295 |
+| 6 | `LeanSettlement` | `0xfcfd324306e96168d3d1273715580360166b8d4d` | `0x36b3015d7069f87cfba4f4f537be312cd10f681c4eb32a995613b7991bbe0037` | 32,740,301 |
+
+The deployment is in [`arc-mainnet.json`](../unbrowse-node/app/networks/arc-mainnet.json); nodes on mainnet use it
+from the first release that carries that file (§9).
 
 There is no account contract to deploy (spec §76). Settlement, the coin contracts and the domain proofs name each other
 in their constructors, so their addresses follow the deployer's nonce, not Arc's CREATE2 factory. The network file's
@@ -567,7 +645,7 @@ fund it on each network and watch its balance (§8). Arc testnet's was first fun
 ## 5. The landing site
 
 The site (unbrowse-landing) is a Cloudflare Worker with static assets, served at
-`https://unbrowse-landing.lewis-6d8.workers.dev` (`workers_dev: true`, and no `routes`). unbrowse.ai is still the
+its `workers.dev` address (`workers_dev: true`, and no `routes`). unbrowse.ai is still the
 centralised app, another worker, so this site takes no route there, and a test checks it (`test/worker.test.mjs`).
 Deploy with `npm run deploy` (build, then `wrangler deploy`). The worker answers `/link/`'s relay, `/t` and `/e`; its
 README has each. It pays no one.
@@ -603,7 +681,7 @@ Leave the centralised app's own routes on the zone alone.
 
 Every workflow is in [`.github/workflows/`](../.github/workflows), and runs on Blacksmith's runners except the two
 jobs that can't. The agent jobs (a model, a simulated user or the task bank: Claude QA, the MCP check, skill
-triggers, the gate bank and its slice, Bank, Claude review, SDK polish) may run on Lewis's own runners instead: see
+triggers, the gate bank and its slice, Bank, Code review, PR Steward, SDK polish) may run on Lewis's own runners instead: see
 **Agent jobs on Lewis's runners** below.
 
 | Workflow | Trigger | Jobs and runners |
@@ -612,10 +690,14 @@ triggers, the gate bank and its slice, Bank, Claude review, SDK polish) may run 
 | `release.yml` (Release) | CI passing on a push to `staging` or `release/**`, a pushed `vX.Y.Z` tag, by hand | §2 |
 | `main-source-guard.yml` | pull requests into `main` or `release/**` | fails one into `main` from anything but `release/*`, and one into a release branch not titled `fix:` |
 | `coverage.yml` (Coverage) | pull requests into `staging`, `release/**` or `main`; pushes to `staging` and `release/**`; by hand | line coverage per part: `rust-node` on `blacksmith-8vcpu-ubuntu-2404`, `rust-browser` on `blacksmith-4vcpu-ubuntu-2404`, the SDKs and the contracts (reported apart) on `blacksmith-2vcpu-ubuntu-2404`; posts one comment on a pull request and never blocks it; keeps `coverage-summary-<tree>` for the promotion gate |
-| `gate-bank.yml` (Gate bank) | called by QA (qa.yml) on every push to `staging` and `main` (the six-task slice, in QA's report; not again for a push to staging whose tree already passed it on its pull request), nightly on staging and every push to `release/**` (the whole bank), by hand | the task gate's bank through a scratch node's MCP, a model as client and judge, on `blacksmith-6vcpu-macos-latest`; no pull request starts it (it holds a model credential); keeps `gate-bank-<scope>-<tree>` |
+| `gate-bank.yml` (Gate bank) | called by QA (qa.yml) on every push to `staging` and `main` (the six-task slice, in QA's report; not again for a push to staging whose tree already passed it on its pull request), nightly on staging and every push to `release/**` (the whole bank), by hand (also `top1k`: the top 1,000 sites, cold and warm, in shards, UNB-307; `gate-1k.yml` calls it so on every push to `release/**`) | the task gate's bank through a scratch node's MCP, a model as client and judge, on `blacksmith-6vcpu-macos-latest`; no pull request starts it (it holds a model credential); keeps `gate-bank-<scope>-<tree>` (`top1k`: one per shard, `-<i>of<n>`, each with its tasks run again; then the release gate on every shard together, `gate-1k-<tree>`) |
+| `gate-1k.yml` (Gate 1k) | every push to `release/**`; by hand once on main | the release gate on the top 1,000 sites (UNB-307, §2): calls gate-bank.yml with scope `top1k`, 25 shards on `blacksmith-6vcpu-macos-latest` (`vars.GATE_1K_RUNNER`); keeps `gate-1k-<tree>`, which promotion-gate.sh reads; no pull request starts it |
 | `promotion-gate.yml` (Promotion gate) | pull requests, pushes to `staging` and `release/**` | the gate's own tests and its refusal of staging as measured on 17 Nov 2026; on a pull request into `main`, the gate's verdict on the release branch's tree |
 | `qa.yml` | nightly on staging, by hand | an agent runs `.github/qa/checklist.md` against a built node on `blacksmith-6vcpu-macos-latest`; skips without a Claude secret |
-| `claude-review.yml` | pushes to `staging`, by hand | placed (below); comments on the merged pull request |
+| `pr-signal.yml` (PR signal, no credential) | every pull request event | one hosted job that says the pull request moved, so the agents that hold a key can start; no secret, no permission |
+| `opencode-review.yml` (Code review) | after `pr-signal`, by hand | placed (below); reviews the change, posts the findings inline, writes the `Code review` check; holds `OPENCODE_API_KEY` in the `opencode-review` environment |
+| `opencode-steward.yml` (PR Steward) | after CI, Coverage, the PR check or Code review, or by hand | placed (below); fixes what failed or what was found, one commit on the branch; holds `OPENCODE_API_KEY` in the `opencode-steward` environment |
+| `opencode-approvals.yml` (Claude Approvals) | every pull request event, every review, after Code review, by hand | reads `.claude/approvals.yml` and writes the `Claude Approvals` check; no secret. [CI-AGENTS.md](CI-AGENTS.md) |
 | `pr-closed.yml` | a pull request closes or merges | cancels that pull request's runs still waiting or running |
 
 **Agent jobs on Lewis's runners (UNB-166).** From 20 to 21 Nov 2026 every job ran on the local pool (four slots on
@@ -789,7 +871,8 @@ On Arc testnet, USDC is free from https://faucet.circle.com. What every write co
 2. `unbrowse-node chain arc-testnet`, then `unbrowse-node chain deploy --pool <usdc> <unb>` (§3).
 3. Put the printed file in `unbrowse-node/app/networks/arc-testnet.json`; commit through a pull request.
 4. Landing: `npm run deploy`; nothing on it names the deployment.
-5. Repository variables: `UNBROWSE_SITE` the landing URL (§1); `UNBROWSE_DEFAULT_CHAIN` unset or `arc-testnet`.
+5. In `unbrowse-ai/unbrowse`, verify that `UNBROWSE_SITE` names the landing URL and `UNBROWSE_DEFAULT_CHAIN`
+   is unset or `arc-testnet` for this testnet release (§1).
 6. Release (§2). Check npm took it (§10).
 7. On a fresh machine: install, learn and call a route with no account, then `unbrowse-node sign-in`, send the node
    the few cents `unbrowse-node wallet` asks for, and see the identity register and a route list.
@@ -804,6 +887,10 @@ On Arc testnet, USDC is free from https://faucet.circle.com. What every write co
 4. Put the printed file in `unbrowse-node/app/networks/arc-mainnet.json`.
 5. Landing: nothing to change for the deploy.
 6. Repository variables: `UNBROWSE_DEFAULT_CHAIN=arc-mainnet`. Raise `MIN_VERSION` if testnet-era nodes must leave.
+   A node a testnet release set up saved `arc-testnet` as its chain without its owner picking it (`chain_chosen`
+   false): on its first start on the mainnet release it asks its owner, in the window's dialog, to move, and moves and
+   restarts only on their yes (`chain::offer_chain`). A no or a headless node stays, and its log names `unbrowse-node
+   chain arc-mainnet`.
 7. Release, and check as for testnet.
 
 ---
@@ -812,16 +899,14 @@ On Arc testnet, USDC is free from https://faucet.circle.com. What every write co
 
 Read from the live services on 30 October 2026.
 
-- **npm took its first release on November 2026** (`13.0.0-rc.151`, on the tag `next`, by trusted publishing). The
-  record below says why earlier publishes failed and how it was fixed. It was read on 30 October and 6 November 2026.
-  Every publish of 13.x (v13.3.1 to v13.4.5) failed with `404 Not Found - PUT
+- **npm doesn't take the releases yet.** Every publish of 13.x (v13.3.1 to v13.4.5) failed with `404 Not Found - PUT
   …/@unbrowse%2fdarwin-arm64`, so npm still serves `unbrowse@12.5.0`. Why, from the runs' logs and the registry:
   - npm has no `@unbrowse/darwin-arm64`, or any platform package. A trusted publisher is set in a package's settings on
     npmjs.com, so a package npm doesn't have can't have one, and its OIDC exchange fails. npm then publishes with the
     `.npmrc` token `setup-node`'s `registry-url` wrote, a placeholder, and the registry answers 404. The `@unbrowse` org
     itself exists.
-  - `unbrowse@12.5.0` was published by trusted publishing from `unbrowse-ai/unbrowse`'s `release.yml`; the releases now
-    run in `unbrowse-ai/unbrowse-core`.
+  - `unbrowse@12.5.0` was published by trusted publishing from `unbrowse-ai/unbrowse`'s `release.yml`. That public
+    workflow remains the publisher so npm can generate provenance.
   - The packages carried no `repository`, which trusted publishing needs to match the workflow's repository.
 
   The workflow now sets `repository` from the repository it runs in, drops `registry-url` so a failed exchange says it
@@ -836,8 +921,8 @@ Read from the live services on 30 October 2026.
      `package.json`; nodes read exact versions, and `@unbrowse/updates`' first real version is `1.0.1`).
      `node .github/scripts/npm-preflight.mjs` says what is left.
   2. On npmjs.com, give each of those and `unbrowse` a trusted publisher: GitHub Actions, organization `unbrowse-ai`,
-     repository `unbrowse-core`, workflow `release.yml`, environment `release`; and for `@unbrowse/updates` a second
-     one, the same with workflow `updates.yml`. A new one must publish within 2 days or it expires.
+     repository `unbrowse`, workflow `release.yml`, environment `release`. The daily update maintenance workflow
+     has its own trusted publisher configuration for `@unbrowse/updates`. A new publisher must publish within two days or it expires.
   3. Run the Release workflow by hand, or let the next release run. A trusted publisher can't be read from outside, so
      one left out shows only when `npm-publish.sh` is refused.
 - **GitHub settings are external to this repository.** The workflows place signing and publishing jobs in the `release`
@@ -850,11 +935,11 @@ Read from the live services on 30 October 2026.
   each SHA is reachable from an upstream branch or tag. Configure the CI status check as required for protected
   branches in GitHub settings; a workflow cannot make its own check required.
 - **Package provenance.** The release workflow publishes npm tarballs with `--provenance`. In npm package settings,
-  enable trusted publishing for `unbrowse-ai/unbrowse-core`, workflow `.github/workflows/release.yml`, environment
+  enable trusted publishing for `unbrowse-ai/unbrowse`, workflow `release.yml`, environment
   `release`, and keep `--provenance` enabled. Browser downloads by the node are authenticated through the signed
   targets metadata and npm tarball integrity; npm postinstall no longer downloads a GitHub release binary. There is
   no PyPI publication job: wheels are attached to the GitHub release only. Before adding one, create a PyPI Trusted
-  Publisher with owner `unbrowse-ai`, repository `unbrowse-core`, workflow `release.yml`, environment `release`, and
+  Publisher with owner `unbrowse-ai`, repository `unbrowse`, workflow `release.yml`, environment `release`, and
   grant that job `id-token: write`; do not add a PyPI registry token.
 - **v13.4.2 was never published.** Its run built every platform, then `gh release create` got HTTP 500; the latest
   release is v13.4.1.
