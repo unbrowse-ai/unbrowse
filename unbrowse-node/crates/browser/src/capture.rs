@@ -59,6 +59,8 @@ pub struct CaptureLog {
     redacts: PathBuf,
     /// A line failed to reach the file: the log is no longer a whole record of what it was given.
     failed: bool,
+    /// What `say_open` last wrote beside the log.
+    said_open: String,
 }
 
 impl CaptureLog {
@@ -149,7 +151,7 @@ impl CaptureLog {
             use std::os::unix::fs::PermissionsExt;
             let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
         }
-        let log = Self { file, pending: Vec::new(), secrets, named, count, path, kept, sealer, redacts, failed: false };
+        let log = Self { file, pending: Vec::new(), secrets, named, count, path, kept, sealer, redacts, failed: false, said_open: String::new() };
         // What an older log settled as it opened is named in the file from now on: marked as any secret named here is.
         // One the rewrite couldn't take out is still in the file, and the next open finds it there again.
         if replaced_now {
@@ -179,6 +181,23 @@ impl CaptureLog {
     /// the site. This handle goes on naming what it knows, in memory only.
     pub fn end(&mut self) {
         self.sealer = None;
+        self.say_open(&[]);
+    }
+
+    /// Says which requests have gone out and are not in the log yet (sent, their answer not settled), beside the log
+    /// as `<session>.open`: a line `<sent at> <host>` each, none when nothing is. The log holds a request only once it
+    /// is answered, so a large answer still on its way is in no line of it; a reader waiting for what a step set off
+    /// (the node's `browse::settle`) reads here that it is still coming. Written whole, through a file moved into
+    /// place, and only when it changed.
+    pub fn say_open(&mut self, open: &[(f64, &str)]) {
+        let text: String = open.iter().map(|(t, host)| format!("{t} {host}\n")).collect();
+        if text == self.said_open {
+            return;
+        }
+        let (at, tmp) = (self.path.with_extension("open"), self.path.with_extension("open.saying"));
+        if std::fs::write(&tmp, &text).and_then(|()| std::fs::rename(&tmp, &at)).is_ok() {
+            self.said_open = text;
+        }
     }
 
     /// Seals the secrets this log is naming beside it, together with any another handle on the log sealed there.
@@ -839,8 +858,85 @@ pub fn now_secs() -> f64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
 }
 
+/// A body of bytes as a walk keeps it: its text where the bytes are text (UTF-8, no NUL), else the bytes in base64,
+/// with `true` for base64.
+fn kept_as(bytes: Vec<u8>) -> (String, bool) {
+    use base64::Engine;
+    match String::from_utf8(bytes) {
+        Ok(text) if !text.contains('\0') => (text, false),
+        Err(e) => (base64::engine::general_purpose::STANDARD.encode(e.into_bytes()), true),
+        Ok(text) => (base64::engine::general_purpose::STANDARD.encode(text.into_bytes()), true),
+    }
+}
+
+/// What a request sent, as every capture keeps it, from the `request` Chrome reports in `Network.requestWillBeSent`:
+/// the bytes of each part in `postDataEntries` where Chrome gives them, else its `postData`. Chrome's `postData` of bytes
+/// that are no text is not those bytes (a body the page compressed reads there as one character a byte), so the parts
+/// are read first. Its text, or its bytes in base64 with `true`; None for a request that said no body.
+pub fn request_body(req: &Value) -> Option<(String, bool)> {
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD;
+    let parts: Option<Vec<u8>> = req.get("postDataEntries").and_then(Value::as_array).filter(|e| !e.is_empty()).map(|entries| {
+        entries.iter().filter_map(|e| e.get("bytes").and_then(Value::as_str)).filter_map(|b| b64.decode(b).ok()).flatten().collect()
+    });
+    match parts {
+        Some(bytes) if !bytes.is_empty() => Some(kept_as(bytes)),
+        _ => req.get("postData").and_then(Value::as_str).map(|text| (text.to_string(), false)),
+    }
+}
+
+/// A body Chrome held back from the event, as `Network.getRequestPostData` answers with it: kept as [`request_body`]
+/// keeps one. Its bytes come in base64 when `base64Encoded` says so, and are kept as text where they are text.
+pub fn held_back_body(answer: &Value) -> Option<(String, bool)> {
+    use base64::Engine;
+    let said = answer.get("postData").and_then(Value::as_str)?;
+    if answer.get("base64Encoded").and_then(Value::as_bool) == Some(true) {
+        return base64::engine::general_purpose::STANDARD.decode(said.trim()).ok().map(kept_as);
+    }
+    Some((said.to_string(), false))
+}
+
 #[cfg(test)]
 mod tests {
+    /// A request's body is kept as the bytes the page sent: from the parts Chrome gives, as text where they are text and
+    /// in base64 where they are not (a body the page compressed, bytes with a NUL in them); from `postData` where Chrome
+    /// gives no parts; and none where the request said none. A body Chrome held back is kept the same way, from what
+    /// `getRequestPostData` answers, in base64 where it says so.
+    #[test]
+    fn a_request_body_is_kept_as_the_bytes_the_page_sent() {
+        use base64::Engine;
+        use serde_json::json;
+        let b64 = base64::engine::general_purpose::STANDARD;
+        let gzip = [0x1f, 0x8b, 0x08, 0x00, 0x98, 0xcc];
+        let lossy: String = gzip.iter().map(|b| *b as char).collect();
+        assert_eq!(super::request_body(&json!({ "postData": lossy, "postDataEntries": [{ "bytes": b64.encode(gzip) }] })), Some((b64.encode(gzip), true)));
+        assert_eq!(super::request_body(&json!({ "postDataEntries": [{ "bytes": b64.encode("q=") }, { "bytes": b64.encode("lamp") }] })), Some(("q=lamp".to_string(), false)), "parts join");
+        assert_eq!(super::request_body(&json!({ "postDataEntries": [{ "bytes": b64.encode(b"a\0b") }] })), Some((b64.encode(b"a\0b"), true)), "a NUL is no text");
+        assert_eq!(super::request_body(&json!({ "postData": "q=lamp", "postDataEntries": [] })), Some(("q=lamp".to_string(), false)), "no parts: postData");
+        assert_eq!(super::request_body(&json!({ "method": "GET" })), None);
+        assert_eq!(super::held_back_body(&json!({ "postData": b64.encode(gzip), "base64Encoded": true })), Some((b64.encode(gzip), true)));
+        assert_eq!(super::held_back_body(&json!({ "postData": b64.encode("q=lamp"), "base64Encoded": true })), Some(("q=lamp".to_string(), false)));
+        assert_eq!(super::held_back_body(&json!({ "postData": "q=lamp", "base64Encoded": false })), Some(("q=lamp".to_string(), false)));
+        assert_eq!(super::held_back_body(&json!({ "postData": "%%", "base64Encoded": true })), None, "base64 that doesn't decode is no body");
+        assert_eq!(super::held_back_body(&json!({})), None);
+    }
+
+    /// What has gone out and isn't in the log yet is said beside it, a line each, and nothing once nothing is; a log
+    /// that ends says nothing is coming.
+    #[test]
+    fn what_is_still_coming_is_said_beside_the_log() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut log = super::CaptureLog::open_in(dir.path(), "browse_shop_example").unwrap();
+        let beside = dir.path().join("browse_shop_example.open");
+        log.say_open(&[(1795496439.5, "www.shop.example"), (1795496439.75, "api.shop.example")]);
+        assert_eq!(std::fs::read_to_string(&beside).unwrap(), "1795496439.5 www.shop.example\n1795496439.75 api.shop.example\n");
+        log.say_open(&[]);
+        assert_eq!(std::fs::read_to_string(&beside).unwrap(), "");
+        log.say_open(&[(1795496440.0, "www.shop.example")]);
+        log.end();
+        assert_eq!(std::fs::read_to_string(&beside).unwrap(), "", "an ended log has nothing coming");
+    }
+
     /// A site that answers a failed sign-in with the page again, the password in its field, says the name there too;
     /// a short value is left alone in an answer, where it could be any word of the site's.
     #[test]
@@ -1320,5 +1416,128 @@ mod tests {
         assert_eq!(log.keep_secret("longer one", None), "secret:2", "names never repeat");
         log.write(serde_json::json!({ "type": "action", "value": "page 12" }));
         assert!(std::fs::read_to_string(&path).unwrap().contains("page 12"));
+    }
+
+    /// Capture is on where the environment names a folder, and nowhere else.
+    #[test]
+    fn capture_is_on_only_where_the_environment_names_a_folder() {
+        let guard = crate::test_utils::EnvGuard::new(&[CAPTURE_DIR_ENV]);
+        guard.remove(CAPTURE_DIR_ENV);
+        assert!(CaptureLog::open("site").is_none());
+        assert!(CaptureLog::open_sealed("site", Some(Box::new(Keyed(0x5a)))).is_none());
+        assert_eq!(CaptureLog::configured_dir(), None);
+        let dir = tempfile::tempdir().unwrap();
+        guard.set(CAPTURE_DIR_ENV, &dir.path().to_string_lossy());
+        assert_eq!(CaptureLog::configured_dir(), Some(dir.path().to_path_buf()));
+        let mut log = CaptureLog::open("site").expect("a folder is named");
+        log.write(serde_json::json!({ "type": "mint" }));
+        drop(log);
+        let mut sealed = CaptureLog::open_sealed("site", Some(Box::new(Keyed(0x5a)))).expect("sealed too");
+        sealed.keep_secret("pw-123456", None);
+        assert!(std::fs::read_to_string(dir.path().join("site.jsonl")).unwrap().contains("\"type\":\"mint\""));
+        assert!(dir.path().join("site.secrets").exists(), "the sealed list sits beside the log");
+    }
+
+    /// A finished request waits out the settle time before it is written: cookies are reported after the response.
+    #[test]
+    fn a_finished_request_is_written_only_once_it_has_settled_and_only_once() {
+        let (mut log, _) = log();
+        assert!(!log.has_pending());
+        log.queue("r1");
+        log.queue("r1");
+        assert!(log.has_pending());
+        assert!(log.settled().is_empty(), "not settled yet");
+        std::thread::sleep(SETTLE + Duration::from_millis(50));
+        log.queue("r2");
+        assert_eq!(log.settled(), ["r1"], "queued twice, settled once; r2 is too new");
+        assert!(log.has_pending());
+        assert_eq!(log.drain_pending(), ["r2"], "a final flush takes what is left whatever its age");
+        assert!(!log.has_pending());
+    }
+
+    /// Records carry lists too: a secret in an array of a request is named wherever it stands, and an answer the
+    /// vault's value came back in says its name, in a list as in an object.
+    #[test]
+    fn a_secret_inside_a_list_is_named_in_a_request_and_in_an_answer() {
+        let (mut log, path) = log();
+        log.keep_secret("pw-123456", Some("vault:shop.example:me"));
+        log.keep_secret("Long-Vault-Secret", Some("vault:shop.example:other"));
+        log.write(serde_json::json!({ "type": "request", "fields": [["user", "pw-123456"], 7, true, null] }));
+        log.write(serde_json::json!({ "type": "exchange", "entry": { "response": { "headers": [{ "name": "x-echo", "value": "Long-Vault-Secret" }] } } }));
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(!text.contains("pw-123456") && !text.contains("Long-Vault-Secret"), "{text}");
+        assert!(text.contains(r#"["user","vault:shop.example:me"],7,true,null"#), "{text}");
+        assert!(text.contains(r#""value":"vault:shop.example:other""#), "{text}");
+    }
+
+    /// A card whose digits are grouped by more than one kind of separator is found by its digits alone, and only where
+    /// the run of digits stands on its own.
+    #[test]
+    fn a_card_said_with_mixed_separators_is_named_and_one_inside_a_longer_number_is_not() {
+        let card = "4242424242424242";
+        assert!(holds_digits_of("pan 4242 4242-4242.4242 end", card));
+        assert!(holds_digits_of("4242424242424242", card));
+        assert!(!holds_digits_of("order 14242 4242 4242 4242", card), "a digit before it makes it another number");
+        assert!(!holds_digits_of("4242 4242 4242 42421", card), "a digit after it too");
+        assert!(!holds_digits_of("4242 4242 4242", card), "a part of it is not it");
+        assert_eq!(replace_digit_runs("a 4242 4242-4242.4242 b, 4242424242424242", card, "vault:card"), "a vault:card b, vault:card");
+        assert_eq!(replace_digit_runs("14242 4242 4242 4242 x", card, "vault:card"), "14242 4242 4242 4242 x");
+        assert_eq!(replace_digit_runs("\u{ff14}242 4242", card, "n"), "\u{ff14}242 4242", "only ASCII runs are cut here");
+    }
+
+    /// Which characters write a digit: ASCII, full-width, and the mathematical styles; no other script's.
+    #[test]
+    fn the_characters_that_write_a_digit_are_ascii_full_width_and_mathematical_ones() {
+        assert_eq!(digits_in("a4b"), "4");
+        assert_eq!(digits_in("\u{ff14}\u{ff12}"), "42");
+        assert_eq!(digits_in("\u{1d7d0}\u{1d7ec}\u{1d7ff}"), "209", "bold 2, sans-serif 0, monospace 9");
+        assert_eq!(digits_in("\u{0664}x\u{4e00}"), "", "Arabic-Indic and CJK numerals are not read");
+    }
+
+    #[test]
+    fn a_percent_sign_that_is_no_escape_stays_and_a_decimal_entity_is_its_character() {
+        assert_eq!(percent_decoded("100%zz and %4"), "100%zz and %4");
+        assert_eq!(percent_decoded("%34%32"), "42");
+        assert_eq!(unescape("&#52;&#x32; &#999999999; &#;"), "42 &#999999999; &#;");
+    }
+
+    /// A list of a log's own secrets that can't be sealed (its file's place is taken) or read back stops short
+    /// without losing the log: the secrets are still named in memory.
+    #[test]
+    fn a_sealed_list_that_cannot_be_written_or_read_leaves_the_log_naming_its_secrets() {
+        let dir = tempfile::tempdir().unwrap();
+        // The place the list is staged in is taken by a folder: nothing can be written there.
+        std::fs::create_dir(dir.path().join("s.secrets.sealing")).unwrap();
+        let mut log = sealed(dir.path());
+        log.keep_secret("pw-123456", None);
+        log.write(serde_json::json!({ "type": "request", "body": "pw-123456" }));
+        assert!(!dir.path().join("s.secrets").exists(), "no half-written list is left");
+        assert!(!std::fs::read_to_string(dir.path().join("s.jsonl")).unwrap().contains("pw-123456"));
+        drop(log);
+        // The list's own place taken by a folder: it can't be read, and a log that names secrets is not resumed
+        // without the list that names them.
+        let other = tempfile::tempdir().unwrap();
+        let mut first = sealed(other.path());
+        first.forget("Owner-Typed-77");
+        first.write(serde_json::json!({ "type": "request", "body": "pw=Owner-Typed-77" }));
+        drop(first);
+        std::fs::remove_file(other.path().join("s.secrets")).unwrap();
+        std::fs::create_dir(other.path().join("s.secrets")).unwrap();
+        assert!(CaptureLog::open_in_sealed(other.path(), "s", Some(Box::new(Keyed(0x5a)))).is_none());
+    }
+
+    /// A log with nothing a secret could be in is opened as it is, and again, without a list to settle.
+    #[test]
+    fn a_log_that_names_no_secret_opens_again_as_it_is() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut first = CaptureLog::open_in(dir.path(), "s").unwrap();
+        first.write(serde_json::json!({ "type": "action", "action": "click", "value": "short" }));
+        first.write(serde_json::json!({ "type": "request", "url": "https://shop.example/" }));
+        drop(first);
+        std::fs::remove_file(dir.path().join("s.named")).unwrap();
+        let again = CaptureLog::open_in(dir.path(), "s");
+        assert!(again.is_some());
+        assert!(dir.path().join("s.named").exists(), "a log with nothing to settle is marked settled, and isn't read again");
+        assert!(std::fs::read_to_string(dir.path().join("s.jsonl")).unwrap().contains("https://shop.example/"));
     }
 }

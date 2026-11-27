@@ -8,60 +8,50 @@ const std = @import("std");
 const nanoui = @import("nanoui");
 const ui = nanoui.ui;
 const look = @import("../look.zig");
-const art = @import("../art.zig");
 const types = @import("../types.zig");
 const App = @import("../app.zig").App;
 const cloud = @import("cloud.zig");
 
-pub fn view(a: *App, c: *ui.Context) void {
+/// The apps step of setting up (screens/onboarding.zig): the AI apps found on this computer, each ticked, and one button
+/// that connects them; with none found, straight on to ChatGPT and Claude on the web.
+pub fn appsBody(a: *App, c: *ui.Context) void {
     const x = look.x(c);
-    const page = ui.div(c).column().sizeFull().bg(x.canvas).px(32).pt(46).pb(28).itemsCenter();
-    defer page.end();
-    const col = ui.div(c).column().wFull().maxW(560).grow().gap(16);
-    defer col.end();
     {
-        const brand = ui.div(c).row().gap(8).itemsCenter();
-        defer brand.end();
-        art.mark(c, 24);
-        ui.text(c, "Unbrowse", .{ .size = 17, .weight = .semibold });
-    }
-    if (a.connect_step > 0) return webStep(a, c);
-    {
-        const words = ui.div(c).column().wFull().gap(6);
+        const words = ui.div(c).column().wFull().gap(8);
         defer words.end();
-        look.title(c, "Connect your agents");
-        look.body(c, "Your agents use Unbrowse through the node on this Mac. Connecting adds it to each one you leave ticked, and Undo puts every file back as it was.");
+        look.title(c, "Connect your AI apps");
+        look.body(c, if (found_n(a) == 0 and a.clients() != null)
+            "No AI app was found on this computer. If you use ChatGPT or Claude in a browser or on your phone, that's next."
+        else
+            "Tick the apps you use. Connecting adds Unbrowse to each one and keeps its settings file as it was, beside it: Undo puts them all back.");
     }
-    {
-        const sheet = ui.div(c).column().wFull().minW(0).bg(c.theme.surface).border(x.frame).rounded(16).shadowMd().clip();
+    if (found_n(a) > 0 or a.clients() == null) {
+        const sheet = ui.div(c).column().wFull().minW(0).bg(c.theme.surface).border(x.frame).rounded(14).shadowMd().clip();
         defer sheet.end();
         list(a, c);
     }
     if (a.err.len > 0) look.failText(c, a.err.get());
-    {
-        const r = ui.div(c).row().wFull().gap(12).itemsCenter();
-        defer r.end();
-        const done = anyConnected(a);
-        if (found_n(a) == 0) {
-            // Nothing to connect here: ChatGPT and Claude on the web may still be what the owner uses.
-            if (look.secondary(c, "Next", .{})) a.nextConnectStep();
-        } else if (done) {
-            if (look.primary(c, "Next", .{ .size = .md })) a.nextConnectStep();
-        } else {
-            if (connectButton(a, c)) a.sendConnect();
-            // Leaving without connecting is allowed: it can be done later on the Agents screen.
-            if (look.secondary(c, "Skip", .{})) a.nextConnectStep();
-            look.small(c, "You can connect them later on the Agents screen.");
-        }
+    const r = ui.div(c).row().wFull().gap(12).itemsCenter();
+    defer r.end();
+    if (found_n(a) == 0) {
+        if (look.primary(c, "Next", .{ .size = .md })) a.nextConnectStep();
+    } else if (anyConnected(a)) {
+        if (look.primary(c, "Next", .{ .size = .md })) a.nextConnectStep();
+    } else {
+        if (connectButton(a, c)) a.sendConnect();
+        // Leaving without connecting is allowed: the Agents screen keeps the same list.
+        if (look.secondary(c, "Skip", .{})) a.nextConnectStep();
+        look.small(c, "You can connect them later on the Agents screen.");
     }
 }
 
-/// The first run's second step: ChatGPT and Claude on the web, for an owner who chats in a browser or on a phone.
-fn webStep(a: *App, c: *ui.Context) void {
+/// The web step of setting up: ChatGPT and Claude in a browser or on a phone, by this node's address and the owner's
+/// Unbrowse account.
+pub fn webBody(a: *App, c: *ui.Context) void {
     const x = look.x(c);
     look.title(c, "Use ChatGPT or Claude on the web?");
     {
-        const sheet = ui.div(c).column().wFull().minW(0).bg(c.theme.surface).border(x.frame).rounded(16).shadowMd().clip();
+        const sheet = ui.div(c).column().wFull().minW(0).bg(c.theme.surface).border(x.frame).rounded(14).shadowMd().clip();
         defer sheet.end();
         const b = ui.div(c).column().wFull().p(16).gap(10);
         defer b.end();
@@ -70,9 +60,10 @@ fn webStep(a: *App, c: *ui.Context) void {
     if (a.err.len > 0) look.failText(c, a.err.get());
     const r = ui.div(c).row().wFull().gap(12).itemsCenter();
     defer r.end();
+    if (look.secondary(c, "Back", .{})) a.onboardGo(.back, .web);
     const on = if (a.store.get(.remote_status)) |s| s.on else false;
     if (on) {
-        if (look.primary(c, "Done", .{ .size = .md })) a.dismissConnect();
+        if (look.primary(c, "Next", .{ .size = .md })) a.dismissConnect();
     } else if (look.secondary(c, "Not now", .{})) a.dismissConnect();
     look.small(c, "It stays on the Agents screen for later.");
 }
@@ -106,7 +97,8 @@ pub fn buttons(a: *App, c: *ui.Context) void {
     const r = ui.div(c).row().wFull().gap(8).itemsCenter();
     defer r.end();
     if (connectButton(a, c)) a.sendConnect();
-    if (look.secondary(c, "Undo", .{ .loading = a.store.isBusy("agent_connect_undo") })) a.undoConnect();
+    // Undo puts back what Connect changed: with nothing connected, there is nothing to put back.
+    if (look.secondary(c, "Undo", .{ .disabled = !anyConnected(a), .loading = a.store.isBusy("agent_connect_undo") })) a.undoConnect();
     if (a.connect_undone.len > 0) look.small(c, undoneWords(a, c));
 }
 
@@ -158,12 +150,14 @@ fn row(a: *App, c: *ui.Context, cl: types.AgentClient, i: usize) void {
     }
 }
 
-/// What a row says on its right, in plain words: what the last answer did for it, else that it is connected already.
+/// What a row says on its right, in plain words: what the last answer did for it, else that it is connected, and
+/// whether the app has reached Unbrowse since. Connecting writes a file the app reads when it starts: until it has, the
+/// owner is told what finishes it.
 fn rowWords(c: *ui.Context, cl: types.AgentClient, result: ?types.ConnectResult) ?[]const u8 {
-    if (result) |r| {
-        if (!r.ok) return r.@"error" orelse "It didn't work, and nothing was changed.";
-        if (r.restart_needed) return c.print("Connected: quit and reopen {s}", .{cl.name});
-        return "Connected";
-    }
-    return if (cl.connected) "Connected" else null;
+    if (result) |r| if (!r.ok) return r.@"error" orelse "It didn't work, and nothing was changed.";
+    const connected = cl.connected or if (result) |r| r.ok else false;
+    if (!connected) return null;
+    if (cl.heard != null) return "Connected: it reached Unbrowse";
+    if (result) |r| if (r.restart_needed) return c.print("Connected: quit and reopen {s}", .{cl.name});
+    return c.print("Connected: open {s} to start using it", .{cl.name});
 }

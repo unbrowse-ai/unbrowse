@@ -11,7 +11,7 @@ import urllib.parse
 import urllib.request
 import uuid
 import warnings
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
+from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Union
 
 from . import _generated as wire
 from ._proof import answer_holds, node_proof, port_of, token_key
@@ -261,7 +261,7 @@ class UnbrowseNode:
         self._ensure_started()
         if not self._token:
             raise error_for(
-                "no agent token: pass token= or set UNBROWSE_AGENT_TOKEN (Unbrowse app, Wallet, New agent key)",
+                "no agent token: pass token= or set UNBROWSE_AGENT_TOKEN (`unbrowse agent token` prints one; `unbrowse agent new <name>` makes a key of the agent's own)",
                 401,
                 "unauthorized",
             )
@@ -274,6 +274,9 @@ class UnbrowseNode:
 
     def _primitive(self, tool: str, args: Dict[str, Any], timeout: Optional[float] = None) -> Any:
         """One agent primitive, as its ``/v1`` route takes it (``_generated.PRIMITIVES``), answering the wire record."""
+        if tool == "unbrowse_call" and args.get("browser") == "never":
+            if (self._primitive("unbrowse_whoami", {}, timeout=timeout) or {}).get("call_browser") is not True:
+                raise error_for("this node does not support browser: never on direct route calls. Update it or leave browser unset", 0, "unsupported")
         method, path, body = primitive_request(tool, args)
         return self._request(method, path, body, timeout=timeout)
 
@@ -282,6 +285,18 @@ class UnbrowseNode:
         r: wire.Whoami = self._primitive("unbrowse_whoami", {})
         fetch = r.get("browser_fetch")
         return Whoami(agent=r.get("agent", ""), address=r.get("address", ""), node=r.get("node", ""), browser=r.get("browser"), browser_fetch=fetch if isinstance(fetch, bool) else None, owner=r.get("owner"))
+
+    def setup(self, do: Optional[str] = None, host: Optional[str] = None) -> Dict[str, Any]:
+        """The node's setup, step by step: each step done or not, a line saying where it stands, and the ``setup`` call
+        that does it. ``do`` acts on one (``accept_terms``, ``sign_in``, ``connect_apps``, ``web``, ``connect_site``
+        with ``host``), asking the owner on their screen first. ``person`` in the answer is what to hand them (a link, a
+        place in the app), never a command to type."""
+        args: Dict[str, Any] = {}
+        if do:
+            args["do"] = do
+        if host:
+            args["host"] = host
+        return self._primitive("unbrowse_setup", args)
 
     def capabilities(self) -> Capabilities:
         """What the node can do now: whether it has its browser (``present``, ``missing``, ``installing``, or
@@ -486,6 +501,7 @@ class UnbrowseNode:
         inputs: Optional[Mapping[str, Value]] = None,
         *,
         fields: Optional[Sequence[str]] = None,
+        browser: Optional[Literal["auto", "never"]] = None,
         pays_usd: Optional[float] = None,
         pays: bool = False,
     ) -> CallResult:
@@ -503,6 +519,8 @@ class UnbrowseNode:
         args: wire.CallArgs = {"route_id": route_id, "inputs": {k: _str(v) for k, v in (inputs or {}).items()}}
         if fields:
             args["fields"] = list(fields)
+        if browser is not None:
+            args["browser"] = browser
         return CallResult.of(self._primitive("unbrowse_call", dict(args)))
 
     def open(self, link: str) -> LinkPreview:

@@ -500,4 +500,130 @@ mod tests {
             ]
         );
     }
+
+    #[cfg(unix)]
+    fn script(dir: &std::path::Path, name: &str, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let path = dir.join(name);
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        path
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_launch_serves_on_the_given_port_with_telemetry_off_and_reports_the_endpoint() {
+        let dir = tempfile::tempdir().unwrap();
+        let args_file = dir.path().join("args");
+        let bin = script(
+            dir.path(),
+            "lightpanda",
+            &format!(
+                "echo \"$@\" > {a}; echo \"$LIGHTPANDA_DISABLE_TELEMETRY\" >> {a}; echo hello; exec sleep 30",
+                a = args_file.display()
+            ),
+        );
+        let port = unused_port();
+        tokio::spawn(serve_json_version_once_after_delay(
+            port,
+            200,
+            r#"{"webSocketDebuggerUrl":"ws://127.0.0.1:1/"}"#,
+        ));
+        let mut process = launch_lightpanda(&LightpandaLaunchOptions {
+            executable_path: Some(bin.display().to_string()),
+            proxy: Some("http://127.0.0.1:8080".into()),
+            port: Some(port),
+        })
+        .await
+        .unwrap();
+        assert_eq!(process.ws_url, format!("ws://127.0.0.1:{port}/"));
+        assert!(!process.has_exited());
+        let args = std::fs::read_to_string(&args_file).unwrap();
+        assert_eq!(
+            args,
+            format!("serve --host 127.0.0.1 --port {port} --http_proxy http://127.0.0.1:8080\ntrue\n")
+        );
+        process.kill();
+        assert!(process.has_exited());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_launch_that_dies_at_once_fails_with_what_it_printed() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = script(dir.path(), "lightpanda", "echo no-display >&2; echo started; exit 3");
+        let err = match launch_lightpanda(&LightpandaLaunchOptions {
+            executable_path: Some(bin.display().to_string()),
+            proxy: None,
+            port: None,
+        })
+        .await
+        {
+            Ok(_) => panic!("a dead process must not launch"),
+            Err(e) => e,
+        };
+        assert!(err.contains("Lightpanda exited before CDP became ready"), "{err}");
+        assert!(err.contains("no-display"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn a_launch_of_a_missing_binary_names_the_path() {
+        let err = match launch_lightpanda(&LightpandaLaunchOptions {
+            executable_path: Some("/nonexistent/dir/lightpanda".into()),
+            proxy: None,
+            port: Some(unused_port()),
+        })
+        .await
+        {
+            Ok(_) => panic!("a missing binary must not launch"),
+            Err(e) => e,
+        };
+        assert!(err.contains("Failed to launch Lightpanda at"), "{err}");
+        assert!(err.contains("/nonexistent/dir/lightpanda"), "{err}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn lightpanda_is_found_on_the_path_and_else_under_the_home_folders() {
+        if !crate::cdp::chrome::own_process(module_path!(), "lightpanda_is_found_on_the_path_and_else_under_the_home_folders") {
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let on_path = script(&bin, "lightpanda", "exit 0");
+        let guard = crate::test_utils::EnvGuard::new(&["PATH", "HOME", "USERPROFILE"]);
+        let old = std::env::var("PATH").unwrap_or_default();
+        guard.set("PATH", &format!("{}:{old}", bin.display()));
+        assert_eq!(find_lightpanda(), Some(on_path));
+
+        // not on PATH: the home folders are searched, .lightpanda first
+        let home = dir.path().join("home");
+        std::fs::create_dir_all(home.join(".local/bin")).unwrap();
+        std::fs::create_dir_all(home.join(".lightpanda")).unwrap();
+        guard.set("PATH", "/nonexistent-path-for-test");
+        guard.set("HOME", &home.display().to_string());
+        guard.set("USERPROFILE", &home.display().to_string());
+        // `which` itself must still run: it lives in /usr/bin, so the sh fallback finds nothing named lightpanda
+        let local = script(&home.join(".local/bin"), "lightpanda", "exit 0");
+        assert_eq!(find_lightpanda(), Some(local));
+        let first = script(&home.join(".lightpanda"), "lightpanda", "exit 0");
+        assert_eq!(find_lightpanda(), Some(first));
+        std::fs::remove_file(home.join(".lightpanda/lightpanda")).unwrap();
+        std::fs::remove_file(home.join(".local/bin/lightpanda")).unwrap();
+        assert_eq!(find_lightpanda(), None);
+    }
+
+    #[tokio::test]
+    async fn the_log_drainers_keep_only_the_last_forty_lines_of_each_stream() {
+        let logs = LaunchLogBuffer::default();
+        let text: String = (0..55).map(|i| format!("line {i}\n")).collect();
+        let l = logs.clone();
+        drain_reader(std::io::Cursor::new(text.into_bytes()), move |line| l.push_stdout(line));
+        let got = logs.snapshot_stdout();
+        assert_eq!(got.len(), MAX_LOG_LINES);
+        assert_eq!(got.first().unwrap(), "line 15");
+        assert_eq!(got.last().unwrap(), "line 54");
+        assert!(logs.snapshot_stderr().is_empty());
+    }
 }

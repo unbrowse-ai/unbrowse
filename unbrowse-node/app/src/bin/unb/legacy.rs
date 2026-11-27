@@ -720,3 +720,7 @@ pub(crate) mod tests {
         assert_eq!(here.home, home_var.map(PathBuf::from).unwrap_or_else(|| PathBuf::from(".")));
     }
 }
+
+#[cfg(test)]
+#[path = "legacy_cov_tests.rs"]
+mod legacy_cov_tests;

@@ -44,7 +44,7 @@ use crate::{agents, store, Node};
 
 pub const DEFAULT_GATEWAY: &str = "https://unbrowse.ai";
 /// What a message that came through a gateway hears when its key isn't a remote key made for that gateway.
-pub(crate) const NOT_THIS_GATEWAY: &str = "this key doesn't open this node through this gateway: on the node's machine, run `unbrowse-node remote key` to make one that does";
+pub(crate) const NOT_THIS_GATEWAY: &str = "this key doesn't open this node through this gateway: its owner makes one that does in the Unbrowse app (Settings, Make a remote key), or connects this app again from Agents";
 /// How often the node looks at whether the owner changed the remote setting, and pings the gateway: a WebSocket ping
 /// frame, which the gateway's runtime answers without waking it.
 const RECHECK: Duration = Duration::from_secs(if cfg!(test) { 1 } else { 5 });
@@ -55,8 +55,21 @@ pub const KEY_CAP_USDC: f64 = agents::AUTO_CAP_USDC;
 pub const KEY_DAYS: u64 = 30;
 /// The tools a public peer offers: the ones that find and call a route. Nothing that drives a page.
 pub const PUBLIC_TOOLS: [&str; 5] = ["unbrowse_do", "unbrowse_search", "unbrowse_call", "unbrowse_judge", "unbrowse_report"];
-/// What a public peer answers for anything it doesn't do.
-pub const NEEDS_OWN_NODE: &str = "needs your own node: this is a public Unbrowse peer, which only calls routes, with no browser and no sign-in. Install Unbrowse (unbrowse.ai) and run `unbrowse-node remote on` to use your own node from anywhere, browser and logins included";
+/// Where a person gets the Unbrowse app: the page an agent hands them when what it asked needs their own node.
+pub const GET_UNBROWSE: &str = "https://unbrowse.ai/#install";
+/// What a public peer answers for anything it doesn't do. It names the page to install from, never a command: the
+/// agent asking may have no terminal (ChatGPT or Claude on the web), and its person needs none (`said_to_agents`).
+pub const NEEDS_OWN_NODE: &str = "needs the person's own Unbrowse: this is a public Unbrowse peer, which only calls routes, with no browser and no sign-in. Give the person https://unbrowse.ai/#install: they install the Unbrowse app on their computer and sign in there with the same Unbrowse account, and it links itself to this app, browser and logins included. Then ask again";
+
+/// What an agent hands its person when what it asked needs their own node (`person` beside `NEEDS_OWN_NODE`, type
+/// `ForPerson`): a link to open, and the words to say with it.
+pub fn needs_own_node_person() -> serde_json::Value {
+    serde_json::json!({
+        "kind": "link",
+        "url": GET_UNBROWSE,
+        "say": "Install Unbrowse on your computer from this link and sign in there with the same Unbrowse account. It links itself, and then I can use your browser and the sites you're signed in to.",
+    })
+}
 /// What a public peer's key may spend a day for all of its callers together (graph `param.gateway.spend_per_day`).
 pub const PUBLIC_SPEND_PER_DAY_USDC: f64 = 5.0;
 /// The request headers taken from the gateway: MCP's own, and the key.
@@ -264,9 +277,9 @@ tokio::task_local! {
 /// share it.
 pub const PEER_NETWORK: &str = "peer network";
 /// What an ask over the peer network hears when its key wasn't made for the peer network.
-pub(crate) const NOT_A_PEER_KEY: &str = "this key doesn't open this node over the peer network: on the node's machine, run `unbrowse-node remote peer key` to make one that does";
+pub(crate) const NOT_A_PEER_KEY: &str = "this key doesn't open this node over the peer network: it takes a peer key its owner makes for this app";
 /// What an ask over the peer network hears while the owner has made no key for it: the door is shut.
-pub(crate) const PEER_MCP_OFF: &str = "this node doesn't take MCP over the peer network: its owner turns it on by running `unbrowse-node remote peer key` on its machine";
+pub(crate) const PEER_MCP_OFF: &str = "this node doesn't take MCP over the peer network: its owner opens it by making a peer key for this app";
 
 /// `f`, answered as a message that came over the peer network (`api::Direct`): only a key made for the peer network
 /// opens the node then, at the door (`signed::token_for`) and at each tool (`api::agent`).
@@ -469,7 +482,7 @@ async fn mcp_ask(node: Arc<Node>, arrival: String, public: bool, asked: Vec<(Str
             Some(v) => {
                 headers.insert("authorization", v);
             }
-            None => return json_answer(503, json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32003, "message": "this public peer has no key to call with: on its machine, run `unbrowse-node remote public` again" } })),
+            None => return json_answer(503, json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32003, "message": "this public peer has no key to call with: its operator makes it a public peer again" } })),
         }
     }
     // Every message through the gateway needs a remote key made for it, not only tool calls: a caller without one
@@ -511,12 +524,49 @@ async fn mcp_ask(node: Arc<Node>, arrival: String, public: bool, asked: Vec<(Str
 /// the gateway may ask them: long enough to add the URL to an app and connect it.
 pub const SIGN_IN_OPEN: Duration = Duration::from_secs(600);
 /// What a sign-in hears when the owner isn't expecting one.
-pub(crate) const NOT_EXPECTING_SIGN_IN: &str = "this node isn't expecting a sign-in: on its machine, run `unbrowse-node remote sign-in` (or turn the remote on in its window), then connect the app again within 10 minutes";
+pub(crate) const NOT_EXPECTING_SIGN_IN: &str = "this node isn't expecting a sign-in: on its computer, open the Unbrowse app and press \"Adding it now? Let a sign-in ask\" on Agents (or turn the address on there), then connect the app again within 10 minutes";
 /// The most sign-ins that ask the owner each time the owner opens sign-ins.
 const SIGN_INS_PER_OPENING: usize = 5;
 
 fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
+}
+
+/// This node's peer ID for a sign-in page on `site` to link it to the owner's Unbrowse account in the same visit
+/// (`#own=`, the gateway's `/oauth/node`), so apps signed in to that site's shared `/mcp` as them reach this node with
+/// nothing to paste. Readies the link first: the address is turned on at the page's own site when the owner never set
+/// it up (the page asks that site's gateway to link the node, so the node must be attached there; one they turned off
+/// stays off), and the node expects the sign-in, which still asks the owner in its own dialog. None for a public peer,
+/// a remote the owner turned off, or a remote on at another gateway than the page's site.
+pub fn own_for_sign_in(site: &str) -> Option<String> {
+    let r = Remote::load();
+    if r.public || (!r.on && !r.gateway.is_empty()) {
+        return None;
+    }
+    // The page must be on the gateway's own site, the one its /mcp is: checked before anything is turned on.
+    if r.on && r.host() != host_of(site) {
+        return None;
+    }
+    let r = if r.on { r } else { turn_on_as(site, false).ok()? };
+    expect_sign_in().ok()?;
+    r.peer()
+}
+
+/// `remote_link`: links this node to the owner's Unbrowse account for apps signed in to the gateway's shared /mcp
+/// (ChatGPT, Claude), for a node signed in already or one whose first sign-in didn't link it: the address turned on if it
+/// is off, a sign-in let ask, and the gateway's link page (`account_link`) opened in the owner's browser, where they sign
+/// in with that account. The node asks them in its own dialog before it is linked.
+pub fn link_account() -> Result<Value, String> {
+    if Remote::load().public {
+        return Err("a public peer is no one's to link".into());
+    }
+    if !Remote::load().on {
+        set(true, None)?;
+    }
+    expect_sign_in()?;
+    let url = Remote::load().account_link().ok_or("this node has no address at a gateway yet")?;
+    let opened = crate::link::open(&url).is_ok();
+    Ok(json!({ "url": url, "opened": opened }))
 }
 
 /// Lets a sign-in through the gateway ask the owner for the next `SIGN_IN_OPEN`, until one is allowed. Only the owner
@@ -560,7 +610,7 @@ fn sign_in_may_ask(open_until: u64, now: u64) -> Result<(), String> {
         return Err("the owner is being asked about another sign-in: try again in a minute".into());
     }
     if s.1 >= SIGN_INS_PER_OPENING {
-        return Err("too many sign-ins asked of this node since its owner opened sign-ins: on its machine, run `unbrowse-node remote sign-in` again".into());
+        return Err("too many sign-ins asked of this node since its owner opened sign-ins: its owner lets one ask again from the Unbrowse app (\"Adding it now? Let a sign-in ask\" on Agents)".into());
     }
     s.1 += 1;
     s.2 = true;
@@ -996,6 +1046,50 @@ mod tests {
 
     /// The URL is the node's: turned on, it takes the key the node has on the peer network, so the remote peer ID is
     /// the network's; turned off and on, the URL stays; a new gateway is asked who it is anew.
+    /// The first sign-in links the node to the owner's account in the same visit (`own=`): a node whose owner never set
+    /// the address up gets it turned on at the sign-in page's own site, whose gateway the page asks, and expects the
+    /// sign-in; a page on another site than the gateway the node is on, one the owner turned off, and a public peer
+    /// name nothing, and change nothing.
+    #[test]
+    fn the_first_sign_in_links_the_node_unless_the_owner_turned_the_address_off() {
+        let _home = store::scratch_home("remote-own");
+        let peer = own_for_sign_in("https://unbrowse.ai/").expect("a node never set up is linked as it signs in");
+        let r = Remote::load();
+        assert!(r.on && r.host().as_deref() == Some("unbrowse.ai") && r.peer().as_deref() == Some(peer.as_str()), "{peer}");
+        assert!(r.sign_in_until > now_ms(), "the sign-in may ask the owner");
+        assert_eq!(own_for_sign_in("https://staging.unbrowse.ai"), None, "a page on another site than the node's gateway");
+        assert_eq!(Remote::load().host().as_deref(), Some("unbrowse.ai"), "nothing moved for it");
+        turn_off().unwrap();
+        assert_eq!(own_for_sign_in("https://unbrowse.ai"), None, "the owner turned it off: it stays off");
+        assert!(!Remote::load().on);
+        let mut public = Remote::load();
+        public.on = true;
+        public.public = true;
+        public.save().unwrap();
+        assert_eq!(own_for_sign_in("https://unbrowse.ai"), None, "a public peer is no one's to link");
+        // A staging build signs in on its own site, which runs its own gateway: a node never set up is attached there.
+        let _again = store::scratch_home("remote-own-staging");
+        assert!(own_for_sign_in("https://unbrowse-landing.example.workers.dev").is_some());
+        assert_eq!(Remote::load().host().as_deref(), Some("unbrowse-landing.example.workers.dev"));
+    }
+
+    /// `remote_link`: the address turned on if it is off, a sign-in let ask, and the gateway's link page naming this
+    /// node opened; a public peer is no one's to link.
+    #[test]
+    fn link_account_opens_the_page_that_names_the_node() {
+        let _home = store::scratch_home("remote-link-account");
+        let said = link_account().unwrap();
+        let r = Remote::load();
+        assert!(r.on && r.sign_in_until > now_ms(), "on, and a sign-in may ask");
+        assert_eq!(said["url"].as_str(), r.account_link().as_deref());
+        assert!(said["url"].as_str().unwrap().starts_with("https://unbrowse.ai/link/#own=12D3Koo"), "{said}");
+        assert_eq!(said["opened"], false, "a test opens no browser");
+        let mut public = Remote::load();
+        public.public = true;
+        public.save().unwrap();
+        assert!(link_account().unwrap_err().contains("no one's to link"));
+    }
+
     #[test]
     fn the_url_names_the_nodes_own_peer_id_and_stays_across_off_and_on() {
         let _home = store::scratch_home("remote-url");
@@ -1226,7 +1320,11 @@ mod tests {
         let browse = rt.block_on(unbrowse_net::Mcp::answer(&door, unbrowse_net::PeerId::random(), ask("/mcp", None, json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": { "name": "unbrowse_browse", "arguments": { "do": ["open", "https://example.com"] } } }))));
         let refused: Value = serde_json::from_str(said(&browse)["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
         assert_eq!(refused["outcome"], "not_allowed", "{refused}");
-        assert!(refused["why"].as_str().unwrap().contains("needs your own node"));
+        assert!(refused["why"].as_str().unwrap().contains("needs the person's own Unbrowse"), "{refused}");
+        // What the agent hands its person is a link to open, never a command to type.
+        assert_eq!(refused["person"]["kind"], "link", "{refused}");
+        assert_eq!(refused["person"]["url"], GET_UNBROWSE, "{refused}");
+        assert!(refused["why"].as_str().unwrap().contains(GET_UNBROWSE), "the words name the same page: {refused}");
         let sign_in = rt.block_on(unbrowse_net::Mcp::answer(&door, unbrowse_net::PeerId::random(), ask("/remote/authorize", None, json!({ "client": "x" }))));
         assert_eq!(sign_in.status, 404, "a public peer takes no sign-ins");
         drop(rt);
@@ -1285,3 +1383,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 }
+
+#[cfg(test)]
+#[path = "remote_cov_tests.rs"]
+mod remote_cov_tests;

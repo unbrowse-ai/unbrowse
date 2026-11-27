@@ -31,7 +31,7 @@ pub enum Failed {
 /// shown.
 pub fn unsigned_refusal(status: u16) -> String {
     let said = match status {
-        401 => "the node refused this request before it could tell whose it was: the key may be unknown, revoked or expired, or this machine's clock too far off (get a fresh key: `unbrowse connect`, or `unbrowse agent token`)",
+        401 => "the node refused this request before it could tell whose it was: the key may be unknown, revoked or expired, or this machine's clock too far off (get a fresh key: its person connects this agent again from the Unbrowse app, Agents, Connect)",
         413 => "the request was larger than the node takes",
         421 => "the node takes requests at 127.0.0.1 or localhost on its own port only",
         503 => "the node isn't ready for this (starting, paused, or waiting for its key, or it couldn't record the request): try again shortly",
@@ -148,3 +148,7 @@ pub fn send(
     }
     Ok(Answer { status, headers, body })
 }
+
+#[cfg(test)]
+#[path = "signed_client_cov_tests.rs"]
+mod signed_client_cov_tests;

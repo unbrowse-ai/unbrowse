@@ -55,19 +55,23 @@ pub fn acknowledged(mut s: Settings, keep_off: bool) -> Settings {
     s
 }
 
-/// A node waiting on the owner for the terms, said for them: wherever a node that isn't joining says why.
+/// A node waiting on the owner for the terms, said wherever a node that isn't joining says why: its health, which
+/// agents read (`unbrowse_whoami`), so in the app's words and never as a command (`said_to_agents`).
 pub fn due() -> String {
-    format!(
-        "this node stays off the peer network until its owner acknowledges terms {TERMS_VERSION}: open the window, or read them (`unbrowse-node terms show`) and run `unbrowse-node terms accept` (`unbrowse-node network off` keeps it off)"
-    )
+    format!("this node stays off the peer network until its owner acknowledges terms {TERMS_VERSION}, which the Unbrowse app asks for when it opens")
 }
 
 /// Said at start, before the chain or anything else that can hold the node up: on a machine with no window, the node's
-/// output is the only place the owner hears it (`unbrowse start`).
+/// output is the only place the owner hears it (`unbrowse start`), so it also names the commands.
 pub fn announce() {
     if standing(&store::load_settings()) == Standing::TermsDue {
-        eprintln!("{}", due());
+        eprintln!("{}", announced());
     }
+}
+
+/// What the node's output says while the terms wait: `due`, and how an owner with no window answers.
+pub fn announced() -> String {
+    format!("{}; with no window, read them (`unbrowse-node terms show`) and run `unbrowse-node terms accept` (`unbrowse-node network off` keeps it off)", due())
 }
 
 /// The terms and the privacy notice in full, as `unbrowse-node terms show` prints them.
@@ -154,10 +158,12 @@ mod tests {
     }
 
     /// The node joins only once its owner has answered (`standing`), so terms saying it joins when it runs describe a
-    /// node this isn't. On a machine with no window the answer is `terms accept`, which the node names when it waits.
+    /// node this isn't. On a machine with no window the answer is `terms accept`, which the node's output names when it
+    /// waits; what agents read of it (`due`, in the node's health) says where the app asks, and names no command.
     #[test]
     fn the_terms_say_the_node_waits_for_its_owners_answer() {
-        assert!(due().contains("`unbrowse-node terms accept`"));
+        assert!(announced().contains("`unbrowse-node terms accept`"));
+        assert!(!due().contains("unbrowse-node"), "{}", due());
         assert!(TERMS.contains("`unbrowse-node terms accept`"), "TERMS.md names how an owner with no window answers");
     }
 

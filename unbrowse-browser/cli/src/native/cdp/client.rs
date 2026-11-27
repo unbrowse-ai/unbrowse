@@ -382,6 +382,19 @@ impl Drop for PendingGuard {
     }
 }
 
+/// The node's browser identity is given through this client the way the engine gives it through its own
+/// (`agent_browser_core::fingerprint::apply_browser_identity`): one code for every browser the node runs.
+impl agent_browser_core::fingerprint::Commands for CdpClient {
+    fn command(
+        &self,
+        method: &str,
+        params: Option<Value>,
+        session_id: Option<&str>,
+    ) -> impl std::future::Future<Output = Result<Value, String>> + Send {
+        self.send_command(method, params, session_id)
+    }
+}
+
 impl CdpClient {
     pub async fn connect(url: &str) -> Result<Self, String> {
         Self::connect_with_headers(url, None).await

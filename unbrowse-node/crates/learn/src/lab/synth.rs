@@ -2267,3 +2267,7 @@ pub(crate) mod tests {
         assert!(!holds_a_word("gardenia", &["garden"]), "a longer word that merely starts alike is not the word");
     }
 }
+
+#[cfg(test)]
+#[path = "synth_tests.rs"]
+mod synth_tests;

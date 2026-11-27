@@ -37,7 +37,10 @@ This README is the node's entry point. The rest is in [`docs/`](../docs/README.m
 macOS, Linux and Windows. The root key lives in the system's keystore: the Keychain, Windows' Credential Manager, or
 the Secret Service on Linux (on a Linux machine with no desktop session, `~/.unbrowse/root.key`, readable by its user
 alone). You need Rust and [Foundry](https://getfoundry.sh) (`~/.foundry/bin/anvil`: the node runs a local chain for
-payments). The node walks and browses in a Chromium browser (`app/src/browsers.rs`): the one the owner picked in
+payments), and CMake for BoringSSL; on Windows also NASM and a Python from python.org (the Store's
+`python3` is only a stub), each on `PATH`. A Windows machine with no desktop session (a service, SSH, a hub) may not reach
+Credential Manager: run the node in a folder of its own with its key in a file there
+(`UNBROWSE_HOME=C:\unbrowse-node UNBROWSE_ROOT_KEY_FILE=1`). The node walks and browses in a Chromium browser (`app/src/browsers.rs`): the one the owner picked in
 Settings, else the Chrome for Testing it downloaded, else Chrome, else any Chromium browser installed here. With none,
 it downloads Chrome for Testing when it starts. The window is native everywhere.
 
@@ -309,7 +312,7 @@ unbrowse-node network [on|off|light|full]
 
 The detail: [MONEY.md](../docs/MONEY.md) (every cost, the split, decimals), [ONBOARDING.md](../docs/ONBOARDING.md) (the
 sign-in and paying its own way), [SHARING.md](../docs/SHARING.md) (what is shared and how) and [NETWORK.md](../docs/NETWORK.md) (the
-peer network). The contracts are `unbrowse-settlement` (private repository).
+peer network). The contracts are [`unbrowse-settlement`](../unbrowse-settlement).
 
 ## Usage telemetry
 

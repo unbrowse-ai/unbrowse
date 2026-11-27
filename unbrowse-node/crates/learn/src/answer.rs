@@ -399,10 +399,14 @@ fn markup_text(inner: &str) -> String {
 /// reads the record here too, so the two are compared by what each said, never by two readings of it. None for a
 /// reply that reads as neither.
 pub fn data_of(e: &Exchange, like: Option<&Value>) -> Option<Value> {
-    if let Some(v) = e.json_body_like(like) {
-        return Some(v);
-    }
-    text_answer(e.response_header("content-type").unwrap_or(&e.response_mime), e.response_body.as_deref().unwrap_or_default())
+    data_with_source(e, like).map(|(value, _)| value)
+}
+
+pub(crate) fn data_with_source(e: &Exchange, like: Option<&Value>) -> Option<(Value, bool)> {
+    e.json_body_with_source(like).or_else(|| {
+        text_answer(e.response_header("content-type").unwrap_or(&e.response_mime), e.response_body.as_deref().unwrap_or_default())
+            .map(|value| (value, false))
+    })
 }
 
 /// Whether an answer lists nothing: the site answered and has nothing for the value. A page read as the answer
@@ -412,6 +416,99 @@ pub fn data_of(e: &Exchange, like: Option<&Value>) -> Option<Value> {
 /// of an empty answer: the agent's outcome (`answered_empty`) and a confirming browse (`learn::confirm`) both ask it.
 pub fn lists_nothing(data: &Value, asked: &[&str]) -> bool {
     lists_nothing_beside(data, asked, None)
+}
+
+/// Whether a results object declares that it is still loading or failed.
+pub fn search_unready(object: &serde_json::Map<String, Value>) -> bool {
+    ["pending", "loading"].iter().any(|k| object.get(*k) == Some(&Value::Bool(true)))
+        || object.get("error").is_some_and(|e| !e.is_null() && e.as_bool() != Some(false))
+}
+
+/// The fields that show a page's search settled with zero results for this query. A page can carry menus, filters
+/// and other state beside its search. Require a matching query, a completed search, a zero count and an empty
+/// result list in the same state object. When the cold page identified a list, its state must supply the evidence.
+/// Another populated result list anywhere on the page vetoes the evidence.
+pub fn empty_search_fields(data: &Value, asked: &str, witness: Option<&Value>) -> Option<Vec<String>> {
+    fn result_list(name: &str) -> bool {
+        let words = crate::goal::key_words(name);
+        matches!(words.last().map(String::as_str), Some("results" | "listings" | "hits")) || words == ["listing", "cards"]
+    }
+
+    fn result_count(name: &str) -> bool {
+        let words = crate::goal::key_words(name);
+        words == ["number", "of", "results"] || words == ["result", "count"] || words == ["total", "results"]
+    }
+
+    fn field_name(name: &str) -> bool {
+        !name.is_empty() && !name.contains(['.', '[', ']', '{', '}'])
+    }
+
+    fn read(data: &Value, asked: &str, witness: Option<&Value>, path: &mut Vec<String>, eligible: bool, evidence: &mut Option<Vec<String>>) -> Option<()> {
+        let object = match data {
+            Value::Object(object) => object,
+            Value::Array(items) if path.len() < 16 => {
+                // Lists inside an array can veto the empty result. They cannot provide projected field paths.
+                path.push(String::new());
+                let clear = items.iter().try_for_each(|item| read(item, asked, witness, path, false, evidence));
+                path.pop();
+                return clear;
+            }
+            _ => return Some(()),
+        };
+        let mut results = Vec::new();
+        for (name, value) in object {
+            if let Some(items) = value.as_array().filter(|_| result_list(name)) {
+                if !items.is_empty() {
+                    return None;
+                }
+                if field_name(name) && witness.is_none_or(|list| std::ptr::eq(list, value)) {
+                    results.push(name);
+                }
+            }
+        }
+        let error = object.get("error");
+        let eligible = eligible && !search_unready(object);
+        if evidence.is_none() && eligible && !results.is_empty() {
+            let complete = ["pending", "loading"].into_iter().find(|k| object.get(*k) == Some(&Value::Bool(false)));
+            if let Some(complete) = complete {
+                let own_query = object.get("query").and_then(Value::as_str).map(|q| ("query".to_string(), q));
+                let context_queries = object.iter().filter(|(name, _)| field_name(name)).filter_map(|(name, v)| {
+                    Some((format!("{name}.query"), v.get("query")?.as_str()?))
+                });
+                let mut queries = own_query.into_iter().chain(context_queries);
+                let asked_here = |q: &str| q.trim().eq_ignore_ascii_case(asked);
+                let query = queries.next().filter(|(_, q)| asked_here(q) && queries.all(|(_, q)| asked_here(q)));
+                let counts: Vec<_> = object.iter().filter(|(name, _)| result_count(name)).collect();
+                let zero = !counts.is_empty() && counts.iter().all(|(k, v)| field_name(k) && (v.as_u64() == Some(0) || v.as_str() == Some("0")));
+                if let Some((query, _)) = query.filter(|_| zero) {
+                    let at = |key: &str| path.iter().map(String::as_str).chain(std::iter::once(key)).collect::<Vec<_>>().join(".");
+                    let mut fields = vec![at(&query), at(complete)];
+                    fields.extend(counts.into_iter().map(|(k, _)| at(k)));
+                    fields.extend(results.into_iter().map(|k| at(k)));
+                    if error.is_some() {
+                        fields.push(at("error"));
+                    }
+                    *evidence = Some(fields);
+                }
+            }
+        }
+        if path.len() < 16 {
+            for (name, value) in object.iter().filter(|(_, v)| v.is_object() || v.is_array()) {
+                path.push(name.clone());
+                read(value, asked, witness, path, eligible && field_name(name), evidence)?;
+                path.pop();
+            }
+        }
+        Some(())
+    }
+
+    let asked = asked.trim();
+    if asked.chars().count() < 3 {
+        return None;
+    }
+    let mut evidence = None;
+    read(data, asked, witness, &mut Vec::new(), true, &mut evidence)?;
+    evidence
 }
 
 /// [`lists_nothing`], held beside another answer of the same page (`beside`: the same call for another value). A page's
@@ -626,7 +723,7 @@ pub fn not_an_answer_for(step: Judged, asked: &url::Url, got: &Exchange) -> Opti
     if step.writes {
         // A step that sends a secret and is answered with a page that asks for one again was refused: a site that
         // turns a wrong password away serves its sign-in form once more, and says 200 doing it.
-        if step.sends_a_secret && asks_for_a_password(got) {
+        if step.sends_a_secret && password_input_matches(got, |_| true) {
             return Some("the site answered with a page that asks for the password again: it did not sign in".into());
         }
         return None;
@@ -656,18 +753,37 @@ pub fn not_an_answer_for(step: Judged, asked: &url::Url, got: &Exchange) -> Opti
     None
 }
 
-/// Whether a read landed on another page than the one asked, and that page asks for a password: a site that answers a
-/// lost session with its sign-in page says 200, and only where it landed tells that from the page asked for.
+/// Whether a read landed on another page than the one asked, and that page asks for an existing password.
 pub fn sent_to_sign_in(asked: &url::Url, got: &Exchange) -> bool {
     let moved = asked.host_str() != got.url.host_str() || asked.path().trim_end_matches('/') != got.url.path().trim_end_matches('/');
-    moved && asks_for_a_password(got)
+    moved && password_input_matches(got, |input| !creates_a_password(input))
 }
 
-/// Whether an answer is a page with a field for a password on it.
-fn asks_for_a_password(got: &Exchange) -> bool {
+fn password_input_matches(got: &Exchange, check: impl FnMut(scraper::ElementRef<'_>) -> bool) -> bool {
     got.response_body.as_deref().is_some_and(|b| {
         let password = scraper::Selector::parse("input[type=password i]").expect("static selector");
-        crate::page::is_html(b) && scraper::Html::parse_document(b).select(&password).next().is_some()
+        crate::page::is_html(b) && scraper::Html::parse_document(b).select(&password).any(check)
+    })
+}
+
+/// A new password field belongs to the agent filling the form. Its autocomplete purpose takes precedence over
+/// the form's submit label, and a separate sign-in form on the same page still asks for an existing password.
+fn creates_a_password(input: scraper::ElementRef<'_>) -> bool {
+    let purpose = input.value().attr("autocomplete").and_then(|value| value.split_whitespace().last()).unwrap_or_default();
+    if purpose.eq_ignore_ascii_case("new-password") {
+        return true;
+    }
+    if purpose.eq_ignore_ascii_case("current-password") {
+        return false;
+    }
+    let Some(form) = input.ancestors().filter_map(scraper::ElementRef::wrap).find(|e| e.value().name() == "form") else { return false };
+    let submit = scraper::Selector::parse("button:not([type]), button[type=submit i], input[type=submit i]").expect("static selector");
+    form.select(&submit).any(|button| {
+        let tag = button.value();
+        let label = tag.attr("aria-label").or_else(|| tag.attr("value").filter(|_| tag.name() == "input"));
+        let label = label.map(str::to_owned).unwrap_or_else(|| button.text().collect::<Vec<_>>().join(" "));
+        let label = label.split_whitespace().collect::<Vec<_>>().join(" ").to_ascii_lowercase();
+        matches!(label.as_str(), "create account" | "create an account" | "register" | "sign up" | "signup")
     })
 }
 
@@ -682,6 +798,42 @@ mod tests {
         assert!(lists_nothing(&page(json!([]), json!({ "search": { "q": "zqxv", "hits": [] } })), &["zqxv"]));
         assert!(!lists_nothing(&page(json!([{ "text": "Brass desk lamp", "url": "https://shop.example/p/1" }]), Value::Null), &[]));
         assert!(!lists_nothing(&page(json!([]), json!({ "hits": [{ "name": "Brass desk lamp" }] })), &[]));
+    }
+
+    #[test]
+    fn empty_search_evidence_needs_a_completed_query_and_no_other_results() {
+        let search = json!({"context":{"query":"zqxv"},"listingCards":[],"numberOfResults":0,"pending":false,"error":null});
+        let complete = json!({"search":search, "navigation":{"items":[{"label":"Home"}]}});
+        let fields = empty_search_fields(&complete, "zqxv", Some(&complete["search"]["listingCards"])).expect("the settled search has no listings");
+        assert_eq!(crate::fields::project(&complete, &fields), json!({"search":search}));
+        assert!(empty_search_fields(&complete, "lamps", None).is_none(), "the result belongs to another query");
+        let mut partial = complete.clone();
+        partial["search"].as_object_mut().unwrap().remove("listingCards");
+        assert!(empty_search_fields(&partial, "zqxv", None).is_none(), "a shell may have nothing to show yet");
+        let mut pending = complete.clone();
+        pending["loading"] = json!(true);
+        assert!(empty_search_fields(&pending, "zqxv", None).is_none(), "the parent search is still loading");
+        let mut failed = complete.clone();
+        failed["search"]["error"] = json!("Unavailable");
+        assert!(empty_search_fields(&failed, "zqxv", None).is_none(), "the search failed");
+        let mut other = complete.clone();
+        other["page"]["searchProductResults"] = json!([{"title":"A result"}]);
+        assert!(empty_search_fields(&other, "zqxv", None).is_none(), "the page still lists matching products");
+        let mut section = complete.clone();
+        section["page"]["sections"] = json!([{"results":[{"title":"A result"}]}]);
+        assert!(empty_search_fields(&section, "zqxv", None).is_none(), "results inside an array also veto an empty search");
+        let mut hits = complete.clone();
+        hits["page"]["hits"] = json!([{"title":"A result"}]);
+        assert!(empty_search_fields(&hits, "zqxv", None).is_none(), "a nonempty hits list also vetoes an empty search");
+        let mut inconsistent = complete.clone();
+        inconsistent["search"]["resultCount"] = json!(5);
+        assert!(empty_search_fields(&inconsistent, "zqxv", None).is_none(), "the counts disagree");
+        let mut stale = complete.clone();
+        stale["search"]["query"] = json!("lamps");
+        assert!(empty_search_fields(&stale, "zqxv", None).is_none(), "some state belongs to another query");
+        let mixed = json!({"search":{"query":"zqxv","pending":true,"listingCards":[]}, "catalog":search});
+        assert!(empty_search_fields(&mixed, "zqxv", None).is_some());
+        assert!(empty_search_fields(&mixed, "zqxv", Some(&mixed["search"]["listingCards"])).is_none());
     }
 
     /// JSON that only says back what was asked, beside a list with nothing in it, is the site's empty answer for the
@@ -780,6 +932,20 @@ mod tests {
         let mut inside = ex("POST", "https://club.example/secure", 200, "<html><body><h2>Secure Area</h2><a href=\"/logout\">Logout</a></body></html>");
         inside.response_mime = "text/html".into();
         assert_eq!(replayed_not_an_answer(&step, &asked, &inside), None);
+    }
+
+    #[test]
+    fn a_signup_form_does_not_mean_the_site_asked_for_an_existing_login() {
+        let asked = "https://shop.example/login".parse().unwrap();
+        let signup = "https://shop.example/signup";
+        let form = r#"<html><body><form method="post"><input type="hidden" name="email"><label>Password<input type="password" name="password" required></label><input name="address" required><button type="submit">Create Account</button></form></body></html>"#;
+        assert!(!sent_to_sign_in(&asked, &ex("POST", signup, 200, form)));
+        let with_login = form.replace("</body>", r#"<form><input name="email"><input type="password"><button>Sign in</button></form></body>"#);
+        assert!(sent_to_sign_in(&asked, &ex("POST", signup, 200, &with_login)));
+        let new_password = form.replace("type=\"password\"", "type=\"password\" autocomplete=\"section-signup new-password\"").replace("Create Account", "Continue");
+        assert!(!sent_to_sign_in(&asked, &ex("POST", signup, 200, &new_password)));
+        let current_password = form.replace("type=\"password\"", "type=\"password\" autocomplete=\"current-password\"");
+        assert!(sent_to_sign_in(&asked, &ex("POST", signup, 200, &current_password)));
     }
 
     /// A GraphQL answer with errors and no data failed, however much its extensions say; one with data answered, errors

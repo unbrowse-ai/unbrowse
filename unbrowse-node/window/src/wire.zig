@@ -182,6 +182,9 @@ pub const CallResult = struct {
     records: ?f64 = null,
     bounties: ?BountyAsks = null,
     browser: bool = false,
+    route_id: []const u8 = "",
+    replaced: []const u8 = "",
+    learned_again: []const u8 = "",
     outcome: Outcome = "",
     outcome_from: []const u8 = "",
     next: ?Next = null,
@@ -355,6 +358,13 @@ pub const FirstBuy = struct {
     launch_tx: ?[]const u8 = null,
     stake_tx: ?[]const u8 = null,
     at: f64 = 0,
+};
+
+pub const ForPerson = struct {
+    pub const Kind = enum { link, dialog, app };
+    kind: []const u8 = "",
+    url: []const u8 = "",
+    say: []const u8 = "",
 };
 
 pub const Funding = struct {
@@ -666,7 +676,7 @@ pub const NewRemoteKey = struct {
 };
 
 pub const Next = struct {
-    pub const Tool = enum { unbrowse_do, unbrowse_call, unbrowse_browse, unbrowse_challenge, unbrowse_search };
+    pub const Tool = enum { unbrowse_do, unbrowse_call, unbrowse_browse, unbrowse_challenge, unbrowse_search, unbrowse_setup };
     tool: []const u8 = "",
     args: std.json.Value = .null,
 };
@@ -923,6 +933,7 @@ pub const Settings = struct {
     list_per_day: f64 = 0,
     private_network: bool = false,
     terms_accepted: ?[]const u8 = null,
+    advanced: ?bool = null,
     peer_network: bool = false,
     light: bool = false,
     serve_kept: bool = false,
@@ -933,6 +944,7 @@ pub const Settings = struct {
     passkeys: bool = false,
     passkeys_never: []const []const u8 = &.{},
     chain: []const u8 = "",
+    chain_chosen: bool = false,
     max_fetch_usdc: f64 = 0,
     deposit_floor_usdc: f64 = 0,
     coin_dev_buy_bps: f64 = 0,
@@ -945,6 +957,28 @@ pub const Settings = struct {
     bounty_auto: bool = false,
     keep_card_codes: bool = false,
     accept_bearer: bool = false,
+};
+
+pub const Setup = struct {
+    steps: []const SetupStep = &.{},
+    left: []const []const u8 = &.{},
+    did: []const u8 = "",
+    ok: bool = false,
+    said: []const u8 = "",
+    person: ?ForPerson = null,
+};
+
+pub const SetupStatus = struct {
+    steps: []const SetupStep = &.{},
+    left: []const []const u8 = &.{},
+};
+
+pub const SetupStep = struct {
+    id: []const u8 = "",
+    done: bool = false,
+    optional: bool = false,
+    said: []const u8 = "",
+    next: ?Next = null,
 };
 
 pub const ShareBlocked = std.json.Value;
@@ -1093,6 +1127,7 @@ pub const Whoami = struct {
     node: []const u8 = "",
     browser: BrowserState = "",
     browser_fetch: bool = false,
+    call_browser: bool = false,
     owner: OwnerReach = "",
 };
 
@@ -1189,6 +1224,7 @@ pub const Command = enum {
     payment_approver,
     remote_answers,
     remote_key_create,
+    remote_link,
     remote_revoke,
     remote_set,
     remote_status,
@@ -1203,6 +1239,7 @@ pub const Command = enum {
     sessions,
     set_pricing,
     settings,
+    setup_status,
     share_approve,
     share_route,
     share_status,
@@ -1321,6 +1358,7 @@ pub fn Returns(comptime c: Command) type {
         .payment_approver => PaymentApprover,
         .remote_answers => std.json.Value,
         .remote_key_create => NewRemoteKey,
+        .remote_link => std.json.Value,
         .remote_revoke => Remote,
         .remote_set => Remote,
         .remote_status => Remote,
@@ -1335,6 +1373,7 @@ pub fn Returns(comptime c: Command) type {
         .sessions => []const Session,
         .set_pricing => Pricing,
         .settings => Settings,
+        .setup_status => SetupStatus,
         .share_approve => ?std.json.Value,
         .share_route => KeptRoute,
         .share_status => ShareStatus,
@@ -1454,6 +1493,7 @@ pub fn Input(comptime c: Command) type {
         .payment_approver => struct { approver: ?std.json.Value = null },
         .remote_answers => struct { on: ?bool = null, via: ?[]const u8 = null },
         .remote_key_create => struct { name: ?[]const u8 = null },
+        .remote_link => struct {},
         .remote_revoke => struct {},
         .remote_set => struct { on: ?bool = null, gateway: ?[]const u8 = null },
         .remote_status => struct {},
@@ -1468,6 +1508,7 @@ pub fn Input(comptime c: Command) type {
         .sessions => struct {},
         .set_pricing => struct { fee: ?f64 = null, auto: ?bool = null, floor: ?f64 = null, ceiling: ?f64 = null },
         .settings => struct {},
+        .setup_status => struct {},
         .share_approve => struct {},
         .share_route => struct { id: ?[]const u8 = null, on: ?bool = null },
         .share_status => struct {},

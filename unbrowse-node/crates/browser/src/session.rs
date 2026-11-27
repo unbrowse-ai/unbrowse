@@ -289,6 +289,20 @@ mod tests {
         assert!(!script.did_nothing_since(nudged, nudged + ms(1500)), "a script still arriving");
     }
 
+    #[test]
+    fn queued_capture_events_get_one_bounded_drain_after_the_settle() {
+        let now = tokio::time::Instant::now();
+        let ms = std::time::Duration::from_millis;
+        let mut until = None;
+        assert_eq!(after_capture_deadline(now, true, false, &mut until), Ok(now + ms(250)));
+        assert_eq!(until, None);
+        assert_eq!(after_capture_deadline(now, false, true, &mut until), Ok(now + ms(100)));
+        let later = now + ms(1_900);
+        assert_eq!(after_capture_deadline(later, false, true, &mut until), Ok(later + ms(100)));
+        assert_eq!(after_capture_deadline(now + ms(2_000), false, true, &mut until), Err(CaptureEnd::UnreadEvents));
+        assert_eq!(after_capture_deadline(later, false, false, &mut until), Err(CaptureEnd::Settled));
+    }
+
     /// The walks of two public pages that exposed it: the wait for the page polled every 400 ms, and each poll that
     /// found the page still loading paused 1.5 s inside before it asked again, so a page ready 0.2 s later was read as
     /// ready 1.5 s later. The loop's own read asks once and leaves the asking again to the loop.
@@ -366,6 +380,7 @@ mod tests {
         let call = serde_json::json!({"method": "Network.requestWillBeSent", "params": {"requestId": "ans", "type": "Fetch", "documentURL": PAGE, "request": {"url": format!("https://shop.example/api/search?q=router&client_url={}", PAGE.replace(':', "%3A").replace('/', "%2F").replace('?', "%3F").replace('=', "%3D"))}}});
         answer.note(&call, PAGE, &asked, ready + ms(50));
         assert!(answer.holds(std::time::Duration::ZERO, ready + ms(800), &Waits::default()), "on its way: waited for");
+        assert_eq!(browse_move(&answer, ready, Some(nudged), 1, nudged + QUIET), Move::Wait, "a pending same-site call can answer even when it sends the page address");
         answer.note(&serde_json::json!({"method": "Network.loadingFinished", "params": {"requestId": "ans", "encodedDataLength": 40_000}}), PAGE, &asked, ready + ms(700));
         assert_eq!(browse_move(&answer, ready, None, 0, ready + ms(900)), Move::Wait, "acting on its data");
         // A nudge that set off a call: the page read on, the walk goes on.
@@ -373,6 +388,64 @@ mod tests {
         more.note(&sent("more", "Fetch", "https://shop.example/api/search?q=router&page=2"), PAGE, &asked, nudged + ms(200));
         assert_ne!(browse_move(&more, ready, Some(nudged), 1, nudged + QUIET), Move::End);
         assert_eq!(browse_move(&open, ready, Some(nudged), 4, nudged + QUIET), Move::Wait, "four nudges: browsing is done");
+    }
+
+    #[test]
+    fn a_nudge_cannot_end_a_walk_with_a_data_call_already_on_its_way() {
+        let page = "https://reading.example/saved";
+        let ready = tokio::time::Instant::now();
+        let mut open = Open::default();
+        open.note(&serde_json::json!({
+            "method": "Network.requestWillBeSent",
+            "params": {"requestId": "bootstrap", "type": "Fetch", "documentURL": page,
+                       "request": {"url": "https://reading.example/api/viewer"}}
+        }), page, &asked_of(page), ready);
+        assert_eq!(browse_move(&open, ready, Some(ready + NUDGE_EVERY), 1, ready + NUDGE_EVERY + QUIET), Move::Wait);
+    }
+
+    #[test]
+    fn an_unanswered_cross_site_fetch_does_not_hold_a_quiet_nudge() {
+        let page = "https://packages.example/search/?q=geospatial";
+        let ready = tokio::time::Instant::now();
+        let mut open = Open::default();
+        let mut request = serde_json::json!({
+            "method": "Network.requestWillBeSent",
+            "params": {"requestId": "status", "type": "Fetch", "documentURL": page,
+                       "request": {"url": "https://status.example.net/api/v2/status.json"}}
+        });
+        open.note(&request, page, &asked_of(page), ready);
+        let nudged = ready + NUDGE_EVERY;
+        assert_eq!(browse_move(&open, ready, Some(nudged), 1, nudged + QUIET), Move::End);
+
+        let mut streaming = open.clone();
+        let response = serde_json::json!({"method": "Network.responseReceived", "params": {"requestId": "status"}});
+        streaming.note(&response, page, &asked_of(page), nudged);
+        assert_eq!(browse_move(&streaming, ready, Some(nudged), 1, nudged + QUIET), Move::Wait);
+
+        request["params"]["requestId"] = "results".into();
+        request["params"]["request"]["url"] = "https://search.example.net/v2/list?q=geospatial".into();
+        open.note(&request, page, &asked_of(page), ready);
+        assert_eq!(browse_move(&open, ready, Some(nudged), 1, nudged + QUIET), Move::Wait);
+    }
+
+    #[test]
+    fn a_pending_fetch_on_a_sibling_site_host_is_still_first_party() {
+        let ready = tokio::time::Instant::now();
+        let nudged = ready + NUDGE_EVERY;
+        let move_for = |page: &str, endpoint: &str| {
+            let mut open = Open::default();
+            let request = serde_json::json!({
+                "method": "Network.requestWillBeSent",
+                "params": {"requestId": "list", "type": "Fetch", "documentURL": page,
+                           "request": {"url": endpoint, "postData": "{\"op\":\"18a\"}"}}
+            });
+            open.note(&request, page, &asked_of(page), ready);
+            browse_move(&open, ready, Some(nudged), 1, nudged + QUIET)
+        };
+        assert_eq!(move_for("https://www.store.example.com/feed", "https://api.store.example.com/rpc"), Move::Wait);
+        assert_eq!(move_for("https://one.github.io/feed", "https://two.github.io/rpc"), Move::End);
+        assert_eq!(move_for("http://192.0.2.44/feed", "http://192.0.2.44/rpc"), Move::Wait);
+        assert_eq!(move_for("http://192.0.2.44/feed", "http://198.51.2.44/rpc"), Move::End);
     }
 
     /// What the browser's own pages ask for (its new-tab page's bar: a call and a script that never come back) never
@@ -1201,10 +1274,11 @@ pub fn seed_params(cookies: &[SeedCookie], url: &str) -> serde_json::Value {
 /// Nothing here knows a site; it reads the words pages use.
 const NUDGE: &str = r#"(() => {
   window.scrollTo(0, document.documentElement.scrollHeight);
-  const words = /^(show|load|view|see)\s+more\b|^more\s+results\b|^next(\s+page)?\b|^›$|^»$/i;
-  const el = [...document.querySelectorAll('button, a[role=button], [role=button], a[rel=next]')]
-    .find(e => e.offsetParent && words.test((e.innerText || e.getAttribute('aria-label') || '').trim()));
-  if (el) { el.scrollIntoView({block: 'center'}); el.click(); return 'pressed: ' + (el.innerText || '').trim().slice(0, 40); }
+  const words = /^(show|load|view)\s+more(?:\s+results)?$|^more\s+results$|^next\s+page$/i;
+  const label = e => (e.innerText || '').trim() || (e.getAttribute('aria-label') || '').trim();
+  const el = [...document.querySelectorAll('button, [role=button], a[rel=next]')]
+    .find(e => e.offsetParent && (words.test(label(e)) || (e.matches('a[rel=next]') && /^next$/i.test(label(e)))));
+  if (el) { const said = label(el).slice(0, 40); el.scrollIntoView({block: 'center'}); el.click(); return 'pressed: ' + said; }
   return 'scrolled';
 })()"#;
 
@@ -1864,13 +1938,33 @@ fn browse_move(open: &Open, ready: tokio::time::Instant, nudged: Option<tokio::t
     Move::Wait
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum CaptureEnd {
+    Settled,
+    UnreadEvents,
+}
+
+fn after_capture_deadline(now: tokio::time::Instant, waiting: bool, queued: bool, drain_until: &mut Option<tokio::time::Instant>) -> Result<tokio::time::Instant, CaptureEnd> {
+    if waiting {
+        return Ok(now + std::time::Duration::from_millis(250));
+    }
+    if queued {
+        let drain = *drain_until.get_or_insert_with(|| now + std::time::Duration::from_secs(2));
+        if now < drain {
+            return Ok(now + std::time::Duration::from_millis(100));
+        }
+        return Err(CaptureEnd::UnreadEvents);
+    }
+    Err(CaptureEnd::Settled)
+}
+
 /// What a walk still has open once its settle time is up, and so whether the page has been answered. A walk that
 /// ends on its clock alone learns from the page's shell on a slow load: the call that answers was sent and not yet
 /// answered, or its scripts had not all arrived and it was never sent.
 #[derive(Default, Clone)]
 struct Open {
-    /// Every data call sent and not yet finished.
-    calls: std::collections::HashSet<String>,
+    /// Every data call sent and not yet finished, with whether it went to the page's host or a related host.
+    calls: std::collections::HashMap<String, bool>,
     /// Of what is open, what says the page is still asking: a data call that sends what the page's address was asked
     /// (the page asking for its answer), and a data call whose answer has begun and is still arriving (a stream). A
     /// call that sends the page's whole address is reporting the page, not asking for it.
@@ -1901,7 +1995,8 @@ impl Open {
             // waited for while it is on its way, as any call, but sending it is not the page reading on, and an answer
             // to it that carries nothing (`REPORT_ANSWER`) has the page acting on nothing.
             "Network.requestWillBeSent" if reports(v, page) => {
-                self.calls.insert(id.clone());
+                let url = v.pointer("/params/request/url").and_then(|u| u.as_str()).unwrap_or_default();
+                self.calls.insert(id.clone(), shares_site(page, url));
                 self.reporting.insert(id);
             }
             "Network.requestWillBeSent" => {
@@ -1912,7 +2007,7 @@ impl Open {
                 self.note_sent(v, kind, id, page, asked);
             }
             // An answer that has begun: until it ends, it is arriving.
-            "Network.responseReceived" if self.calls.contains(&id) && !self.reporting.contains(&id) => {
+            "Network.responseReceived" if self.calls.contains_key(&id) && !self.reporting.contains(&id) => {
                 self.asking.insert(id);
             }
             "Network.loadingFinished" | "Network.loadingFailed" => {
@@ -1930,11 +2025,12 @@ impl Open {
     fn note_sent(&mut self, v: &serde_json::Value, kind: Option<&str>, id: String, page: &str, asked: &[String]) {
         match kind {
             Some("XHR" | "Fetch") => {
-                let sent = format!("{} {}", v.pointer("/params/request/url").and_then(|u| u.as_str()).unwrap_or_default(), v.pointer("/params/request/postData").and_then(|p| p.as_str()).unwrap_or_default());
+                let url = v.pointer("/params/request/url").and_then(|u| u.as_str()).unwrap_or_default();
+                let sent = format!("{url} {}", v.pointer("/params/request/postData").and_then(|p| p.as_str()).unwrap_or_default());
                 if carries_what_was_asked(&sent, asked) && !reports_the_page(&sent, page) {
                     self.asking.insert(id.clone());
                 }
-                self.calls.insert(id);
+                self.calls.insert(id, shares_site(page, url));
             }
             Some("Script") if v.pointer("/params/request/url").and_then(|u| u.as_str()).is_some_and(|u| u.starts_with("http")) => {
                 self.scripts.insert(id);
@@ -1951,10 +2047,15 @@ impl Open {
     }
 
     /// Whether a nudge made at `nudged` left the page doing nothing: it sent nothing since, in any context, and nothing
-    /// it asked is still open or just answered. A reader who scrolls to the end and sees nothing come has read the page.
+    /// it asked is still open or just answered. A pending call to the page's site can still bring its data. A
+    /// request to an unrelated host needs evidence that it carries the question or that its answer has begun.
     fn did_nothing_since(&self, nudged: tokio::time::Instant, now: tokio::time::Instant) -> bool {
         let acting = self.last_done.is_some_and(|at| now.duration_since(at) < ACT_ON_IT);
-        self.last_sent.is_none_or(|at| at < nudged) && self.asking.is_empty() && self.scripts.is_empty() && !acting
+        self.last_sent.is_none_or(|at| at < nudged)
+            && self.asking.is_empty()
+            && !self.calls.values().any(|related| *related)
+            && self.scripts.is_empty()
+            && !acting
     }
 
     /// Whether the walk waits on, `past` its settle time: for what the page is still asking, and a moment after each
@@ -1964,6 +2065,14 @@ impl Open {
         let acting = self.last_done.is_some_and(|at| now.duration_since(at) < ACT_ON_IT);
         ((!self.asking.is_empty() || acting) && past < waits.asking) || (!self.scripts.is_empty() && past < waits.scripts) || (!self.calls.is_empty() && past < waits.in_flight)
     }
+}
+
+fn shares_site(page: &str, call: &str) -> bool {
+    let (Ok(page), Ok(call)) = (url::Url::parse(page), url::Url::parse(call)) else { return false };
+    let Some((page, call)) = page.host().zip(call.host()) else { return false };
+    let (url::Host::Domain(page), url::Host::Domain(call)) = (&page, &call) else { return page == call };
+    let (page, call) = (page.trim_end_matches('.'), call.trim_end_matches('.'));
+    page == call || psl::domain_str(page).zip(psl::domain_str(call)).is_some_and(|(page, call)| page == call)
 }
 
 /// Whether a request event is a data call (XHR, fetch) that reports the walked page (`reports_the_page`): it sends the
@@ -2371,7 +2480,7 @@ async fn walk_tab(
     // The browser's own identity, before the page reads it: a launch mode is
     // not a product, and a page that can see the mode knows the session is
     // machine-driven before any script runs.
-    if let Err(e) = crate::fingerprint::apply_browser_identity(&client, &session_id).await {
+    if let Err(e) = crate::fingerprint::apply_browser_identity(client.as_ref(), &session_id).await {
         eprintln!("[identity] {e}");
     }
     // A window is bigger than its page and fits on a screen. Headless reports
@@ -2530,29 +2639,32 @@ async fn walk_tab(
     let mut open = Open::default();
     let page_asked = asked_of(&opts.url);
     let settle_at = deadline;
-    loop {
+    let mut drain_until = None;
+    let end = loop {
         let now = tokio::time::Instant::now();
         if asked_to_stop(opts) {
             return Err(STOPPED.to_string());
         }
         if now >= deadline {
-            if open.holds(now.saturating_duration_since(settle_at), now, &opts.waits) && !events.line_closed() {
-                deadline = now + std::time::Duration::from_millis(250);
-                continue;
+            let waiting = open.holds(now.saturating_duration_since(settle_at), now, &opts.waits) && !events.line_closed();
+            match after_capture_deadline(now, waiting, events.has_pending(), &mut drain_until) {
+                Ok(next) => deadline = next,
+                Err(CaptureEnd::Settled) => break "the settle time was up and the page had no more to wait for",
+                Err(CaptureEnd::UnreadEvents) => {
+                    cut_off = true;
+                    break "capture still had queued events when its drain time was up";
+                }
             }
-            break;
+            continue;
         }
-        let next = if opts.browse { browse_move(&open, browse_from, nudged_at, nudges, now) } else { Move::Wait };
+        let next = if opts.browse && !events.has_pending() { browse_move(&open, browse_from, nudged_at, nudges, now) } else { Move::Wait };
         if next == Move::End {
             // The last nudge made the page do nothing, in any of its contexts, and nothing it asked is still open: it
             // has no more to give, and the walk ends here rather than at its fixed settle time and three nudges more.
-            if let Some(log) = log.as_mut() {
-                log.write(serde_json::json!({ "type": "walk_end", "t": now_secs(), "why": "the last nudge made the page do nothing" }));
+            if !trying {
+                break "the last nudge made the page do nothing";
             }
             nudges = 4;
-            if !trying {
-                deadline = now;
-            }
             continue;
         }
         if next == Move::Nudge {
@@ -2798,11 +2910,14 @@ async fn walk_tab(
             // broke): the walk didn't end its record itself, so the record says so.
             Ok(None) => {
                 cut_off = true;
-                break;
+                break "the browser's event stream closed";
             }
             // The wait ran out: the walk's end, or the next nudge's turn.
             Err(_) => continue,
         }
+    };
+    if let Some(log) = log.as_mut() {
+        log.write(serde_json::json!({ "type": "walk_end", "t": now_secs(), "why": end }));
     }
     // The walk has ended: a worker the page starts from here on runs at once, as it would in a browser nobody walks.
     let _ = client
@@ -3074,7 +3189,9 @@ async fn walk_tab(
                     for h in headers {
                         if h.get("name").and_then(|v| v.as_str()) == Some("set-cookie") {
                             if let Some(raw) = h.get("value").and_then(|v| v.as_str()) {
-                                if let Some((pair, _)) = raw.split_once(';') {
+                                // The cookie is what comes before its first `;`, and a line with no attributes
+                                // is all cookie.
+                                if let Some(pair) = raw.split(';').next() {
                                     if let Some((n, v)) = pair.split_once('=') {
                                         session
                                             .cookies
@@ -3470,21 +3587,13 @@ async fn storage_lines(client: &crate::cdp::client::CdpClient, session_id: &str,
     lines
 }
 
-/// A request's body as the walk keeps it, from what Chrome says it sent (`request.postData`, and the bytes of each
-/// part in `postDataEntries`): its text where its bytes are text, else the bytes in base64, with `base64` as the second.
-/// Chrome's `postData` of bytes that are no text is not those bytes, so the parts are read where Chrome gives them.
+/// A request's body as the walk's line says it (`capture::request_body`): its text, or its bytes in base64 with
+/// `base64` as the second.
 fn post_data(req: &serde_json::Value) -> (serde_json::Value, serde_json::Value) {
-    use base64::Engine;
-    let b64 = base64::engine::general_purpose::STANDARD;
-    let parts: Option<Vec<u8>> = req.get("postDataEntries").and_then(|e| e.as_array()).filter(|e| !e.is_empty()).map(|entries| {
-        entries.iter().filter_map(|e| e.get("bytes").and_then(|b| b.as_str())).filter_map(|b| b64.decode(b).ok()).flatten().collect()
-    });
-    match parts {
-        Some(bytes) if !bytes.is_empty() => match String::from_utf8(bytes.clone()) {
-            Ok(text) if !text.contains('\0') => (serde_json::Value::String(text), serde_json::Value::Null),
-            _ => (serde_json::Value::String(b64.encode(&bytes)), serde_json::json!("base64")),
-        },
-        _ => (req.get("postData").cloned().unwrap_or_default(), serde_json::Value::Null),
+    match crate::capture::request_body(req) {
+        Some((body, true)) => (serde_json::Value::String(body), serde_json::json!("base64")),
+        Some((body, false)) => (serde_json::Value::String(body), serde_json::Value::Null),
+        None => (req.get("postData").cloned().unwrap_or_default(), serde_json::Value::Null),
     }
 }
 
@@ -3705,20 +3814,24 @@ fn sent_by(event: &serde_json::Value) -> Vec<serde_json::Value> {
 
 pub fn walk_har(capture_dir: &Path, session: &str) -> serde_json::Value {
     let lines = read_capture(&capture_path(capture_dir, session));
-    let mut pending: std::collections::HashMap<String, serde_json::Value> =
+    walk_har_from_lines(&lines)
+}
+
+pub fn walk_har_from_lines(lines: &[serde_json::Value]) -> serde_json::Value {
+    let mut pending: std::collections::HashMap<String, &serde_json::Value> =
         std::collections::HashMap::new();
     let mut entries: Vec<serde_json::Value> = Vec::new();
     // What Chrome sent on the wire, per request: `requestWillBeSent` omits the session's `Cookie`, which arrives in
     // the same request's extra info. Merged into the request it belongs to, the walk shows the request as sent.
     let mut extras: std::collections::HashMap<String, serde_json::Value> = std::collections::HashMap::new();
-    for v in &lines {
+    for v in lines {
         if v.get("type").and_then(|t| t.as_str()) == Some("request_extra") {
             if let Some(id) = v.get("requestId").and_then(|r| r.as_str()) {
                 extras.insert(id.to_string(), v.get("headers").cloned().unwrap_or_default());
             }
         }
     }
-    let main = main_frames(&lines);
+    let main = main_frames(lines);
     for v in lines {
         match v.get("type").and_then(|t| t.as_str()) {
             Some("request") => {
@@ -3777,7 +3890,7 @@ pub fn walk_har(capture_dir: &Path, session: &str) -> serde_json::Value {
                 }
                 entries.push(serde_json::json!({
                     "_resourceType": resource_type,
-                    "_mainFrame": in_main_frame(&req, &main),
+                    "_mainFrame": in_main_frame(req, &main),
                     // Which code sent it, as the walk recorded it (`initiator`); absent in logs from before.
                     "_initiator": req.get("initiator").cloned().filter(|i| !i.is_null()),
                     "request": {
@@ -3932,4 +4045,74 @@ pub fn walk_page(capture_dir: &Path, session: &str) -> Option<(u16, String, Stri
         best = Some((status, mime.to_string(), body));
     }
     best
+}
+
+#[cfg(test)]
+mod replacement_failures {
+    use super::*;
+
+    /// A replacement that can't be finished (the folder the clean browser sits in is closed to this user, so it can't
+    /// be moved out) leaves its record: the record is all that says where the profile went.
+    #[cfg(unix)]
+    #[test]
+    fn a_replacement_that_cannot_be_finished_keeps_the_record_that_says_where_the_profile_went() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let remembered = dir.path().join("site.example");
+        let closed = dir.path().join("closed");
+        let accepted = closed.join("clean");
+        std::fs::create_dir_all(&accepted).unwrap();
+        let aside = dir.path().join("refused-aside");
+        let moves = serde_json::json!({ "aside": aside, "accepted": accepted }).to_string();
+        std::fs::write(replacing_record(&remembered), &moves).unwrap();
+        std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o555)).unwrap();
+        finish_replacing(&remembered);
+        std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(replacing_record(&remembered).exists(), "the record stays while the move can't be made");
+        assert!(!remembered.exists() && accepted.exists());
+        // Opened up, the next launch finishes it.
+        finish_replacing(&remembered);
+        assert!(remembered.exists() && !replacing_record(&remembered).exists());
+    }
+
+    /// A replacement that already stands (the profile is at its name) only has its record to remove.
+    #[test]
+    fn a_replacement_that_already_stands_has_only_its_record_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let remembered = dir.path().join("site.example");
+        std::fs::create_dir_all(&remembered).unwrap();
+        let moves = serde_json::json!({ "aside": dir.path().join("a"), "accepted": dir.path().join("b") }).to_string();
+        std::fs::write(replacing_record(&remembered), moves).unwrap();
+        finish_replacing(&remembered);
+        assert!(remembered.exists() && !replacing_record(&remembered).exists());
+    }
+
+    /// The index doctor reads can't be written (a file stands where its folder goes): the profile is still replaced.
+    #[test]
+    fn a_profile_is_replaced_even_when_the_list_doctor_reads_cannot_be_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let remembered = dir.path().join("site.example");
+        let accepted = dir.path().join("clean");
+        std::fs::create_dir_all(&remembered).unwrap();
+        std::fs::write(remembered.join("marker"), "old").unwrap();
+        std::fs::create_dir_all(&accepted).unwrap();
+        std::fs::write(accepted.join("marker"), "new").unwrap();
+        std::fs::write(dir.path().join("not-a-folder"), "").unwrap();
+        replace_profile(&remembered.to_string_lossy(), &accepted.to_string_lossy(), &dir.path().join("not-a-folder/index"));
+        assert_eq!(std::fs::read_to_string(remembered.join("marker")).unwrap(), "new");
+        let kept: Vec<_> = std::fs::read_dir(dir.path().join("refused")).unwrap().flatten().collect();
+        assert_eq!(kept.len(), 1, "the old profile is kept");
+    }
+
+    /// A clean browser that can't take the name (it is gone) puts the old profile back: the name is never left empty.
+    #[test]
+    fn a_profile_whose_replacement_has_gone_is_put_back_and_never_left_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let remembered = dir.path().join("site.example");
+        std::fs::create_dir_all(&remembered).unwrap();
+        std::fs::write(remembered.join("marker"), "old").unwrap();
+        replace_profile(&remembered.to_string_lossy(), &dir.path().join("never-made").to_string_lossy(), &dir.path().join("index"));
+        assert_eq!(std::fs::read_to_string(remembered.join("marker")).unwrap(), "old");
+        assert!(!replacing_record(&remembered).exists());
+    }
 }

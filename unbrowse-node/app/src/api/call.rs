@@ -87,6 +87,16 @@ pub(super) fn waits_for_the_browser(route: &store::Route) -> bool {
 tokio::task_local! {
     /// Whether the ask this task answers said `browser: never` ([`with_the_browser_shut`]).
     static BROWSER_SHUT: bool;
+    /// The unprojected reply of the call that a goal is confirming.
+    static WHOLE_CALL: std::cell::Cell<Option<Arc<run::WholeAnswer>>>;
+}
+
+pub(super) fn with_call_answer<F: std::future::Future>(work: F) -> impl std::future::Future<Output = (F::Output, Option<Arc<run::WholeAnswer>>)> {
+    let work = Box::pin(work);
+    WHOLE_CALL.scope(std::cell::Cell::new(None), async move {
+        let reply = work.await;
+        (reply, WHOLE_CALL.with(std::cell::Cell::take))
+    })
 }
 
 /// `work`, every route call it makes holding to `shut`: an ask that said `browser: never` opens no browser for any
@@ -113,10 +123,14 @@ pub(crate) async fn do_call_when_settled(node: &Arc<Node>, a: &Agent, id: String
         }
     }
     let asked = inputs.clone();
-    let mut called = do_call_fields(node, a, id.clone(), inputs, fields).await;
+    let (mut called, whole) = with_call_answer(do_call_fields(node, a, id.clone(), inputs, fields.clone())).await;
     // An answer that says the walked value and no word of the one this call gave answered the walk, whatever the
     // site's status says: handed back as ok, the caller reads another search's results as its own. A read only.
     if let (Ok(reply), Some(route)) = (called.as_mut(), store::load_route(&id).filter(|r| !r.write)) {
+        let whole_data = whole.as_ref().map(|answer| &answer.data);
+        let witnessed_zero = reply["records"].as_u64() == Some(0) && whole_data.is_some_and(|data| {
+            route.heard.records_at.as_deref().and_then(|place| learn::confirm::stable_list_at(data, place)).is_some()
+        });
         // A page that asks for a person, read back as the answer, is the site's check and not what was called for.
         let a_check = reply["data"].get("title").is_some() && reply["data"].get("text").and_then(Value::as_str).is_some_and(|t| t.chars().count() < 4000 && crate::challenge::wants_a_person(t));
         if reply["ok"].as_bool() == Some(true) && a_check {
@@ -124,7 +138,24 @@ pub(crate) async fn do_call_when_settled(node: &Arc<Node>, a: &Agent, id: String
             reply["error"] = json!("the site answered with a page that asks for a person, not the page asked for");
             let page = json!({ "action": "look", "site": route.site, "url": route.root });
             crate::outcome::Said::new(crate::outcome::Outcome::Challenge, "call.asks_a_person").then("unbrowse_challenge", page).put(reply);
-        } else if reply["ok"].as_bool() == Some(true) && goal::answers_the_walk(&route, &asked, &reply["data"]) {
+        } else if reply["ok"].as_bool() == Some(true) && (witnessed_zero || goal::document_list_unready(reply, &route, &route.root)
+            && (reply["records"].is_null() || route.heard.document_records)) {
+            let ask = goal::Asked { url: &route.root, goal: &route.what, subject: &[], reworded: false, sibling: false, given: &asked };
+            if whole.as_deref().is_some_and(|answer| goal::native_empty_collection(reply, &route, &asked, answer)) {
+                crate::outcome::Said::new(crate::outcome::Outcome::AnsweredEmpty, "call.empty_collection").put(reply);
+            } else if let Some(mut empty) = whole.as_deref().and_then(|answer| {
+                goal::empty_page_reply(reply, &route, &ask, Some(answer), &fields, Some(goal::MISSING_RECORDS))
+            }) {
+                *reply = empty["result"].take();
+                crate::outcome::Said::new(crate::outcome::Outcome::AnsweredEmpty, "call.empty_page_search").put(reply);
+            } else {
+                reply["ok"] = json!(false);
+                reply["error"] = json!(goal::MISSING_RECORDS);
+                reply["data"] = Value::Null;
+                crate::outcome::Said::new(crate::outcome::Outcome::CallFailed, "call.missing_page_records").put(reply);
+            }
+        } else if reply["ok"].as_bool() == Some(true)
+            && goal::replay_answers_the_walk(&route, &asked, whole_data.unwrap_or(&reply["data"]), &reply["data"]) {
             reply["ok"] = json!(false);
             reply["error"] = json!("it answered what the route was learned on, not what this call asked: the value did not reach the site");
             crate::outcome::Said::new(crate::outcome::Outcome::CallFailed, "call.answers_the_walk").put(reply);
@@ -144,6 +175,11 @@ pub(crate) async fn do_call(node: &Arc<Node>, a: &Agent, id: String, inputs: Has
 /// The same, handing back `fields` of the answer besides the route's defaults (`*` for the whole of it).
 pub(crate) async fn do_call_fields(node: &Arc<Node>, a: &Agent, id: String, inputs: HashMap<String, String>, fields: Vec<String>) -> Result<Value, Fail> {
     do_call_as_seen(node, a, id, inputs, fields, None).await
+}
+
+pub(super) async fn do_call_with_whole(node: &Arc<Node>, a: &Agent, id: String, inputs: HashMap<String, String>) -> Result<(Value, Option<run::WholeAnswer>), Fail> {
+    let (reply, whole) = with_call_answer(do_call_fields(node, a, id, inputs, Vec::new())).await;
+    Ok((reply?, whole.map(Arc::unwrap_or_clone)))
 }
 
 /// The same, for a caller that chose the route by what it was when it looked (`seen_write`: whether it changed the
@@ -765,6 +801,7 @@ pub(super) async fn run_route(node: &Arc<Node>, a: &Agent, route: store::Route, 
             "ran_on": "this node, under its own session: the node that served the body never sees the call",
         });
     }
+    let _ = WHOLE_CALL.try_with(|slot| slot.set(r.whole));
     Ok(out)
 }
 
@@ -1156,3 +1193,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 }
+
+#[cfg(test)]
+#[path = "call_cov_tests.rs"]
+mod call_cov_tests;

@@ -279,31 +279,41 @@ pub fn run_argv(program: &[String]) -> Vec<String> {
     argv
 }
 
-/// How `run` starts `program` as the agent user on Windows. The owner's PowerShell reads the agent user's password on
-/// stdin and starts a second PowerShell as that user (`ProcessStartInfo` with its logon), which reads the agent's settings from its folder (a process
-/// started with another user's logon gets that user's environment, not this one's) and runs the program with its
-/// arguments as they are. The inner script goes as `-EncodedCommand`, so no argument is read as script again.
-pub fn run_windows_script(program: &[String]) -> String {
-    let quote = |s: &str| ps_quote(s);
+/// The command the owner's PowerShell sends to the agent's PowerShell through stdin. The agent's process reads its
+/// settings from its own folder and passes the program its literal arguments.
+pub fn run_windows_payload(program: &[String]) -> String {
     let env = home(Os::Windows).join(ENV_FILE).to_string_lossy().to_string();
-    let call = program.iter().map(|a| quote(a)).collect::<Vec<_>>().join(" ");
+    let call = program.iter().map(|a| ps_quote(a)).collect::<Vec<_>>().join(" ");
     let inner = format!(
         "foreach ($l in Get-Content {env}) {{ if ($l -match '^export ([A-Z_]+)=(.*)$') {{ [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2]) }} }}; & {call}; exit $LASTEXITCODE",
-        env = quote(&env),
+        env = ps_quote(&env),
     );
-    let encoded = {
-        use base64::Engine;
-        let utf16: Vec<u8> = inner.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
-        base64::engine::general_purpose::STANDARD.encode(utf16)
-    };
+    encoded_windows_script(&inner)
+}
+
+fn encoded_windows_script(script: &str) -> String {
+    use base64::Engine;
+    let utf16: Vec<u8> = script.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
+    base64::engine::general_purpose::STANDARD.encode(utf16)
+}
+
+/// Read the password and payload in the owner's process, then forward only the payload to the agent user.
+/// The logon API accepts at most 1,024 characters on its command line, so only the fixed reader goes there.
+pub fn run_windows_script() -> String {
+    let encoded = encoded_windows_script(
+        "$ErrorActionPreference = 'Stop'; $in = [IO.StreamReader]::new([Console]::OpenStandardInput(), [Text.Encoding]::ASCII); \
+         & ([ScriptBlock]::Create([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($in.ReadLine()))))",
+    );
     // Any failure stops the script with an error, so a program that never started is never taken for one that ran.
     format!(
-        "$ErrorActionPreference = 'Stop'; $p = ConvertTo-SecureString ([Console]::In.ReadLine()) -AsPlainText -Force; \
+        "$ErrorActionPreference = 'Stop'; $p = ConvertTo-SecureString ([Console]::In.ReadLine()) -AsPlainText -Force; $payload = [Console]::In.ReadLine(); \
          $i = New-Object System.Diagnostics.ProcessStartInfo; $i.FileName = 'powershell'; \
          $i.Arguments = '-NoProfile -NonInteractive -EncodedCommand {encoded}'; $i.UserName = '{NAME}'; $i.Domain = $env:COMPUTERNAME; \
-         $i.Password = $p; $i.UseShellExecute = $false; $i.LoadUserProfile = $true; $i.WorkingDirectory = {dir}; \
-         $r = [System.Diagnostics.Process]::Start($i); $r.WaitForExit(); exit $r.ExitCode",
-        dir = quote(&home(Os::Windows).to_string_lossy()),
+         $i.Password = $p; $i.UseShellExecute = $false; $i.LoadUserProfile = $true; $i.WorkingDirectory = {dir}; $i.RedirectStandardInput = $true; \
+         $r = [System.Diagnostics.Process]::Start($i); $in = $r.StandardInput.BaseStream; \
+         $bytes = [Text.Encoding]::ASCII.GetBytes($payload + [char]10); $in.Write($bytes, 0, $bytes.Length); $in.Close(); \
+         $r.WaitForExit(); exit $r.ExitCode",
+        dir = ps_quote(&home(Os::Windows).to_string_lossy()),
     )
 }
 
@@ -549,15 +559,27 @@ mod tests {
         let argv = run_argv(&["claude".into(), "--print".into(), "a; rm -rf ~".into()]);
         assert_eq!(&argv[..4], ["sudo", "-u", NAME, "-H"]);
         assert_eq!(argv.last().unwrap(), "a; rm -rf ~", "one argument, never read as script");
-        let win = run_windows_script(&["claude".into(), "it's".into()]);
+        let win = run_windows_script();
         assert!(win.contains("$i.UserName = 'unbrowse-agent'") && win.contains("-EncodedCommand"), "{win}");
         assert!(win.starts_with("$ErrorActionPreference = 'Stop'"), "a program that never started fails the run: {win}");
         assert!(!win.contains("it's") && !win.contains("claude"), "the program goes encoded, never as script text: {win}");
-        let encoded = win.split("-EncodedCommand ").nth(1).unwrap().split('\'').next().unwrap();
+        let encoded = run_windows_payload(&["claude".into(), "it's".into()]);
         use base64::Engine;
         let bytes = base64::engine::general_purpose::STANDARD.decode(encoded).unwrap();
         let inner = String::from_utf16(&bytes.chunks(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect::<Vec<_>>()).unwrap();
         assert!(inner.contains("& 'claude' 'it''s'"), "{inner}");
+    }
+
+    #[test]
+    fn a_long_windows_agent_command_fits_the_logon_api() {
+        let program = ["powershell".into(), "-Command".into(), "Write-Output 'still one argument'; ".repeat(120)];
+        let payload = run_windows_payload(&program);
+        let script = run_windows_script();
+        let args = script.split("$i.Arguments = '").nth(1).unwrap().split('\'').next().unwrap();
+        let wide = "powershell.exe ".encode_utf16().count() + args.encode_utf16().count();
+        assert!(wide < 1024, "CreateProcessWithLogonW accepts up to 1024 characters, got {wide}");
+        assert!(payload.len() > 1024 && !script.contains(&payload));
+        assert!(script.contains("$r.StandardInput.BaseStream") && script.contains("[Text.Encoding]::ASCII.GetBytes($payload + [char]10)"));
     }
 
     /// The probe runs to the end whatever it can't read, and lists only what it could: a last path it can't read

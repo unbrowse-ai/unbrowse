@@ -89,6 +89,7 @@ dependencies = [
  "dirs",
  "futures-util",
  "libc",
+ "psl",
  "reqwest",
  "rustls",
  "rustls-pemfile",

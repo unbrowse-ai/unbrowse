@@ -144,7 +144,15 @@ fn step_of(a: &Action) -> Result<Option<Step>, ()> {
 }
 
 fn steps_of(actions: &[Action]) -> Option<Vec<Step>> {
-    actions.iter().map(step_of).collect::<Result<Vec<_>, _>>().ok().map(|s| s.into_iter().flatten().collect())
+    let mut steps = Vec::new();
+    for a in actions {
+        steps.extend(step_of(a).ok()?);
+        // A fill that submitted its form itself is the fill and then the form sent, as a key would send it.
+        if a.submit {
+            steps.push(Step::Press { key: "Enter".into() });
+        }
+    }
+    Some(steps)
 }
 
 /// The last sign-in in the session: from the page it opened on to the step that sent the last vault login typed.
@@ -159,7 +167,9 @@ fn sign_in(session: &Session, site: &str) -> Option<Setup> {
     if !url::Url::parse(&page).ok()?.host_str().is_some_and(|h| on_site(h, site)) {
         return None;
     }
-    let mut sent = last + 1 + actions[last + 1..].iter().position(|a| matches!(a.kind.as_str(), "click" | "press"))?;
+    // The step that sent the login: the click or key after it, or the fill itself where it submitted its form (a vault
+    // login's one step).
+    let mut sent = if actions[last].submit { last } else { last + 1 + actions[last + 1..].iter().position(|a| matches!(a.kind.as_str(), "click" | "press"))? };
     // A login typed on a provider's page comes back through its screens (a consent, a "stay signed in"): those steps are
     // the sign-in too, up to the first page back on the site.
     let trace = &session.trace;
@@ -447,6 +457,26 @@ mod tests {
         let mut lines = signing_in();
         lines[0] = action(1.0, "navigate", None, Some("https://id.provider.example/login"), false);
         assert!(sign_in(&session(&lines), "shop.example").is_none());
+    }
+
+    /// A vault login's one step fills the account and the password and submits the form itself (`fill` with
+    /// `submit`): no click or key follows it, and the fill is the step that sent the login. It is kept as the fill and
+    /// then the form sent, so the browser's replay submits it too; the run of steps ends there.
+    #[test]
+    fn a_fill_that_submitted_its_form_is_the_step_that_sent_the_login() {
+        let mut submitted = action(2.0, "fill", Some("#password"), Some("vault:shop.example:me"), true);
+        submitted["submit"] = json!(true);
+        let lines = vec![
+            action(1.0, "navigate", None, Some("https://shop.example/login"), false),
+            submitted,
+            action(9.0, "click", Some("a.orders"), None, false),
+        ];
+        let s = sign_in(&session(&lines), "shop.example").expect("a sign-in kept");
+        assert_eq!(s.steps, vec![Step::Fill { at: "#password".into(), value: "vault:shop.example:me".into() }, Step::Press { key: "Enter".into() }]);
+        // The same fill with no submit, and nothing after it, sent nothing.
+        let mut unsent = lines.clone();
+        unsent[1].as_object_mut().unwrap().remove("submit");
+        assert!(sign_in(&session(&unsent[..2]), "shop.example").is_none());
     }
 
     #[test]

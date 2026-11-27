@@ -78,9 +78,12 @@ pub async fn site_bound(cmd: &Value, state: &DaemonState) -> Result<Value, Strin
     if cmd.get("submit").and_then(Value::as_bool) == Some(true) {
         let mut secrets = vec![value];
         secrets.extend(cmd.get("code").and_then(Value::as_str));
-        let (submitted, cleared) = submit_and_clear(client, &page_session, &session, &object_id, &secrets).await;
+        let (submitted, cleared, checking) = submit_and_clear(client, &page_session, &session, &object_id, &secrets, site).await;
         said["submitted"] = json!(submitted);
         said["cleared"] = json!(cleared);
+        if checking {
+            said["checking"] = json!(true);
+        }
     }
     Ok(said)
 }
@@ -120,10 +123,81 @@ async fn write_beside(client: &CdpClient, session: &str, object_id: &str, find: 
 /// How long a submitted form is given to take the page somewhere before what it still holds is cleared.
 const SUBMIT_WAIT: std::time::Duration = std::time::Duration::from_secs(8);
 
+/// Whether the secret's own field is still in the page, still holds a value (what was written into it), and is a
+/// password box (masked). No secret is handed to the page's code to compare: the field was written with it.
+const HELD_MASKED: &str = "function() { return this.isConnected && String(this.type || '').toLowerCase() === 'password' && this.value.length > 0; }";
+
+/// The origins of the frames the page shows now, below its own document: each frame the browser knows of (its frame tree,
+/// and every frame target in a process of its own) whose owning element in this page has a box on screen, by the frame's
+/// own address, else its owner's `src`. A frame put in a shadow root (a check's widget
+/// usually is) or in another process is found this way, where the page's own `querySelectorAll` finds neither; and a
+/// widget the page built at load but keeps hidden until the form is sent counts only once it is shown.
+async fn page_frames(client: &CdpClient, page_session: &str) -> Vec<String> {
+    fn ids(node: &Value, out: &mut Vec<String>) {
+        for child in node["childFrames"].as_array().into_iter().flatten() {
+            if let Some(id) = child["frame"]["id"].as_str() {
+                out.push(id.to_string());
+            }
+            ids(child, out);
+        }
+    }
+    // A frame in its own process is a target of the browser's, by the frame's own id and with its own address; the
+    // page's frame tree may not list it at all.
+    let mut frames: Vec<(String, Option<String>)> = Vec::new();
+    if let Ok(tree) = client.send_command_no_params("Page.getFrameTree", Some(page_session)).await {
+        let mut tree_ids = Vec::new();
+        ids(&tree["frameTree"], &mut tree_ids);
+        frames.extend(tree_ids.into_iter().map(|id| (id, None)));
+    }
+    if let Ok(targets) = client.send_command_no_params("Target.getTargets", None).await {
+        for t in targets["targetInfos"].as_array().into_iter().flatten().filter(|t| t["type"] == "iframe") {
+            if let Some(id) = t["targetId"].as_str() {
+                frames.retain(|(f, _)| f != id);
+                frames.push((id.to_string(), t["url"].as_str().map(String::from)));
+            }
+        }
+    }
+    let _ = client.send_command_no_params("DOM.getDocument", Some(page_session)).await;
+    let origin_of = |u: &str| url::Url::parse(u).ok().map(|u| u.origin().ascii_serialization()).filter(|o| o != "null");
+    let mut shown = Vec::new();
+    for (frame, address) in frames {
+        // Only a frame this page owns has an owner here: another tab's frames are skipped.
+        let Ok(owner) = client.send_command("DOM.getFrameOwner", Some(json!({ "frameId": frame })), Some(page_session)).await else { continue };
+        let Some(node) = owner["backendNodeId"].as_i64() else { continue };
+        let boxed = client.send_command("DOM.getBoxModel", Some(json!({ "backendNodeId": node })), Some(page_session)).await;
+        let on_screen = boxed.ok().is_some_and(|b| b["model"]["width"].as_f64().unwrap_or(0.0) > 1.0 && b["model"]["height"].as_f64().unwrap_or(0.0) > 1.0);
+        if !on_screen {
+            continue;
+        }
+        let origin = match address.as_deref().and_then(origin_of) {
+            Some(o) => Some(o),
+            None => {
+                let described = client.send_command("DOM.describeNode", Some(json!({ "backendNodeId": node })), Some(page_session)).await;
+                let attrs: Vec<String> = described.ok().and_then(|d| serde_json::from_value(d["node"]["attributes"].clone()).ok()).unwrap_or_default();
+                attrs.chunks(2).find(|kv| kv.first().map(String::as_str) == Some("src")).and_then(|kv| kv.get(1)).and_then(|s| origin_of(s))
+            }
+        };
+        shown.extend(origin);
+    }
+    shown
+}
+
+/// Whether a sign-in the form sent waits on a person check the submit itself put up, so the secret stays where it is:
+/// the page didn't go on (`held_masked`: the field is still there, a masked password box holding the secret), and a
+/// frame of another site (`site` is the login's) is shown now that wasn't shown before the submit. A check's widget is that:
+/// the form shows it when it is sent, and goes on with what its fields hold once the check is met. Cleared, the form
+/// would go on with an empty field and the check would be met for nothing. A field that paints its value, a page that
+/// went on, or no new frame of another site, and the secret is cleared as before.
+fn waits_on_a_check(before: &[String], after: &[String], held_masked: bool, site: &str) -> bool {
+    held_masked && after.iter().any(|o| !origin_on_site(o, site) && !before.contains(o))
+}
+
 /// Submits the form the secret's field is in, right away, then clears every field of the page that still holds one
 /// of `secrets`: a sign-in that didn't go through, or a page that shows the password back, never leaves it in a page
-/// the agent goes on driving. Answers whether the form was submitted and how many fields were cleared.
-async fn submit_and_clear(client: &CdpClient, page_session: &str, session: &str, object_id: &str, secrets: &[&str]) -> (bool, u64) {
+/// the agent goes on driving. Answers whether the form was submitted, how many fields were cleared, and whether the
+/// sign-in waits on a person check the submit put up ([`waits_on_a_check`]), when nothing is cleared.
+async fn submit_and_clear(client: &CdpClient, page_session: &str, session: &str, object_id: &str, secrets: &[&str], site: &str) -> (bool, u64, bool) {
+    let before = page_frames(client, page_session).await;
     // As a person pressing the form's own button would: its handlers and its checks run. A field in no form takes Enter.
     let submit = "function() { const f = this.form || this.closest('form'); if (!f) return 'none'; \
         const b = f.querySelector('button[type=submit], input[type=submit], button:not([type])'); \
@@ -154,6 +228,11 @@ async fn submit_and_clear(client: &CdpClient, page_session: &str, session: &str,
         }
         tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     }
+    let held = client.send_command("Runtime.callFunctionOn", Some(json!({ "objectId": object_id, "functionDeclaration": HELD_MASKED, "returnByValue": true })), Some(session)).await;
+    let held_masked = held.ok().and_then(|r| r.pointer("/result/value")?.as_bool()) == Some(true);
+    if held_masked && waits_on_a_check(&before, &page_frames(client, page_session).await, held_masked, site) {
+        return (submitted, 0, true);
+    }
     // Whatever document each session shows now, read in a world the page's script can't reach.
     let sweep = format!(
         "((secrets) => {{ {SET_VALUE} let n = 0; const walk = (root) => {{ for (const e of root.querySelectorAll('*')) {{ \
@@ -175,7 +254,7 @@ async fn submit_and_clear(client: &CdpClient, page_session: &str, session: &str,
         let swept = client.send_command("Runtime.evaluate", Some(json!({ "expression": sweep, "contextId": context, "returnByValue": true })), Some(sid)).await;
         cleared += swept.ok().and_then(|r| r.pointer("/result/value")?.as_u64()).unwrap_or(0);
     }
-    (submitted, cleared)
+    (submitted, cleared, false)
 }
 
 /// Which document the active tab shows: its main frame's loader id, which a new load (a navigation, a
@@ -410,6 +489,24 @@ pub fn origin_on_site(origin: &str, site: &str) -> bool {
         site.trim_matches('.').to_ascii_lowercase()
     };
     !site_host.is_empty() && (host == site_host || host.ends_with(&format!(".{site_host}")))
+}
+
+#[cfg(test)]
+mod check_tests {
+    use super::waits_on_a_check;
+
+    /// A form that shows a person check when it is sent (a widget in another site's frame, over the login) and goes on
+    /// once the check is met: the password stays masked in its field for it. Anything else clears it as before.
+    #[test]
+    fn a_sign_in_waiting_on_a_check_the_submit_put_up_keeps_its_password() {
+        let shop = "https://shop.example".to_string();
+        let check = "https://check.example".to_string();
+        assert!(waits_on_a_check(&[], std::slice::from_ref(&check), true, "shop.example"), "a check's frame came with the submit");
+        assert!(!waits_on_a_check(std::slice::from_ref(&check), std::slice::from_ref(&check), true, "shop.example"), "a frame there before the submit is no answer to it");
+        assert!(!waits_on_a_check(&[], &[shop.clone(), "https://login.shop.example".into()], true, "shop.example"), "a frame of the login's own site is no check of another");
+        assert!(!waits_on_a_check(&[], std::slice::from_ref(&check), false, "shop.example"), "a field that shows its value, or a page that went on, is cleared");
+        assert!(!waits_on_a_check(&[], &[], true, "shop.example"), "a sign-in that simply didn't go through is cleared");
+    }
 }
 
 #[cfg(test)]

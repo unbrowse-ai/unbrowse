@@ -119,28 +119,16 @@ pub fn reap_left_by_the_dead(dir: &Path) -> usize {
             let _ = std::fs::remove_file(&path);
             continue;
         };
-        if record.owner != me && alive(record.owner) {
+        if record.owner != me && crate::process::alive(record.owner) {
             continue;
         }
-        if alive(record.browser) && names_profile(record.browser, &record.profile) {
+        if crate::process::alive(record.browser) && names_profile(record.browser, &record.profile) {
             kill_group(record.browser);
             reaped += 1;
         }
         let _ = std::fs::remove_file(&path);
     }
     reaped
-}
-
-fn alive(pid: u32) -> bool {
-    #[cfg(unix)]
-    {
-        i32::try_from(pid).is_ok_and(|pid| pid > 0 && unsafe { libc::kill(pid, 0) } == 0)
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = pid;
-        false
-    }
 }
 
 /// Whether the process at `pid` is still the browser launched in `profile`: its command line names it.
@@ -288,5 +276,31 @@ mod tests {
         }
         assert_eq!(open_of_ours(), 0);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod every_system_tests {
+    use super::*;
+
+    /// A launcher that is still running keeps its record, on every system: the reaper leaves it to its owner.
+    #[test]
+    fn a_live_launchers_record_is_kept_on_every_system() {
+        let dir = std::env::temp_dir().join(format!("launched-kept-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        #[cfg(windows)]
+        let mut owner = std::process::Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap();
+        #[cfg(not(windows))]
+        let mut owner = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+        let r = Record { owner: owner.id(), browser: u32::MAX - 1, profile: dir.join("p").display().to_string() };
+        let file = dir.join(format!("{}.launch", r.browser));
+        std::fs::write(&file, serde_json::to_string(&r).unwrap()).unwrap();
+        assert_eq!(reap_left_by_the_dead(&dir), 0);
+        let kept = file.exists();
+        let _ = owner.kill();
+        let _ = owner.wait();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(kept, "the record of a launcher still running was removed");
     }
 }

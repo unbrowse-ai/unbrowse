@@ -162,7 +162,8 @@ for (const [fw, a] of Object.entries(ADAPTERS)) {
     assert.match(noBrowser.hint, /still calls the routes the node has/);
     const named = await a.run(t, "unbrowse_do", { goal: "learn a page", url: "https://example.com/page" });
     assert.equal(named.code, "browser_missing");
-    assert.match(named.hint, /`unbrowse browser install` on the node's machine/, "the node's own way to get it");
+    assert.match(named.hint, /download Chrome for Testing in the Unbrowse app's Settings/, "the app's way to get it");
+    assert.doesNotMatch(named.hint, /unbrowse browser install/, "never a command for the person to type");
     const fetching = await a.run(t, "unbrowse_do", { goal: "learn a page soon", url: "https://example.com/page" });
     assert.match(fetching.hint, /fetching its browser now: try again in a minute/);
     const unreachable = MODULES[fw].unbrowseTools({ token: TOKEN, baseUrl: "http://127.0.0.1:9", timeoutMs: 2000 });

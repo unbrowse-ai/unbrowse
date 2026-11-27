@@ -530,7 +530,7 @@ pub async fn answer(node: &Arc<Node>, a: &Agent, args: &Value) -> Result<Value, 
         _ => return Err((StatusCode::BAD_REQUEST, "verdict is right (the entry's answer does the bounty) or wrong".into())),
     };
     if !store::load_settings().bounty_auto {
-        return Err((StatusCode::CONFLICT, "your owner has switched the node's bounty steps off (`unbrowse-node bounty auto on` turns them back on): nothing was kept".into()));
+        return Err((StatusCode::CONFLICT, "your owner has switched the node's bounty steps off (Answer bounties for me, in the Unbrowse app's Settings, turns them back on): nothing was kept".into()));
     }
     let id = args.get("bounty").and_then(Value::as_u64).ok_or((StatusCode::BAD_REQUEST, "bounty is the bounty's id, from result.bounties.confirm".to_string()))?;
     let entry: FixedBytes<32> = args

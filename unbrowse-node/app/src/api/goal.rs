@@ -66,10 +66,10 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
         }
         false => found,
     };
-    // A read of a page that a route was learned on, in other words: that route, when the two goals share what they ask
-    // for. Its answer is checked against this goal before it is handed back (`holds_goal`).
-    let reworded = found.is_empty() && !url.is_empty() && unbrowse_learn::goal::only_reads(&goal);
-    let found = if reworded { page_routes(&routes, &goal, &url) } else { found };
+    // If the route's goal differs, look for a read of the requested page. Its reply must hold this goal's fields.
+    let try_page = found.is_empty() && !url.is_empty();
+    let found = if try_page { page_routes(&routes, &goal, &url) } else { found };
+    let reworded = try_page && !found.is_empty();
     // Else a route learned on another page of the same collection (`/prices/bitcoin` for `/prices/ethereum`) that
     // takes no input for the page: it answers only when its answer names this page's thing (a list of every coin
     // does; bitcoin's own price doesn't).
@@ -110,15 +110,20 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
     if unbrowse_learn::goal::only_reads(&goal) {
         tries.sort_by_key(asks_least);
     }
-    // A read route whose answer was not taken comes back once, `browsed`, to be served by the browser beside it.
+    // A read route whose answer was not taken comes back once, `browsed`, after the other stored reads.
     let mut queue: std::collections::VecDeque<(store::Route, bool)> = tries.into_iter().map(|r| (r, false)).collect();
+    // What the first route the goal called said when its call failed: told with the browser's refusal, should the goal
+    // end there (`tried_first`). A route passed over without a call (a value the ask doesn't give) is not one: for it
+    // the agent gets the page.
+    let mut refused_first: Option<String> = None;
+    let mut page_call_failure = None;
     let mut n = 0;
     while let Some((route, browsed)) = queue.pop_front() {
         if !browsed {
             n += 1;
         }
         if n > 1 && !browsed && (route.write || !unbrowse_learn::goal::only_reads(&goal)) {
-            break;
+            continue;
         }
         // A route that needs a value this ask doesn't give can't be called for it. With a page to go to, the page is what
         // the agent gets: a sign-in learned once takes a username and a password, and asking for it again names neither.
@@ -140,31 +145,30 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
         // is called for it, the agent's own ask. An answer that stands by the readers a confirming browse holds it to,
         // read whole (`confirm::by_its_call`), is served, and that call is the route's second sighting: the route stands
         // confirmed. One in doubt is served by the browser below. A route that is its own page's data (a JSON or a feed
-        // address, `calls_the_page_itself`) has no page a browser could confirm it by: its doubt is said, and the page is
-        // learned again as the goal goes on (a plain request), never walked to learn nothing.
+        // address, `calls_the_page_itself`) keeps its failure when the call rules out browser confirmation. Learning
+        // the same response again would discard the comparison with the original records.
         if learn::own_asks::confirms_by_use() && learn::own_asks::calls_first() && !url.is_empty() && !browsed && learn::confirm::served_by_the_browser(&route, &inputs) {
             let began = std::time::Instant::now();
-            // The call is made as a reply's, and its whole answer is read here, where the call kept it
-            // (`run::take_whole_here`), never cut to a reply's size and read back from a file; where it isn't there, the
-            // call is made again for the whole answer.
-            let called = match do_call_fields(node, a, route.id.clone(), inputs.clone(), Vec::new()).await {
-                Ok(r) if r["ok"].as_bool() == Some(true) => match crate::run::take_whole_here(&route.id, &inputs) {
-                    Some(whole) => Ok((r, Some(whole))),
-                    None => do_call_fields(node, a, route.id.clone(), inputs.clone(), vec!["*".to_string()]).await.map(|r| (r, None)),
-                },
-                other => other.map(|r| (r, None)),
-            };
-            let doubt = match called {
-                Ok((r, kept)) if r["ok"].as_bool() == Some(true) => {
-                    let whole = kept.unwrap_or_else(|| r["truncated"]["whole"].as_str().and_then(|p| std::fs::read(p).ok()).and_then(|b| serde_json::from_slice::<Value>(&b).ok()).unwrap_or_else(|| r["data"].clone()));
-                    let reply = crate::run::as_a_reply(&route, &inputs, &body.fields, whole.clone(), began.elapsed().as_millis() as u64, r["browser"].as_bool() == Some(true));
-                    let held = unanswered(&reply, &route, &Asked { url: &url, goal: &goal, subject: &subject, reworded, sibling, given: &inputs }).map(|w| w.as_str().unwrap_or("its answer is not this page's").to_string());
-                    match held.map_or_else(|| learn::confirm::by_its_call(&route, &inputs, &whole), Err) {
+            let called = call::do_call_with_whole(node, a, route.id.clone(), inputs.clone()).await;
+            let (status, doubt) = match called {
+                Ok((r, Some(whole))) if r["ok"].as_bool() == Some(true) => {
+                    let mut reply = crate::run::as_a_reply(&route, &inputs, &body.fields, whole.clone(), began.elapsed().as_millis() as u64, r["browser"].as_bool() == Some(true));
+                    for key in ["route_id", "replaced", "learned_again"] {
+                        if let Some(value) = r.get(key) {
+                            reply[key] = value.clone();
+                        }
+                    }
+                    let ask = Asked { url: &url, goal: &goal, subject: &subject, reworded, sibling, given: &inputs };
+                    let held = unanswered_from(&r, &route, &ask, Some(&whole)).map(|w| w.as_str().unwrap_or("its answer is not this page's").to_string());
+                    if let Some(out) = empty_page_reply(&r, &route, &ask, Some(&whole), &body.fields, held.as_deref()) {
+                        return Ok(out);
+                    }
+                    match held.map_or_else(|| learn::confirm::by_its_call(&route, &inputs, &whole.data), Err) {
                         Ok((place, said)) => {
                             let standing = store::update_route(&route.id, |r| {
                                 r.provisional = false;
                                 r.heard.said_back = Some(said.clone());
-                                if place.is_some() {
+                                if place.is_some() && !r.heard.document_records {
                                     r.heard.records_at = place.clone();
                                 }
                             })
@@ -174,7 +178,7 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
                             eprintln!("   [confirm] {}: agreed by its own call for the value, {} ms", route.id, began.elapsed().as_millis());
                             // The reply already made of the whole answer is this one: what the route is said to be
                             // now (confirmed, its records' place) is nothing a reply is shaped by.
-                            let mut out = json!({ "how": "called", "route": route_json(&standing), "result": own_records(reply, &subject, &body.fields) });
+                            let mut out = json!({ "how": "called", "route": route_json(&standing), "result": records_for_ask(reply, &standing, &ask, &body.fields, Some(&whole)) });
                             out["route"]["verdict"] = json!("agreed");
                             // What the call fell back on reaching this answer says is beside it, as a call's own reply
                             // says it: a step sent as the route builds it answered cheaper than the route says.
@@ -183,18 +187,22 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
                             }
                             return Ok(out);
                         }
-                        Err(why) => why,
+                        Err(why) => (StatusCode::UNPROCESSABLE_ENTITY, why),
                     }
                 }
-                Ok((r, _)) => r["error"].as_str().unwrap_or("its call failed").to_string(),
-                Err((_, e)) => e,
+                Ok((r, None)) if r["ok"].as_bool() == Some(true) => (StatusCode::BAD_GATEWAY, "the call returned no data to confirm".to_string()),
+                Ok((r, _)) => (StatusCode::BAD_GATEWAY, r["error"].as_str().unwrap_or("its call failed").to_string()),
+                Err(failure) => failure,
             };
             eprintln!("   [confirm] {}: in doubt by its own call for the value: {doubt}", route.id);
-            if calls_the_page_itself(&route, &url) {
-                failed = failed.or(fail(json!(format!("its call for this value does not stand on its own: {doubt}"))));
+            refused_first.get_or_insert_with(|| doubt.clone());
+            if browser == crate::browsers::Use::Never && calls_the_page_itself(&route, &url) {
+                let why = format!("its call for this value does not stand on its own: {doubt}");
+                failed = failed.or_else(|| fail(json!(why)));
+                page_call_failure.get_or_insert_with(|| Failed::new(status, why, Said::new(Outcome::CallFailed, "goal.page_call_in_doubt")));
                 continue;
             }
-            queue.push_front((route.clone(), true));
+            queue.push_back((route, true));
             continue;
         }
         // A route learned from one sighting, asked a value it was not learned on, with the switch on: the browser
@@ -203,7 +211,8 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
         // answer nor a call of the route that stands, which is noted beside it. A walk that learns nothing passes the
         // route over.
         if learn::own_asks::confirms_by_use() && !url.is_empty() && (browsed || learn::confirm::served_by_the_browser(&route, &inputs)) {
-            ready(node, crate::browsers::Need::Confirm, browser).await?;
+            ready(node, crate::browsers::Need::Confirm, browser).await
+                .map_err(|(status, why)| (status, tried_first(why, refused_first.as_deref())))?;
             let began = std::time::Instant::now();
             let (n, who, page, wanted, first, given) = (node.clone(), a.name.clone(), url.clone(), goal.clone(), route.clone(), inputs.clone());
             // The browser's walk for the value ends on the ask's stop flag, as a learn's does.
@@ -243,16 +252,19 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
             let standing = confirmation.standing;
             // The browser's own answer for the value is the reply: the route that stands is noted beside it, and
             // called only where the walk made neither route's call.
-            let answered = match confirmation.answer {
-                Some(data) => {
+            let given = inputs_for(&standing, &url, body.inputs.clone());
+            let ask = Asked { url: &url, goal: &goal, subject: &subject, reworded, sibling, given: &given };
+            let whole = confirmation.answer.as_ref();
+            let answered = match whole {
+                Some(answer) => {
                     crate::run::served_by_the_browser(&standing, true, began.elapsed().as_millis() as u64, None);
-                    Ok(crate::run::as_a_reply(&standing, &inputs_for(&standing, &url, body.inputs.clone()), &body.fields, data, began.elapsed().as_millis() as u64, true))
+                    Ok(crate::run::as_a_reply(&standing, &given, &body.fields, answer.clone(), began.elapsed().as_millis() as u64, true))
                 }
-                None => do_call_fields(node, a, standing.id.clone(), inputs_for(&standing, &url, body.inputs.clone()), body.fields.clone()).await,
+                None => do_call_fields(node, a, standing.id.clone(), given.clone(), body.fields.clone()).await,
             };
             match answered {
                 Ok(r) => {
-                    let mut reply = json!({ "how": "learned", "picked_by": "the browser, for this value", "route": route_json(&standing), "result": own_records(r, &subject, &body.fields) });
+                    let mut reply = json!({ "how": "learned", "picked_by": "the browser, for this value", "route": route_json(&standing), "result": records_for_ask(r, &standing, &ask, &body.fields, whole) });
                     reply["route"]["verdict"] = json!(confirmation.verdict.word());
                     reply["route"]["why"] = json!(confirmation.verdict.why());
                     if standing.id != route.id {
@@ -273,12 +285,13 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
             }
         }
         let asked = inputs.clone();
-        let mut called = do_call_as_seen(node, a, route.id.clone(), inputs.clone(), body.fields.clone(), Some(route.write)).await;
+        let (mut called, mut whole) = call::with_call_answer(do_call_as_seen(node, a, route.id.clone(), inputs.clone(), body.fields.clone(), Some(route.write))).await;
         if came_back_empty(&called, &route, &url) && !learn::own_asks::held_at(learn::own_asks::Ask::Again, "api::goal::came_back_empty") {
-            called = do_call_as_seen(node, a, route.id.clone(), inputs, body.fields.clone(), Some(route.write)).await;
+            (called, whole) = call::with_call_answer(do_call_as_seen(node, a, route.id.clone(), inputs, body.fields.clone(), Some(route.write))).await;
         }
+        let ask = Asked { url: &url, goal: &goal, subject: &subject, reworded, sibling, given: &asked };
         let this = match called {
-            Ok(r) => match unanswered(&r, &route, &Asked { url: &url, goal: &goal, subject: &subject, reworded, sibling, given: &asked }) {
+            Ok(r) => match unanswered_from(&r, &route, &ask, whole.as_deref()) {
                 None => {
                     // A route whose call found the site drifted was learned again from its plan, and answered by the new one.
                     let again = r.get("learned_again").and_then(|v| v.as_str()).and_then(store::load_route);
@@ -286,9 +299,12 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
                         Some(new) => ("learned", new),
                         None => ("called", &route),
                     };
-                    return Ok(json!({ "how": how, "route": route_json(answered), "result": own_records(r, &subject, &body.fields) }));
+                    return Ok(json!({ "how": how, "route": route_json(answered), "result": records_for_ask(r, answered, &ask, &body.fields, whole.as_deref()) }));
                 }
                 Some(why) => {
+                    if let Some(out) = empty_page_reply(&r, &route, &ask, whole.as_deref(), &body.fields, why.as_str()) {
+                        return Ok(out);
+                    }
                     // An answer that lacks only what the goal asks of each result, for another value than the route's
                     // own, from a route that still gives it for its own, where the page asked for shows nothing for
                     // it either: a search that found nothing. It is the site's answer to this value, and the page is
@@ -322,8 +338,10 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
                             // not taken is served by the browser, the route called beside it (`learn::confirm`): a
                             // walk that finds nothing there too leaves the route standing and answers with what the
                             // browser got, and one that finds what the route missed learns the route that stands.
-                            eprintln!("   [goal] {} {} was called and its answer not taken: the browser serves the ask beside it: {}", route.method, route.site, why.as_str().unwrap_or("it did not answer").chars().take(200).collect::<String>());
-                            queue.push_front((route.clone(), true));
+                            let why = why.as_str().unwrap_or("it did not answer");
+                            refused_first.get_or_insert_with(|| why.to_string());
+                            eprintln!("   [goal] {} {} was called and its answer not taken: browser confirmation queued: {}", route.method, route.site, why.chars().take(200).collect::<String>());
+                            queue.push_back((route, true));
                             continue;
                         }
                         None => {
@@ -340,7 +358,10 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
             // So does a kept copy whose call its rule refused: it was set aside, and nothing was sent.
             Err((StatusCode::FORBIDDEN, e)) if route.fetched.is_some() => fail(json!(e)),
             Err(e) if ends_the_goal(&route, &url) => return Err(Failed::of_call(e)),
-            Err((_, e)) => fail(json!(e)),
+            Err((_, e)) => {
+                refused_first = refused_first.or(Some(e.clone()));
+                fail(json!(e))
+            }
         };
         failed = failed.or(this);
     }
@@ -358,6 +379,9 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
             answered["route_failed"] = f;
         }
         return Ok(answered);
+    }
+    if let Some(failure) = page_call_failure {
+        return Err(failure);
     }
     let unpaid = payment_refused(&failures);
     if failed.is_none() {
@@ -391,8 +415,10 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
     let learned = match plain {
         Some(learned) => learned,
         None => {
-            // Past here the page is walked: the browser, or `browser_missing` saying what it lacks.
-            ready(node, crate::browsers::Need::Walk, browser).await?;
+            // Past here the page is walked: the browser, or `browser_missing` saying what it lacks. A route called before it
+            // whose call failed is said with that, so an agent that can't let the browser in still hears why the route
+            // didn't answer (a route from the network that signs in, on a node whose vault holds no login for the site).
+            ready(node, crate::browsers::Need::Walk, browser).await.map_err(|(status, e)| (status, tried_first(e, refused_first.as_deref())))?;
             learn_page(node, &a.name, &url, &goal).await.map(|(route, by, walk)| {
                 walked = Some(walk);
                 (route, by)
@@ -431,7 +457,7 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
     // walked once more: the learner passes that call over and keeps its next pick.
     let mut learned = learned;
     // Walks a page is given after its first, once it is judged wrong: more only wake a site's guard.
-    let mut again = 1;
+    let mut again = usize::from(!matches!(browser, crate::browsers::Use::Never));
     let learned = loop {
         let deafened = match learned {
             // The site was asked at learn time and answered the same for a word nobody searches for: where that word
@@ -480,16 +506,17 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
                     first_call_behind(node, a, &route, &inputs, &body.fields, &url, &subject);
                     break Ok((route, BY_THE_WALK, r));
                 }
-                let mut called = do_call_as_seen(node, a, route.id.clone(), inputs.clone(), body.fields.clone(), Some(route.write)).await;
+                let (mut called, mut whole) = call::with_call_answer(do_call_as_seen(node, a, route.id.clone(), inputs.clone(), body.fields.clone(), Some(route.write))).await;
                 if came_back_empty(&called, &route, &url) && !learn::own_asks::held_at(learn::own_asks::Ask::Again, "api::goal::came_back_empty") {
-                    called = do_call_as_seen(node, a, route.id.clone(), inputs, body.fields.clone(), Some(route.write)).await;
+                    (called, whole) = call::with_call_answer(do_call_as_seen(node, a, route.id.clone(), inputs, body.fields.clone(), Some(route.write))).await;
                 }
                 match called {
-                    Ok(r) => match unanswered(&r, &route, &ask) {
+                    Ok(r) => match unanswered_from(&r, &route, &ask, whole.as_deref()) {
                         None => Ok((route, by, r)),
                         Some(why) => {
                             let said = why.as_str().unwrap_or("its call failed").to_string();
                             if r["ok"].as_bool() == Some(true) {
+                                eprintln!("   [goal] {} {} was called and its answer not taken: {}", route.method, route.site, said.chars().take(200).collect::<String>());
                                 not_this_page = Some((route.id.clone(), said.clone()));
                             }
                             failed = failed.or(Some(json!({ "route_id": route.id, "error": why })));
@@ -534,10 +561,15 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
     let mut reply = match learned {
         Ok((route, by, r)) => {
             // A route that does the goal for the pages older ones were learned on too takes their place.
-            for old in superseded(&routes, &goal, &url, &route) {
+            let companions = walked.as_deref().map(|walk| node.walks.companions(walk, &route.id)).unwrap_or_default();
+            for old in superseded(&routes, &goal, &url, &route, &companions) {
                 let _ = store::retire_route_for(&old.id, &route.id);
             }
-            json!({ "how": "learned", "picked_by": by, "route": route_json(&route), "result": own_records(r, &subject, &body.fields) })
+            let mut reply = json!({ "how": "learned", "picked_by": by, "route": route_json(&route), "result": own_records(r, &subject, &body.fields) });
+            if !companions.is_empty() {
+                reply["learned_routes"] = json!(companions);
+            }
+            reply
         }
         // Nothing done on the page changes these: the agent hears why, as for a plain request refused above.
         Err(Unlearned::Unwalkable(why)) => return Err(Failed::new(StatusCode::BAD_REQUEST, why, Said::new(Outcome::NotAllowed, "learn.unwalkable"))),
@@ -553,13 +585,16 @@ async fn do_goal_unsaid(node: &Arc<Node>, a: &Agent, body: DoBody) -> Result<Val
         Err(why) if super::mcp::ask_stop().load(std::sync::atomic::Ordering::Relaxed) => return Err(stopped(&why, &url)),
         // Loading the page doesn't answer the goal by itself: it needs clicks or typing, a sign-in or a check stood in
         // the way, or the site's door held (`learn::stood_in_the_way`). The agent drives it from here, in the node's
-        // browser, and every step it takes is learned from.
+        // browser, and every step it takes is learned from. A page in a batch just describes that next step.
         Err(why) if body.many => {
             let said = hands_said(&why, &goal, &url, None, false);
             let mut reply = json!({ "how": "browse", "why": why.to_string(),
                 "note": "This page needs clicks or typing: ask unbrowse_do for it alone, with its url, and it opens in the node's browser." });
             said.put(&mut reply);
             reply
+        }
+        Err(why) if matches!(browser, crate::browsers::Use::Never) => {
+            return Err(Failed::new(StatusCode::BAD_GATEWAY, why.to_string(), Said::new(Outcome::CallFailed, "goal.replay_only")));
         }
         Err(unlearned) => {
             let why = unlearned.to_string();
@@ -736,35 +771,144 @@ pub(super) fn found_nothing_of_the_goal(
     !page_lists(&asked)
 }
 
-/// Whether `route`'s call is the page `url` itself: the same host and the same path, piece by piece, a piece the route
+/// Whether `route`'s call is the page `url` itself: the same origin and the same path, piece by piece, a piece the route
 /// fills from its caller standing for any. Such a page answers with data, and that data is the page.
 pub(super) fn calls_the_page_itself(route: &store::Route, url: &str) -> bool {
     let (Some(step), Ok(page)) = (route.graph.steps.last(), url::Url::parse(url)) else { return false };
     let address = step.url.split('?').next().unwrap_or_default();
-    let Some((host, path)) = address.split_once("://").and_then(|(_, rest)| rest.split_once('/').map(|(h, p)| (h.to_string(), p.to_string()))) else { return false };
-    let pieces: Vec<&str> = page.path_segments().map(|s| s.filter(|p| !p.is_empty()).collect()).unwrap_or_default();
-    let theirs: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
-    page.host_str().is_some_and(|h| h.eq_ignore_ascii_case(&host))
-        && pieces.len() == theirs.len()
-        && pieces.iter().zip(&theirs).all(|(a, b)| b.contains('{') || a.eq_ignore_ascii_case(b))
+    let Ok(call) = url::Url::parse(&address.replace('{', "%7B").replace('}', "%7D")) else { return false };
+    if page.origin() != call.origin() {
+        return false;
+    }
+    let path = address.split_once("://").and_then(|(_, rest)| rest.find('/').map(|at| &rest[at..])).unwrap_or("/");
+    if matches_document_path(page.path(), path) {
+        return true;
+    }
+    // A document may have been learned at a canonical path that adds or removes a terminal slash. The original
+    // opening URL and the recorded answer must establish that rule for this route's path and origin.
+    let Ok(root) = url::Url::parse(&route.root) else { return false };
+    route.heard.records_at.is_some() && root.origin() == call.origin()
+        && route.graph.steps.len() == 1 && step.method == "GET"
+        && root.path().ends_with('/') == page.path().ends_with('/') && root.path().ends_with('/') != path.ends_with('/')
+        && matches_document_path(without_last_slash(root.path()), without_last_slash(path))
+        && matches_document_path(without_last_slash(page.path()), without_last_slash(path))
+}
+
+fn matches_document_path(actual: &str, template: &str) -> bool {
+    let (actual, template) = (actual.split('/'), template.split('/'));
+    actual.clone().count() == template.clone().count()
+        && actual.zip(template).all(|(a, b)| (!a.is_empty() && b.contains('{')) || percent_encoding::percent_decode_str(a).eq(percent_encoding::percent_decode_str(b)))
+}
+
+fn without_last_slash(path: &str) -> &str {
+    path.strip_suffix('/').unwrap_or(path)
 }
 
 /// What `unanswered` says of an answer without what the goal asks for.
 pub(super) const LACKS_THE_GOAL: &str = "its answer doesn't hold what this goal asks for";
+pub(super) const MISSING_RECORDS: &str = "its answer holds no records where the browser saw this route's records";
+
+/// A zero in a document's recorded result list can be pending or beside another list. It goes through the
+/// completed-empty check before it can be served as an answer.
+pub(super) fn document_list_unready(r: &Value, route: &store::Route, url: &str) -> bool {
+    r.get("records").is_some_and(|n| n.is_null() || n.as_u64() == Some(0)) && calls_the_page_itself(route, url)
+}
+
+/// A native collection with its witnessed list present can answer zero without a document's completion flags.
+pub(super) fn native_empty_collection(r: &Value, route: &store::Route, given: &HashMap<String, String>, answer: &crate::run::WholeAnswer) -> bool {
+    !route.heard.document_records && answer.answered_with_data && r["records"].as_u64() == Some(0)
+        && route.heard.records_at.as_deref().is_some_and(|place| learn::confirm::settled_empty_list(&answer.data, place))
+        && !replay_answers_the_walk(route, given, &answer.data, &answer.data)
+}
+
+/// A page's own read declares that the query completed with zero results. Return the fields
+/// that say so when the ordinary projection would surface only the page around them. A side request cannot stand
+/// for the site's search, even when that request's own results are empty.
+pub(super) fn empty_page_reply(r: &Value, route: &store::Route, ask: &Asked, whole: Option<&crate::run::WholeAnswer>, fields: &[String], why: Option<&str>) -> Option<Value> {
+    if !matches!(why, Some(LACKS_THE_GOAL | MISSING_RECORDS))
+        || r["ok"].as_bool() != Some(true)
+        || route.write
+        || !route.graph.steps.last().is_some_and(|s| s.method == "GET")
+        || !calls_the_page_itself(route, ask.url) {
+        return None;
+    }
+    let data = whole.map(|answer| &answer.data).unwrap_or(&r["data"]);
+    let witness = match route.heard.records_at.as_deref() {
+        Some(place) => Some(learn::confirm::stable_list_at(data, place)?),
+        None if route.heard.document_records => return None,
+        None => None,
+    };
+    let returned_empty_collection = whole.is_some_and(|answer| native_empty_collection(r, route, ask.given, answer));
+    let mut changed = route.inputs.iter().filter(|i| !i.secret && !i.file).filter_map(|i| {
+        let now = ask.given.get(&i.name)?;
+        i.default.as_ref().is_some_and(|was| was != now).then_some(now.as_str())
+    });
+    let evidence = match changed.next() {
+        _ if returned_empty_collection => Some(Vec::new()),
+        Some(term) if changed.any(|v| v != term) => return None,
+        Some(term) => unbrowse_learn::answer::empty_search_fields(data, term, witness),
+        None if witness.is_some() => route.inputs.iter().filter(|i| !i.secret && !i.file)
+            .filter_map(|i| ask.given.get(&i.name).or(i.default.as_ref()))
+            .find_map(|term| unbrowse_learn::answer::empty_search_fields(data, term, witness)),
+        None => None,
+    }?;
+    let mut result = r.clone();
+    if !evidence.is_empty() {
+        let mut wanted = fields.to_vec();
+        wanted.extend(evidence);
+        let view = crate::run::as_a_reply(route, ask.given, &wanted, data.clone().into(), 0, r["browser"] == true);
+        let sent: Vec<&str> = ask.given.values().map(String::as_str).collect();
+        let mut view = super::said_to_an_agent_who_sent(route, view, &sent);
+        for key in ["data", "fields", "truncated"] {
+            result[key] = view[key].take();
+        }
+    }
+    result["records"] = json!(0);
+    let mut reply = json!({ "how": "called", "route": route_json(route), "result": result });
+    Said::new(Outcome::AnsweredEmpty, "goal.empty_page_search").put(&mut reply);
+    Some(reply)
+}
 
 /// Why a route's result doesn't answer `ask`, or None when it does and the goal ends with it. A write's answer stands
 /// however it went: it may have landed. With no page to go on to, so does any answer.
+#[cfg(test)]
 pub(super) fn unanswered(r: &Value, route: &store::Route, ask: &Asked) -> Option<Value> {
+    unanswered_from(r, route, ask, None)
+}
+
+fn unanswered_from(r: &Value, route: &store::Route, ask: &Asked, whole: Option<&crate::run::WholeAnswer>) -> Option<Value> {
     if route.write {
         return None;
     }
+    let data = whole.map(|answer| &answer.data).unwrap_or(&r["data"]);
     let ok = r["ok"].as_bool() == Some(true);
-    let (data, page) = (&r["data"], !ask.url.is_empty());
+    let page = !ask.url.is_empty();
     if ok && page && not_this_page(data, ask.subject) {
         return Some(json!("it answered with another page"));
     }
+    let held_goal = std::cell::OnceCell::new();
+    let holds = || *held_goal.get_or_init(|| {
+        let target = if route.heard.document_records {
+            let Some(rows) = route.heard.records_at.as_deref().and_then(|place| learn::confirm::stable_list_at(data, place)) else { return false };
+            rows
+        } else {
+            data
+        };
+        if holds_goal(target, ask.goal) {
+            return true;
+        }
+        if let Some(links) = whole.and_then(|answer| answer.rendered_links.as_ref()).and_then(Value::as_array) {
+            let fields = unbrowse_learn::goal::fields(ask.goal);
+            if unbrowse_learn::goal::holding_with_rendered_links(target, links, &fields, &[], ask.goal).is_some() {
+                return true;
+            }
+        }
+        let Ok(base) = url::Url::parse(&route.root) else { return false };
+        let (read, drawn) = unbrowse_learn::fields::with_markup_read_at(target.clone(), &base);
+        !drawn.is_empty() && holds_goal(&read, ask.goal)
+    });
     // A route found by its page, not its words, answers only when its answer holds what this goal asks for.
-    if ok && ask.reworded && (!holds_goal(data, ask.goal) || (ask.sibling && !learn::data_names(data, ask.subject))) {
+    if ok && ask.reworded && (!holds() || (ask.sibling && !learn::data_names(data, ask.subject))) {
         return Some(json!(LACKS_THE_GOAL));
     }
     // A page for one thing answered with a list of others (a ranking that holds this coin on one page and not on the
@@ -779,10 +923,10 @@ pub(super) fn unanswered(r: &Value, route: &store::Route, ask: &Asked) -> Option
     // value asked (the page's title, its chrome, the session's earlier searches), whatever else it says.
     // Read by the call on its answer whole (`run::records_where_seen`), never on `data`: the reply's fields and its cut
     // may leave the place out of a right answer.
-    if ok && page && r.get("records").is_some_and(Value::is_null) {
-        return Some(json!("its answer holds no records where the browser saw this route's records"));
+    if ok && page && (r.get("records").is_some_and(Value::is_null) || document_list_unready(r, route, ask.url)) {
+        return Some(json!(MISSING_RECORDS));
     }
-    if ok && page && answers_the_walk(route, ask.given, data) {
+    if ok && page && replay_answers_the_walk(route, ask.given, data, data) {
         return Some(json!("it answered what the walk asked, not what this page asks"));
     }
     // A list that says not one word of what this call asks for (a strip of featured cards, fares with every place left
@@ -806,7 +950,7 @@ pub(super) fn unanswered(r: &Value, route: &store::Route, ask: &Asked) -> Option
         return Some(json!("its answer never says a word of what this page asks for"));
     }
     // Held to what a learn is held to: an answer without what the goal asks for (a price, a link) is no answer.
-    if ok && page && !route.judged.fields && !holds_goal(data, ask.goal) {
+    if ok && page && !route.judged.fields && !holds() {
         return Some(json!(LACKS_THE_GOAL));
     }
     // A read whose answer has no value at all (every field it hands back missing on this page) didn't answer it.
@@ -814,6 +958,14 @@ pub(super) fn unanswered(r: &Value, route: &store::Route, ask: &Asked) -> Option
         return Some(json!("it answered with no values for this page"));
     }
     (!ok && page).then(|| r["error"].clone())
+}
+
+/// `said`, with what a route called before it said when its call failed (`refused`) said after it.
+fn tried_first(said: String, refused: Option<&str>) -> String {
+    match refused.filter(|w| !w.is_empty()) {
+        Some(why) => format!("{}. A route for it was tried first and didn't answer: {why}", said.trim_end_matches('.')),
+        None => said,
+    }
 }
 
 /// Whether a call of `route` that came back an error ends the goal, for the route that was first as for the one after
@@ -1078,12 +1230,14 @@ pub(super) fn asks_least(r: &store::Route) -> (bool, bool, usize) {
 }
 
 /// The routes a route just learned for `goal` takes the place of: older ones that do the goal for pages it does too.
-/// Never a route with a place on the chain (its entry names it, and peers pay for it), one of the owner's own
+/// Keep each companion the same walk saved. Never retire a route with a place on the chain (its entry names it, and peers pay for it), one of the owner's own
 /// (learned from their browsing, acting as them), or one an agent judged (`unbrowse_judge`: its name, its fields, or a
 /// page it doesn't do, which the next learn of that page must still pass over): an agent's learn adds to those, it
 /// never removes them.
-pub(super) fn superseded<'a>(routes: &'a [store::Route], goal: &str, url: &str, new: &store::Route) -> Vec<&'a store::Route> {
-    routes_for(routes, goal, url).into_iter().filter(|r| r.id != new.id && fits(new, &r.root) && !r.stands()).collect()
+pub(super) fn superseded<'a>(routes: &'a [store::Route], goal: &str, url: &str, new: &store::Route, companions: &[String]) -> Vec<&'a store::Route> {
+    routes_for(routes, goal, url).into_iter()
+        .filter(|r| r.id != new.id && !companions.contains(&r.id) && fits(new, &r.root) && !r.stands())
+        .collect()
 }
 
 /// The routes that do `goal`: what each does says the same words, in any order and case, on the page's site or
@@ -1150,16 +1304,58 @@ pub(super) fn said_with_another_value<'a>(routes: &'a [store::Route], goal: &str
 /// one of this goal's fields (`goal::fields`: "get live bitcoin price" and "get live coin price in USD" share price),
 /// most shared first. Writes never answer a read, and a route an agent named (`unbrowse_judge`) is found by the
 /// agent's words alone: a word it shares with this goal (the site's own name) says nothing against what the agent said.
+/// A release query can name just the field in a noun phrase. The document at its URL can answer it, and the release
+/// field will be checked on the reply. The page's other calls have no such tie to the ask.
 pub(super) fn page_routes<'a>(routes: &'a [store::Route], goal: &str, url: &str) -> Vec<&'a store::Route> {
+    use unbrowse_learn::goal::{self, Shape};
+
+    let read = goal::only_reads(goal);
+    let release = goal::fields(goal).iter().any(|field| field.shape == Shape::ReleaseVersion);
+    let reads = if release { release_read(goal) } else { read };
+    if !reads {
+        return Vec::new();
+    }
     let asked = asked_of(goal, url);
-    let mut found: Vec<(usize, &store::Route)> = routes
+    let page = url::Url::parse(url).ok();
+    let mut found: Vec<_> = routes
         .iter()
         .filter(|r| !r.write && r.fetched.is_none() && !r.judged.named && fits(r, url))
-        .map(|r| (unbrowse_learn::goal::fields(&r.what).into_iter().filter(|f| asked.contains(&f.word)).count(), r))
-        .filter(|(shared, _)| *shared > 0)
+        .filter(|r| !release || page.as_ref().is_some_and(|page| url::Url::parse(&r.root).is_ok_and(|root| &root == page)))
+        .filter_map(|r| {
+            let step = r.graph.steps.last();
+            let document = release && step.zip(page.as_ref()).is_some_and(|(step, page)| reads_document_at(step, page));
+            if release && step.is_some_and(|step| step.reads_page) && !document {
+                return None;
+            }
+            let shared = if read { goal::fields(&r.what).into_iter().filter(|f| asked.contains(&f.word)).count() } else { 0 };
+            (document || shared > 0).then_some(((document, shared), r))
+        })
         .collect();
-    found.sort_by_key(|(shared, _)| std::cmp::Reverse(*shared));
+    found.sort_by_key(|(priority, _)| std::cmp::Reverse(*priority));
     found.into_iter().map(|(_, r)| r).collect()
+}
+
+/// A document's GET must account for every requested query pair and send no extra ones. The browser reads fragment inputs.
+fn reads_document_at(step: &unbrowse_learn::Step, page: &url::Url) -> bool {
+    let query_count = step.url.split_once('?').map_or(0, |(_, query)| url::form_urlencoded::parse(query.as_bytes()).count());
+    step.reads_page
+        && step.method == "GET"
+        && step.url.split_once("://").is_some_and(|(scheme, _)| scheme == page.scheme())
+        && unbrowse_learn::trace::fragment_pairs(page).is_empty()
+        && query_count == page.query_pairs().count()
+        && call_inputs(step, page).is_some()
+}
+
+/// A release document can answer an explicit read or a noun phrase beginning with the release qualifier.
+fn release_read(goal: &str) -> bool {
+    let phrase = goal.trim_start_matches(|c: char| !c.is_alphanumeric());
+    let phrase = match phrase.split_once(char::is_whitespace) {
+        Some((intro, rest)) if intro.eq_ignore_ascii_case("please") || intro.eq_ignore_ascii_case("the") => rest.trim_start(),
+        _ => phrase,
+    };
+    !unbrowse_learn::goal::asks_a_change(goal)
+        && (unbrowse_learn::goal::opens_with_a_read(phrase)
+            || phrase.split_whitespace().next().is_some_and(|word| matches!(word.to_ascii_lowercase().as_str(), "latest" | "current" | "published")))
 }
 
 /// The words of `goal` that ask for a field, without the site's own name: every goal on a site may name it ("search
@@ -1210,6 +1406,23 @@ pub(super) fn own_records(mut r: Value, subject: &[String], fields: &[String]) -
         }
     }
     r
+}
+
+pub(super) fn records_for_ask(mut reply: Value, route: &store::Route, ask: &Asked, fields: &[String], whole: Option<&crate::run::WholeAnswer>) -> Value {
+    let asks_links = |goal| unbrowse_learn::goal::fields(goal).iter().any(|field| field.shape == unbrowse_learn::goal::Shape::Link);
+    if let Some(whole) = whole.filter(|_| fields.is_empty() && !route.judged.fields && asks_links(ask.goal) && !asks_links(&route.what)) {
+        let mut view_route = route.clone();
+        view_route.what = ask.goal.to_string();
+        view_route.fields.clear();
+        let mut view = crate::run::as_a_reply(&view_route, ask.given, fields, whole.clone(),
+            reply["ms"].as_u64().unwrap_or_default(), reply["browser"] == true);
+        let sent: Vec<&str> = ask.given.values().map(String::as_str).collect();
+        view = super::said_to_an_agent_who_sent(route, view, &sent);
+        for field in ["data", "fields", "truncated"] {
+            reply[field] = view[field].take();
+        }
+    }
+    own_records(reply, ask.subject, fields)
 }
 
 /// The values a page's address asks for that say something by themselves: its query's values and its path's pieces,
@@ -1306,7 +1519,7 @@ async fn deaf_to(node: &Arc<Node>, a: &Agent, route: &store::Route, given: &Hash
         }
         let second = do_call_as_seen(node, a, route.id.clone(), other.clone(), Vec::new(), Some(route.write)).await.ok().filter(|r| r["ok"].as_bool() == Some(true))?;
         let says_it = second["data"].to_string().to_lowercase().contains(&value.to_lowercase());
-        let stale = answers_the_walk(route, &other, &second["data"]);
+        let stale = answers_the_walk(route, &other, &second["data"], None);
         if !(stale || (!says_it && same_answer(&first["data"], &second["data"], &[&was, value]))) {
             return None;
         }
@@ -1404,25 +1617,52 @@ fn records_saying(v: &Value, s: &str) -> usize {
 
 /// Whether `data` answers the walk rather than this call: an input was given a new value, the answer says the old one,
 /// and it says no word of the new one. A value too short to say anything by itself is passed over.
-pub(super) fn answers_the_walk(route: &store::Route, given: &HashMap<String, String>, data: &Value) -> bool {
-    let text = data.to_string().to_lowercase();
+pub(super) fn answers_the_walk(route: &store::Route, given: &HashMap<String, String>, data: &Value, query: Option<&str>) -> bool {
+    let text = std::cell::OnceCell::new();
     let words = |v: &str| v.split(|c: char| !c.is_alphanumeric()).filter(|w| w.chars().count() >= 3).map(str::to_lowercase).collect::<Vec<_>>();
+    // The result list's query label only identifies an input if precisely one public input had that recorded value.
+    // A filter and a search can start with the same word, even though changing the filter leaves the label alone.
+    let labelled = query.and_then(|query| {
+        let mut matching = route.inputs.iter().filter(|i| !i.secret && !i.file && i.default.as_deref().is_some_and(|was| query.trim().eq_ignore_ascii_case(was.trim())));
+        let input = matching.next()?;
+        matching.next().is_none().then_some((input.name.as_str(), query))
+    });
     route.inputs.iter().any(|i| {
         let (Some(was), Some(now)) = (i.default.as_deref(), given.get(&i.name)) else { return false };
+        if was == now {
+            return false;
+        }
+        if labelled.is_some_and(|(name, query)| {
+            name == i.name && !query.trim().eq_ignore_ascii_case(now.trim())
+        }) {
+            return true;
+        }
         let (old, new) = (words(was), words(now));
-        was != now && !old.is_empty() && !new.is_empty() && old.iter().all(|w| text.contains(w.as_str())) && !new.iter().any(|w| text.contains(w.as_str()))
+        let text = text.get_or_init(|| data.to_string().to_lowercase());
+        !old.is_empty() && !new.is_empty() && old.iter().all(|w| text.contains(w.as_str())) && !new.iter().any(|w| text.contains(w.as_str()))
     })
+}
+
+/// Compare the witnessed list and its own query. Without a stable list use the reply's selected fields.
+pub(super) fn replay_answers_the_walk(route: &store::Route, given: &HashMap<String, String>, data: &Value, projected: &Value) -> bool {
+    let Some((rows, query)) = route.heard.records_at.as_deref().and_then(|place| learn::confirm::stable_list_with_query(data, place)) else {
+        return answers_the_walk(route, given, projected, None);
+    };
+    answers_the_walk(route, given, rows, query)
 }
 
 /// Whether a call's data holds what `goal` asks for that has a look of its own (a price, a link, a day).
 pub(super) fn holds_goal(data: &Value, goal: &str) -> bool {
-    let fields = unbrowse_learn::goal::fields(goal);
+    use unbrowse_learn::goal as read;
+    let fields = read::fields(goal);
     let state = data.get("state").filter(|s| !s.is_null());
     let page = data.get("text").is_some() && data.get("title").is_some();
+    let holds = |h: read::Holding| h.has_shapes() && h.has_record_fields(goal, &fields);
     if page {
-        return unbrowse_learn::goal::page_holding(data, &fields, &[]).has_shapes() || state.is_some_and(|s| unbrowse_learn::goal::holding(s, &fields, &[]).has_shapes());
+        let rendered = read::page_holding(data, &fields, &[]);
+        return (rendered.has_shapes() && read::has_rendered_links(data)) || holds(rendered) || state.is_some_and(|s| holds(read::holding_for_goal(s, &fields, &[], goal)));
     }
-    unbrowse_learn::goal::holding(data, &fields, &[]).has_shapes()
+    holds(read::holding_for_goal(data, &fields, &[], goal))
 }
 
 /// The routes that may answer `goal`. A route made from another contributor's body that writes answers only a goal
@@ -1729,8 +1969,11 @@ pub(super) fn takes_all<'a>(found: Vec<&'a store::Route>, given: &HashMap<String
 }
 
 pub(super) fn route_can_reuse_for_url(route: &store::Route, url: &str) -> bool {
-    let has_query_value = url::Url::parse(url).ok().is_some_and(|u| unbrowse_learn::trace::asked_pairs(&u).iter().any(|(_, v)| !v.is_empty()));
+    let Ok(page) = url::Url::parse(url) else { return true };
+    let has_query_value = unbrowse_learn::trace::asked_pairs(&page).iter().any(|(_, v)| !v.is_empty());
     !has_query_value || !route.inputs.is_empty()
+        || (!route.write && url::Url::parse(&route.root).is_ok_and(|root| root == page)
+            && route.graph.steps.last().is_some_and(|step| reads_document_at(step, &page)))
 }
 
 /// What a plain request for `url` says (`learn::learn_plain`): a route when the page answers with data itself.
@@ -1830,9 +2073,9 @@ pub(super) async fn learn_page(node: &Arc<Node>, who: &str, url: &str, goal: &st
 /// The reply a learn's first answer makes when the walk answered (`learn::walks_answer`, `whole` as the site sent it):
 /// shaped as a call's (`run::as_a_reply`), with `records` counted on the whole answer where the route's records were
 /// seen (`run::records_where_seen`), as a call's reply carries it, so `unanswered` reads it alike.
-pub(super) fn walk_served(route: &store::Route, inputs: &HashMap<String, String>, fields: &[String], whole: &Value, ms: u64) -> Value {
+pub(super) fn walk_served(route: &store::Route, inputs: &HashMap<String, String>, fields: &[String], whole: &crate::run::WholeAnswer, ms: u64) -> Value {
     let mut r = crate::run::as_a_reply(route, inputs, fields, whole.clone(), ms, true);
-    if let Some(records) = crate::run::records_where_seen(route, whole) {
+    if let Some(records) = crate::run::records_where_seen(route, &whole.data) {
         r["records"] = json!(records);
     }
     r
@@ -1842,12 +2085,12 @@ pub(super) fn walk_served(route: &store::Route, inputs: &HashMap<String, String>
 /// answer would (`unanswered`): the reply (`walk_served`), and the route's first answer written whole as a call's
 /// sighting is (`sighted::called`, as `run.rs` writes one): the answer a later value's own call is held against (calls
 /// first, `confirm::by_its_call`). None, and nothing written, where it doesn't answer.
-pub(super) fn take_the_walks_answer(route: &store::Route, inputs: &HashMap<String, String>, fields: &[String], whole: &Value, ask: &Asked, ms: u64) -> Option<Value> {
+pub(super) fn take_the_walks_answer(route: &store::Route, inputs: &HashMap<String, String>, fields: &[String], whole: &crate::run::WholeAnswer, ask: &Asked, ms: u64) -> Option<Value> {
     let r = walk_served(route, inputs, fields, whole, ms);
-    if unanswered(&r, route, ask).is_some() {
+    if unanswered_from(&r, route, ask, Some(whole)).is_some() {
         return None;
     }
-    learn::sighted::called(route, &HashMap::new(), Some(whole), true, 0, 0);
+    learn::sighted::called(route, &HashMap::new(), Some(&whole.data), true, 0, 0);
     Some(r)
 }
 
@@ -1875,10 +2118,10 @@ fn first_call_behind(node: &Arc<Node>, a: &Agent, route: &store::Route, inputs: 
         }
         // Called as the read it was when the walk answered (`do_call_as_seen`): a second look that has since written a
         // body that changes the site under the route's name is not this route, and nothing is sent.
-        let called = rt.block_on(do_call_as_seen(&n, &a, route.id.clone(), inputs.clone(), fields, Some(route.write)));
+        let (called, whole) = rt.block_on(call::with_the_browser_shut(true, call::with_call_answer(do_call_as_seen(&n, &a, route.id.clone(), inputs.clone(), fields, Some(route.write)))));
         let ask = Asked { url: &url, goal: &route.what, subject: &subject, reworded: false, sibling: false, given: &inputs };
         let why = match &called {
-            Ok(r) => unanswered(r, &route, &ask).map(|w| w.as_str().unwrap_or("its answer is not the page's").to_string()),
+            Ok(r) => unanswered_from(r, &route, &ask, whole.as_deref()).map(|w| w.as_str().unwrap_or("its answer is not the page's").to_string()),
             Err((_, e)) => Some(e.clone()),
         };
         eprintln!("   [confirm] {}: its first call, behind the reply: {}", route.id, why.as_deref().map_or("answered on its own".to_string(), |w| format!("didn't answer on its own: {w}")));
@@ -1991,3 +2234,7 @@ pub(crate) mod slow {
         Some(Ok(json!({ "how": "learned", "picked_by": "a test", "route": { "id": "slow" }, "result": { "ok": true, "data": { "items": [{ "name": "desk lamp" }] } } })))
     }
 }
+
+#[cfg(test)]
+#[path = "goal_cov_tests.rs"]
+mod goal_cov_tests;

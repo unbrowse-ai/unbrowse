@@ -2,7 +2,7 @@
 // (ai-sdk.ts, langchain.ts, mastra.ts, openai-agents.ts) only wraps these in its framework's tool type.
 import { UnbrowseNode, type UnbrowseNodeOptions } from "../client.js";
 import { UnbrowseError } from "../http.js";
-import { primitiveRequest, type AgentPrimitives, type PrimitiveArgs } from "../generated.js";
+import type { AgentPrimitives, PrimitiveArgs } from "../generated.js";
 import { TOOLS, type ToolName, type ToolSpec } from "./tools.js";
 
 export { TOOLS, type ToolName, type ToolSpec, type InputSchema } from "./tools.js";
@@ -43,14 +43,14 @@ export function chosen(opts: UnbrowseToolsOptions = {}): ToolSpec[] {
 // A node without a browser can still call the routes it has and other contributors' routes; only walking a page it
 // hasn't learned needs one. A node that has the browser add-on names the case itself (`code: "browser_missing"` in its
 // answer, which an SDK that knows the code raises as BrowserMissingError and an older one as a 422) and says how to get
-// the browser (`install`); an older node says it only in its words, which the pattern catches.
+// the browser (`install`, a command for a script); the model is told the app's way, never a command to type, since its
+// person may have no terminal. An older node says it only in its words, which the pattern catches.
 const NO_BROWSER = /has no browser|downloading its browser/i;
 const STILL = "unbrowse_do still calls the routes the node has, and routes other contributors list for the site";
 
 function browserHint(e: UnbrowseError): string {
   const said = (e.body ?? {}) as { browser?: unknown; install?: unknown };
   if (said.browser === "installing") return `The node is fetching its browser now: try again in a minute. Meanwhile ${STILL}.`;
-  if (typeof said.install === "string") return `This node has no browser, so it can't walk a page it hasn't learned. ${STILL}; the owner gets the browser with \`${said.install}\` on the node's machine.`;
   return `This node has no browser, so it can't walk a page it hasn't learned. ${STILL}; ask the owner to install Chrome, or to download Chrome for Testing in the Unbrowse app's Settings, for the rest.`;
 }
 
@@ -94,8 +94,7 @@ export async function runTool(node: UnbrowseNode, spec: ToolSpec, input: unknown
     // names is one of this client's.
     if ("session" in spec.inputSchema.properties) args.session = args.session ? `${node.session}:${args.session}` : node.session;
     const tool = spec.name as keyof AgentPrimitives;
-    const req = primitiveRequest(tool, args as PrimitiveArgs<typeof tool>);
-    return await node.request(req.method, req.path, req.body);
+    return await node.primitive(tool, args as PrimitiveArgs<typeof tool>);
   } catch (e) {
     return toolError(e);
   }

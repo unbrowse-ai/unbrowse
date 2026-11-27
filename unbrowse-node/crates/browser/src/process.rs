@@ -114,6 +114,42 @@ pub fn listens_on_loopback(pid: u32, port: u16) -> bool {
     }
 }
 
+/// Whether a process numbered `pid` is running now: the one reader of it, for the reattach, the profile sweep and the
+/// reaper of launched browsers alike. On Windows a process is running while its exit code is STILL_ACTIVE (a handle
+/// can still be opened for one that has exited while its handles are held), and one the system won't open for this
+/// user is there. Two copies used to answer for Windows: one said every process was alive (#847 fixed it), the other
+/// said every one was dead, so the reaper removed the records of launchers still running.
+pub fn alive(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        i32::try_from(pid).is_ok_and(|pid| pid > 0 && unsafe { libc::kill(pid, 0) } == 0)
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, ERROR_ACCESS_DENIED, STILL_ACTIVE};
+        use windows_sys::Win32::System::Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+        if pid == 0 {
+            return false;
+        }
+        // SAFETY: a handle opened for querying only and closed before returning; the exit code is plain data.
+        unsafe {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if handle == 0 {
+                return GetLastError() == ERROR_ACCESS_DENIED;
+            }
+            let mut code = 0u32;
+            let read = GetExitCodeProcess(handle, &mut code);
+            CloseHandle(handle);
+            read != 0 && code == STILL_ACTIVE as u32
+        }
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = pid;
+        false
+    }
+}
+
 /// Whether the live process `pid` is still the one that started at `when`: a record that says nothing proves nothing.
 pub fn is_still(pid: u32, when: Option<u64>) -> bool {
     when.is_some() && started(pid) == when
@@ -155,5 +191,21 @@ mod tests {
         let theirs = started(pid);
         child.wait().unwrap();
         assert!(!is_still(pid, theirs), "a process that has gone is nobody");
+    }
+
+    /// A running process is alive, and one that has exited and been waited on is not, on every system.
+    #[test]
+    fn a_process_is_alive_until_it_has_gone() {
+        assert!(alive(std::process::id()), "this process");
+        #[cfg(windows)]
+        let mut child = std::process::Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap();
+        #[cfg(not(windows))]
+        let mut child = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+        let pid = child.id();
+        assert!(alive(pid), "a child still running");
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert!(!alive(pid), "a child killed and waited on");
+        assert!(!alive(0), "no process is number 0");
     }
 }

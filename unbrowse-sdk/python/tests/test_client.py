@@ -67,7 +67,7 @@ def answer(method, path, query, headers, body):
             return 422, {"error": "the walk failed: no Chrome"}
         return 404, {"error": "no such route"}
     if route == "GET /v1/whoami":
-        return 200, {"agent": "claude", "address": "0xabc", "node": "lewis-mac", "browser": "missing", "browser_fetch": False, "owner": "off"}
+        return 200, {"agent": "claude", "address": "0xabc", "node": "lewis-mac", "browser": "missing", "browser_fetch": False, "call_browser": True, "owner": "off"}
     if route == "GET /v1/routes":
         q = query.get("q", [""])[0]
         if q == "nothing here":
@@ -577,6 +577,7 @@ class ClientTest(unittest.TestCase):
             "cards": node.cards,
             "call": lambda: node.call("hn-search", {"q": "x"}),
             "whoami": node.whoami,
+            "setup": lambda: node.setup("connect_site", "github.com"),
             "report": lambda: node.report("wrong_data", "x", "x", "y"),
             "judge": lambda: node.judge("hn-search", "right"),
         }
