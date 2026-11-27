@@ -4,11 +4,7 @@ What a node pays for, who signs it, what it costs, and where a fee goes once an 
 running a node and an operator running a network. Every gas figure here was measured unless it says otherwise, and
 the last section says how.
 
-The contracts are `unbrowse-settlement/src/lean/` (private repository; `LeanSettlement.sol`, the
-listings, the domain proofs, the stand-in pool `Pool.sol` and the test tokens) and
-`unbrowse-settlement/src/coins/` (private repository; the route coins, their stakes, the fetch's buy
-and the bounties). Each one's functions, events and invariants are in the
-contracts reference (private repository). The node's side is [`unbrowse-node/app/src/`](../unbrowse-node/app/src):
+The compiled contract interfaces the node interacts with live in [`unbrowse-node/app/contracts/`](../unbrowse-node/app/contracts) (`LeanSettlement`, `Listings`, `Domains`, `RouteCoins`, `CoinStakes`, `CoinFetch`, `CoinBounties`). For the plain-English overview of route staking, earning from routes, and bounties, read [Payments, Staking & UNB](concepts/payments-and-unb.md) first. The node's side is [`unbrowse-node/app/src/`](../unbrowse-node/app/src):
 `chain/` (every Settlement write), `erc8004.rs` (the identity), `listing.rs` (listing roots), `peers.rs` (joining
 the network, holding) and `main.rs` (the owner commands and the background loop). The map of the whole system is
 [ARCHITECTURE.md](ARCHITECTURE.md).

@@ -347,8 +347,9 @@ password is the window's alone.
 |---|---|
 | `unbrowse app` | Opens the window, which starts the node when none is running |
 | `unbrowse start` | `unbrowse-node`: runs the node without the window. It serves agents at once and stays off the peer network, saying so, until `unbrowse terms accept` |
-| `unbrowse agent`, `chain`, `bounty`, `coin`, `max-fetch`, `network`, `passkey`, `reports`, `restart`, `session`, `share`, `sign-in`, `telemetry`, `terms`, `update`, `vault`, `wallet` … | `unbrowse-node <the same>` (`NODE_COMMANDS`) |
-| `unbrowse skill [dir]` | Puts the agent skill in `dir` (default `~/.claude/skills/unbrowse`). A global npm install does it by itself when Claude Code is there. What was there, unless it is a copy we wrote, unchanged, is moved aside to `unbrowse-kept/<name>.before-unbrowse-<time>` beside the skills folder, never deleted ([the skill](reference/the-skill.md)) |
+| `unbrowse install [--skill] [--commands] [--dry-run]` | What the app puts in place on its first start after the terms are accepted: the skill in the skills folder of every agent found here, `unb`, `unbrowse-node` and `unbrowse` linked into `~/.local/bin`, and one guarded line for that folder in the file the owner's shell reads at login, when it doesn't name it already. `--dry-run` writes nothing and says what it would do; `--skill` or `--commands` does one half (`install.rs`) |
+| `unbrowse agent`, `chain`, `bounty`, `coin`, `max-fetch`, `network`, `passkey`, `reports`, `restart`, `session`, `share`, `sign-in`, `telemetry`, `terms`, `update`, `vault`, `wallet` … | `unbrowse-node <the same>` (`NODE_COMMANDS`); in the app's install, `unbrowse` is `unb` under that name and passes any word that isn't its own to the node |
+| `unbrowse skill [dir]` | Puts the agent skill in `dir` (default: every agent's skills folder found here). A global npm install does it by itself when Claude Code is there, and so does the app's first start. What was there, unless it is a copy we wrote, unchanged, is moved aside to `unbrowse-kept/<name>.before-unbrowse-<time>` beside the skills folder, never deleted ([the skill](reference/the-skill.md)) |
 | `unbrowse where` | Where the programs are (`UNBROWSE_BIN`, the app, the platform package, or `PATH`) |
 | `unbrowse <anything else>` | `unb <the same>` (§4) |
 
@@ -360,6 +361,11 @@ password is the window's alone.
 (default `http://127.0.0.1:7788`). Before it sends the token, it asks the node to prove it is the node the token is for
 (`GET /v1/node/proof`), so a process that took the port never sees the token. It prints the node's JSON reply, and
 exits 1 when the reply has an `error`.
+
+`install`, `skill`, `where`, `app` and `start` are the exceptions: they touch the node's files or its own start and
+need no token, so a person can run them before any agent key exists. The app's install links this program as both `unb`
+and `unbrowse`; run as `unbrowse`, any word that isn't one of its own (`install`, `skill`, `where`, `app`, `start`, or
+one of the commands below) is passed to `unbrowse-node`, so `unbrowse vault …` and `unbrowse update` work too.
 
 | Command | Sends |
 |---|---|
@@ -377,6 +383,11 @@ exits 1 when the reply has an `error`.
 | `unb connect --client <client\|all>` | Writes the node's first agent into each client named (again, or a comma list; `all` for every one found here) as `unb mcp --agent first` with `UNBROWSE_NODE`, never a token: Claude Code through `claude mcp add` when `claude` is on the PATH, else in `~/.claude.json`; the others in their own config files, in the shape each reads. Clients: `claude-code`, `claude-desktop`, `cursor`, `codex`, `vscode`, `windsurf`, `devin`, `gemini-cli`, `antigravity`, `qwen-code`, `copilot-cli`, `factory-droid`, `kiro`, `warp`, `amp`, `opencode`, `kilo-code`, `augment`, `junie`, `cline`, `roo-code`, `lm-studio`, `hermes`, `openclaw`; only an installed one is written ([where each keeps it](guides/connect-your-agent.md#agents-the-app-connects)). Each entry is checked (`initialize`, `tools/list`) before anything is written; every file is backed up beside itself (`.before-unbrowse-<time>`, private) and recorded under `~/.unbrowse/connect/`. An `unbrowse` entry that isn't Unbrowse's is left alone. The window's Connect screen does the same (`agent_connect`) |
 | `unb connect --undo --client <…>` | Puts back what the window's Connect or `connect --client` last changed: the whole file while nothing else changed it since, else only the `unbrowse` entry |
 | `unb connect --undo [<time>] [--purge]` | Puts back what connect replaced (the newest backup, or the one named) and removes the node's entry; `--purge` then deletes the backup |
+| `unb install [--skill] [--commands] [--dry-run]` | The app's first-start install, from a shell, with no node running: the skill into every agent's skills folder found here, `unb`, `unbrowse-node` and `unbrowse` linked into `~/.local/bin`, and the PATH line when the owner's shell file doesn't name that folder already. Prints what it did (or, `--dry-run`, would do) as JSON and in words. A program running from a disk image or a translocated copy puts no commands on the PATH and says to open the app from Applications first |
+| `unb skill [dir]` | The skill alone: into `dir`, else every agent's skills folder found here. What is there that Unbrowse didn't write is kept beside it, never deleted |
+| `unb where` | Where the programs run from, and which of them are there |
+| `unb app` | The window, which starts the node when none is running |
+| `unb start [<words>…]` | `unbrowse-node` with those words (`unbrowse start --from <tag>`) |
 | `unb grant [<n> \| first]` | Lets agent `n` (else the node's first key) be used by a client on this machine: asks the owner as `agent token` does and keeps the yes as that agent's grant, for `unb mcp --agent`. Never prints the token |
 | `unb mcp [--agent <index\|first>]` | The node's MCP server over stdio, for an agent's MCP config: each JSON-RPC message goes to the node's `/mcp` signed with the named agent's token, which it reads from that agent's grant (`unb grant`, the owner asked once), never the keystore, else `UNBROWSE_AGENT_TOKEN`, after the node proves itself, and an answer goes back only when the node signed it. With no node running at `UNBROWSE_NODE` (after a reboot, say) it starts the one beside itself and waits up to 15 s for it |
 
