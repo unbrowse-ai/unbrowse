@@ -373,6 +373,24 @@ const COMMAND_WORDS: [&str; 31] = [
 
 /// C02 (the node's part): `unbrowse-node --help`, `-h` and `help` say how to run the node and name every command the node
 /// has, `money` and `domain` among them, and exit 0; none of them starts a node.
+/// The node's browser as `browser --json` says it from `home`: the home names no program (`UNBROWSE_BROWSER` is a file
+/// that isn't there) and holds no add-on, yet a test build is a debug build, which also drives the CLI built beside the
+/// engine it links, and any machine may have a Chromium installed. A machine that built that CLI and has a Chromium (the
+/// coverage job builds one and has the other) has a browser here; one that has neither doesn't. What the node says
+/// elsewhere is checked against this, so each test holds on either machine.
+fn browser_of(home: &Path) -> serde_json::Value {
+    let r = run(home, &["browser", "--json"]);
+    assert_eq!(r.code, Some(0), "{}", r.err);
+    serde_json::from_str(&r.out).unwrap_or_else(|e| panic!("{e}: {}", r.out))
+}
+
+/// Where a debug node finds a browser program its home doesn't name: the CLI's own release or debug build, beside the
+/// engine (`browse::binary`), and never the PATH's.
+fn built_programs() -> Vec<String> {
+    let engine = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../unbrowse-browser/cli/target");
+    ["release", "debug"].iter().map(|p| engine.join(p).join("agent-browser").display().to_string()).collect()
+}
+
 #[test]
 fn help_names_every_command_the_node_runs_and_starts_no_node() {
     let home = home("help");
@@ -551,9 +569,11 @@ fn the_commands_that_ask_no_node_say_what_the_home_holds() {
     let r = run(&home, &["terms"]);
     assert!(r.out.starts_with("terms 2026-11-01: `unbrowse-node terms show` prints them\nnot acknowledged yet: `unbrowse-node terms accept` records it"), "{}", r.out);
     assert!(run(&home, &["terms", "show"]).out.starts_with("# Terms of Service\n"));
+    let state = browser_of(&home)["state"].as_str().map(String::from).unwrap();
     let r = run(&home, &["browser"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
-    assert!(r.out.starts_with("browser: ") && r.out.contains("The node runs without it"), "{}", r.out);
+    assert!(r.out.starts_with(&format!("browser: {state}\n")), "{}", r.out);
+    assert_eq!(r.out.contains("The node runs without it"), state == "missing", "what works without it is said only when it is missing: {}", r.out);
     assert!(run(&home, &["remote"]).out.starts_with("off: `unbrowse-node remote on` gives this node an MCP address"));
     assert!(run(&home, &["agent", "bearer"]).out.starts_with("off: the node takes signed requests only; a token is never sent."));
     let r = run(&home, &["session", "list"]);
@@ -710,7 +730,9 @@ fn unb_beside_a_running_node_prints_the_nodes_answers_and_its_errors() {
     assert_eq!(r.code, Some(0), "{}", r.err);
     let who = json(&r);
     assert!(who["address"].as_str().is_some_and(|a| a.starts_with("0x")), "{who}");
-    assert_eq!(who["browser"], "missing", "{who}");
+    let browser = browser_of(&home);
+    let lacks = |part: &str| browser["missing"].as_array().unwrap().iter().any(|m| m == part);
+    assert_eq!(who["browser"], browser["state"], "{who}");
 
     let r = unb(&home, node.port, Some(&token), &["logins"], "");
     let v = json(&r);
@@ -735,11 +757,20 @@ fn unb_beside_a_running_node_prints_the_nodes_answers_and_its_errors() {
             assert_eq!(v["outcome"], o, "{v}");
         }
     }
-    for words in [&["browse", "status"][..], &["challenge", "look"], &["do", "get", "weather", "--url", "https://example.com"]] {
-        let r = unb(&home, node.port, Some(&token), words, "");
+    // With no browser at all, what needs one says so and how to get it. On a machine with a browser these would drive
+    // it at a live site, which a test doesn't, so there only the verb the browser never takes is checked.
+    if lacks("program") && lacks("chromium") {
+        for words in [&["browse", "status"][..], &["challenge", "look"], &["do", "get", "weather", "--url", "https://example.com"]] {
+            let r = unb(&home, node.port, Some(&token), words, "");
+            let v = json(&r);
+            assert_eq!((r.code, v["code"].as_str()), (Some(1), Some("browser_missing")), "{words:?}: {v}");
+            assert_eq!(v["install"], "unbrowse browser install");
+        }
+    } else if !lacks("program") {
+        let r = unb(&home, node.port, Some(&token), &["browse", "status"], "");
         let v = json(&r);
-        assert_eq!((r.code, v["code"].as_str()), (Some(1), Some("browser_missing")), "{words:?}: {v}");
-        assert_eq!(v["install"], "unbrowse browser install");
+        assert_eq!(r.code, Some(1), "{v}");
+        assert!(v["error"].as_str().is_some_and(|e| e.starts_with("the node's browser doesn't take status; it takes open, ")), "{v}");
     }
     node.stop();
     let _ = std::fs::remove_dir_all(&home);
@@ -766,7 +797,8 @@ fn unb_grant_lets_an_agent_in_and_an_ungranted_one_is_told_the_step() {
     let run = |words: &[&str]| unb(&home, node.port, Some(&token), words, "");
     let r = run(&["mcp", "--agent", "99"]);
     assert_eq!(r.code, Some(2));
-    assert!(r.err.starts_with("the owner hasn't let agent 99 in on this machine yet: run `unbrowse grant 99` once"), "{}", r.err);
+    assert!(r.err.starts_with("the owner hasn't let agent 99 in on this machine yet: they connect this agent from the Unbrowse app (Agents, Connect), which asks them once"), "{}", r.err);
+    assert!(!r.err.contains("unbrowse grant"), "an agent is named a place in the app, never a command (#822): {}", r.err);
     let r = run(&["grant", "9"]);
     assert_eq!(r.code, Some(1));
     assert!(r.err.starts_with("no live agent key 9:"), "{}", r.err);
@@ -812,7 +844,8 @@ fn unb_mcp_relays_each_line_to_the_node_and_answers_bad_lines() {
 }
 
 /// With no token and no grant, `unb mcp` is still an MCP server: it answers the agent's initialize and calls with the one
-/// step that connects it (`unbrowse connect`), so the agent shows its person that rather than a server that failed.
+/// step that connects it (Connect on the Unbrowse app's Agents screen, never a command to type), so the agent shows its
+/// person that rather than a server that failed.
 #[test]
 fn unb_mcp_with_no_grant_answers_with_the_one_step_that_connects_it() {
     let home = home("unb-mcp-none");
@@ -822,7 +855,8 @@ fn unb_mcp_with_no_grant_answers_with_the_one_step_that_connects_it() {
     let answers: Vec<serde_json::Value> = r.out.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
     assert_eq!(answers.len(), 3, "{}", r.out);
     assert!(answers.iter().all(|a| a["jsonrpc"] == "2.0"), "{}", r.out);
-    assert!(r.out.contains("unbrowse connect"), "the step that connects it: {}", r.out);
+    assert!(r.out.contains("open the Unbrowse app and click Connect on Agents"), "the step that connects it: {}", r.out);
+    assert!(!r.out.contains("unbrowse connect"), "the app's step, never a command: {}", r.out);
     let _ = std::fs::remove_dir_all(&home);
 }
 
@@ -837,7 +871,7 @@ fn connect_dry_run_changes_nothing_and_a_wrong_word_gets_the_usage() {
     assert!(r.out.contains("Dry run: nothing was changed."), "{}", r.out);
     let r = unb(&home, free_port(), None, &["connect", "--help"], "");
     assert_eq!(r.code, Some(2));
-    assert!(r.err.starts_with("usage: unbrowse connect [agent index] [--dry-run] [--yes]"), "{}", r.err);
+    assert!(r.err.starts_with("usage: unbrowse connect [--client <id>[,<id>…] | --client all] [agent index] [--dry-run] [--yes]"), "{}", r.err);
     let _ = std::fs::remove_dir_all(&home);
 }
 
@@ -910,23 +944,38 @@ fn wallet_restore_wants_a_recovery_phrase_and_a_wrong_word_gets_the_usage() {
     let _ = std::fs::remove_dir_all(&home);
 }
 
-/// `browser` says what the node's browser is (missing here), as text or as JSON; `fetch` and `headless` set whether the
-/// node fetches it; `install` on a build from source says how to get one; a wrong word gets the usage.
+/// `browser` says what the node's browser is, as text or as JSON: what it lacks, and the program it drives, which with
+/// none named is never one off the PATH; `fetch` and `headless` set whether the node fetches it; `install` with no
+/// program on a build from source says how to get one, and with a browser here says so; a wrong word gets the usage.
 #[test]
 fn the_browser_command_says_what_the_node_has_and_sets_whether_it_fetches() {
     let home = home("browser");
     let r = run(&home, &["browser", "--json"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
     let v: serde_json::Value = serde_json::from_str(&r.out).unwrap();
-    assert_eq!((v["state"].as_str(), v["fetch"].as_bool()), (Some("missing"), Some(true)), "{v}");
-    assert_eq!(v["program"], serde_json::Value::Null);
+    let lacks: Vec<&str> = v["missing"].as_array().unwrap().iter().map(|m| m.as_str().unwrap()).collect();
+    assert_eq!(v["fetch"].as_bool(), Some(true), "{v}");
+    assert_eq!(v["state"].as_str(), Some(if lacks.is_empty() { "present" } else { "missing" }), "{v}");
+    assert_eq!(v["program"].is_null(), lacks.contains(&"program"), "{v}");
+    assert_eq!(v["chromium"].is_null(), lacks.contains(&"chromium"), "{v}");
+    if let Some(p) = v["program"].as_str() {
+        assert!(built_programs().iter().any(|b| b == p), "a home that names no program drives only the CLI built beside the engine: {v}");
+    }
     assert_eq!(run(&home, &["browser", "fetch", "off"]).out, "off: the node never fetches its browser by itself\n");
     assert!(run(&home, &["browser", "status", "--json"]).out.contains("\"fetch\":false"));
     assert!(run(&home, &["browser"]).out.contains("fetches it when needed: no (unbrowse browser fetch on)"));
     assert_eq!(run(&home, &["browser", "fetch", "on"]).out, "on: the node fetches its browser the first time something needs it\n");
-    let r = run(&home, &["browser", "install"]);
-    assert_eq!(r.code, Some(1));
-    assert!(r.err.starts_with("this node was built from source, so no release holds its browser"), "{}", r.err);
+    // With a program but no Chromium, `install` downloads Chrome for Testing, which a test doesn't: that case isn't run.
+    if lacks.contains(&"program") {
+        let r = run(&home, &["browser", "install"]);
+        assert_eq!(r.code, Some(1));
+        assert!(r.err.starts_with("this node was built from source, so no release holds its browser"), "{}", r.err);
+    } else if lacks.is_empty() {
+        let r = run(&home, &["browser", "install"]);
+        assert_eq!(r.code, Some(0), "{}", r.err);
+        assert!(r.out.contains(&format!("the browser program is here already: {}", v["program"].as_str().unwrap())), "{}", r.out);
+        assert!(r.out.contains(&format!("Chromium is here already: {}", v["chromium"].as_str().unwrap())), "{}", r.out);
+    }
     let r = run(&home, &["browser", "bogus"]);
     assert_eq!(r.code, Some(2));
     assert!(r.err.contains("usage: unbrowse-node browser [status [--json] | install [--from <path>] | remove [--chromium] | fetch [on|off] | headless [on|off]]"), "{}", r.err);
@@ -1022,9 +1071,12 @@ fn a_sites_session_is_kept_from_a_cookie_file_listed_and_forgotten() {
     let node = Running::start(&home, &[], &[]);
     let cookies = home.join("cookies.json");
     std::fs::write(&cookies, r#"[{"name":"sid","value":"abc","domain":"example.com","path":"/","secure":true,"httpOnly":true}]"#).unwrap();
+    let chromium = !browser_of(&home)["chromium"].is_null();
     let r = ask(&node, &["session", "import", "example.com", "--from", cookies.to_str().unwrap()]);
     assert_eq!(r.code, Some(0), "{}", r.err);
-    assert!(r.out.starts_with("kept 1 cookies for example.com: calls send them."), "{}", r.out);
+    // The node's browser profiles take the cookies only where it has a Chromium to open them in.
+    let said = if chromium { "kept 1 cookies for example.com: calls send them, and the node's browser opens the site signed in (" } else { "kept 1 cookies for example.com: calls send them. The node's browser didn't take them" };
+    assert!(r.out.starts_with(said), "{}", r.out);
     assert!(r.out.contains(&format!("the cookie file signs in as you: delete {} now", cookies.display())), "{}", r.out);
     assert_eq!(ask(&node, &["session", "list"]).out, "example.com\t1 cookies\n");
     assert_eq!(ask(&node, &["session", "forget", "example.com"]).out, "dropped the node's session for example.com\n");
@@ -1306,7 +1358,7 @@ fn a_new_owner_onboards_from_a_clean_home_on_one_terminal_with_no_window() {
     let mut on = OnTerminal::start(&home, port, &["onboard"]);
     let shown = on.wait_for("Signing in needs one");
     let node = Started(shown.split("(pid ").nth(1).and_then(|t| t.split(|c: char| !c.is_ascii_digit()).next()).and_then(|p| p.parse().ok()));
-    assert!(node.0.is_some() && shown.contains("1/4 node: started"), "{shown}");
+    assert!(node.0.is_some() && shown.contains("1/6 node: started"), "{shown}");
     assert!(answers(port), "the node it started answers on its port");
     let shown = on.wait_for("to allow it, or press Enter");
     assert!(shown.contains("Signing in needs one"), "with no screen the passphrase is asked for, said why: {shown}");
@@ -1325,7 +1377,7 @@ fn a_new_owner_onboards_from_a_clean_home_on_one_terminal_with_no_window() {
     on.wait_for("Unbrowse AI Pte. Ltd.");
     on.wait_for_times("Type `accept`", 3);
     on.type_line("accept");
-    on.wait_for("3/4 terms 2026-11-01: acknowledged; the node joins the peer network");
+    on.wait_for("3/6 terms 2026-11-01: acknowledged; the node joins the peer network");
 
     on.wait_for("Type 1, 2 or 3");
     on.type_line("4");
@@ -1351,8 +1403,9 @@ fn a_new_owner_onboards_from_a_clean_home_on_one_terminal_with_no_window() {
     on.type_line(PASSPHRASE);
     let (code, shown) = on.ended();
     assert_eq!(code, Some(0), "{shown}");
-    assert!(shown.contains("done: this node is signed in"), "{shown}");
-    let wallet = shown.lines().find_map(|l| l.trim().strip_prefix("4/4 signed in as ")).unwrap_or_else(|| panic!("{shown}")).to_string();
+    assert!(shown.contains("done: this node is set up"), "{shown}");
+    assert!(shown.contains("5/6 agent apps: ") && shown.contains("6/6 web address: off"), "the apps and the web address, asked nothing with no flag: {shown}");
+    let wallet = shown.lines().find_map(|l| l.trim().strip_prefix("4/6 signed in as ")).unwrap_or_else(|| panic!("{shown}")).to_string();
     assert!(wallet.starts_with("0x") && wallet.len() == 42, "{shown}");
     assert!(!shown.contains(KEY), "the key is never said");
 
@@ -1365,7 +1418,7 @@ fn a_new_owner_onboards_from_a_clean_home_on_one_terminal_with_no_window() {
     let (code, shown) = on.ended();
     assert_eq!(code, Some(0), "{shown}");
     assert!(!shown.contains("Type "), "nothing is asked: {shown}");
-    for done in ["1/4 node: running", "2/4 owner passphrase: set already", "3/4 terms 2026-11-01: acknowledged already", format!("4/4 signed in already as {wallet}").as_str()] {
+    for done in ["1/6 node: running", "2/6 owner passphrase: set already", "3/6 terms 2026-11-01: acknowledged already", format!("4/6 signed in already as {wallet}").as_str()] {
         assert!(shown.contains(done), "{done}: {shown}");
     }
     drop(node);

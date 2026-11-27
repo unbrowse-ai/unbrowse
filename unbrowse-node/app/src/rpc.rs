@@ -2239,3 +2239,7 @@ pub(crate) mod tests {
         tokio::time::timeout(Duration::from_secs(5), waiter).await.expect("it goes once the turn is free").unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "rpc_cov_tests.rs"]
+mod rpc_cov_tests;

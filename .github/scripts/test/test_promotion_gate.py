@@ -544,6 +544,12 @@ class TaskGate(unittest.TestCase):
     def check(self, results, baseline=None, rereads=()):
         return gate.check_tasks(self.BANK, results, baseline or self.BASELINE, list(rereads))
 
+    def test_patent_list_uses_the_grant_date_cutoff(self):
+        tasks = json.loads((ROOT / "test-banks/gate/bank.json").read_text())["tasks"]
+        task = next(task for task in tasks if task["id"] == "u6:patent-analyst-1")
+        self.assertIn("were granted on or after January 1, 2020", task["task"])
+        self.assertEqual(task["check"], "count>=10:patent_number")
+
     def test_same_or_better_passes(self):
         problems, stats = self.check([result("a", "right"), result("b", "right"), result("c", "right")])
         self.assertEqual(problems, [])

@@ -796,6 +796,10 @@ pub fn find_auto_state_file(session_name: &str) -> Option<String> {
 /// Returns `Some(result)` for recognised state_* actions, `None` otherwise.
 pub fn dispatch_state_command(cmd: &Value) -> Option<Result<Value, String>> {
     let action = cmd.get("action").and_then(|v| v.as_str())?;
+    // Unbrowse fork: `state clear <session>`, `state rename <old> <new>` and `state show <file>` by their names.
+    if let Some(done) = super::unbrowse::saved::by_name(cmd) {
+        return Some(done);
+    }
     match action {
         "state_list" => Some(state_list()),
         "state_show" => Some(

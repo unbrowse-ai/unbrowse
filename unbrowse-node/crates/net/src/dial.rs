@@ -89,3 +89,7 @@ impl<B: NetworkBehaviour> NetworkBehaviour for OwnPort<B> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "dial_tests.rs"]
+mod dial_tests;

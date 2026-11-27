@@ -634,7 +634,7 @@ fn unnamed_pages(site: &str) -> Option<usize> {
 /// authenticator sign a challenge of its own and carry the assertion off the node.
 pub(crate) fn no_script_near_a_passkey(site: &str, args: &[String]) -> Result<(), String> {
     if runs_script(args) && crate::passkey::holds_scripts(site) {
-        return Err("the node keeps a passkey for this site (or the owner is enrolling one), so no agent script runs on its pages: a script could use the passkey outside the site's own sign-in. Use snapshot, get and click instead; the owner can keep passkeys off this site with `unbrowse-node passkey never <site>`".into());
+        return Err("the node keeps a passkey for this site (or the owner is enrolling one), so no agent script runs on its pages: a script could use the passkey outside the site's own sign-in. Use snapshot, get and click instead".into());
     }
     Ok(())
 }
@@ -741,7 +741,9 @@ pub(crate) fn held_from_scripts() -> String {
 // held page. That is the order a sign-up with a human check takes, either way round: the check met with
 // `unbrowse_challenge` (its steps are hands and its reads the node's) before the fill keeps the tab fillable; a page
 // that may hold a secret is pictured by no one (`page_policy` refuses a `screenshot` there, judged without asking the
-// page), and a picture the check tool takes is read once more at its moment ([`may_picture`]).
+// page), and a picture the check tool takes is read once more at its moment ([`may_picture`]). A check the submit
+// itself puts up comes after the fill, on a page holding the password masked in its field: it is met with a snapshot
+// and a click on its box, hands and the node's own read, with no picture.
 
 /// What the node reads of a page to say whether a picture of it could show a secret: the page's text, the value of
 /// every field that paints its value (any but a hidden one, or a password box still masked), in the page and every
@@ -1311,8 +1313,10 @@ pub fn learned(site: &str, session: &str) -> Vec<String> {
 
 /// Waits for what a command set off to land. A request carrying something typed on the site ends the wait as soon
 /// as it is logged (it was sent and answered); else the wait ends once the site's own hosts have been quiet for
-/// `quiet`. Other hosts' calls (a page's ads and beacons, which never stop) keep nothing waiting. `most` at the
-/// longest.
+/// `quiet`. Either only once nothing the step sent the site is still on its way (`still_coming`): the log holds a
+/// request once its answer is in, so a small call sent after a large one is logged first, and a wait that ended on it
+/// learned the flow without the call it was waiting for. Other hosts' calls (a page's ads and beacons, which never
+/// stop) keep nothing waiting. `most` at the longest.
 pub fn settle(site: &str, quiet: std::time::Duration, most: std::time::Duration) {
     use std::io::{Read, Seek, SeekFrom};
     let log = capture_dir().join(format!("{}.jsonl", session_of(site)));
@@ -1320,6 +1324,7 @@ pub fn settle(site: &str, quiet: std::time::Duration, most: std::time::Duration)
     let typed: Vec<String> = TYPED.locked().iter().filter(|(s, _)| *s == site).map(|(_, v)| v.clone()).collect();
     let mut at = std::fs::metadata(&log).map(|m| m.len()).unwrap_or(0);
     let mut partial = Vec::new();
+    let mut carried = false;
     let (start, mut still) = (std::time::Instant::now(), std::time::Instant::now());
     while start.elapsed() < most {
         std::thread::sleep(std::time::Duration::from_millis(150));
@@ -1334,11 +1339,16 @@ pub fn settle(site: &str, quiet: std::time::Duration, most: std::time::Duration)
         if let Some(end) = partial.iter().rposition(|&b| b == b'\n') {
             let lines: Vec<u8> = partial.drain(..=end).collect();
             for line in String::from_utf8_lossy(&lines).lines() {
-                if carries_typed(line, &typed) {
-                    return;
-                }
+                carried |= carries_typed(line, &typed);
                 own |= own_exchange(line, &suffix);
             }
+        }
+        if still_coming(&log, &suffix) {
+            still = std::time::Instant::now();
+            continue;
+        }
+        if carried {
+            return;
         }
         if own {
             still = std::time::Instant::now();
@@ -1346,6 +1356,17 @@ pub fn settle(site: &str, quiet: std::time::Duration, most: std::time::Duration)
             return;
         }
     }
+}
+
+/// Whether something the latest step sent the site's own hosts is still on its way: gone out, and not in the log yet,
+/// as the browser says beside the log (`CaptureLog::say_open`, a line `<sent at> <host>` each). A browser that says
+/// nothing of it keeps nothing waiting.
+fn still_coming(log: &Path, suffix: &str) -> bool {
+    std::fs::read_to_string(log.with_extension("open"))
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| l.split_once(' ').map(|(_, host)| host.trim()))
+        .any(|host| on_site(host, suffix))
 }
 
 /// Whether a browsing log line is a request that sent one of the typed values, as typed or as a URL carries it.
@@ -1430,19 +1451,27 @@ pub fn session_of(site: &str) -> String {
 /// The longest a Unix socket's path may be (`sun_path` less its terminating NUL, on macOS the shorter).
 const SOCKET_PATH_MAX: usize = 103;
 
-/// `name` cut to fit, with its socket, in a folder whose path is `dir` bytes long: its head, `-`, and 12 hex digits of
-/// the whole name's SHA-256. Unchanged when it fits, or when the folder leaves no room for even a cut one.
+/// `name` cut to fit, with its socket, in a folder whose path is `dir` bytes long: `-`, as many of 12 hex digits of
+/// the whole name's SHA-256 as the room allows, and as much of the name's head before it. Unchanged when it fits, or
+/// when the folder leaves no room for even a `-` and one hex digit.
 fn fitted(name: String, dir: usize) -> String {
     use sha2::Digest;
     let room = SOCKET_PATH_MAX.saturating_sub(dir + "/".len() + ".sock".len());
     const HASH: usize = 12;
-    let head = room.saturating_sub(HASH + 1);
-    if name.len() <= room || head < "browse_".len() + 1 {
+    // One byte for the `-` and one for the hash at the least: any less and two long names would share one session.
+    if name.len() <= room || room < 3 {
         return name;
     }
     let hash = sha2::Sha256::digest(name.as_bytes());
     let hex: String = hash.iter().map(|b| format!("{b:02x}")).collect();
-    format!("{}-{}", &name[..head], &hex[..HASH])
+    // A short room keeps the hash as long as it can and takes the cut out of the head: the hash is what keeps two long
+    // names apart, and the head is there to be read.
+    let tail = HASH.min(room - 1);
+    let mut head = room - tail - 1;
+    while !name.is_char_boundary(head) {
+        head -= 1;
+    }
+    format!("{}-{}", &name[..head], &hex[..tail])
 }
 
 /// The site spelled out as a session name, before it is fitted to its socket.
@@ -1483,7 +1512,7 @@ pub(crate) fn binary() -> Result<PathBuf, String> {
         .chain(built)
         .flatten()
         .find(|p| p.is_file())
-        .ok_or_else(|| format!("the node's browser program isn't installed: run `{}`, or set UNBROWSE_BROWSER to it", crate::browsers::INSTALL))
+        .ok_or_else(|| "the node's browser program isn't installed: its owner downloads it in the Unbrowse app (Settings, Browser, Download Chrome for Testing)".to_string())
 }
 
 /// A command the node's browser doesn't take, ending with the door that does what it was for (UNB-148). The site's
@@ -1494,7 +1523,7 @@ fn not_taken(verb: &str, host: Option<&str>) -> String {
         "cookies" | "storage" | "state" | "session" => {
             let host = host.filter(|h| !h.is_empty()).unwrap_or("<host>");
             format!(
-                "the node's browser doesn't take {verb}: a site's cookies are the node's session for it, which the owner sets. To sign the node in as the owner, the owner runs `unbrowse-node session import {host}` (or `session forget {host}` to drop it); to sign in here, open the site's sign-in page and fill it"
+                "the node's browser doesn't take {verb}: a site's cookies are the node's session for it, which the owner sets. To sign the node in as its owner, ask them: in the Unbrowse app, Vault, \"Import a site's session\" takes their own sign-in for {host} (and Forget on its row drops it); to sign in here, open the site's sign-in page and fill it"
             )
         }
         _ => format!("the node's browser doesn't take {verb}; it takes {}", COMMANDS.join(", ")),
@@ -1510,19 +1539,42 @@ fn flag_refused(verb: &str, flag: &str, flags: &[&str]) -> String {
 
 /// A command sent as one item with its words run together (`"open https://…"`, as the tool's text writes it): the node
 /// takes each word as its own item. What to send instead, when the first word is a command it takes; nothing for a
-/// command already in words.
+/// command already in words. A `do` is one command: when the items after it are commands too (`"press Enter"`,
+/// `"snapshot -i"`), they are calls of their own, said one by one, never folded into the first command's words, which
+/// would type them into the page (the gate's `u6:customs-broker-1`, 24 Nov 2026: the search box read "lithium-ion
+/// battery press Enter snapshot").
 pub fn words_run_together(args: &[String]) -> Option<String> {
     let [one, rest @ ..] = args else { return None };
-    let (verb, tail) = one.trim().split_once(char::is_whitespace)?;
+    let (verb, _) = one.trim().split_once(char::is_whitespace)?;
     if !COMMANDS.contains(&verb) {
         return None;
     }
-    let words: Vec<String> = std::iter::once(verb).chain(tail.split_whitespace()).map(|w| w.to_string()).chain(rest.iter().cloned()).collect();
+    let is_command = |item: &String| item.split_whitespace().next().is_some_and(|w| COMMANDS.contains(&w));
+    if rest.iter().any(is_command) {
+        let calls: Vec<String> = args.iter().map(|c| serde_json::to_string(&as_words(c)).unwrap_or_default()).collect();
+        return Some(format!(
+            "one command a call: do is the words of one command, so send {} as {} calls of unbrowse_browse, in that order",
+            calls.join(", then "),
+            calls.len()
+        ));
+    }
+    let words: Vec<String> = as_words(one).into_iter().chain(rest.iter().cloned()).collect();
     Some(format!(
         "each word of a command is its own item of do: send {} instead of [{}]",
         serde_json::to_string(&words).unwrap_or_default(),
         serde_json::to_string(one).unwrap_or_default()
     ))
+}
+
+/// One command written as a line, as the items of its `do`: the text a fill or a type puts in is one item, spaces and
+/// all, after the ref it goes into.
+fn as_words(command: &str) -> Vec<String> {
+    let mut words: Vec<String> = command.split_whitespace().map(String::from).collect();
+    if matches!(words.first().map(String::as_str), Some("fill" | "type")) && words.len() > 3 {
+        let text = words.split_off(2).join(" ");
+        words.push(text);
+    }
+    words
 }
 
 /// Checks the command is one an agent may give, and says which site it acts on: the opened page's, else the one
@@ -1627,7 +1679,7 @@ pub fn site(args: &[String], site: Option<&str>, session: &str) -> Result<String
 }
 
 /// Notes the site `session` browsed last.
-fn browsed(session: &str, site: &str) {
+pub(crate) fn browsed(session: &str, site: &str) {
     let mut last = LAST.locked();
     last.retain(|(w, _)| w != session);
     last.push((session.to_string(), site.to_string()));
@@ -1757,7 +1809,8 @@ fn fresh_refs(site: &str, session: &str, said: &str, look: impl FnOnce() -> Opti
 /// are the ones the browser holds from here on.
 fn with_fresh_refs(said: String, snapshot: Option<&str>) -> String {
     let mut out = said.clone();
-    if said.contains("Unknown ref: ") {
+    let stale = said.contains("Unknown ref: ");
+    if stale {
         out.push_str(": the page changed since the snapshot that ref came from (a click or a page load renumbers its elements), so that ref is gone.");
     } else if said.contains("is covered by <") {
         if said.contains("(a cookie or consent banner)") {
@@ -1770,6 +1823,7 @@ fn with_fresh_refs(said: String, snapshot: Option<&str>) -> String {
         return said;
     }
     match snapshot.filter(|s| !s.trim().is_empty()) {
+        Some(s) if stale => out.push_str(&format!("\nTake a new snapshot (snapshot -i) if the page changes again. For this retry, use the fresh refs below:\n{s}")),
         Some(s) => out.push_str(&format!("\nThe page's elements now, with the refs to use:\n{s}")),
         None => out.push_str(" Take a new snapshot (snapshot -i) for the page's elements now."),
     }
@@ -2023,6 +2077,9 @@ fn sent_on(said: &serde_json::Value) -> String {
     }
     if said["submitted"].as_bool() == Some(true) {
         told.push_str(", and submitted the form: don't click its button. Take a snapshot to see where the sign-in landed");
+    }
+    if said["checking"].as_bool() == Some(true) {
+        told.push_str(". The form put up a person check when it was sent (a frame of another site over the page), so the password stays masked in its field and the sign-in goes on once the check is met: take a snapshot, click the check's own box by its reference (no picture is taken while the password sits in the page), then take a snapshot again. Don't fill it again first");
     }
     if said["cleared"].as_u64().is_some_and(|n| n > 0) {
         told.push_str(". The page still held the secret afterwards (the sign-in didn't go through, or the site showed it back), so the node cleared it from the page");
@@ -2773,8 +2830,9 @@ fn sockets() -> PathBuf {
     store::home().join("browser")
 }
 
-/// Where a site's running browser answers: its socket, or on Windows the file holding its port on 127.0.0.1.
-fn door(site: &str) -> PathBuf {
+/// Where a site's running browser answers: its socket, or on Windows the file holding its port on 127.0.0.1. The one
+/// reader of that path, so a test that puts a browser behind it binds where the node looks.
+pub(crate) fn door(site: &str) -> PathBuf {
     sockets().join(format!("{}.{}", session_of(site), if cfg!(windows) { "port" } else { "sock" }))
 }
 
@@ -2810,6 +2868,41 @@ fn runs_in(sockets: &Path, site: &str, profile: &Path) {
 /// A closed browser is launched afresh by the next page opened.
 fn closed(sockets: &Path, site: &str) {
     let _ = std::fs::remove_file(profile_file(sockets, site));
+    // A fresh launch starts as it always does: a window is for the step that found a door refusing this client, and
+    // it is set again by that step after this (`open_in_a_window`).
+    WINDOWED.locked().retain(|s| s != site);
+}
+
+/// Sites whose browser this node opened with a window because a door refused a client with none: read by `cli` on
+/// every launch, and set by the one step that retried (`refused_a_client`, `api::browse`).
+static WINDOWED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Whether `site`'s browser runs with a window: a door refused a client with none here, and the step that found it
+/// retried once. The owner's `headless_only` beats it, read where it is used (`cli`).
+pub fn windowed(site: &str) -> bool {
+    WINDOWED.locked().iter().any(|s| s == site)
+}
+
+/// Has `site`'s browser run with a window from the next launch: the retry after a refusal.
+pub fn open_in_a_window(site: &str) {
+    let mut w = WINDOWED.locked();
+    if !w.iter().any(|s| s == site) {
+        w.push(site.to_string());
+    }
+}
+
+/// Launches `site`'s browser again with a window, for the step that found a door refusing a client with none: the
+/// running browser is closed, so the next command starts one that shows itself.
+pub fn relaunch_in_a_window(site: &str) {
+    closed(&sockets(), site);
+    open_in_a_window(site);
+}
+
+/// Whether a landing is one a door makes to a client it refuses before it looks at the page: no answer at all
+/// (`status` 0: the browser's own page for a site it couldn't reach), or a status a door uses while it decides
+/// (`trace::REFUSED`: 403, 429, 503). A site's own 404 is not one: that page is simply not there.
+pub fn refused_a_client(status: Option<u16>) -> bool {
+    status.is_some_and(|s| s == 0 || unbrowse_learn::trace::REFUSED.contains(&s))
 }
 
 /// How a site's browser is launched, given on every command alike: a command that names a launch the browser isn't
@@ -2864,6 +2957,11 @@ fn cli(site: &str, tab: Option<&str>) -> Result<Command, String> {
     in_tab(&mut cmd, tab);
     unbrowse_learn::mint::noted_program_session(&cmd.get_program().to_string_lossy(), &session_of(site), Some(&sockets));
     cmd.args(["--session", &session_of(site)]).args(launch(&sockets, &store::profiles_dir(), site)?);
+    // A door that refused a client with no window here is answered by one that shows itself: the step that found it
+    // asked for this (`relaunch_in_a_window`). The owner's `headless_only` keeps every browser headless.
+    if windowed(site) && !crate::browsers::headless_only() {
+        cmd.arg("--headed");
+    }
     Ok(cmd)
 }
 
@@ -3669,6 +3767,34 @@ pub fn last_site(session: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    /// A door that refuses a client with no window is opened once in one. The decision is one reader (`refused_a_client`)
+    /// and the flag it sets is what the launch reads (`windowed`), so a page the site answered is never retried and a
+    /// retry never becomes a loop.
+    #[test]
+    fn a_client_a_door_refused_with_no_window_is_opened_once_in_one() {
+        // No answer at all, or a status a door uses while it decides: refused before it looked at the page.
+        for status in [0u16, 403, 429, 503] {
+            assert!(refused_a_client(Some(status)), "{status} is a door refusing a client");
+        }
+        // A page that is simply not there, or one that answered: not a refusal, and no window is opened for it.
+        for status in [200u16, 301, 404, 410, 500] {
+            assert!(!refused_a_client(Some(status)), "{status} is not a door refusing a client");
+        }
+        assert!(!refused_a_client(None), "no document read is not a refusal");
+
+        let site = "a-window.example";
+        assert!(!windowed(site), "a site starts headless, as it always did");
+        open_in_a_window(site);
+        assert!(windowed(site), "the retry's window is what the launch reads");
+        open_in_a_window(site);
+        assert_eq!(WINDOWED.locked().iter().filter(|s| *s == site).count(), 1, "asked for once, never twice");
+        // A closed browser is launched afresh by the next page opened: headless again until a door refuses it.
+        let dir = std::env::temp_dir().join(format!("a-window-test-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        closed(&dir, site);
+        assert!(!windowed(site), "a fresh launch starts headless again");
+    }
+
     /// External security review (round 4 follow-up, untangle 2026-11-06): every check of where a script ran fails
     /// closed the same way. A holds file that couldn't be read, or a page a scripted tab opened, counts for a tab the
     /// node fills a secret into, a tab it hands the owner, and the page the owner's window types into alike.
@@ -3866,6 +3992,7 @@ mod tests {
     /// the owner's window would show, and no hold on a page that no longer exists.
     #[test]
     fn what_the_node_held_of_a_browser_goes_with_it_however_it_went() {
+        let _sweeping = super::SWEEPING.write().unwrap_or_else(|e| e.into_inner());
         let home = short_home("went");
         std::fs::create_dir_all(sockets()).unwrap();
         let site = "went-away.example";
@@ -4056,6 +4183,7 @@ mod tests {
         let now = "- link \"Homepage\" [ref=e1]\n- button \"Accept all\" [ref=e7]\n- button \"Sign in\" [ref=e8]";
         let said = with_fresh_refs("✗ Unknown ref: e33".into(), Some(now));
         assert!(said.starts_with("✗ Unknown ref: e33: the page changed") && said.ends_with(now), "{said}");
+        assert!(said.contains("snapshot -i"), "{said}");
         let said = with_fresh_refs("✗ Unknown ref: e33".into(), None);
         assert!(said.contains("snapshot -i"), "{said}");
         let covered = "✗ Element '@e8' is covered by <div.cc-window inside div#cookieConsent (a cookie or consent banner), which holds button \"Accept all\"> at its click point, so the input would land on that element instead.";
@@ -4529,6 +4657,29 @@ mod tests {
         assert_eq!(names[0], fitted(spelled(hosts[0]), long_home), "the same site, the same session");
         // A folder with no room even for a cut name leaves the name whole, for the browser to say why.
         assert_eq!(fitted(spelled(hosts[0]), 100), spelled(hosts[0]));
+    }
+
+    /// UNB-208: the room a socket gets can be smaller than the hash `fitted` would like, and a site still has to get a
+    /// browser. A home that leaves nine bytes (macOS's `/var/folders/…` temp folder under a scratch name did) binds,
+    /// and two long sites still get two sockets.
+    #[cfg(unix)]
+    #[test]
+    fn a_home_that_leaves_a_socket_nine_bytes_still_binds_it() {
+        let stem = format!("/tmp/ub-fits-{}", std::process::id());
+        let home = PathBuf::from(format!("{stem}{}", "x".repeat(80 - stem.len())));
+        assert_eq!(home.as_os_str().len(), 80, "a home that leaves the socket nine bytes");
+        std::fs::create_dir_all(home.join("browser")).unwrap();
+        store::use_home(&home);
+        let site = "challenge-look-asks.example";
+        let name = session_of(site);
+        assert_eq!(name.len(), 9, "{name}");
+        assert!(home.join("browser").join(format!("{name}.sock")).as_os_str().len() <= SOCKET_PATH_MAX, "{name}");
+        let other = session_of("challenge-look-asks.example.co.uk");
+        assert_ne!(other, name, "two long sites, two sessions");
+        for site in [site, "challenge-look-asks.example.co.uk"] {
+            std::os::unix::net::UnixListener::bind(door(site)).expect("the socket fits the home");
+        }
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     /// Two sites never share a browser: whatever separates their names separates their sessions, and so their
@@ -5236,6 +5387,32 @@ mod tests {
         assert!(!held_near_a_secret(&args(&["click", "@e1"])));
     }
 
+    /// A check the submit itself puts up stands in front of a sign-in, on the page that holds the password: what meets
+    /// it is a snapshot (its box with a reference, said back with every secret as its name) and a click on that box,
+    /// which a held page takes; a picture of it, as before, is taken by no one.
+    #[test]
+    fn a_check_in_front_of_a_held_sign_in_is_met_by_snapshot_and_click() {
+        let site = "checked.example";
+        FILLED.locked().push((site.into(), "Checked-Pass-77".into(), "vault:checked.example:me".into(), "https://checked.example/login".into()));
+        for meets in [&["snapshot", "-i"][..], &["click", "@e1164"], &["get", "url"]] {
+            assert_eq!(page_policy(site, "1:", &args(meets)), Ok(None), "{meets:?}");
+        }
+        let pictured = page_policy(site, "1:", &args(&["screenshot"])).unwrap_err();
+        assert!(pictured.contains("takes no picture"), "{pictured}");
+        FILLED.locked().retain(|(s, ..)| s != site);
+    }
+
+    /// A fill whose submit put up a person check tells the agent to meet the check, not to fill again: the password
+    /// waits in its field for it. One that cleared the page says that instead.
+    #[test]
+    fn a_fill_waiting_on_a_check_says_to_meet_it() {
+        let waiting = sent_on(&serde_json::json!({ "submitted": true, "cleared": 0, "checking": true }));
+        assert!(waiting.contains("click the check's own box") && waiting.contains("Don't fill it again"), "{waiting}");
+        assert!(!waiting.contains("cleared it"), "{waiting}");
+        let cleared = sent_on(&serde_json::json!({ "submitted": true, "cleared": 1 }));
+        assert!(cleared.contains("cleared it") && !cleared.contains("check's own box"), "{cleared}");
+    }
+
     /// A page holding a secret answers no read of a field's value, an attribute or its markup: those come back in
     /// whatever form the page wrote the secret, which no list of forms covers. Its text and snapshot still go, said
     /// back with references, and a page holding nothing answers every read.
@@ -5372,10 +5549,10 @@ mod tests {
     #[test]
     fn a_refused_command_or_flag_names_the_door_that_works() {
         let err = site_for(&args(&["cookies", "clear"]), Some("https://www.shop.co.uk/cart"), "").unwrap_err();
-        assert!(err.contains("`unbrowse-node session import shop.co.uk`"), "{err}");
-        assert!(err.contains("session forget shop.co.uk"), "{err}");
+        assert!(err.contains("\"Import a site's session\" takes their own sign-in for shop.co.uk"), "{err}");
+        assert!(err.contains("Forget on its row drops it"), "{err}");
         let err = site_for(&args(&["cookies", "get"]), None, "").unwrap_err();
-        assert!(err.contains("`unbrowse-node session import <host>`"), "{err}");
+        assert!(err.contains("their own sign-in for <host>"), "{err}");
         let err = site_for(&args(&["auth", "login"]), Some("a.example"), "").unwrap_err();
         assert!(err.ends_with(&COMMANDS.join(", ")), "another verb still lists what the browser takes: {err}");
         let err = site_for(&args(&["open", "https://example.com", "--executable-path", "/bin/sh"]), None, "").unwrap_err();
@@ -5706,3 +5883,12 @@ mod order_tests {
         assert!(!said.contains("4242 4242"), "{said}");
     }
 }
+
+/// Tests that hold a browser across steps take this to read; the one test that sweeps every browser (`sweep_idle`) takes
+/// it to write, so it never forgets a browser another test is using.
+#[cfg(test)]
+pub(crate) static SWEEPING: std::sync::RwLock<()> = std::sync::RwLock::new(());
+
+#[cfg(test)]
+#[path = "browse_cov_tests.rs"]
+mod browse_cov_tests;

@@ -483,6 +483,120 @@ fn forget_native(site: &str, keys: Option<&dyn unbrowse_core::KeyStore>) {
     }
 }
 
+/// The site's sign-in as a route's body may carry it to other nodes (`Recipe::sign_in`): the node's own kept sign-in
+/// for `site` (`Setup::sealed`), opened from the vault, with nothing of its owner's in it. Its password is the secret
+/// `login.secret` and the account it typed `login.account`, neither with a value; every other value the walk's
+/// sign-in had is the site's (a constant, a page's token read again at call time), or it isn't shared. Then the
+/// account, the login's name and the password are looked for in the whole body, and a body that still says one is not
+/// shared, as nothing of a sign-in is that doesn't pass `recipe::sign_in_admitted`. None when the node keeps no such
+/// sign-in for the site, its vault is shut, or anything here refuses: the route is listed without one.
+pub fn shared(site: &str) -> Option<crate::recipe::Recipe> {
+    let keys = NODE.get().and_then(|n| n.key().ok())?;
+    shared_with(site, keys)
+}
+
+fn shared_with(site: &str, keys: &dyn unbrowse_core::KeyStore) -> Option<crate::recipe::Recipe> {
+    use unbrowse_learn::graph::Class;
+    let site = unbrowse_learn::identity::site_of(site);
+    let setup = load(&site).into_iter().find(|s| s.kind == Kind::SignIn && s.sealed.is_some())?;
+    let login = crate::vault::Ref::parse(setup.sealed.as_deref()?)?;
+    let keep = crate::vault_keep(Ok(keys)).ok()?;
+    let mut graph: unbrowse_learn::graph::Graph = serde_json::from_str(&crate::vault::sign_in(&keep, &login).ok()??).ok()?;
+    let mut typed: Vec<String> = vec![login.account.clone(), login.name()];
+    let mut accounts = 0;
+    for field in graph.steps.iter_mut().flat_map(|s| s.fields.iter_mut()) {
+        if let Class::Input { name, secret, default, optional } = &mut field.class {
+            typed.extend(default.take());
+            *optional = false;
+            if *secret {
+                *name = crate::recipe::LOGIN_SECRET.to_string();
+            } else {
+                *name = crate::recipe::LOGIN_ACCOUNT.to_string();
+                accounts += 1;
+            }
+        }
+    }
+    let why_not = |why: &str| {
+        eprintln!("   [setup] {site}: its sign-in isn't shared with the routes it serves: {why}");
+        None
+    };
+    if accounts > 1 {
+        return why_not("it types more than an account and a password");
+    }
+    let host = graph.steps.last().and_then(|s| unbrowse_learn::replay::step_host(&s.url))?;
+    let route = match as_a_route(&graph, &host, &setup.page) {
+        Ok(route) => route,
+        Err(e) => return why_not(&e),
+    };
+    let mut recipe = match crate::recipe::compile(&route) {
+        Ok(r) => r,
+        Err(e) => return why_not(&e),
+    };
+    recipe.sign_in = None;
+    let text = String::from_utf8(crate::recipe::canonical(&recipe)).unwrap_or_default();
+    if typed.iter().filter(|t| t.chars().count() >= 3).any(|t| crate::recipe::still_carries(&text, t)) {
+        return why_not("it would still say the account it signs in as");
+    }
+    if let Err(e) = crate::recipe::sign_in_admitted(&recipe, &site) {
+        return why_not(&e);
+    }
+    Some(recipe)
+}
+
+/// Takes a route's shared sign-in for `site` (`Recipe::sign_in`, someone else's) as this node's own kept sign-in, filled
+/// from `login`, a login of this node's own vault for the site: what the owner said yes to. The sign-in's requests are
+/// held to `recipe::sign_in_admitted` first; then they are the node's own sign-in, sealed under `login` as a sign-in
+/// it walked itself is, and sent by the same path (`natively`): the login's own site, an encrypted connection, the
+/// vault's checks. So a node signs in with someone else's sign-in only as its own owner's account.
+pub fn adopt(site: &str, sign_in: &crate::recipe::Recipe, login: &crate::vault::Ref, keys: &dyn unbrowse_core::KeyStore) -> Result<(), String> {
+    use unbrowse_learn::graph::Class;
+    let site = unbrowse_learn::identity::site_of(site);
+    if login.new || login.code || !login.fits(&site) {
+        return Err(format!("{} isn't a login for {site}", login.name()));
+    }
+    let mut graph = crate::recipe::sign_in_graph(sign_in, &site)?;
+    for step in &mut graph.steps {
+        step.foreign = false;
+        for field in &mut step.fields {
+            if let Class::Input { name, default, .. } = &mut field.class {
+                *default = Some(if name == crate::recipe::LOGIN_SECRET { login.name() } else { login.account.clone() });
+            }
+        }
+    }
+    let page = sign_in.root.clone();
+    let setup = Setup { kind: Kind::SignIn, page, asks: None, earns: Vec::new(), steps: Vec::new(), native: Some(serde_json::to_value(&graph).map_err(|e| e.to_string())?), sealed: None };
+    let sealed = seal(&site, setup, Some(keys));
+    if sealed.sealed.is_none() {
+        return Err(format!("the sign-in couldn't be kept under {}", login.name()));
+    }
+    let mut kept: Vec<Setup> = load(&site).into_iter().filter(|s| !s.same_as(&sealed)).collect();
+    kept.push(sealed);
+    store::write_json(&path(&site), &unbrowse_files::SETUPS, &kept).map_err(|e| e.to_string())
+}
+
+/// Lets go of a sign-in taken from another node's route ([`adopt`]) that didn't sign in. It has no steps of its own, so
+/// with its request let go (as a kept sign-in's is when it fails) nothing would be left of it but its name, and the node
+/// would take that for a sign-in of its own and never ask its owner again: it goes whole, and the next call asks.
+pub fn drop_adopted(site: &str, keys: &dyn unbrowse_core::KeyStore) {
+    let site = unbrowse_learn::identity::site_of(site);
+    forget_native(&site, Some(keys));
+    let kept = load(&site);
+    let left: Vec<Setup> = kept.iter().filter(|s| !(s.kind == Kind::SignIn && s.steps.is_empty())).cloned().collect();
+    if left.len() != kept.len() {
+        if let Err(e) = store::write_json(&path(&site), &unbrowse_files::SETUPS, &left) {
+            eprintln!("   [setup] {site}: {e}");
+        }
+    }
+}
+
+/// Signs `site` in now by its kept sign-in's own requests (`natively`), as a call that found its session gone would:
+/// whether the site answered as it does to a sign-in that took.
+pub fn sign_in_now(site: &str, host: &str, who: &str, keys: &dyn unbrowse_core::KeyStore) -> bool {
+    let site = unbrowse_learn::identity::site_of(site);
+    let Some(s) = load(&site).into_iter().find(|s| s.kind == Kind::SignIn && s.sealed.is_some()) else { return false };
+    matches!(natively(&s, host, &site, who, Some(keys)), Native::Earned(_))
+}
+
 /// A kept sign-in's graph as a route of this node's own, for the vault's checks: its inputs are the graph's, a login
 /// bound to each secret one by its vault name, and its site the sign-in's. Never stored, listed or called by an agent.
 fn as_a_route(graph: &unbrowse_learn::graph::Graph, host: &str, page: &str) -> Result<store::Route, String> {
@@ -526,7 +640,7 @@ pub fn judged_by_the_call(site: &str, who: &str, passed: bool) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::cell::RefCell;
 
@@ -725,6 +839,193 @@ mod tests {
         // The login goes, and its sign-in with it.
         crate::vault::remove(&keep, "shop.example", "me").unwrap();
         assert!(crate::vault::sign_in(&keep, &r).unwrap().is_none());
+    }
+
+    /// The site the shared sign-in tests sign in on: a name under a public suffix, as a route from another node needs.
+    const SITE: &str = "shop.example.com";
+
+    /// [`read_sign_in`] on [`SITE`].
+    fn public_sign_in() -> Setup {
+        serde_json::from_str(&serde_json::to_string(&read_sign_in()).unwrap().replace("shop.example", SITE)).unwrap()
+    }
+
+    /// A route's body may carry the site's sign-in so another node can sign in as its own owner: what it carries says
+    /// nothing of this node's owner. Their account and the login's name are out of it, the password was never in it,
+    /// and its only caller values are an account and a secret, each with no value.
+    #[test]
+    fn a_shared_sign_in_says_nothing_of_its_owner() {
+        let _one = crate::testchain::one_at_a_time_blocking();
+        store::scratch_home("setup-shared-sign-in");
+        let keys = keys_with_login(SITE);
+        let kept = seal(SITE, public_sign_in(), Some(&keys));
+        store::write_json(&path(&unbrowse_learn::identity::site_of(SITE)), &unbrowse_files::SETUPS, &vec![kept]).unwrap();
+        let shared = shared_with(SITE, &keys).expect("the site's sign-in is shared");
+        let text = String::from_utf8(crate::recipe::canonical(&shared)).unwrap();
+        for owners in ["me@mail.example", "vault:", "hunter2-pass", "shop.example.com:me"] {
+            assert!(!text.contains(owners), "{owners} in {text}");
+        }
+        let params: Vec<(&str, bool, bool)> = shared.params.iter().map(|p| (p.name.as_str(), p.secret, p.default.is_none())).collect();
+        assert_eq!(params, vec![(crate::recipe::LOGIN_ACCOUNT, false, true), (crate::recipe::LOGIN_SECRET, true, true)], "{text}");
+        assert!(crate::recipe::sign_in_admitted(&shared, SITE).is_ok());
+        // No sign-in kept for a site: nothing to share.
+        assert!(shared_with("other.example", &keys).is_none());
+    }
+
+    /// What both nodes hold a shared sign-in to (`recipe::sign_in_admitted`), each rule broken alone on the real shared
+    /// sign-in and refused for its own reason: the account and the password go only to the site whose sign-in it is,
+    /// in the body of a last request that changes the site, and the caller is asked for nothing else.
+    #[test]
+    fn a_shared_sign_in_that_breaks_a_rule_is_refused_for_it() {
+        use crate::recipe::{sign_in_admitted, Source, LOGIN_ACCOUNT, LOGIN_SECRET};
+        let _one = crate::testchain::one_at_a_time_blocking();
+        store::scratch_home("setup-shared-sign-in-rules");
+        let keys = keys_with_login(SITE);
+        let kept = seal(SITE, public_sign_in(), Some(&keys));
+        store::write_json(&path(&unbrowse_learn::identity::site_of(SITE)), &unbrowse_files::SETUPS, &vec![kept]).unwrap();
+        let shared = shared_with(SITE, &keys).expect("the site's sign-in is shared");
+        assert!(sign_in_admitted(&shared, SITE).is_ok());
+        let refused = |broken: &dyn Fn(&mut crate::recipe::Recipe), why: &str| {
+            let mut s = shared.clone();
+            broken(&mut s);
+            let e = sign_in_admitted(&s, SITE).expect_err(why);
+            assert!(e.contains(why), "{why}: {e}");
+        };
+        refused(&|s| s.sign_in = Some(Box::new(shared.clone())), "holds a sign-in of its own");
+        refused(&|s| s.steps.last_mut().unwrap().url = "https://collector.example.net/session".into(), "not to example.com");
+        refused(&|s| s.steps.last_mut().unwrap().method = "GET".into(), "changes nothing");
+        refused(&|s| s.params.retain(|p| p.name != LOGIN_SECRET), "sends no login.secret");
+        refused(
+            &|s| {
+                let mut card = s.params[0].clone();
+                card.name = "card".into();
+                s.params.push(card);
+            },
+            "asks its caller for card",
+        );
+        refused(&|s| s.params.iter_mut().find(|p| p.name == LOGIN_ACCOUNT).unwrap().default = Some("someone".into()), "asks its caller for login.account");
+        refused(
+            &|s| {
+                let last = s.steps.last_mut().unwrap();
+                let f = last.fields.iter_mut().find(|f| matches!(&f.from, Source::Param { name } if name == LOGIN_SECRET)).unwrap();
+                f.loc = unbrowse_learn::Loc::Header("x-password".into());
+            },
+            "outside the body of its last request",
+        );
+        // An address the template builds at call time is no fixed host of the site's.
+        let mut built = shared.clone();
+        built.steps.last_mut().unwrap().url = "https://{host}/session".into();
+        assert!(sign_in_admitted(&built, SITE).is_err());
+    }
+
+    /// Another node takes a shared sign-in only as its own owner's: filled from a login its own vault holds for the
+    /// site, sealed under that login as a sign-in it walked itself is. A login of another site, and a sign-in that
+    /// would send the account or the password anywhere but the site's own last request, are refused.
+    #[test]
+    fn a_node_takes_a_shared_sign_in_only_as_its_owners_own_login() {
+        let _one = crate::testchain::one_at_a_time_blocking();
+        store::scratch_home("setup-shared-sign-in-a");
+        let a_keys = keys_with_login(SITE);
+        store::write_json(&path(&unbrowse_learn::identity::site_of(SITE)), &unbrowse_files::SETUPS, &vec![seal(SITE, public_sign_in(), Some(&a_keys))]).unwrap();
+        let shared = shared_with(SITE, &a_keys).unwrap();
+        // Node B: another home, another key, its own owner's login.
+        store::scratch_home("setup-shared-sign-in-b");
+        let b_keys = unbrowse_core::MemoryStore::default();
+        unbrowse_core::load_or_create(&b_keys).unwrap();
+        crate::vault::add(&crate::vault_keep(Ok(&b_keys)).unwrap(), SITE, "bob@mail.example", "stored", Some("bobs-own-pass"), "You").unwrap();
+        let bob = crate::vault::Ref::parse("vault:shop.example.com:bob@mail.example").unwrap();
+        adopt(SITE, &shared, &bob, &b_keys).expect("taken as B's own sign-in");
+        let kept = load(&unbrowse_learn::identity::site_of(SITE));
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].sealed.as_deref(), Some("vault:shop.example.com:bob@mail.example"), "{kept:?}");
+        let opened: unbrowse_learn::graph::Graph = serde_json::from_str(&crate::vault::sign_in(&crate::vault_keep(Ok(&b_keys)).unwrap(), &bob).unwrap().unwrap()).unwrap();
+        let defaults: Vec<(String, Option<String>)> = opened.steps.iter().flat_map(|s| &s.fields).filter_map(|f| match &f.class {
+            unbrowse_learn::graph::Class::Input { name, default, .. } => Some((name.clone(), default.clone())),
+            _ => None,
+        }).collect();
+        assert_eq!(defaults, vec![(crate::recipe::LOGIN_ACCOUNT.into(), Some("bob@mail.example".into())), (crate::recipe::LOGIN_SECRET.into(), Some("vault:shop.example.com:bob@mail.example".into()))]);
+        assert!(opened.steps.iter().all(|s| !s.foreign), "B's own sign-in now");
+        // A login of another site is not B's login for this one.
+        let elsewhere = crate::vault::Ref::parse("vault:other.example:bob@mail.example").unwrap();
+        assert!(adopt(SITE, &shared, &elsewhere, &b_keys).is_err());
+        // A sign-in that sends the account elsewhere, or the password in an address, is no sign-in of the site's.
+        let mut off_site = shared.clone();
+        off_site.steps[0].url = "https://collector.example.net/session".into();
+        assert!(adopt(SITE, &off_site, &bob, &b_keys).is_err());
+        let mut in_the_address = shared.clone();
+        for f in &mut in_the_address.steps[0].fields {
+            if matches!(&f.from, crate::recipe::Source::Param { name } if name == crate::recipe::LOGIN_SECRET) {
+                f.loc = unbrowse_learn::Loc::Query("password".into());
+            }
+        }
+        assert!(adopt(SITE, &in_the_address, &bob, &b_keys).is_err());
+        let mut by_get = shared.clone();
+        by_get.steps[0].method = "GET".into();
+        assert!(adopt(SITE, &by_get, &bob, &b_keys).is_err());
+    }
+
+    /// A route node A listed on [`SITE`], as node B holds it once fetched: B's own route, `fetched`, whose body (kept in
+    /// B's home under its content id) carries A's shared sign-in. A's sign-in is kept in a home of its own, and B's home
+    /// is `b_home` again when this returns.
+    pub(crate) fn a_fetched_route_with_its_sites_sign_in(b_home: &std::path::Path) -> store::Route {
+        store::scratch_home("setup-shared-route-lister");
+        let a_keys = keys_with_login(SITE);
+        store::write_json(&path(&unbrowse_learn::identity::site_of(SITE)), &unbrowse_files::SETUPS, &vec![seal(SITE, public_sign_in(), Some(&a_keys))]).unwrap();
+        let sign_in = shared_with(SITE, &a_keys).unwrap();
+        store::use_home(b_home);
+        let graph: unbrowse_learn::graph::Graph = serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [{
+            "exchange": 0, "method": "GET", "status": 200, "url": format!("https://{SITE}/orders"), "needs_browser": false, "foreign": true, "fields": [] }] })).unwrap();
+        let mut route = as_a_route(&graph, SITE, &format!("https://{SITE}/orders")).unwrap();
+        route.id = "shared-orders".into();
+        route.what = "the orders on my account".into();
+        let mut body = crate::recipe::compile(&route).unwrap();
+        body.sign_in = Some(Box::new(sign_in));
+        let content = crate::recipe::save_body(&crate::recipe::canonical(&body)).unwrap();
+        route.fetched = Some(store::Fetched { entry_id: format!("0x{}", "ab".repeat(32)), route_id: "r".into(), agent_id: "7".into(), content_id: content, listed_as: "orders".into(), fetched_at: 1 });
+        route
+    }
+
+    /// [`SITE`], for a test outside this module.
+    pub(crate) const SHARED_SITE: &str = SITE;
+
+    /// A route from another node that carries its site's sign-in signs this node in only as its own owner: with no
+    /// login of the site in its vault the call says how to add one, a no from the owner takes nothing, and a node that
+    /// already holds a session there isn't asked at all.
+    #[test]
+    fn a_shared_route_signs_in_only_with_its_owners_yes_and_own_login() {
+        let _one = crate::testchain::one_at_a_time_blocking();
+        store::scratch_home("setup-shared-route-a");
+        let a_keys = keys_with_login(SITE);
+        store::write_json(&path(&unbrowse_learn::identity::site_of(SITE)), &unbrowse_files::SETUPS, &vec![seal(SITE, public_sign_in(), Some(&a_keys))]).unwrap();
+        let sign_in = shared_with(SITE, &a_keys).unwrap();
+        // B fetched A's route: its body, kept under its content id, carries the sign-in.
+        store::scratch_home("setup-shared-route-b");
+        let graph: unbrowse_learn::graph::Graph = serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [{
+            "exchange": 0, "method": "GET", "status": 200, "url": format!("https://{SITE}/orders"), "needs_browser": false, "foreign": true, "fields": [] }] })).unwrap();
+        let mut route = as_a_route(&graph, SITE, &format!("https://{SITE}/orders")).unwrap();
+        let mut body = crate::recipe::compile(&route).unwrap();
+        body.sign_in = Some(Box::new(sign_in));
+        let content = crate::recipe::save_body(&crate::recipe::canonical(&body)).unwrap();
+        route.fetched = Some(store::Fetched { entry_id: "0x1".into(), route_id: "r".into(), agent_id: "7".into(), content_id: content, listed_as: "orders".into(), fetched_at: 1 });
+        let asked = std::cell::Cell::new(0);
+        // No login of the site in B's vault: told how to add one, nothing asked.
+        let none = crate::run::signs_in_as_its_owner(&route, "You", None, &mut |_| { asked.set(asked.get() + 1); Ok(()) });
+        assert!(none.as_ref().is_err_and(|e| e.contains("holds no login") && e.contains("vault:new:")), "{none:?}");
+        assert_eq!(asked.get(), 0);
+        // With B's own login: asked, naming B's account and where it goes; a no takes nothing.
+        let b_keys = unbrowse_core::MemoryStore::default();
+        unbrowse_core::load_or_create(&b_keys).unwrap();
+        crate::vault::add(&crate::vault_keep(Ok(&b_keys)).unwrap(), SITE, "bob@mail.example", "stored", Some("bobs-own-pass"), "You").unwrap();
+        let mut shown = String::new();
+        let no = crate::run::signs_in_as_its_owner(&route, "You", None, &mut |q| { shown = q; Err("no".into()) });
+        assert_eq!(no, Ok(false));
+        assert!(shown.contains("bob@mail.example") && shown.contains(&format!("POST https://{SITE}/session")) && !shown.contains("me@mail.example"), "{shown}");
+        assert!(load(&unbrowse_learn::identity::site_of(SITE)).is_empty(), "a no takes nothing");
+        // A node that holds a session on the site already isn't asked.
+        let host = unbrowse_learn::client::jar_name(&route.graph).unwrap();
+        std::fs::create_dir_all(store::jars_dir()).unwrap();
+        store::write_json(&store::jar_path(&host), &unbrowse_files::JAR, &std::collections::BTreeMap::from([("sid".to_string(), "bobs-session".to_string())])).unwrap();
+        let held = crate::run::signs_in_as_its_owner(&route, "You", None, &mut |_| { asked.set(asked.get() + 1); Ok(()) });
+        assert_eq!((held, asked.get()), (Ok(false), 0));
     }
 
     /// The site's sign-in is the vault's: the same call learned from the browsing that signed in is no route an agent

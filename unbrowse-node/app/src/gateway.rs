@@ -75,6 +75,17 @@ pub fn url_held(network: &str) -> Option<String> {
     (held.0 == network).then(|| format!("{base}/{network}/{}", held.1))
 }
 
+/// The gateway's captcha solver for the running node (`<base>/<network>/<pass>`, to which the solver protocol's
+/// `createTask` and `getTaskResult` are joined), unless the gateway is off, the node holds no pass, or the gateway has
+/// refused it. The gateway puts Unbrowse's own key in, for members only (`unbrowse-rpc/src/captcha.js`).
+pub fn solver_url() -> Option<String> {
+    if refused().is_some() {
+        return None;
+    }
+    let network = PASS.reading().as_ref().map(|(n, _)| n.clone())?;
+    url_held(&network)
+}
+
 /// How often a node off the gateway (refused, or the gateway didn't answer) asks it again. An owner who signs in while
 /// the node runs, on this machine or another, has it reading through the gateway within this, with no restart: until
 /// 2026-11-18 a refusal held until the node restarted, so a node linked after it started was never gassed.
@@ -189,6 +200,8 @@ mod tests {
         assert!(held.iter().zip(prefix.iter()).all(|(u, p)| u.starts_with(p.as_str())), "{held:?}");
         let used = url_for("pass-test-net");
         assert!(used == held || refused().is_some(), "{used:?}");
+        // The captcha solver is the same address, for the network the pass is held for, and gone once refused.
+        assert_eq!(solver_url(), url_for("pass-test-net"));
         assert_eq!(url_held("another-net"), None);
         assert_eq!(url_for("another-net"), None);
     }

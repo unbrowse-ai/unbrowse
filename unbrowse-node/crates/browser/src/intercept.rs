@@ -650,4 +650,188 @@ mod tests {
         let params = json!({"request": {}});
         assert_eq!(request_body(&params), None);
     }
+
+    // ---- a browser on a local socket, driven by the test ----
+
+    use futures_util::{SinkExt, StreamExt};
+    use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+    use tokio_tungstenite::tungstenite::Message;
+
+    struct FakeBrowser {
+        client: Arc<CdpClient>,
+        /// Every command the browser was sent, as (method, params, sessionId).
+        seen: UnboundedReceiver<(String, Value, Option<String>)>,
+        /// Raw text the browser pushes at the client (events).
+        push: UnboundedSender<String>,
+    }
+
+    /// A browser that answers each command with `reply(method)` (`Ok` result or `Err` message).
+    async fn fake_browser(reply: fn(&str) -> Result<Value, String>) -> FakeBrowser {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let (seen_tx, seen) = unbounded_channel();
+        let (push, mut push_rx) = unbounded_channel::<String>();
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            loop {
+                tokio::select! {
+                    msg = ws.next() => {
+                        let Some(Ok(Message::Text(text))) = msg else { break };
+                        let cmd: Value = serde_json::from_str(&text).unwrap();
+                        let method = cmd["method"].as_str().unwrap().to_string();
+                        let _ = seen_tx.send((method.clone(), cmd["params"].clone(), cmd["sessionId"].as_str().map(String::from)));
+                        let answer = match reply(&method) {
+                            Ok(result) => json!({"id": cmd["id"], "result": result}),
+                            Err(message) => json!({"id": cmd["id"], "error": {"code": -32000, "message": message}}),
+                        };
+                        if ws.send(Message::Text(answer.to_string())).await.is_err() { break }
+                    }
+                    Some(text) = push_rx.recv() => {
+                        if ws.send(Message::Text(text)).await.is_err() { break }
+                    }
+                }
+            }
+        });
+        FakeBrowser { client: Arc::new(CdpClient::connect(&url).await.unwrap()), seen, push }
+    }
+
+    fn accept_all(_: &str) -> Result<Value, String> {
+        Ok(json!({}))
+    }
+
+    async fn next_seen(b: &mut FakeBrowser) -> (String, Value, Option<String>) {
+        tokio::time::timeout(Duration::from_secs(10), b.seen.recv()).await.expect("the browser was sent a command").expect("line open")
+    }
+
+    #[tokio::test]
+    async fn interception_is_asked_for_every_url_at_the_request_stage_on_the_session() {
+        let mut b = fake_browser(accept_all).await;
+        enable_fetch_interception(&b.client, "S1").await.unwrap();
+        let (method, params, session) = next_seen(&mut b).await;
+        assert_eq!(method, "Fetch.enable");
+        assert_eq!(params["patterns"], json!([{"urlPattern": "*", "requestStage": "Request"}]));
+        assert_eq!(session.as_deref(), Some("S1"));
+    }
+
+    #[tokio::test]
+    async fn a_browser_that_refuses_interception_is_reported_not_swallowed() {
+        let b = fake_browser(|_| Err("Fetch domain refused".into())).await;
+        let e = enable_fetch_interception(&b.client, "S1").await.unwrap_err();
+        assert!(e.contains("Fetch domain refused"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn a_resource_local_to_the_browser_is_let_through_untouched() {
+        let mut b = fake_browser(accept_all).await;
+        let params = json!({"requestId": "r1", "request": {"url": "data:text/html,hi", "method": "GET"}});
+        let out = handle_paused_request(&b.client, "S1", &params, &InterceptBudget::new()).await;
+        assert!(out.is_none());
+        let (method, sent, session) = next_seen(&mut b).await;
+        assert_eq!(method, "Fetch.continueRequest");
+        assert_eq!(sent, json!({"requestId": "r1"}));
+        assert_eq!(session.as_deref(), Some("S1"));
+    }
+
+    #[tokio::test]
+    async fn a_pause_without_a_request_id_is_ignored_and_the_browser_hears_nothing() {
+        let mut b = fake_browser(accept_all).await;
+        let params = json!({"request": {"url": "https://example.com/", "method": "GET"}});
+        assert!(handle_paused_request(&b.client, "S1", &params, &InterceptBudget::new()).await.is_none());
+        assert!(tokio::time::timeout(Duration::from_millis(200), b.seen.recv()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_request_to_a_non_public_address_is_failed_back_to_the_browser() {
+        let mut b = fake_browser(accept_all).await;
+        let params = json!({"requestId": "r2", "request": {
+            "url": "http://127.0.0.1:9/secret?token=1", "method": "POST",
+            "headers": {"X-Custom": "1", "Number": 5}, "postData": "a=b"}});
+        let out = handle_paused_request(&b.client, "S1", &params, &InterceptBudget::new()).await;
+        assert!(out.is_none(), "nothing was fetched");
+        let (method, sent, _) = next_seen(&mut b).await;
+        assert_eq!(method, "Fetch.failRequest");
+        assert_eq!(sent, json!({"requestId": "r2", "errorReason": "BlockedByClient"}));
+    }
+
+    #[tokio::test]
+    async fn a_request_past_the_budget_is_failed_before_any_lookup() {
+        let mut b = fake_browser(accept_all).await;
+        let budget = InterceptBudget::new();
+        budget.requests.store(MAX_REQUESTS, Ordering::Relaxed);
+        let params = json!({"requestId": "r3", "request": {"url": "https://example.com/", "method": "GET"}});
+        assert!(handle_paused_request(&b.client, "S1", &params, &budget).await.is_none());
+        let (method, sent, _) = next_seen(&mut b).await;
+        assert_eq!(method, "Fetch.failRequest");
+        assert_eq!(sent["requestId"], "r3");
+    }
+
+    #[tokio::test]
+    async fn the_loop_handles_its_own_sessions_events_and_ends_when_the_tap_closes() {
+        let mut b = fake_browser(accept_all).await;
+        let (tap_tx, tap) = unbounded_channel();
+        let handle = spawn_intercept_loop(b.client.clone(), "S1".into(), tap);
+        let paused = |session: &str, id: &str| crate::cdp::types::CdpEvent {
+            method: "Fetch.requestPaused".into(),
+            session_id: Some(session.into()),
+            params: json!({"requestId": id, "request": {"url": "blob:x", "method": "GET"}}),
+        };
+        tap_tx.send(paused("OTHER", "not-mine")).unwrap();
+        tap_tx.send(paused("S1", "mine")).unwrap();
+        let (method, sent, session) = next_seen(&mut b).await;
+        assert_eq!((method.as_str(), session.as_deref()), ("Fetch.continueRequest", Some("S1")));
+        assert_eq!(sent["requestId"], "mine", "the other session's pause was not handled");
+        drop(tap_tx);
+        let ended = tokio::time::timeout(Duration::from_secs(10), handle).await;
+        assert!(ended.is_ok(), "the loop outlived its tap");
+    }
+
+    #[tokio::test]
+    async fn dropping_the_guard_stops_the_loop() {
+        let (keep, hold) = tokio::sync::oneshot::channel::<()>();
+        let handle = tokio::spawn(async move {
+            let _keep = keep;
+            std::future::pending::<()>().await;
+        });
+        let guard = InterceptGuard::new(handle);
+        drop(guard);
+        // The task's future is dropped by the abort, so its sender is dropped and the receiver closes.
+        let closed = tokio::time::timeout(Duration::from_secs(10), hold).await.expect("the task was aborted");
+        assert!(closed.is_err());
+    }
+
+    #[test]
+    fn a_logged_url_that_does_not_parse_says_so_and_leaks_nothing() {
+        assert_eq!(safe_logged_url("not a url with ?secret=1"), "invalid URL");
+    }
+
+    #[test]
+    fn a_request_body_with_a_broken_entry_is_no_body() {
+        let params = json!({"request": {"postDataEntries": [{"bytes": "aGVsbG8="}, {"bytes": "***"}]}});
+        assert_eq!(request_body(&params), None);
+        let two = json!({"request": {"postDataEntries": [{"bytes": "aGk="}, {"bytes": "IHRoZXJl"}]}});
+        assert_eq!(request_body(&two), Some(b"hi there".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn fetch_public_refuses_what_is_not_a_public_web_address() {
+        assert!(matches!(fetch_public("ftp://example.com/", "GET", &[], None).await, Err(InterceptError::InvalidUrl(_))));
+        assert!(matches!(fetch_public("http://127.0.0.1:1/", "GET", &[], None).await, Err(InterceptError::NonPublicAddress)));
+        // A bracketed literal is not looked up as an address: refused all the same, as a failed lookup.
+        assert!(matches!(fetch_public("http://[::1]:1/", "GET", &[], None).await, Err(InterceptError::Dns(_) | InterceptError::NonPublicAddress)));
+        assert!(matches!(fetch_public("http://169.254.169.254/latest", "GET", &[], None).await, Err(InterceptError::NonPublicAddress)));
+    }
+
+    #[tokio::test]
+    async fn fetch_public_refuses_a_method_that_is_not_one() {
+        let e = fetch_public("http://8.8.8.8/", "NOT A METHOD", &[], None).await.unwrap_err();
+        assert!(matches!(e, InterceptError::InvalidUrl(ref m) if m == "bad method"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn fetch_public_reports_a_connection_that_never_opens_as_a_request_failure() {
+        let headers = vec![("Host".to_string(), "evil".to_string()), ("X-Custom".to_string(), "1".to_string())];
+        let e = fetch_public("http://8.8.8.8:1/", "POST", &headers, Some(b"x")).await.unwrap_err();
+        assert!(matches!(e, InterceptError::Request(_)), "{e}");
+    }
 }

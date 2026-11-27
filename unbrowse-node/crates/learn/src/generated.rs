@@ -859,3 +859,7 @@ mod tests {
         assert_eq!(ctx["method"], "POST");
     }
 }
+
+#[cfg(test)]
+#[path = "generated_tests.rs"]
+mod generated_tests;

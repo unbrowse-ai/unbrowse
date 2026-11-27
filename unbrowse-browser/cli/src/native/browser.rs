@@ -535,6 +535,10 @@ pub struct BrowserManager {
     /// product. A reconnect builds a new manager, so even a reused CDP URL
     /// is checked again.
     product_checked: bool,
+    /// Unbrowse fork: the user agent the caller chose (`--user-agent`,
+    /// `useragent`, a device), which every session of every tab presents. Unset,
+    /// each session presents the browser's own identity without its launch mode.
+    caller_user_agent: std::sync::RwLock<Option<String>>,
 }
 
 /// Stable machine-readable prefix for "the bound tab no longer exists"
@@ -739,6 +743,7 @@ impl BrowserManager {
                 wedge_suspect: None,
                 headless,
                 product_checked: false,
+                caller_user_agent: std::sync::RwLock::new(user_agent.clone()),
             };
             if let Err(error) = manager.discover_and_attach_targets().await {
                 let _ = manager
@@ -849,6 +854,7 @@ impl BrowserManager {
             wedge_suspect: None,
             headless: true,
             product_checked: false,
+            caller_user_agent: Default::default(),
         };
 
         let initialization = if direct_page {
@@ -1052,6 +1058,27 @@ impl BrowserManager {
             .client
             .send_command_no_params("WebMCP.enable", Some(session_id))
             .await;
+        // Unbrowse fork: the page says the browser it is, without the launch mode in its name, before it sends its
+        // first request. A headless launch names itself `HeadlessChrome`, and a site that refuses that name cuts the
+        // connection before any page; the walk's own browser is given the same identity by the same code.
+        let chosen = self.caller_user_agent.read().ok().and_then(|ua| ua.clone());
+        match chosen {
+            // A page can carry more than one session (browser-level auto-attach adds one), and an override is
+            // per session, so the last one set is what the page sends: every session sets the same one.
+            Some(ua) => {
+                let _ = self
+                    .client
+                    .send_command("Emulation.setUserAgentOverride", Some(json!({ "userAgent": ua })), Some(session_id))
+                    .await;
+            }
+            None => {
+                if let Err(e) =
+                    agent_browser_core::fingerprint::apply_browser_identity(self.client.as_ref(), session_id).await
+                {
+                    eprintln!("[identity] {e}");
+                }
+            }
+        }
         // Enable auto-attach for cross-origin iframe support.
         // flatten: true gives each iframe its own session_id.
         // waitForDebuggerOnStart keeps child targets paused until the daemon
@@ -1746,6 +1773,7 @@ impl BrowserManager {
             wedge_suspect: None,
             headless: true,
             product_checked: false,
+            caller_user_agent: Default::default(),
         }
     }
 
@@ -2241,6 +2269,9 @@ impl BrowserManager {
     }
 
     pub async fn set_user_agent(&self, user_agent: &str) -> Result<(), String> {
+        if let Ok(mut chosen) = self.caller_user_agent.write() {
+            *chosen = Some(user_agent.to_string());
+        }
         let session_id = self.active_session_id()?;
         self.client
             .send_command(
@@ -2773,6 +2804,7 @@ async fn initialize_lightpanda_manager(
             wedge_suspect: None,
             headless: true,
             product_checked: false,
+            caller_user_agent: Default::default(),
         };
 
         match discover_and_attach_lightpanda_targets(&mut manager, deadline).await {
@@ -2884,6 +2916,7 @@ async fn initialize_obscura_manager(
             wedge_suspect: None,
             headless: true,
             product_checked: false,
+            caller_user_agent: Default::default(),
         };
 
         match run_with_obscura_deadline(
@@ -3796,6 +3829,7 @@ mod tests {
             wedge_suspect: None,
             headless: true,
             product_checked: false,
+            caller_user_agent: Default::default(),
         }
     }
 
@@ -3858,6 +3892,7 @@ mod tests {
             wedge_suspect: None,
             headless: true,
             product_checked: false,
+            caller_user_agent: Default::default(),
         };
         manager.close().await.unwrap();
 

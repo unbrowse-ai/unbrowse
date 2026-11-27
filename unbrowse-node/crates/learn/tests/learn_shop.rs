@@ -30,6 +30,15 @@ fn from_step(g: &Graph, c: &Class) -> (String, At, Option<(String, String)>) {
     (format!("{} {}", src.method, src.url), origin.at.clone(), origin.wrap.clone())
 }
 
+/// The browser these tests drive is found by its built name on every system: `agent-browser.exe` on Windows.
+#[test]
+fn the_built_browser_is_found_by_its_name_on_every_system() {
+    let dir = std::path::Path::new("cli/target/debug");
+    assert_eq!(common::agent::built_browser(dir, ".exe"), dir.join("agent-browser.exe"));
+    assert_eq!(common::agent::built_browser(dir, ""), dir.join("agent-browser"));
+    assert!(common::agent::built_browser(dir, std::env::consts::EXE_SUFFIX).to_string_lossy().ends_with(&format!("agent-browser{}", std::env::consts::EXE_SUFFIX)));
+}
+
 #[test]
 fn learns_the_checkout_route_from_two_browsing_sessions() {
     let base = shop::start();

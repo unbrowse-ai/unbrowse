@@ -888,6 +888,7 @@ mod tests {
             locator: locator.map(String::from),
             value: value.map(String::from),
             secret,
+            submit: false,
         };
         let actions = [
             act("navigate", None, None, Some("https://a.example/"), false),
@@ -1015,7 +1016,7 @@ mod tests {
         let line = CITY_SCRIPT.lines().position(|l| l.contains("fetch(")).unwrap();
         let column = CITY_SCRIPT.lines().nth(line).unwrap().find("fetch(").unwrap();
         let recording = recorded_walk("table", CITY_SCRIPT, (line, column));
-        let mut first = recording.trace.clone();
+        let mut first = recording.trace.as_ref().clone();
         first.inputs = vec![crate::trace::Input::new("q", "Lisbon")];
         let mut other_page = call("GET", "https://shop.example/search?q=Oslo", &[], None, "<html></html>");
         other_page.resource_type = Some("Document".into());

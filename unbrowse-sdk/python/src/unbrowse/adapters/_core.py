@@ -17,7 +17,8 @@ DEFAULT_TOOLS = ("do", "search", "call", "logins", "whoami")
 # A node without a browser can still call the routes it has and other contributors' routes; only walking a page it
 # hasn't learned needs one. A node that has the browser add-on names the case itself (``"code": "browser_missing"`` in
 # its answer, which an SDK that knows the code raises as BrowserMissingError and an older one as a 422) and says how to
-# get the browser (``install``); an older node says it only in its words, which the pattern catches.
+# get the browser (``install``, a command for a script); the model is told the app's way, never a command to type,
+# since its person may have no terminal. An older node says it only in its words, which the pattern catches.
 _NO_BROWSER = re.compile(r"has no browser|downloading its browser", re.I)
 _STILL = "unbrowse_do still calls the routes the node has, and routes other contributors list for the site"
 
@@ -26,11 +27,6 @@ def _browser_hint(e: "UnbrowseError") -> str:
     said = e.body if isinstance(e.body, dict) else {}
     if said.get("browser") == "installing":
         return f"The node is fetching its browser now: try again in a minute. Meanwhile {_STILL}."
-    if isinstance(said.get("install"), str):
-        return (
-            f"This node has no browser, so it can't walk a page it hasn't learned. {_STILL}; the owner gets the browser "
-            f"with `{said['install']}` on the node's machine."
-        )
     return (
         f"This node has no browser, so it can't walk a page it hasn't learned. {_STILL}; ask the owner to install "
         "Chrome, or to download Chrome for Testing in the Unbrowse app's Settings, for the rest."

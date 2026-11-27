@@ -24,7 +24,9 @@ import unbrowse.start as start_module  # noqa: E402
 from unbrowse import UnbrowseError  # noqa: E402
 from unbrowse.start import Started, bring  # noqa: E402
 
-LOCKED = STUB.replace('print("no live agent key yet", file=sys.stderr)\n        sys.exit(3)', 'print("keystore locked", file=sys.stderr)\n        sys.exit(2)')
+# Locked for good: it never gives its token, however long it has been up. The stub's own key appears 0.3 s after it
+# starts, so a node locked only until then gave its token whenever asking took longer than that.
+LOCKED = STUB.replace('if sys.argv[1:3] == ["agent", "token"]:\n', 'if sys.argv[1:3] == ["agent", "token"]:\n    print("keystore locked", file=sys.stderr)\n    sys.exit(2)\n')
 NOISY = STUB.replace('log("started " + os.environ.get("UNBROWSE_BROWSER", ""))', 'print("node says hello", flush=True)')
 assert LOCKED != STUB and NOISY != STUB
 

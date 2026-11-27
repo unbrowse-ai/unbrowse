@@ -6,6 +6,7 @@ only; nothing is built, started or fetched. Run: python3 -I -m unittest discover
 import json
 import pathlib
 import re
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -15,6 +16,11 @@ API = NODE / "agent-api.json"
 
 # A Rust file's tests start at its `#[cfg(test)] mod ... {`: what comes after it never ships.
 RUST_TESTS = re.compile(r"#\[cfg\(test\)\]\s*(?:pub(?:\(crate\))?\s+)?mod\s+\w+\s*\{")
+# A test-only file is named by a `#[cfg(test)] mod name;` (with or without a `#[path]`): like an inline test module,
+# it never ships.
+RUST_MODULE_STATEMENT = re.compile(r"(?:#\[[^\]]*\]\s*)*\bmod\s+\w+\s*;")
+RUST_PATH_ATTR = re.compile(r'#\[path\s*=\s*"([^"]+)"\s*\]')
+RUST_MODULE_NAME = re.compile(r"\bmod\s+(\w+)\s*;")
 # A Zig test block: `test "..." {` or `test {`.
 ZIG_TESTS = re.compile(r"^test\b[^{\n]*\{", re.M)
 
@@ -70,11 +76,51 @@ def without(text, blocks):
     return "".join(out)
 
 
+def module_path(declarer, statement, present):
+    """The file a `mod name;` statement names: the file its `#[path]` gives, else `name.rs` or `name/mod.rs` where
+    Rust looks for it (beside a crate root or `mod.rs`, under a folder named for the declaring file otherwise)."""
+    attribute = RUST_PATH_ATTR.search(statement)
+    if attribute:
+        return declarer.parent / attribute.group(1)
+    name = RUST_MODULE_NAME.search(statement)
+    if not name:
+        return None
+    roots = [declarer.parent] if declarer.name in ("mod.rs", "lib.rs", "main.rs") else [declarer.parent / declarer.stem, declarer.parent]
+    for folder in roots:
+        for at in (folder / f"{name.group(1)}.rs", folder / name.group(1) / "mod.rs"):
+            if at in present:
+                return at
+    return None
+
+
+def only_tests_reach(files):
+    """The files no shipping `mod` declares but a `#[cfg(test)] mod` does: a test-only file never ships. A file both
+    kinds of module declare ships, and a `mod` inside an inline test module declares nothing."""
+    files = list(files)
+    present = set(files)
+    texts = {p: p.read_text(encoding="utf-8", errors="replace") for p in files}
+    tested, shipped = {}, {}
+    for p in files:
+        found = [(s.group(0), module_path(p, s.group(0), present)) for s in RUST_MODULE_STATEMENT.finditer(without(texts[p], RUST_TESTS))]
+        tested[p] = [at for statement, at in found if at is not None and "#[cfg(test)]" in statement]
+        shipped[p] = [at for statement, at in found if at is not None and "#[cfg(test)]" not in statement]
+    test_only = {at for named in tested.values() for at in named}
+    while True:
+        grown = test_only | {q for p, named in shipped.items() if p in test_only for q in named}
+        kept = {q for p, named in shipped.items() if p not in grown for q in named}
+        narrower = grown - kept
+        if narrower == test_only:
+            return test_only
+        test_only = narrower
+
+
 def shipped_rust():
     """(path, line number, line) for every line of the node's Rust that ships: app/src and crates/*/src, without
     test modules, test-only files or integration tests."""
-    for p in sorted(list((NODE / "app" / "src").rglob("*.rs")) + list(NODE.glob("crates/*/src/**/*.rs"))):
-        if p.name in ("tests.rs", "test_alloc.rs", "testchain.rs") or "tests" in p.relative_to(NODE).parts:
+    files = sorted(list((NODE / "app" / "src").rglob("*.rs")) + list(NODE.glob("crates/*/src/**/*.rs")))
+    test_only = only_tests_reach(files)
+    for p in files:
+        if p.name in ("tests.rs", "test_alloc.rs", "testchain.rs") or "tests" in p.relative_to(NODE).parts or p in test_only:
             continue
         text = without(p.read_text(encoding="utf-8", errors="replace"), RUST_TESTS)
         for n, line in enumerate(text.splitlines(), 1):
@@ -105,6 +151,36 @@ class TheScan(unittest.TestCase):
         kept = without(zig, ZIG_TESTS).splitlines()
         self.assertEqual((kept[0], kept[7]), ("const a = 1;", "const after = 2;"))
         self.assertNotIn('"}"', "".join(kept))
+
+    def test_a_file_only_a_test_module_names_is_left_out(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = pathlib.Path(d)
+            (d / "a.rs").write_text(
+                'fn a() {}\n#[cfg(test)]\nmod a_cov_tests;\n#[cfg(test)]\nmod cov_walk;\n'
+                '#[cfg(test)]\n#[path = "deeper/other_tests.rs"]\nmod other;\n#[cfg(test)]\nmod shared;\n',
+                encoding="utf-8",
+            )
+            (d / "a_cov_tests.rs").write_text('const H: &str = "https://node.example.com";\n', encoding="utf-8")
+            (d / "a").mkdir()
+            (d / "a" / "cov_walk.rs").write_text("mod even_deeper;\n", encoding="utf-8")
+            (d / "a" / "even_deeper.rs").write_text("fn t() {}\n", encoding="utf-8")
+            (d / "deeper").mkdir()
+            (d / "deeper" / "other_tests.rs").write_text("mod even_deeper;\n", encoding="utf-8")
+            (d / "deeper" / "even_deeper.rs").write_text("fn t() {}\n", encoding="utf-8")
+            (d / "shared.rs").write_text("fn shared() {}\n", encoding="utf-8")
+            (d / "ships.rs").write_text("mod shared;\n", encoding="utf-8")
+            files = [d / "a.rs", d / "a_cov_tests.rs", d / "a" / "cov_walk.rs", d / "a" / "even_deeper.rs", d / "deeper" / "other_tests.rs", d / "deeper" / "even_deeper.rs", d / "shared.rs", d / "ships.rs"]
+            self.assertEqual(
+                only_tests_reach(files),
+                {d / "a_cov_tests.rs", d / "a" / "cov_walk.rs", d / "a" / "even_deeper.rs", d / "deeper" / "other_tests.rs", d / "deeper" / "even_deeper.rs"},
+                "test-only through a sibling, a folder named for the file, a #[path] or a test-only file; shared.rs ships",
+            )
+
+    def test_the_files_of_cfg_test_modules_do_not_count_as_shipping(self):
+        scanned = {p for p, _, _ in shipped_rust()}
+        for name in ("browse_cov_tests.rs", "challenge_cov_tests.rs", "bin/unb/unb_cov_tests.rs", "learn/cov_walk.rs", "learn/cov_pick.rs"):
+            self.assertNotIn(NODE / "app" / "src" / name, scanned, name)
+        self.assertIn(NODE / "app" / "src" / "browse.rs", scanned)
 
 
 def strings(o):

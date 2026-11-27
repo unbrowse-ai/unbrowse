@@ -588,3 +588,7 @@ mod tests {
         assert!(page.ok());
     }
 }
+
+#[cfg(test)]
+#[path = "site_tests.rs"]
+mod site_tests;

@@ -723,3 +723,7 @@ fn a_kept_walk_as_it_would_be_shared() {
         Err(why) => println!("REFUSED: {why}"),
     }
 }
+
+#[cfg(test)]
+#[path = "corpus_tests.rs"]
+pub(in crate::learn) mod corpus_tests;

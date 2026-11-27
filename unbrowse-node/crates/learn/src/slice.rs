@@ -1251,3 +1251,7 @@ mod table_tests {
         assert_eq!(tables_children() - before, 1);
     }
 }
+
+#[cfg(test)]
+#[path = "slice_cov_tests.rs"]
+mod slice_cov_tests;

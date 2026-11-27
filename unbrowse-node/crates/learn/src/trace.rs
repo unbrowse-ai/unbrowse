@@ -221,11 +221,15 @@ impl Exchange {
     /// The same, for a page that embeds several JSON blobs: the one shaped `like` (a route's recorded answer), read as
     /// the route was learned (`embedded_json_like`).
     pub fn json_body_like(&self, like: Option<&serde_json::Value>) -> Option<serde_json::Value> {
+        self.json_body_with_source(like).map(|(value, _)| value)
+    }
+
+    /// The parsed value and whether it came from the body's own JSON.
+    pub(crate) fn json_body_with_source(&self, like: Option<&serde_json::Value>) -> Option<(serde_json::Value, bool)> {
         if let Some(v) = self.own_json() {
-            return Some(v);
+            return Some((v, true));
         }
-        let embedded = embedded_json_like(self.response_body.as_deref()?, like)?;
-        serde_json::from_str(&embedded).ok()
+        embedded_json_value_like(self.response_body.as_deref()?, like).map(|value| (value, false))
     }
 
     /// The answer's own JSON, however the site wrapped it: the body itself, the body inside the name its address
@@ -287,7 +291,7 @@ impl Exchange {
         if let Some(v) = event_stream_json(body) {
             return vec![v];
         }
-        json_blobs(body).into_iter().filter_map(|c| serde_json::from_str(c).ok()).collect()
+        json_blobs(body).map(|(_, value)| value).collect()
     }
 
     pub fn request_header(&self, name: &str) -> Option<&str> {
@@ -591,52 +595,61 @@ pub fn body_json(body: &str) -> Option<serde_json::Value> {
     serde_json::from_str::<serde_json::Value>(body).ok().or_else(|| guarded_json(body)).or_else(|| event_stream_json(body))
 }
 
-/// The JSON behind a guard: a site may open a JSON answer with a few characters that stop it running as a script on
-/// another site's page (`)]}'` and a line break, `for(;;);`, `while(1);`), and its own code reads past them. The guard
-/// is short, ends where a statement or a line does, and everything after it is one JSON document; text that merely
-/// holds a bracket further in is not that.
+/// The JSON behind a guard: a site may open a JSON answer with characters that stop it running as a script on another
+/// site's page (`)]}'` and a line break, `for(;;);`, `while(1);`, a script-closing `</x>//`), and its own code reads
+/// past them. What makes a guard a guard, read from the text alone: it ends where a statement, a line or a comment
+/// ends, it carries no line of its own, and everything after it is one JSON document. Text that merely holds a bracket
+/// further in is not that.
 pub fn guarded_json(body: &str) -> Option<serde_json::Value> {
     let body = body.trim_start();
     let at = body.find(['{', '['])?;
     let (guard, rest) = body.split_at(at);
-    let ends = guard.ends_with('\n') || guard.trim_end().ends_with([';', '\'']);
-    if guard.is_empty() || guard.chars().count() > 16 || !ends {
+    // Where the site's own code stops reading the guard: the end of a line (a break, or the quote `)]}'` puts there),
+    // the end of a statement (`;`), or the end of a comment (`//` to the line's end, `*/`). The answer begins on the
+    // line the guard ends on, so a guard never spans a line and then carries on.
+    let bare = guard.trim_end();
+    let a_line_end = guard.ends_with('\n') && guard.matches('\n').count() == 1;
+    let an_ending = !guard.contains('\n') && (bare.ends_with([';', '\'']) || bare.ends_with("//") || bare.ends_with("*/"));
+    if guard.is_empty() || !(a_line_end || an_ending) {
         return None;
     }
     serde_json::from_str::<serde_json::Value>(rest.trim()).ok().filter(|v| v.is_object() || v.is_array())
 }
 
 pub fn embedded_json_like(body: &str, like: Option<&serde_json::Value>) -> Option<String> {
-    let keys: Vec<&String> = like.and_then(|l| l.as_object()).map(|o| o.keys().collect()).unwrap_or_default();
-    if !keys.is_empty() {
-        let shared = |c: &str| serde_json::from_str::<serde_json::Value>(c).ok().and_then(|v| v.as_object().map(|o| keys.iter().filter(|k| o.contains_key(k.as_str())).count())).unwrap_or(0);
-        let best = json_blobs(body).into_iter().map(|c| (shared(c), c.len(), c)).filter(|(n, _, _)| *n > 0).max_by_key(|(n, len, _)| (*n, *len));
-        if let Some((_, _, c)) = best {
-            return Some(c.to_string());
-        }
-    }
-    json_blobs(body).into_iter().max_by_key(|c| c.len()).map(String::from)
+    pick_json_blob(body, like).map(|(text, _)| text.to_string())
+}
+
+pub(crate) fn embedded_json_value_like(body: &str, like: Option<&serde_json::Value>) -> Option<serde_json::Value> {
+    pick_json_blob(body, like).map(|(_, value)| value)
+}
+
+fn pick_json_blob<'a>(body: &'a str, like: Option<&serde_json::Value>) -> Option<(&'a str, serde_json::Value)> {
+    let like = like.and_then(serde_json::Value::as_object);
+    json_blobs(body).max_by_key(|(text, value)| {
+        let shared = like.zip(value.as_object()).map_or(0, |(wanted, held)| wanted.keys().filter(|key| held.contains_key(*key)).count());
+        (shared, text.len())
+    })
 }
 
 /// Each script on the page whose tag says it holds JSON, and that parses, in the page's order.
-fn json_blobs(body: &str) -> Vec<&str> {
-    let mut out = Vec::new();
+fn json_blobs(body: &str) -> impl Iterator<Item = (&str, serde_json::Value)> {
     let mut from = 0;
-    while let Some(start) = body[from..].find("<script") {
+    std::iter::from_fn(move || loop {
+        let start = body[from..].find("<script")?;
         let tag_start = from + start;
-        let Some(tag_len) = body[tag_start..].find('>') else { break };
+        let tag_len = body[tag_start..].find('>')?;
         let attrs = body[tag_start..tag_start + tag_len].to_ascii_lowercase();
         let content_start = tag_start + tag_len + 1;
-        let Some(rel_end) = body[content_start..].find("</script>") else { break };
+        let rel_end = body[content_start..].find("</script>")?;
         // A state blob's tag says it holds JSON, whatever else it carries (`id="__NEXT_DATA__"` before or after).
         let json = attrs.contains(r#"type="application/json""#) || attrs.contains("type='application/json'");
         let candidate = &body[content_start..content_start + rel_end];
-        if json && serde_json::from_str::<serde_json::Value>(candidate).is_ok() {
-            out.push(candidate);
-        }
         from = content_start + rel_end;
-    }
-    out
+        if let Some(value) = json.then(|| serde_json::from_str(candidate).ok()).flatten() {
+            return Some((candidate, value));
+        }
+    })
 }
 
 /// Whether `v` has at least half the top-level keys of `like`: the same kind of answer, as a replay weighs it.
@@ -740,14 +753,60 @@ impl Readings {
         if value.trim().is_empty() {
             return false;
         }
-        self.0.iter().any(|r| {
-            r.match_indices(value.as_str()).any(|(at, _)| {
-                let before = r[..at].chars().next_back();
-                let after = r[at + value.len()..].chars().next();
-                !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
-            })
-        })
+        self.0.iter().any(|r| r.match_indices(value.as_str()).any(|(at, _)| whole_at(r, at, at + value.len())))
     }
+}
+
+fn whole_at(text: &str, start: usize, end: usize) -> bool {
+    !text[..start].chars().next_back().is_some_and(char::is_alphanumeric) && !text[end..].chars().next().is_some_and(char::is_alphanumeric)
+}
+
+/// The lowercased values carried whole by any source, with each source scanned once per layer of escaping.
+pub fn whole_values<'a>(texts: impl IntoIterator<Item = &'a str>, values: impl IntoIterator<Item = &'a str>) -> std::collections::HashSet<String> {
+    use std::collections::HashSet;
+
+    let distinct: HashSet<_> = values.into_iter().filter(|v| !v.trim().is_empty()).map(str::to_lowercase).collect();
+    let values: Vec<_> = distinct.into_iter().collect();
+    if values.is_empty() {
+        return HashSet::new();
+    }
+    let finder = (values.len() > 1).then(|| aho_corasick::AhoCorasick::new(&values).ok()).flatten();
+    let Some(finder) = finder else {
+        let mut found = HashSet::new();
+        for text in texts {
+            let readings = Readings::of(text);
+            for value in &values {
+                if !found.contains(value) && readings.carries_whole(value) {
+                    found.insert(value.clone());
+                }
+            }
+        }
+        return found;
+    };
+    let mut found = vec![false; values.len()];
+    let mut remaining = values.len();
+    let mut next = vec![0; values.len()];
+    'sources: for text in texts {
+        for layer in readings(text) {
+            next.fill(0);
+            for hit in finder.find_overlapping_iter(layer.as_str()) {
+                let i = hit.pattern().as_usize();
+                if found[i] || hit.start() < next[i] {
+                    continue;
+                }
+                // Match the non-overlapping order of `str::match_indices` for each individual value.
+                next[i] = hit.end();
+                if whole_at(&layer, hit.start(), hit.end()) {
+                    found[i] = true;
+                    remaining -= 1;
+                    if remaining == 0 {
+                        break 'sources;
+                    }
+                }
+            }
+        }
+    }
+    values.into_iter().zip(found).filter_map(|(value, found)| found.then_some(value)).collect()
 }
 
 /// One layer of the ways a value may be written as text (each with whether it sits inside longer text by nature): as
@@ -1080,6 +1139,11 @@ impl Exchange {
         self.main_frame != Some(false) && self.resource_type.as_deref() == Some("Document")
     }
 
+    /// The request received a final HTTP response. A capture uses zero when no response was recorded.
+    pub fn has_final_http_response(&self) -> bool {
+        self.status >= 200
+    }
+
     /// Whether the site answered with a refusal a door gives while it decides.
     pub fn is_refused(&self) -> bool {
         REFUSED.contains(&self.status)
@@ -1089,16 +1153,57 @@ impl Exchange {
 /// The statuses a door answers a page with while it decides: forbidden, too many requests, unavailable.
 pub const REFUSED: [u16; 3] = [403, 429, 503];
 
+/// Why a main document opened the walk's door ([`Trace::door_why`]): each is something the walk shows, never a page's
+/// looks alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DoorWhy {
+    /// The site refused the page ([`REFUSED`]).
+    Refused,
+    /// The main frame was served another site's page: a waiting room.
+    AnotherSite,
+    /// A page that only runs its own code, which the walk went on past to the site's page.
+    WentPast,
+}
+
+impl DoorWhy {
+    /// The name a log line and the x-ray carry.
+    pub fn name(self) -> &'static str {
+        match self {
+            DoorWhy::Refused => "refused",
+            DoorWhy::AnotherSite => "another_site",
+            DoorWhy::WentPast => "went_past",
+        }
+    }
+}
+
+/// One exchange inside the walk's door: its index, the main document that holds it there, and why.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InDoor {
+    pub index: usize,
+    pub by: usize,
+    pub why: DoorWhy,
+}
+
 impl Trace {
     /// The site's front door, read from the walk itself: from the first page the main frame was refused (or
     /// served by another site, as a waiting room is) to the page of the site's own that it was finally let
     /// through to. Everything in between is the door: the challenge, its scripts and probes, the vendor's
     /// frames. The browser passed it at mint time; a route never replays it, and its cookies come from the jar.
     pub fn door(&self, site: &str) -> Vec<usize> {
+        self.door_why(site).into_iter().map(|d| d.index).collect()
+    }
+
+    /// The door's stretch as [`Trace::door`] reads it, each exchange with the main document that holds it there and
+    /// why that document is the door's: what a reader of a learn (the node's log, the x-ray) is shown for every call
+    /// the door took away. One pass, so the door and its reasons never disagree.
+    pub fn door_why(&self, site: &str) -> Vec<InDoor> {
         // The page the walk was finally let through to: the last on-site main document that is a page rather than a
         // gate — one that says something, or is more than a script-only stub. A gate-like document before it is part of
         // the door even when its status is not a refusal and no vendor's name is on it: a site may answer a navigation
         // `202` with a page that runs code and says nothing, the way Booking.com does, and the browser passes it.
+        // A walk that ended on such a page was not shown to be stopped: an app's shell looks the same as a check that
+        // serves itself (a script, no words, no link), and its calls may be answered from any host. Its calls stay
+        // candidates, and replay judges them; a check is told by `graph::Door::met` and by what the site answers.
         let gate = |e: &Exchange| crate::page::a_door(e.status, e.response_body.as_deref().unwrap_or_default(), &e.url);
         let real = self
             .exchanges
@@ -1113,18 +1218,26 @@ impl Trace {
             })
             .map(|(i, _)| i);
         let mut out = Vec::new();
-        let mut inside = false;
+        let mut held: Option<(usize, DoorWhy)> = None;
         for (i, e) in self.exchanges.iter().enumerate() {
-            if e.is_main_document() {
+            if e.is_main_document() && e.has_final_http_response() {
                 let own = e.url.host_str().is_some_and(|h| crate::identity::on_site(h, site));
                 // Another site's document is a waiting room only when it is known to be the main frame's: in a log
                 // without frames it may be an ad's or a widget's frame.
                 if own || e.main_frame == Some(true) {
-                    inside = !own || e.is_refused() || (real.is_some_and(|r| i < r) && gate(e));
+                    held = if !own {
+                        Some((i, DoorWhy::AnotherSite))
+                    } else if e.is_refused() {
+                        Some((i, DoorWhy::Refused))
+                    } else if gate(e) && real.is_some_and(|r| i < r) {
+                        Some((i, DoorWhy::WentPast))
+                    } else {
+                        None
+                    };
                 }
             }
-            if inside {
-                out.push(i);
+            if let Some((by, why)) = held {
+                out.push(InDoor { index: i, by, why });
             }
         }
         out
@@ -1155,20 +1268,35 @@ impl Trace {
     }
 
     pub fn from_har(har: &str, inputs: Vec<Input>) -> Result<Self, TraceError> {
-        let har: Har = serde_json::from_str(har)?;
+        Ok(Self::with_har(serde_json::from_str(har)?, inputs))
+    }
+
+    pub(crate) fn from_har_value(har: serde_json::Value) -> Result<Self, TraceError> {
+        Ok(Self::with_har(serde_json::from_value(har)?, Vec::new()))
+    }
+
+    fn with_har(har: Har, inputs: Vec<Input>) -> Self {
         let exchanges = har.log.entries.into_iter().filter_map(HarEntry::into_exchange).collect();
-        Ok(Self { exchanges, inputs })
+        Self { exchanges, inputs }
     }
 }
 
 impl HarEntry {
     pub(crate) fn into_exchange(self) -> Option<Exchange> {
         let url = Url::parse(&self.request.url).ok()?;
+        let request_headers: Vec<(String, String)> = self.request.headers.into_iter().map(|h| (h.name, h.value)).collect();
+        // A body the page compressed, as its `content-encoding` says, is read as what it compresses: what the page's code
+        // wrote, typed values and all. The transport compresses it again on the way out (`wire::as_sent`).
+        let encoding = request_headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("content-encoding")).map(|(_, v)| v.clone());
+        let request_body = self.request.post_data.and_then(HarPostData::body).map(|body| match &encoding {
+            Some(enc) => unbrowse_route::wire::uncompressed(enc, &unbrowse_route::wire::bytes_of(&body)).map(|b| unbrowse_route::wire::carried(&b)).unwrap_or(body),
+            None => body,
+        });
         Some(Exchange {
             method: self.request.method,
             url,
-            request_headers: self.request.headers.into_iter().map(|h| (h.name, h.value)).collect(),
-            request_body: self.request.post_data.and_then(HarPostData::body),
+            request_headers,
+            request_body,
             status: self.response.status,
             response_headers: self.response.headers.into_iter().map(|h| (h.name, h.value)).collect(),
             // The body stays exactly as recorded: text markers in a page need
@@ -1332,6 +1460,31 @@ mod tests {
         assert_eq!(Trace::from_har(&as_text, Vec::new()).unwrap().exchanges[0].request_body.as_deref(), Some(r#"{"q":1}"#));
     }
 
+    /// A page that compresses its call's body says so in the request's `content-encoding`, and the walk keeps the bytes
+    /// it sent. The body reads as what it compresses, so the value typed into the page is found where the page put it;
+    /// bytes that say an encoding and aren't in it stay the bytes they are.
+    #[test]
+    fn a_compressed_request_body_reads_as_what_it_compresses() {
+        use base64::Engine;
+        let json = r#"{"context":{"client":{"hl":"en","clientName":"WEB"}},"query":"desk lamp"}"#;
+        let gzipped = unbrowse_route::wire::as_sent(Some("gzip"), json.as_bytes());
+        let har = |headers: &str, bytes: &[u8]| {
+            format!(
+                r#"{{"log":{{"entries":[{{"request":{{"method":"POST","url":"https://video.example/api/v1/search","headers":{headers},"postData":{{"mimeType":"application/json","text":"{}","_encoding":"base64"}}}},"response":{{"status":200,"headers":[],"content":{{"mimeType":"application/json","text":"{{}}"}}}}}}]}}}}"#,
+                base64::engine::general_purpose::STANDARD.encode(bytes)
+            )
+        };
+        let said = r#"[{"name":"Content-Type","value":"application/json"},{"name":"Content-Encoding","value":"gzip"}]"#;
+        let e = Trace::from_har(&har(said, &gzipped), Vec::new()).unwrap().exchanges[0].clone();
+        assert_eq!(e.request_body.as_deref(), Some(json));
+        assert!(crate::slots::slots(&e).iter().any(|s| s.value == "desk lamp"), "the typed value is a place of the call: {:?}", crate::slots::slots(&e));
+        let unsaid = Trace::from_har(&har("[]", &gzipped), Vec::new()).unwrap().exchanges[0].clone();
+        assert_eq!(unbrowse_route::wire::bytes_of(unsaid.request_body.as_deref().unwrap()), gzipped, "with no encoding said, the bytes are the bytes");
+        let not_in_it = [0x0a, 0x80, 0x01];
+        let wrong = Trace::from_har(&har(said, &not_in_it), Vec::new()).unwrap().exchanges[0].clone();
+        assert_eq!(unbrowse_route::wire::bytes_of(wrong.request_body.as_deref().unwrap()), not_in_it);
+    }
+
     /// A reply recorded in base64 whose type names a codec the engine reads is the JSON it holds; one of any other
     /// type, or that does not open exactly, is no body at all, as before.
     #[test]
@@ -1482,6 +1635,19 @@ mod tests {
         assert!(guarded_json(")]}'\n[1,2] and more").is_none(), "what follows is one document");
     }
 
+    /// A guard is read past by where it ends, not by how short it is: a site's guard may close the script it would
+    /// have run in and comment the rest of the line out (`'")}while(1);</x>//`), or close a block comment. Both stop
+    /// the answer running as a script, which is what a guard is for; neither is data, and the JSON behind it is the
+    /// answer. What a guard still cannot be is text that carries on onto another line.
+    #[test]
+    fn a_guard_is_read_past_by_where_it_ends_not_by_how_long_it_is() {
+        assert!(guarded_json("'\" )}while(1);</x>//{\"ok\":true}").is_some(), "a guard that closes a script and comments the line out");
+        assert!(guarded_json("/* an anti-hijacking guard */{\"ok\":true}").is_some(), "a guard that ends a comment");
+        assert!(guarded_json("for(;;);\n[1,2]").is_some(), "a guard that ends a line");
+        assert!(guarded_json("first line\nsecond line [1,2]").is_none(), "a guard carries no line of its own");
+        assert!(guarded_json("see the note above\nand the table;{\"ok\":true}").is_none(), "text that spans lines is text");
+    }
+
     /// A page asked through its fragment is asked as much as one asked through its query; a fragment that names a
     /// place on the page asks for nothing.
     #[test]
@@ -1556,6 +1722,103 @@ mod tests {
         };
         let trace = Trace { exchanges: vec![stub, real], inputs: vec![] };
         assert_eq!(trace.door("hotels.example"), vec![0], "the stub is the door, the real page is not");
+    }
+
+    /// A walk that ended on a page that only runs its code was not shown to be stopped there: an app's shell and a check
+    /// that serves itself look the same, and the shell's answer may come from another host. hn.algolia.com's shell draws
+    /// its stories from `POST …-dsn.algolia.net/1/indexes/…/query`, a domain of its own, and the only on-site JSON is a
+    /// settings call (QA 45316072080, checks 14–16: the whole walk was the door, no candidate was left, and the agent was
+    /// told a check asks a person). Its calls stay: whether one answers is replay's to judge, and a check is told by
+    /// `graph::Door::met`. A page that only runs its code is the door only when the walk went on past it to a page.
+    #[test]
+    fn a_walk_that_ended_on_a_shell_keeps_its_calls_wherever_they_were_answered() {
+        let page = |url: &str, body: &str| Exchange {
+            method: "GET".into(),
+            url: url.parse().unwrap(),
+            request_headers: vec![],
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(body.into()),
+            response_mime: "text/html".into(),
+            resource_type: Some("Document".into()),
+            main_frame: Some(true),
+        };
+        let call = |url: &str, body: Option<&str>, answer: &str| Exchange {
+            method: if body.is_some() { "POST" } else { "GET" }.into(),
+            url: url.parse().unwrap(),
+            request_headers: vec![("content-type".into(), "application/json".into())],
+            request_body: body.map(String::from),
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(answer.into()),
+            response_mime: "application/json".into(),
+            resource_type: Some("XHR".into()),
+            main_frame: Some(true),
+        };
+        let shell = r#"<html><head><title>HN Search</title><script src="/public/main.js"></script></head><body><main id="root"></main></body></html>"#;
+        assert!(crate::page::a_door(200, shell, &"https://hn.search.example/?q=rust".parse().unwrap()), "the fixture has the shape this test is about");
+        let settings = call("https://telemetry.search.example/1/settings", None, r#"{"enabled":false,"sampleRate":0.1}"#);
+        let search = call(
+            "https://abc123-dsn.search-api.example/1/indexes/Item/query",
+            Some(r#"{"query":"rust","page":0,"hitsPerPage":20}"#),
+            r#"{"hits":[{"title":"Rust 2.0"},{"title":"Why Rust"}],"nbHits":36249}"#,
+        );
+        for asked in ["https://hn.search.example/?q=rust", "https://hn.search.example/"] {
+            let walk = Trace { exchanges: vec![page(asked, shell), settings.clone(), search.clone()], inputs: vec![] };
+            assert!(walk.door("search.example").is_empty(), "{asked}: the walk ended on the shell, and showed no door");
+            assert_eq!(walk.without_door("search.example").exchanges.len(), 3, "{asked}: the search is still a candidate");
+        }
+        // The same looks with a check's bookkeeping: still no door read from looks. Nothing it answers is the ask, which
+        // the learner and replay say; the door itself is `Door::met`'s.
+        let bookkeeping = call("https://www.lib.example/.within/api/make-challenge", None, r#"{"challenge":"9f8e7d","rules":{"algorithm":"fast"}}"#);
+        let check = page("https://www.lib.example/search?query=lamps", r#"<html><head><title>One moment</title><script src="/hold.js"></script></head><body><p>Please wait.</p></body></html>"#);
+        let held = Trace { exchanges: vec![check.clone(), bookkeeping], inputs: vec![] };
+        assert!(held.door("lib.example").is_empty());
+        assert!(crate::graph::Door::met(&held, "lib.example").is_some(), "the check is still a door the route can pass");
+        // A page that only runs its code, which the walk went on past to the site's page, is the door it passed.
+        let through = page("https://www.lib.example/search?query=lamps", r#"<html><body><h1>Lamps</h1><a href="/lamps/1">Brass lamp</a></body></html>"#);
+        assert_eq!(Trace { exchanges: vec![check, through], inputs: vec![] }.door("lib.example"), vec![0]);
+    }
+
+    /// Every call the door takes away carries the page that holds it there and why, so a reader of the learn (the
+    /// node's log, the x-ray) can tell what the walk showed: a refusal, another site's waiting room, or a page of script
+    /// the walk went past. The reasons are the door's own reading, so the two never disagree.
+    #[test]
+    fn each_call_the_door_takes_says_why() {
+        let doc = |url: &str, status: u16, body: &str| Exchange {
+            method: "GET".into(),
+            url: url.parse().unwrap(),
+            request_headers: vec![],
+            request_body: None,
+            status,
+            response_headers: vec![],
+            response_body: Some(body.into()),
+            response_mime: "text/html".into(),
+            resource_type: Some("Document".into()),
+            main_frame: Some(true),
+        };
+        let call = |url: &str| Exchange { resource_type: Some("XHR".into()), response_mime: "application/json".into(), response_body: Some("{}".into()), ..doc(url, 200, "") };
+        let stub = r#"<html><head><script src="/hold.js"></script></head><body><div id="app"></div></body></html>"#;
+        let page = r#"<html><body><h1>Lamps</h1><a href="/lamps/1">Brass lamp</a></body></html>"#;
+        let walk = Trace {
+            exchanges: vec![
+                doc("https://www.shop.example/lamps", 403, "<html><body>Forbidden</body></html>"),
+                Exchange { response_body: None, ..doc("https://www.shop.example/lamps", 0, "") },
+                call("https://www.shop.example/.check/ping"),
+                doc("https://wait.vendor.example/queue", 200, "<html><body>You are in line</body></html>"),
+                doc("https://www.shop.example/lamps", 202, stub),
+                call("https://www.shop.example/.check/solve"),
+                doc("https://www.shop.example/lamps", 200, page),
+                Exchange { response_body: None, ..doc("https://wait.vendor.example/queue", 0, "") },
+                call("https://www.shop.example/api/lamps"),
+            ],
+            inputs: vec![],
+        };
+        let why = walk.door_why("shop.example");
+        let named: Vec<(usize, usize, &str)> = why.iter().map(|d| (d.index, d.by, d.why.name())).collect();
+        assert_eq!(named, vec![(0, 0, "refused"), (1, 0, "refused"), (2, 0, "refused"), (3, 3, "another_site"), (4, 4, "went_past"), (5, 4, "went_past")]);
+        assert_eq!(walk.door("shop.example"), vec![0, 1, 2, 3, 4, 5], "the door is the same stretch its reasons name");
     }
 
     fn script(url: &str, body: &str) -> Exchange {
@@ -1668,10 +1931,12 @@ mod tests {
         let blob = |attrs: &str, v: serde_json::Value| format!("<script type=\"application/json\" {attrs}>{v}</script>");
         let settings = serde_json::json!({ "locale": "en", "featureFlags": (0..200).map(|i| format!("flag_{i}")).collect::<Vec<_>>() });
         let state = |results: Vec<serde_json::Value>| serde_json::json!({ "payload": { "results": results, "query": "x" }, "title": "Search", "meta": {} });
-        let empty = format!("<html><body>{}{}</body></html>", blob("id=\"env\"", settings.clone()), blob("data-target=\"app\"", state(vec![])));
+        let invalid = format!("<script type=\"application/json\">{}</script>", "broken".repeat(400));
+        let empty = format!("<html><body>{}{}{invalid}</body></html>", blob("id=\"env\"", settings.clone()), blob("data-target=\"app\"", state(vec![])));
         let recorded = serde_json::json!({ "payload": { "results": [{ "name": "string" }], "query": "string" }, "title": "string", "meta": {} });
         let read: serde_json::Value = serde_json::from_str(&embedded_json_like(&empty, Some(&recorded)).unwrap()).unwrap();
         assert_eq!(read["payload"]["results"], serde_json::json!([]), "the empty search's state, not the settings: {read}");
+        assert_eq!(super::embedded_json_value_like(&empty, Some(&recorded)), Some(read));
         let largest: serde_json::Value = serde_json::from_str(&embedded_json(&empty).unwrap()).unwrap();
         assert!(largest.get("featureFlags").is_some(), "with nothing recorded, the largest blob stands");
         // A recording no blob resembles reads the largest, as before.
@@ -1702,6 +1967,21 @@ mod tests {
         assert!(!carries_whole(r#"{"ok":true,"expires":12345}"#, "1234"));
         assert!(carries_whole("q=blue+chair&page=1", "blue chair"));
         assert!(!carries_whole("q=blue+chairs", "blue chair"));
+    }
+
+    #[test]
+    fn scanning_many_values_agrees_with_reading_each_one() {
+        let sources = [
+            r#"q=blue%2520chair&page=1; aux=warm+weather"#,
+            r#"{"county":"Z\u00fcrich","note":"x---","age":345}"#,
+            "red chair; solaris; Café; {c++ jobs}; 12345",
+            "warm; door-test; élan and elan",
+        ];
+        let values = ["123", "12345", "BLUE CHAIR", "red chair", "blue", "warm weather", "warm", "Zürich", "Café", "--", "c++ jobs", "door", "test", "elan", "élan", "lan", "solar", "  ", "blue chair"];
+        let expected = values.iter().filter(|v| sources.iter().any(|s| carries_whole(s, v))).map(|v| v.to_lowercase()).collect();
+        assert_eq!(super::whole_values(sources, values), expected);
+        assert_eq!(super::whole_values(sources, ["ZÜRICH"]), ["zürich".to_string()].into_iter().collect());
+        assert!(super::whole_values(sources, ["  "]).is_empty());
     }
 
     /// The page a route was learned on is the walk's last main document on its own site: another site's page is not

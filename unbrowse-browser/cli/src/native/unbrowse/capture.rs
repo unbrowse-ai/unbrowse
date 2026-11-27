@@ -50,7 +50,8 @@ struct Hop {
     url: String,
     resource_type: String,
     request_headers: Headers,
-    post_data: Option<String>,
+    /// What the request sent (`agent_browser_core::capture::request_body`): its text, or its bytes in base64 (`true`).
+    post_data: Option<(String, bool)>,
     needs_post_data: bool,
     status: Option<i64>,
     status_text: String,
@@ -82,6 +83,8 @@ pub struct Capture {
     answered: HashMap<String, VecDeque<Headers>>,
     /// Socket and download lines made while draining, written at the next flush.
     lines: Vec<Value>,
+    /// When the latest step the log records began: what has gone out since is what the step set off.
+    step_at: f64,
 }
 
 impl Capture {
@@ -163,7 +166,7 @@ impl Capture {
         let n = self.hops_seen.entry(id.to_string()).or_default();
         *n += 1;
         let text = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
-        let post_data = request.get("postData").and_then(Value::as_str).map(String::from);
+        let post_data = agent_browser_core::capture::request_body(request);
         let mut hop = Hop {
             key: format!("{id}#{n}"),
             chain: id.to_string(),
@@ -310,7 +313,7 @@ pub async fn after_drain(state: &mut DaemonState) {
                 // Asked once: an answer that says no won't change.
                 hop.needs_post_data = false;
                 let asked = client.send_command("Network.getRequestPostData", Some(json!({ "requestId": hop.chain })), Some(&session)).await;
-                hop.post_data = asked.ok().and_then(|r| r.get("postData")?.as_str().map(String::from));
+                hop.post_data = asked.ok().and_then(|r| agent_browser_core::capture::held_back_body(&r));
             }
             if hop.finished && !hop.queued && hop.body.is_none() && hop.status.is_some_and(|s| s != 0) && hop.redirect_url.is_empty() && mime_is_text(&hop.mime_type) {
                 let asked = client.send_command("Network.getResponseBody", Some(json!({ "requestId": hop.chain })), Some(&session)).await;
@@ -360,6 +363,17 @@ pub fn flush(state: &mut DaemonState, all: bool) {
             capture.answered.remove(&chain);
         }
     }
+    // What the latest step set off and isn't in the log yet: the page's own calls and pages sent since it, by when each
+    // was sent and where to. A large answer is still coming long after a small one sent later is logged; a reader
+    // waiting on the step reads it here. A call the page keeps open from before the step (a long poll) is not the step's.
+    let step_at = capture.step_at;
+    let open: Vec<(f64, String)> = capture
+        .open
+        .iter()
+        .filter(|h| h.seen_at >= step_at && matches!(h.resource_type.as_str(), "Fetch" | "XHR" | "Document"))
+        .filter_map(|h| Some((h.seen_at, url::Url::parse(&h.url).ok()?.host_str()?.to_string())))
+        .collect();
+    log.say_open(&open.iter().map(|(t, host)| (*t, host.as_str())).collect::<Vec<_>>());
 }
 
 /// The session is closing: everything answered is written, and the log is ended.
@@ -403,11 +417,15 @@ fn entry_json(h: Hop) -> Value {
         "headers": pairs(&h.request_headers),
         "queryString": query,
         "headersSize": -1,
-        "bodySize": h.post_data.as_ref().map_or(0, String::len),
+        "bodySize": h.post_data.as_ref().map_or(0, |(body, base64)| if *base64 { body.len() / 4 * 3 - body.bytes().rev().take_while(|b| *b == b'=').count() } else { body.len() }),
     });
-    if let Some(body) = &h.post_data {
+    if let Some((body, base64)) = &h.post_data {
         let kind = header(&h.request_headers, "content-type").unwrap_or_else(|| "text/plain".to_string());
         request["postData"] = json!({ "mimeType": kind, "text": body });
+        // Bytes that are no text, in base64, said as the engine's own walk says it (`HarPostData`'s `_encoding`).
+        if *base64 {
+            request["postData"]["_encoding"] = json!("base64");
+        }
     }
     let mime = if h.mime_type.is_empty() { "application/octet-stream" } else { h.mime_type.as_str() };
     let mut content = json!({ "size": h.body_size, "mimeType": mime });
@@ -528,6 +546,7 @@ pub async fn log_action(state: &mut DaemonState, action: &str, cmd: &Value) -> O
         _ => None,
     };
     let t = now_secs();
+    state.unbrowse.capture.step_at = t;
     // The field's own name, so routes name inputs the way a person would, not by CSS selector.
     let field = match (action, selector) {
         ("fill" | "type" | "select", Some(sel)) => on_element(state, sel, FIELD_NAME, None).await.and_then(|v| v.as_str().map(String::from)).filter(|s| !s.is_empty()),
@@ -551,7 +570,7 @@ pub async fn log_action(state: &mut DaemonState, action: &str, cmd: &Value) -> O
         Some(sel) if STEPS_ON_AN_ELEMENT.contains(&action) => on_element(state, sel, UNIQUE_SELECTOR, None).await.and_then(|v| v.as_str().map(String::from)),
         _ => None,
     };
-    let line = json!({ "type": "action", "t": t, "action": action, "selector": selector, "field": field, "locator": locator, "value": value, "secret": secret });
+    let line = submitted(json!({ "type": "action", "t": t, "action": action, "selector": selector, "field": field, "locator": locator, "value": value, "secret": secret }), cmd);
     if matches!(action, "fill" | "type" | "select") {
         return Some(line);
     }
@@ -559,6 +578,15 @@ pub async fn log_action(state: &mut DaemonState, action: &str, cmd: &Value) -> O
         log.write(line);
     }
     None
+}
+
+/// An action's log `line`, marked `submit` when its command submits its field's form itself (a vault login's one step,
+/// `fill` with `submit`): no click or key after it sends the form, so the learner takes the fill as the step that did.
+fn submitted(mut line: Value, cmd: &Value) -> Value {
+    if cmd.get("submit").and_then(Value::as_bool) == Some(true) {
+        line["submit"] = json!(true);
+    }
+    line
 }
 
 /// Writes a typed action [`log_action`] held back, once its command succeeded.
@@ -788,6 +816,68 @@ mod tests {
         }
     }
 
+    /// A page that compresses what it sends (its `content-encoding` says so) sends bytes that are no text. Chrome's
+    /// `postData` reads those as one character a byte, which is not what was sent; the parts Chrome gives are, and the
+    /// walk keeps them, in base64, said so.
+    #[test]
+    fn a_body_of_bytes_is_written_as_the_bytes_the_page_sent() {
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD;
+        let sent: Vec<u8> = vec![0x1f, 0x8b, 0x08, 0x00, 0x98, 0xcc, 0x00, 0xed, 0xe1];
+        let as_one_char_a_byte: String = sent.iter().map(|b| *b as char).collect();
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = DaemonState::new();
+        state.unbrowse.capture = capture_in(dir.path());
+        let c = &mut state.unbrowse.capture;
+        c.on_event("Network.requestWillBeSent", &json!({ "requestId": "z", "type": "Fetch", "request": { "method": "POST", "url": "https://shop.example/api/search", "headers": { "Content-Type": "application/json", "Content-Encoding": "gzip" }, "postData": as_one_char_a_byte, "postDataEntries": [{ "bytes": b64.encode(&sent) }], "hasPostData": true } }), Some("s"));
+        c.on_event("Network.responseReceived", &json!({ "requestId": "z", "type": "Fetch", "response": { "status": 200, "mimeType": "application/json", "headers": {} } }), Some("s"));
+        c.on_event("Network.loadingFinished", &json!({ "requestId": "z", "encodedDataLength": 2 }), Some("s"));
+        let lines = written(&mut state, dir.path());
+        let post = &lines[0]["entry"]["request"]["postData"];
+        assert_eq!(post["_encoding"], "base64", "{post}");
+        assert_eq!(b64.decode(post["text"].as_str().unwrap()).unwrap(), sent);
+        assert_eq!(lines[0]["entry"]["request"]["bodySize"], sent.len());
+    }
+
+    /// What the latest step set off and isn't in the log yet is said beside it (`walk.open`): a call the page sent
+    /// after the step, by when and where to, until its answer is written. A call open from before the step (a long
+    /// poll) and a picture are not the step's to wait for.
+    #[test]
+    fn a_call_the_step_set_off_is_said_until_it_is_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = DaemonState::new();
+        state.unbrowse.capture = capture_in(dir.path());
+        let sent = |c: &mut Capture, id: &str, kind: &str, url: &str| {
+            c.on_event("Network.requestWillBeSent", &json!({ "requestId": id, "type": kind, "request": { "method": "GET", "url": url, "headers": {} } }), Some("s"));
+        };
+        sent(&mut state.unbrowse.capture, "poll", "XHR", "https://www.shop.example/live/poll");
+        state.unbrowse.capture.step_at = now_secs();
+        sent(&mut state.unbrowse.capture, "search", "Fetch", "https://www.shop.example/api/search?q=lamp");
+        sent(&mut state.unbrowse.capture, "pic", "Image", "https://img.shop.example/lamp.jpg");
+        flush(&mut state, false);
+        let said = std::fs::read_to_string(dir.path().join("walk.open")).unwrap();
+        let hosts: Vec<&str> = said.lines().filter_map(|l| l.split_once(' ').map(|(_, h)| h)).collect();
+        assert_eq!(hosts, ["www.shop.example"], "only the step's own call: {said}");
+        let c = &mut state.unbrowse.capture;
+        c.on_event("Network.responseReceived", &json!({ "requestId": "search", "type": "Fetch", "response": { "status": 200, "mimeType": "application/json", "headers": {} } }), Some("s"));
+        c.on_event("Network.loadingFinished", &json!({ "requestId": "search", "encodedDataLength": 2 }), Some("s"));
+        let lines = written(&mut state, dir.path());
+        assert!(lines.iter().any(|l| l["entry"]["request"]["url"].as_str().is_some_and(|u| u.contains("/api/search"))));
+        assert_eq!(std::fs::read_to_string(dir.path().join("walk.open")).unwrap(), "", "written, it is no longer coming");
+    }
+
+    /// A body Chrome held back from the event comes from `Network.getRequestPostData`, in base64 when it says so, and
+    /// is kept as the engine keeps one: as bytes where it is no text, as text where it is.
+    #[test]
+    fn a_held_back_body_is_kept_as_its_bytes() {
+        use base64::Engine;
+        let b64 = base64::engine::general_purpose::STANDARD;
+        let bytes = [0x1f, 0x8b, 0x08, 0x00, 0x98];
+        assert_eq!(agent_browser_core::capture::held_back_body(&json!({ "postData": b64.encode(bytes), "base64Encoded": true })), Some((b64.encode(bytes), true)));
+        assert_eq!(agent_browser_core::capture::held_back_body(&json!({ "postData": b64.encode("q=lamp"), "base64Encoded": true })), Some(("q=lamp".to_string(), false)));
+        assert_eq!(agent_browser_core::capture::held_back_body(&json!({ "postData": "q=lamp" })), Some(("q=lamp".to_string(), false)), "an answer from an older Chrome reads as it did");
+    }
+
     /// Each hop of a redirect is its own line, with its own cookies, in the order the hops were made.
     #[test]
     fn each_hop_of_a_redirect_is_written_with_its_own_headers() {
@@ -870,6 +960,15 @@ mod tests {
 
     /// A browser started again for a session whose log already names a secret goes on writing it, naming the secret,
     /// because the list of what it names is sealed beside the log: never unsealed in the file, never a log gone quiet.
+    #[test]
+    fn a_fill_that_submits_its_form_says_so_in_its_line() {
+        let line = || json!({ "type": "action", "action": "fill", "secret": true });
+        assert_eq!(submitted(line(), &json!({ "action": "fill", "submit": true }))["submit"], json!(true));
+        for cmd in [json!({ "action": "fill" }), json!({ "action": "fill", "submit": false }), json!({ "action": "fill", "submit": "yes" })] {
+            assert!(submitted(line(), &cmd).get("submit").is_none(), "{cmd}");
+        }
+    }
+
     #[test]
     fn a_restarted_browser_goes_on_naming_what_the_log_named() {
         use aes_gcm::KeyInit;

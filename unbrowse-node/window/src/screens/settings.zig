@@ -62,6 +62,12 @@ pub fn view(a: *App, c: *ui.Context) void {
     browser(a, c);
     look.rule(c);
     mapping(a, c, s);
+    look.rule(c);
+    {
+        const sec = section(c, "This window", "What the window shows. The basic screens are Agents, Money, Vault and Settings, and the Browser when a site needs you.");
+        defer sec.end();
+        toggle(a, c, "Show advanced screens", "Adds the node's map, live walks, your routes, the full activity log and the leaderboard to the sidebar.", a.advanced(), "advanced");
+    }
     // Advanced: launching the owner's entries' coins, which spends their UNB by itself.
     look.rule(c);
     {
@@ -352,7 +358,7 @@ fn same(a: ?[]const u8, b: []const u8) bool {
 }
 
 /// "https://www.ocbc.com/x" → "www.ocbc.com".
-fn hostOf(c: *ui.Context, v: []const u8) []const u8 {
+pub fn hostOf(c: *ui.Context, v: []const u8) []const u8 {
     var s = std.mem.trim(u8, v, " \t");
     for ([_][]const u8{ "https://", "http://" }) |p| if (std.ascii.startsWithIgnoreCase(s, p)) {
         s = s[p.len..];

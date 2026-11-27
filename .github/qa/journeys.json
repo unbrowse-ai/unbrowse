@@ -927,6 +927,21 @@
     "landing src/home/Hero.tsx"
    ],
    "waived": "Lives in the unbrowse-landing repository, tested by its own checks."
+  },
+  {
+   "id": "setup-without-a-terminal",
+   "surface": "mcp",
+   "promise": "An agent reads its node's setup step by step and does each step after the owner says yes on their screen; nothing it is told to pass on is a command to type.",
+   "source": [
+    "skills/unbrowse/SKILL.md: Set up (once, with no terminal)",
+    "unbrowse-node/app/src/setup.rs",
+    "PR 822"
+   ],
+   "steps": [
+    "unbrowse_setup with no do"
+   ],
+   "expected": "The node's setup steps (terms, sign_in, apps, web, sites, first_call), each done or with the next call to make, and no unbrowse-node or unb command in the reply.",
+   "picture": "the reply: the setup list"
   }
  ]
 }

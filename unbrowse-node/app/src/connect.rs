@@ -419,6 +419,9 @@ pub struct Status {
     /// Set up per project, so there is nothing for Connect to write: `note` says how.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub manual: bool,
+    /// When the app last reached this node (unix seconds), by the name it gives at MCP `initialize` (`heard::stamp`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heard: Option<u64>,
 }
 
 /// What an owner does for ElizaOS, which keeps its plugins in each project's character.
@@ -429,7 +432,7 @@ pub fn clients(m: &Machine, entry: &Value) -> Vec<Status> {
     ALL.into_iter()
         .map(|c| {
             if c.manual() {
-                return Status { id: c.id(), name: c.name(), found: c.found(m), connected: false, path: String::new(), note: Some(ELIZA_NOTE.into()), manual: true };
+                return Status { id: c.id(), name: c.name(), found: c.found(m), connected: false, path: String::new(), note: Some(ELIZA_NOTE.into()), manual: true, heard: None };
             }
             let file = c.config(m);
             let (connected, note) = match current(c, &file).map(|h| h.map(|h| canonical(c, &h))) {
@@ -442,7 +445,7 @@ pub fn clients(m: &Machine, entry: &Value) -> Vec<Status> {
                     Kind::Core => (false, Some("an Unbrowse server for another address or agent is there: Connect replaces it".into())),
                 },
             };
-            Status { id: c.id(), name: c.name(), found: c.found(m), connected, path: file.display().to_string(), note, manual: false }
+            Status { id: c.id(), name: c.name(), found: c.found(m), connected, path: file.display().to_string(), note, manual: false, heard: None }
         })
         .collect()
 }
@@ -1460,3 +1463,7 @@ mod tests {
         assert!(e.contains("couldn't start"), "{e}");
     }
 }
+
+#[cfg(test)]
+#[path = "connect_cov_tests.rs"]
+mod connect_cov_tests;

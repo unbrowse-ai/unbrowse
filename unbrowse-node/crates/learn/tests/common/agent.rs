@@ -8,7 +8,7 @@ use std::process::Command;
 /// node learning from a real browser, so a missing build fails them; it never skips them.
 pub fn browser() -> PathBuf {
     let path = std::env::var_os("UNBROWSE_BROWSER").map(PathBuf::from).unwrap_or_else(|| {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../unbrowse-browser/cli/target/debug/agent-browser")
+        built_browser(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../unbrowse-browser/cli/target/debug"), std::env::consts::EXE_SUFFIX)
     });
     assert!(
         path.exists(),
@@ -16,6 +16,12 @@ pub fn browser() -> PathBuf {
         path.display()
     );
     path
+}
+
+/// The CLI's build in `dir` on a system whose programs end in `suffix` (`.exe` on Windows, nothing elsewhere). Windows,
+/// 22 Nov 2026: the name without `.exe` was never there, so the two shop tests failed unless UNBROWSE_BROWSER was set.
+pub fn built_browser(dir: &std::path::Path, suffix: &str) -> PathBuf {
+    dir.join(format!("agent-browser{suffix}"))
 }
 
 pub struct Agent {

@@ -33,6 +33,8 @@ pub const Settings = struct {
     private_network: bool = false,
     /// The version of the terms the owner acknowledged.
     terms_accepted: ?[]const u8 = null,
+    /// The window shows its advanced screens. Null: never chosen, as on a node from before the choice.
+    advanced: ?bool = null,
     /// The owner lets the node join the peer network.
     peer_network: bool = true,
     /// The node fetches newer releases and restarts into them.
@@ -118,6 +120,8 @@ pub const AgentSpend = wire.AgentSpend;
 pub const NewAgent = wire.NewAgent;
 /// This node's own remote MCP address at a gateway, and a remote key made for it (`remote.rs`).
 pub const Remote = wire.Remote;
+/// The node's setup as one list (`setup_status`), the same an agent reads with unbrowse_setup.
+pub const SetupStatus = wire.SetupStatus;
 pub const NewRemoteKey = wire.NewRemoteKey;
 
 /// `code`: the Keychain keeps the login's one-time code key (two-step sign-in).
@@ -357,6 +361,8 @@ pub const AgentClient = struct {
     note: ?[]const u8 = null,
     /// Set up per project (ElizaOS): named with how, never ticked or written.
     manual: bool = false,
+    /// When the app last reached the node (unix seconds), by the name it gives at MCP initialize: null until it has.
+    heard: ?f64 = null,
 };
 pub const AgentClients = struct { clients: []const AgentClient = &.{} };
 
@@ -407,6 +413,7 @@ pub const Res = enum {
     money,
     terms_text,
     coin_holdings,
+    setup_status,
 
     pub fn Type(comptime r: Res) type {
         return switch (r) {
@@ -440,6 +447,7 @@ pub const Res = enum {
             .money => Money,
             .terms_text => TermsText,
             .coin_holdings => Holdings,
+            .setup_status => SetupStatus,
         };
     }
 

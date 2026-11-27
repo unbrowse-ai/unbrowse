@@ -20,6 +20,7 @@ provides_tools:
   - unbrowse_inspect
   - unbrowse_judge
   - unbrowse_whoami
+  - unbrowse_setup
   - unbrowse_report
 requires_env:
   - name: UNBROWSE_AGENT_TOKEN

@@ -4,6 +4,7 @@
 //! thread, and each asks for one frame.
 const std = @import("std");
 const nanoui = @import("nanoui");
+const handoff = @import("handoff.zig");
 const ui = nanoui.ui;
 const kit = nanoui.kit;
 const types = @import("types.zig");
@@ -33,6 +34,14 @@ pub fn cashedOut(answer: []const u8) []const u8 {
     const t = std.mem.trim(u8, answer, ws);
     const none = t.len >= 2 and t[0] == '[' and t[t.len - 1] == ']' and std.mem.trim(u8, t[1 .. t.len - 1], ws).len == 0;
     return if (none) "Nothing was waiting to cash out." else "Sent.";
+}
+
+/// How long an agent's ask stays in a note: until it stops waiting (`expires_at`, seconds since the epoch), at least
+/// ten seconds and at most fifteen minutes (a clock not read yet, or an ask that says no end).
+pub fn askNoteSeconds(ask: ?types.HandsAsk, now: f64) f32 {
+    const k = ask orelse return 10;
+    if (now <= 0 or k.expires_at <= now) return 10;
+    return @floatCast(@min(@max(k.expires_at - now, 10), 15 * 60));
 }
 
 pub const App = struct {
@@ -128,6 +137,11 @@ pub const App = struct {
     /// settings (`seed`).
     dev_buy_field: ui.TextBuffer = .{},
     dev_buy_seen: Text = .{},
+    /// Agents: the site the owner types to connect (its sign-in taken from their own browser), and the one last sent.
+    site_field: ui.TextBuffer = .{},
+    site_sent: Text = .{},
+    /// Why the last site didn't connect, shown under the field that asked, never in another panel.
+    site_err: Text = .{},
     /// The Money screen's Advanced fold, and Settings' Security fold: closed until the owner opens them.
     money_advanced: bool = false,
     security_open: bool = false,
@@ -143,6 +157,14 @@ pub const App = struct {
     terms_tab: usize = 0,
     terms_asked: bool = false,
     keep_off: ?bool = null,
+    /// Setting up (screens/onboarding.zig): whether this node is new (it had never answered the terms when the window
+    /// first read it), the side the next step comes in from (1 going on, -1 going back), whether the owner is past the
+    /// Welcome step, whether the full terms are open, and whether the closing "You're set" step is due.
+    new_node: ?bool = null,
+    onboard_dir: f32 = 1,
+    welcomed: bool = false,
+    terms_open: bool = false,
+    finish_due: bool = false,
     /// First-run sign-in (screens/sign_in.zig): due once a node that had never answered the terms is opened, until the
     /// owner signs in or skips it; whether it has read the node's sign-in yet; the sign-in page when the node couldn't
     /// open the browser itself.
@@ -214,7 +236,9 @@ pub const App = struct {
 
     // ---- what each screen reads ----
 
-    const always = [_]Res{ .node_info, .identity, .settings, .chain_status };
+    // `money` rides along: the top bar's balance badge is on every screen, and a top-up that lands must reach it
+    // without the owner opening Money.
+    const always = [_]Res{ .node_info, .identity, .settings, .chain_status, .money };
 
     fn wants(s: Screen) []const Res {
         return switch (s) {
@@ -223,7 +247,7 @@ pub const App = struct {
             .hands => &.{.hands},
             .routes => &.{ .routes, .routes_on_chain, .agents_list, .wallet, .share_status },
             .activity => &.{.activity},
-            .access => &.{ .agents_list, .money, .remote_status },
+            .access => &.{ .agents_list, .money, .remote_status, .setup_status, .sessions },
             .wallet => &.{ .money, .wallet, .agents_list, .agents_spend, .link_status, .earnings, .coin_holdings, .owner_nodes, .listings_to_sign },
             .vault => &.{ .sessions, .vault_list, .vault_cards, .card_limits },
             .board => &.{ .board, .entries, .wallet },
@@ -473,6 +497,15 @@ pub const App = struct {
         a.event(name, data, scratch);
     }
 
+    /// Lets go of the notes of an agent's ask on `site` ("… needs you on `site`"): the ask is over.
+    fn askOver(a: *App, site: []const u8) void {
+        for (a.toaster.items.items) |*e| {
+            const t = e.toast.title;
+            const on = " needs you on ";
+            if (t.len > on.len + site.len and std.mem.endsWith(u8, t, site) and std.mem.endsWith(u8, t[0 .. t.len - site.len], on)) e.leaving = true;
+        }
+    }
+
     pub fn event(a: *App, name: []const u8, data: []const u8, scratch: std.mem.Allocator) void {
         const is = struct {
             fn f(x: []const u8, y: []const u8) bool {
@@ -483,6 +516,8 @@ pub const App = struct {
             a.eye.lineDropped();
         } else if (is(name, "activity") or is(name, "tick")) {
             a.refresh();
+            // An app reaching the node says so in the activity log: the rows that say whether it has are asked again.
+            if (is(name, "activity") and a.screen == .access) a.fetchClients();
         } else if (is(name, "call")) {
             a.calls.apply(scratch, data);
             a.burst.apply(scratch, data);
@@ -502,9 +537,14 @@ pub const App = struct {
             if (is(ev.kind, "ask")) {
                 const why = if (ev.ask) |k| k.why else "";
                 const who = if (ev.ask) |k| k.agent else "An agent";
-                a.toaster.push(.{ .status = .info, .title = std.fmt.allocPrint(scratch, "{s} needs you on {s}", .{ who, ev.site }) catch "An agent needs you", .message = why, .duration = 10 });
+                // The note stays as long as the ask waits (`expires_at`), never under ten seconds: an owner who looks
+                // away for a moment still finds the agent waiting on them, on any screen, the first-run one included.
+                a.toaster.push(.{ .status = .info, .title = std.fmt.allocPrint(scratch, "{s} needs you on {s}", .{ who, ev.site }) catch "An agent needs you", .message = why, .duration = askNoteSeconds(ev.ask, a.now) });
                 if (a.screen == .hands) a.watch(ev.site) else a.choose(ev.site);
                 a.forward();
+            } else if (is(ev.kind, "lapsed") or is(ev.kind, "held")) {
+                // The ask is over (no one answered, or the owner took the page): its note goes.
+                a.askOver(ev.site);
             }
         } else if (is(name, "browser")) {
             a.store.fetch(.browsers);
@@ -525,6 +565,10 @@ pub const App = struct {
         const mine = a.answersDialog(d);
         // A node that can't list its agents (an older one) simply has no Connect screen: that is no error to show.
         if (!d.ok and d.tag == .agent_clients) return;
+        if (!d.ok and d.tag == .site_connect) {
+            a.site_err.set(d.text);
+            return;
+        }
         if (!d.ok) {
             // A dialog that took its place isn't told of a failure that isn't its own; the owner still is.
             if (mine or !a.dialog_open) a.fail(d.text) else a.toaster.push(.{ .status = .danger, .title = "That didn't go through", .message = d.text, .duration = 10 });
@@ -533,6 +577,18 @@ pub const App = struct {
         if (mine) a.err.len = 0;
         switch (d.tag) {
             .generic, .settings => {},
+            .site_connect => {
+                a.site_err.len = 0;
+                // The toast holds only what outlives this answer: a fixed title, and the site kept in the window's own state.
+                a.toaster.push(.{ .status = .success, .title = "Site connected: your agents are signed in there as you", .message = a.site_sent.get(), .duration = 6 });
+                a.site_field.clear();
+                a.store.fetch(.sessions);
+                a.store.fetch(.setup_status);
+            },
+            .remote_link => {
+                a.toaster.push(.{ .status = .info, .title = "Sign in on the page that opened", .message = "Use the account you use with Unbrowse in ChatGPT or Claude. Unbrowse asks you here before it links.", .duration = 10 });
+                a.store.fetch(.remote_status);
+            },
             .cash_out => a.toaster.push(.{ .status = .success, .title = cashedOut(d.text), .duration = 4 }),
             .close => if (mine) a.close(),
             .card_limit => {
@@ -732,6 +788,7 @@ pub const App = struct {
 
     /// Past the agents on this Mac, on the first run: ChatGPT and Claude on the web come next.
     pub fn nextConnectStep(a: *App) void {
+        a.onboard_dir = 1;
         a.connect_step = 1;
         a.err.len = 0;
         a.store.fetch(.remote_status);
@@ -739,6 +796,9 @@ pub const App = struct {
 
     /// The owner is done with the Connect screen: it doesn't come back, whether or not they connected anything.
     pub fn dismissConnect(a: *App) void {
+        a.onboard_dir = 1;
+        // Setting up closes on its last step, You're set, with the first thing to try.
+        a.finish_due = true;
         a.connect_step = 0;
         a.connect_checked = true;
         a.connect_dismissed = true;
@@ -792,7 +852,7 @@ pub const App = struct {
 
         fn run(job: *MoveJob) void {
             job.failed = !job.copyAndOpen();
-            nanoui.App.onMain(job, finish);
+            handoff.toMain(job, finish);
         }
 
         fn copyAndOpen(job: *MoveJob) bool {
@@ -921,7 +981,73 @@ pub const App = struct {
         return if (a.store.get(.settings)) |s| !s.peer_network else false;
     }
 
+    /// Notes, once the node's settings are in, whether it is a new node: one that has never answered the terms. Only a new
+    /// node is welcomed, and taken through every step of setting up.
+    pub fn noteNewNode(a: *App) void {
+        if (a.new_node != null) return;
+        const s = a.store.get(.settings) orelse return;
+        a.new_node = s.terms_accepted == null;
+        // A new node's setting up always closes on You're set, whichever steps it had to take.
+        if (a.new_node.?) a.finish_due = true;
+        // And its owner starts on the basic screens, chosen once and kept by the node (`advanced`), so the next window
+        // opens the same. A node from before the choice keeps every screen it had.
+        if (a.new_node.? and s.advanced == null) a.saveSetting("advanced", .{ .bool = false });
+    }
+
+    /// Whether the window shows its advanced screens: the owner's choice in Settings; never chosen, as on a node from
+    /// before the choice, it does.
+    pub fn advanced(a: *App) bool {
+        const s = a.store.get(.settings) orelse return true;
+        return s.advanced orelse true;
+    }
+
+    /// Whether the sidebar lists screen `s`. The basic screens are the ones a newcomer comes back to: Agents (the apps
+    /// and the web address), Money, the Vault (logins and the sites connected) and Settings; the Browser comes and goes
+    /// with what it holds, an agent waiting on the owner or a page the owner has. With the advanced screens on, all of
+    /// them. Every screen still opens by its shortcut.
+    pub fn listed(a: *App, s: Screen) bool {
+        if (a.advanced()) return true;
+        return switch (s) {
+            .access, .wallet, .vault, .settings => true,
+            .hands => a.asks().len > 0 or a.holding() != null or a.screen == .hands,
+            else => a.screen == s,
+        };
+    }
+
+    /// Whether the Welcome step stands before the terms: a new node's owner who hasn't pressed Get started yet.
+    pub fn welcomeDue(a: *App) bool {
+        return (a.new_node orelse false) and !a.welcomed;
+    }
+
+    pub const Way = enum { forward, back };
+
+    /// A move between the steps of setting up that isn't the node's to decide: past Welcome, back to it, or back from
+    /// ChatGPT and Claude to the apps. The next step slides in from the side the owner is heading.
+    pub fn onboardGo(a: *App, way: Way, from: @import("screens/onboarding.zig").Step) void {
+        a.onboard_dir = if (way == .forward) 1 else -1;
+        a.err.len = 0;
+        switch (from) {
+            .welcome => a.welcomed = way == .forward,
+            .terms => if (way == .back) {
+                a.welcomed = false;
+            },
+            .web => if (way == .back) {
+                a.connect_step = 0;
+            },
+            else => {},
+        }
+    }
+
+    /// Past the closing step: the window as it is from now on, on Agents.
+    pub fn onboardFinish(a: *App) void {
+        a.finish_due = false;
+        a.onboard_dir = 1;
+        a.screen = .access;
+        a.refresh();
+    }
+
     pub fn acceptTerms(a: *App) void {
+        a.onboard_dir = 1;
         // A node answering the terms for the first time is a new one: its owner is asked to sign in next.
         if (a.store.get(.settings)) |s| if (s.terms_accepted == null) {
             a.sign_in_due = true;
@@ -950,6 +1076,7 @@ pub const App = struct {
 
     /// Past the first-run sign-in with nothing linked: the window as it is for any node with no wallet of the owner's.
     pub fn skipSignIn(a: *App) void {
+        a.onboard_dir = 1;
         a.sign_in_due = false;
         a.wipe(&a.sign_in_page);
         a.err.len = 0;

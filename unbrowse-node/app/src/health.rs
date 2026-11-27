@@ -111,7 +111,7 @@ pub(crate) fn network_said(n: &Node) -> Result<String, String> {
 }
 
 /// What a node the owner keeps off the network is: local, and ready as that (R1.35).
-pub const LOCAL: &str = "local: the owner keeps this node off the network, so routes stay on this node (`unbrowse-node network on` joins on its own wallet; no sign-in needed)";
+pub const LOCAL: &str = "local: the owner keeps this node off the network, so routes stay on this node (Join the peer network, in the Unbrowse app's Settings, joins on its own wallet; no sign-in needed)";
 
 /// Why the node's last try to join the peer network failed, said by `network` while it tries again: most often that its
 /// wallet holds no USDC yet for its identity's registration.

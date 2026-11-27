@@ -162,7 +162,7 @@ def bring(
             raise
     if not tok:
         ran = "" if started is not None else f" A node was running at {url} already, and only a node this process starts gives its own key: name one (`unbrowse agent token` prints the node's first key)."
-        raise error_for(f"no agent token: pass token= or set UNBROWSE_AGENT_TOKEN (Unbrowse app, Wallet, New agent key).{ran}", 401, "unauthorized")
+        raise error_for(f"no agent token: pass token= or set UNBROWSE_AGENT_TOKEN (`unbrowse agent token` prints one; `unbrowse agent new <name>` makes a key of the agent's own).{ran}", 401, "unauthorized")
     return url, tok, started
 
 

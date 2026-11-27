@@ -90,6 +90,29 @@ pub struct Held {
     /// (a token, a time, a rotating strip beside them) never reaches. Empty for an answer that holds no list of records.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rows: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) query_records: Option<QueryRecords>,
+}
+
+/// The result list in a completed query entry, kept by mark without its argument values.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(super) struct QueryRecords {
+    pub place: String,
+    argument: String,
+    other_arguments: String,
+    #[serde(default)]
+    titles: Vec<String>,
+}
+
+impl QueryRecords {
+    pub(super) fn changed_from(&self, before: &Self) -> bool {
+        if before.titles.is_empty() || self.place != before.place || self.argument != before.argument || self.other_arguments != before.other_arguments {
+            return false;
+        }
+        let old: std::collections::HashSet<_> = before.titles.iter().collect();
+        let changed: std::collections::HashSet<_> = self.titles.iter().filter(|r| !old.contains(r)).collect();
+        changed.len() >= 2 && changed.len() * 10 > self.titles.len()
+    }
 }
 
 /// What a confirming browse held the route's answer against.
@@ -179,7 +202,7 @@ pub fn asked(route: &crate::store::Route, given: &HashMap<String, String>) -> Ve
 pub fn held(route: &crate::store::Route, data: &serde_json::Value) -> Held {
     let place = route.heard.records_at.clone();
     let records = place.as_deref().and_then(|p| super::confirm::count_at(data, p));
-    Held { bytes: data.to_string().len(), records_at: place, records, lines: super::confirm::lines_of(data), marks: marks_of(data), said: said_of(data), named: None, rows: rows_of(data).unwrap_or_default() }
+    Held { bytes: data.to_string().len(), records_at: place, records, lines: super::confirm::lines_of(data), marks: marks_of(data), said: said_of(data), named: None, rows: rows_of(data).unwrap_or_default(), query_records: None }
 }
 
 /// An answer's own lines (`confirm::lines_said`) by mark, sorted, the lowest [`SAID`].
@@ -368,9 +391,116 @@ pub fn called(route: &crate::store::Route, given: &HashMap<String, String>, data
     let asked = asked(route, given);
     let since_load = since_load(&route.root, &asked);
     let values: Vec<String> = route.inputs.iter().filter(|i| !i.secret).filter_map(|i| given.get(&i.name).or(i.default.as_ref())).map(|v| v.trim().to_lowercase()).filter(|v| v.chars().count() >= 2).collect();
-    let answer = data.map(|d| Held { named: Some(names_its_value(d, &values)), ..held(route, d) });
+    let answer = data.map(|d| Held {
+        named: Some(names_its_value(d, &values)),
+        query_records: (ok && asked == self::asked(route, &HashMap::new()))
+            .then(|| query_records(route, d, &values)).flatten(),
+        ..held(route, d)
+    });
     let s = Sighting { at_ms: now_ms(), how: How::Call, asked, sent: Vec::new(), answer, walked: None, compared: None, ok, ms, rung, since_load };
     keep(&route.id, &s);
+}
+
+/// A completed cache entry explicitly binds its result list to a request: the argument object appears in both
+/// the key and the entry. Its own list must hold the goal's fields, independently of any other part of the page.
+pub(super) fn query_records(route: &crate::store::Route, data: &serde_json::Value, values: &[String]) -> Option<QueryRecords> {
+    use serde_json::Value;
+    use unbrowse_learn::goal;
+
+    fn entry(key: &str, value: &Value, goal_text: &str, fields: &[goal::Field], values: &[String]) -> Option<QueryRecords> {
+        let (operation, encoded) = key.split_once('(')?;
+        if operation.is_empty() || super::confirm::key_name(operation) != operation || value.get("status")?.as_str()? != "fulfilled" {
+            return None;
+        }
+        let args = value.get("originalArgs")?.as_object()?;
+        let encoded = serde_json::from_str::<Value>(encoded.strip_suffix(')')?).ok()?;
+        if encoded.as_object()? != args {
+            return None;
+        }
+        let mut matching = args.iter().filter(|(_, v)| {
+            v.as_str().is_some_and(|text| values.iter().any(|word| text.trim().eq_ignore_ascii_case(word.trim())))
+        });
+        let (argument, _) = matching.next()?;
+        if matching.next().is_some() {
+            return None;
+        }
+        let entry = value.as_object()?;
+        if entry.keys().any(|name| name != "data" && super::confirm::key_name(name) == "data") {
+            return None;
+        }
+        let data = entry.get("data")?.as_object()?;
+        let mut lists = data.iter().filter_map(|(name, list)| {
+            let items = list.as_array()?;
+            if items.len() < 2 || name.is_empty() || super::confirm::key_name(name) != name
+                || data.keys().any(|other| other != name && super::confirm::key_name(other) == name)
+            {
+                return None;
+            }
+            let holding = goal::holding_for_goal(list, fields, &[], goal_text);
+            (holding.has_shapes() && holding.has_record_fields(goal_text, fields) && holding.records == items.len())
+                .then_some((name, items))
+        });
+        let (name, items) = lists.next()?;
+        if lists.next().is_some() {
+            return None;
+        }
+        // Compare the records' own labels. A rotating id or a diagnostic value is no evidence the results changed.
+        let titles = items.iter().take(200).map(|row| {
+            ["title", "name"].into_iter().find_map(|key| row.get(key)?.as_str().filter(|s| !s.trim().is_empty()))
+                .map(|title| mark(&title.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()))
+        }).collect::<Option<Vec<_>>>()?;
+        let mut other_arguments = args.clone();
+        other_arguments.remove(argument);
+        let mut other_arguments = Value::Object(other_arguments);
+        other_arguments.sort_all_objects();
+        Some(QueryRecords {
+            place: format!("{operation}/data/{name}"),
+            argument: argument.clone(),
+            other_arguments: mark(&other_arguments.to_string()),
+            titles,
+        })
+    }
+
+    fn find(value: &Value, goal_text: &str, fields: &[goal::Field], values: &[String], path: &mut Vec<String>, found: &mut Vec<QueryRecords>) {
+        let Some(object) = value.as_object() else { return };
+        if path.len() >= 16 {
+            return;
+        }
+        let mut names = HashMap::new();
+        for key in object.keys() {
+            *names.entry(super::confirm::key_name(key)).or_insert(0) += 1;
+        }
+        for (key, child) in object {
+            let name = super::confirm::key_name(key);
+            if name.is_empty() || names.get(name) != Some(&1) {
+                continue;
+            }
+            if let Some(mut records) = entry(key, child, goal_text, fields, values) {
+                if !path.is_empty() {
+                    records.place = format!("{}/{}", path.join("/"), records.place);
+                }
+                found.push(records);
+            } else if child.is_object() {
+                path.push(name.to_string());
+                find(child, goal_text, fields, values, path, found);
+                path.pop();
+            }
+            if found.len() > 1 {
+                return;
+            }
+        }
+    }
+
+    if route.write || route.method != "GET" || values.is_empty() {
+        return None;
+    }
+    let fields = goal::fields(&route.what);
+    if !fields.iter().any(|field| field.shape != goal::Shape::Plain) {
+        return None;
+    }
+    let mut found = Vec::new();
+    find(data, &route.what, &fields, values, &mut Vec::new(), &mut found);
+    if found.len() == 1 { found.pop() } else { None }
 }
 
 /// Whether an answer names one of the values it was asked (`values`, lowercased): a line of its text holds one, or one of

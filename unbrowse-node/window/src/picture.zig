@@ -6,6 +6,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const nanoui = @import("nanoui");
+const handoff = @import("handoff.zig");
 const ui = nanoui.ui;
 const api = @import("api.zig");
 const types = @import("types.zig");
@@ -107,7 +108,7 @@ const Job = struct {
             job.w = d.w;
             job.h = d.h;
         } else |_| {};
-        nanoui.App.onMain(job, done);
+        handoff.toMain(job, done);
     }
 
     fn done(ctx: ?*anyopaque) callconv(.c) void {

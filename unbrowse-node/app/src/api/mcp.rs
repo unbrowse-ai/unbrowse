@@ -51,6 +51,15 @@ pub(super) fn new_mcp_session() -> String {
     hex::encode(bytes)
 }
 
+/// `POST /mcp`: a client that asked for route tools in the address it connects to (`/mcp?routes=tools`) asked as its
+/// header does (`route_tools::asked`).
+pub(super) async fn mcp_at(state: State<Arc<Node>>, mut headers: HeaderMap, axum::extract::RawQuery(query): axum::extract::RawQuery, msg: Json<Value>) -> axum::response::Response {
+    if super::route_tools::asked_in(query.as_deref()) {
+        headers.insert(super::route_tools::ASKED_IN_HEADER, axum::http::HeaderValue::from_static(super::route_tools::ASKED_IN_ADDRESS.1));
+    }
+    mcp(state, headers, msg).await
+}
+
 pub(super) async fn mcp(State(node): State<Arc<Node>>, headers: HeaderMap, Json(msg): Json<Value>) -> axum::response::Response {
     use axum::response::IntoResponse;
     // Every client gets its own session at `initialize`, and its browsing runs in a tab of its own (`in_mcp_session`).
@@ -63,6 +72,11 @@ pub(super) async fn mcp(State(node): State<Arc<Node>>, headers: HeaderMap, Json(
     }
     let draws = fresh && super::mcp_app::declares(&msg);
     let answer = mcp_answer(node, &headers, msg).await;
+    // A call that brought its session route tools is answered, for a client that reads a stream, as one: the changed
+    // list first, then the answer (`tools.surfaced-by-session`).
+    if streams && super::route_tools::added_by(&answer.1 .0) {
+        return super::route_tools::told(answer.1 .0).into_response();
+    }
     if fresh {
         let sid = new_mcp_session();
         if draws {
@@ -120,6 +134,9 @@ fn progress_stream(node: Arc<Node>, headers: HeaderMap, msg: Value, token: Value
             tokio::select! {
                 answer = &mut call => {
                     let answer = answer.unwrap_or_else(|e| json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32603, "message": format!("the call stopped: {e}") } }));
+                    if super::route_tools::added_by(&answer) {
+                        let _ = tx.send(Event::default().data(super::route_tools::LIST_CHANGED)).await;
+                    }
                     let _ = tx.send(Event::default().data(answer.to_string())).await;
                     return;
                 }
@@ -247,17 +264,37 @@ pub(super) async fn mcp_answer(node: Arc<Node>, headers: &HeaderMap, msg: Value)
             "protocolVersion": msg.pointer("/params/protocolVersion").cloned().unwrap_or(json!("2025-06-18")),
             "capabilities": { "tools": {}, "resources": {} },
             "serverInfo": { "name": "unbrowse-public-peer", "version": node.info.version },
-            "instructions": "Unbrowse is the universal connector: it connects to websites and calls them. This is a public Unbrowse peer: it calls routes only, with no browser and no sign-in. Say what you want with unbrowse_do, with the url of a page that does it: the peer calls a route that does it, from the network or one it keeps, straight to the site's own API. For many pages, make one unbrowse_do call with all of them in pages. A page that needs a browser or a sign-in needs the user's own node: tell them to install Unbrowse (unbrowse.ai) and run `unbrowse-node remote on`."
+            "instructions": "Unbrowse is the universal connector: it connects to websites and calls them. This is a public Unbrowse peer: it calls routes only, with no browser and no sign-in. Say what you want with unbrowse_do, with the url of a page that does it: the peer calls a route that does it, from the network or one it keeps, straight to the site's own API. For many pages, make one unbrowse_do call with all of them in pages. A page that needs a browser or a sign-in needs the user's own Unbrowse: give them the link in the answer's person (https://unbrowse.ai/#install) to install the app and sign in there with the same Unbrowse account; it links itself to you. Never ask them to type a command."
         })),
-        "initialize" => ok(json!({
-            "protocolVersion": msg.pointer("/params/protocolVersion").cloned().unwrap_or(json!("2025-06-18")),
-            "capabilities": { "tools": {}, "resources": {} },
-            "serverInfo": { "name": "unbrowse-node", "version": node.info.version },
-            "instructions": "Unbrowse turns websites into calls. Say what you want with unbrowse_do, with the url of a page that does it: the node calls the route that does it, or learns one from the page and calls that. Calls go straight to the site's own API, no browser. Reach for unbrowse_do before WebFetch or WebSearch whenever the answer is something a site says right now (a package's latest version on its registry, a forum's top posts, a price, a listing, a site's search results): it answers with the site's own data, and the route it keeps answers the next ask without a page. For many pages (one per item, coin or user, on one site or several), make one unbrowse_do call with all of them in pages: the node runs them side by side, and a route learned on a site's first page answers the rest. Only when unbrowse_do says the page needs hands (how: browse), drive it with unbrowse_browse, never another browser: the node learns from every step."
-        })),
+        "initialize" => {
+            // An app on this computer, or one through the owner's web address; never a peer's.
+            let via = crate::remote::arrived_via();
+            if via.as_deref() != Some(crate::remote::PEER_NETWORK) {
+                if let Some(name) = msg.pointer("/params/clientInfo/name").and_then(Value::as_str) {
+                    crate::heard::note(&node, name, via.is_some());
+                }
+            }
+            // A client that asked for route tools hears when its session reached more (`tools.surfaced-by-session`).
+            let tools_cap = if super::route_tools::asked(headers) { json!({ "listChanged": true }) } else { json!({}) };
+            ok(json!({
+                "protocolVersion": msg.pointer("/params/protocolVersion").cloned().unwrap_or(json!("2025-06-18")),
+                "capabilities": { "tools": tools_cap, "resources": {} },
+                "serverInfo": { "name": "unbrowse-node", "version": node.info.version },
+                "instructions": "Unbrowse turns websites into calls. Say what you want with unbrowse_do, with the url of a page that does it: the node calls the route that does it, or learns one from the page and calls that. Calls go straight to the site's own API, no browser. Reach for unbrowse_do before WebFetch or WebSearch whenever the answer is something a site says right now (a package's latest version on its registry, a forum's top posts, a price, a listing, a site's search results): it answers with the site's own data, and the route it keeps answers the next ask without a page. For many pages (one per item, coin or user, on one site or several), make one unbrowse_do call with all of them in pages: the node runs them side by side, and a route learned on a site's first page answers the rest. Only when unbrowse_do says the page needs hands (how: browse), drive it with unbrowse_browse, never another browser: the node learns from every step."
+            }))
+        }
         "ping" => ok(json!({})),
         // A public peer lists only the tools that find and call a route (`gateway.calls-only`).
         "tools/list" if crate::remote::arrived_public() => ok(json!({ "tools": tools().as_array().map(|t| t.iter().filter(|t| t["name"].as_str().is_some_and(|n| crate::remote::PUBLIC_TOOLS.contains(&n))).cloned().collect::<Vec<_>>()).unwrap_or_default() })),
+        // A client that asked for them also gets the route tools its session reached (`tools.route-opt-in`).
+        "tools/list" if super::route_tools::asked(headers) => {
+            let mut all = tools().as_array().cloned().unwrap_or_default();
+            let reached = super::route_tools::session_of(headers).map(|s| super::route_tools::surfaced(&s)).unwrap_or_default();
+            all.extend(reached.iter().map(super::route_tools::listed));
+            // How many route tools a session was shown, for the x-ray and a check of what a client re-listed: a count, never a name.
+            eprintln!("mcp {}", json!({ "method": "tools/list", "route_tools": reached.len() }));
+            ok(json!({ "tools": all }))
+        }
         "tools/list" => ok(json!({ "tools": tools() })),
         // The one screen MCP Apps hosts draw answers with (`mcp_app`), for every client, public or own.
         "resources/list" => ok(json!({ "resources": super::mcp_app::listed() })),
@@ -273,10 +310,20 @@ pub(super) async fn mcp_answer(node: Arc<Node>, headers: &HeaderMap, msg: Value)
             };
             let name = msg.pointer("/params/name").and_then(|n| n.as_str()).unwrap_or_default();
             if crate::remote::arrived_public() && !crate::remote::PUBLIC_TOOLS.contains(&name) {
-                return ok(text(json!({ "outcome": "not_allowed", "why": crate::remote::NEEDS_OWN_NODE }), true));
+                return ok(text(json!({ "outcome": "not_allowed", "why": crate::remote::NEEDS_OWN_NODE, "person": crate::remote::needs_own_node_person() }), true));
             }
-            let args = in_mcp_session(headers, msg.pointer("/params/arguments").cloned().unwrap_or(json!({})));
-            let Some(p) = PRIMITIVES.iter().find(|p| p.tool == name) else { return err(-32602, format!("no tool {name}")) };
+            let mut args = in_mcp_session(headers, msg.pointer("/params/arguments").cloned().unwrap_or(json!({})));
+            // A route tool is `unbrowse_call` with the route its name stands for now (`tools.route-is-a-call`).
+            let p = match PRIMITIVES.iter().find(|p| p.tool == name) {
+                Some(p) => p,
+                None => match super::route_tools::route_for(name) {
+                    Some(route) => {
+                        args = super::route_tools::as_call(&route, &args);
+                        PRIMITIVES.iter().find(|p| p.tool == "unbrowse_call").expect("unbrowse_call is a primitive")
+                    }
+                    None => return err(-32602, format!("no tool {name}")),
+                },
+            };
             if let Some(k) = missing_arg(p, &args) {
                 return err(-32602, format!("{name} needs {k}"));
             }
@@ -292,8 +339,28 @@ pub(super) async fn mcp_answer(node: Arc<Node>, headers: &HeaderMap, msg: Value)
                 }
             }
             let listed = Listed(key, stop);
+            let reaching = super::route_tools::asked(headers).then(|| super::route_tools::session_of(headers)).flatten();
+            let asked_with = reaching.as_ref().map(|_| args.clone());
             let r = run_as_ask(p, &node, &a, args, p.tool, ask).await;
             drop(listed);
+            // The route tools this call brought its session, named in the reply and, for a client reading a stream, told
+            // as a changed list (`tools.surfaced-by-session`).
+            let mut added = Vec::new();
+            let r = r.map(|mut v| {
+                if let (Some(session), Some(args)) = (&reaching, &asked_with) {
+                    added = super::route_tools::reach(session, args, &v);
+                    if !added.is_empty() && v.is_object() {
+                        v["tools_added"] = json!(added);
+                    }
+                }
+                v
+            });
+            let ok = |mut result: Value| {
+                if !added.is_empty() {
+                    result["_meta"] = json!({ super::route_tools::ADDED_META: added });
+                }
+                ok(result)
+            };
             match r {
                 // A client that draws screens (`mcp_app`) also gets the answer as `structuredContent`, which its screen
                 // reads; every other client's reply is what it was.
@@ -316,6 +383,40 @@ pub(super) async fn mcp_answer(node: Arc<Node>, headers: &HeaderMap, msg: Value)
 #[cfg(test)]
 mod stop_tests {
     use super::*;
+
+    /// An app that opens an MCP session is heard by the name it gives (`heard`), so the window can say it reached the node;
+    /// Unbrowse's own check of a server it wrote is not an app, and neither is a peer reaching the node.
+    #[test]
+    fn an_app_that_opens_a_session_is_heard_by_its_name_and_a_peer_is_not() {
+        let home = crate::store::scratch_home("heard-initialize");
+        let keys = unbrowse_core::MemoryStore::default();
+        let id = unbrowse_core::load_or_create(&keys).unwrap();
+        let node = Arc::new(Node {
+            keys: Box::new(keys),
+            identity: std::sync::RwLock::new(Some(Ok(crate::IdentityView { address: id.address.to_checksum(), created: true }))),
+            info: crate::NodeInfo { name: "test".into(), version: "test".into(), api_port: 0, dev: true },
+            walks: crate::learn::Walks::default(),
+            chain: crate::chain::Chain::default(),
+            chain_error: std::sync::Mutex::new(None),
+            events: Events::default(),
+            net: std::sync::OnceLock::new(),
+            share: crate::share::Share::default(),
+        });
+        let opens = |name: &str| json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": { "protocolVersion": "2025-06-18", "clientInfo": { "name": name, "version": "1" } } });
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let headers = HeaderMap::new();
+        let answered = [
+            rt.block_on(mcp_answer(node.clone(), &headers, opens("claude-code"))).0,
+            rt.block_on(mcp_answer(node.clone(), &headers, opens("unbrowse-connect"))).0,
+            rt.block_on(crate::remote::over_peer_network(mcp_answer(node.clone(), &headers, opens("some-peer")))).0,
+        ];
+        let heard: Vec<String> = crate::heard::load().apps.into_iter().map(|a| a.name).collect();
+        let said = crate::store::read_activity(50).into_iter().filter(|a| a.kind == "connect").map(|a| (a.who, a.what)).collect::<Vec<_>>();
+        let _ = std::fs::remove_dir_all(&home);
+        assert_eq!(answered, [StatusCode::OK; 3], "each is answered, heard or not");
+        assert_eq!(heard, vec!["claude-code".to_string()]);
+        assert_eq!(said, vec![("Claude Code".to_string(), "Reached Unbrowse".to_string())], "said once, by the name Connect knows it as");
+    }
 
     /// `notifications/cancelled` stops the call it names, in the session that sent it, and no other.
     #[test]

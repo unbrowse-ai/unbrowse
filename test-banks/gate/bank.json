@@ -55,7 +55,7 @@
    "id": "u6:patent-analyst-1",
    "source": "unbrowse6",
    "url": "https://patents.google.com/",
-   "task": "List 10 granted US patents assigned to 'Dyson' mentioning 'cyclonic separation' since 2020",
+   "task": "List 10 US patents assigned to 'Dyson' that mention 'cyclonic separation' and were granted on or after January 1, 2020",
    "check": "count>=10:patent_number"
   },
   {

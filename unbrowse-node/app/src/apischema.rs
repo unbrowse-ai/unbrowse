@@ -116,7 +116,7 @@ pub fn types() -> Map<String, Value> {
                     "ignored_inputs": list(s()), "inputs": list(s()), "also_sends": list(r("RouteStep")), "notes": list(s()), "more": { "type": "object", "additionalProperties": s() },
                     "records": { "type": ["integer", "null"], "description": "How many records the answer holds where a confirming browse saw this route's records, read on the answer whole before the reply chose its fields or cut it: 0 is the site finding nothing, null an answer without that place. Absent where no place was seen." },
                     "bounties": r("BountyAsks"),
-                    "browser": yes(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s(), "network": all(json!({ "entry_id": s(), "content_id": s(), "contributor": s_null(), "served_by": s_null(), "cached": yes(),
+                    "browser": yes(), "route_id": s(), "replaced": s(), "learned_again": s(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s(), "network": all(json!({ "entry_id": s(), "content_id": s(), "contributor": s_null(), "served_by": s_null(), "cached": yes(),
                         "listed_as": s(), "ran_on": s() })) }),
                 &["ok", "ms", "data", "error", "paid_usdc", "paid_unb", "possible_commit", "retry", "truncated"],
             ),
@@ -135,7 +135,7 @@ pub fn types() -> Map<String, Value> {
         (
             "DoResult",
             json!({ "anyOf": [
-                variant("how", &["called", "learned"], json!({ "route": r("Route"), "result": r("CallResult"), "picked_by": s(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s(),
+                variant("how", &["called", "learned"], json!({ "route": r("Route"), "result": r("CallResult"), "picked_by": s(), "learned_routes": list(s()), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s(),
                     "notes": list(s()), "route_failed": r("RouteFailure"), "network_skipped": r("NetworkSkipped"), "network_offers": r("NetworkOffers"), "payment_refused": r("PaymentRefused") }), &["route", "result"], true),
                 variant("how", &["network"], json!({ "entry": r("NetworkEntry"), "result": r("CallResult"), "route_failed": r("RouteFailure"), "explored": yes(), "outcome": r("Outcome"), "outcome_from": s(), "next": r("Next"), "ask": s() }),
                     &["entry", "result"], true),
@@ -176,7 +176,21 @@ pub fn types() -> Map<String, Value> {
             ),
         ),
         // `browser` and `browser_fetch` are absent from a node older than the browser add-on.
-        ("Whoami", obj(json!({ "agent": s(), "address": s(), "node": s(), "browser": r("BrowserState"), "browser_fetch": yes(), "owner": r("OwnerReach") }), &["agent", "address", "node"])),
+        ("Whoami", obj(json!({ "agent": s(), "address": s(), "node": s(), "browser": r("BrowserState"), "browser_fetch": yes(), "call_browser": yes(), "owner": r("OwnerReach") }), &["agent", "address", "node"])),
+        // The node's setup as one list (`setup::status`): `setup_status` for the owner, `unbrowse_setup` for an agent, which
+        // also says what it did and what to hand the person (`person`), never a command.
+        ("SetupStep", obj(json!({ "id": s(), "done": yes(), "optional": yes(), "said": s(), "next": or_null(r("Next")) }), &["id", "done", "optional", "said", "next"])),
+        ("SetupStatus", obj(json!({ "steps": list(r("SetupStep")), "left": list(s()) }), &["steps", "left"])),
+        (
+            "Setup",
+            obj(
+                json!({ "steps": list(r("SetupStep")), "left": list(s()), "did": s(), "ok": yes(), "said": s(), "person": or_null(r("ForPerson")) }),
+                &["steps", "left", "did", "ok", "said", "person"],
+            ),
+        ),
+        // What an agent hands its person when only they can do it: a link to open, a dialog on their screen, or a
+        // place in the Unbrowse app; with the words to say. Never a command to type (`said_to_agents`).
+        ("ForPerson", obj(json!({ "kind": one_of(&["link", "dialog", "app"]), "url": s(), "say": s() }), &["kind", "say"])),
         // Whether `ask_owner` can reach the owner (`hands::owner_reach`); absent from an older node.
         ("OwnerReach", one_of(&["watching", "can_open", "off"])),
         ("BrowserState", one_of(&["present", "missing", "installing"])),
@@ -520,9 +534,9 @@ pub fn settings(taking: bool) -> Value {
         "share_previewed": yes,
         "share_preview_told": { "type": ["integer", "null"] },
         "list_per_day": if taking { json!({ "type": ["integer", "null"] }) } else { int },
-        "private_network": yes, "terms_accepted": { "type": ["string", "null"] }, "peer_network": yes, "light": yes, "serve_kept": yes, "auto_update": yes, "fetch_browser": yes, "headless_only": yes,
+        "private_network": yes, "terms_accepted": { "type": ["string", "null"] }, "advanced": { "type": ["boolean", "null"] }, "peer_network": yes, "light": yes, "serve_kept": yes, "auto_update": yes, "fetch_browser": yes, "headless_only": yes,
         "update_channel": { "type": ["string", "null"], "enum": ["stable", "canary", null] },
-        "passkeys": yes, "passkeys_never": list(s.clone()), "chain": s, "max_fetch_usdc": num, "deposit_floor_usdc": num, "coin_dev_buy_bps": { "type": "integer" }, "coin_complete_others": yes,
+        "passkeys": yes, "passkeys_never": list(s.clone()), "chain": s, "chain_chosen": yes, "max_fetch_usdc": num, "deposit_floor_usdc": num, "coin_dev_buy_bps": { "type": "integer" }, "coin_complete_others": yes,
         "gas_reserve_usdc": num, "max_gas_price_gwei": num, "gas_budget_usdc_per_day": num, "check_rpc": { "type": ["string", "null"] }, "claim_gas_share": num, "bounty_auto": yes, "keep_card_codes": yes, "accept_bearer": yes
     });
     if taking {
