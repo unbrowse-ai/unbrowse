@@ -294,7 +294,7 @@ The node runs a local Anvil devnet in `~/.unbrowse/devnet` in source builds (tes
 
 - **Your own routes are free** to your own agents, whether listed or not: no voucher, no receipt line, nothing counted against an agent key's daily cap.
 - **Sharing to the index:** Once you accept the terms and the peer network is on (the default), the node joins with its own wallet (no account or sign-in needed) and automatically lists proven routes (`app/src/autolist.rs`) so other agents can discover them through the Kademlia DHT keyed by site (`crates/net`, `app/src/peers.rs`). Listing is free.
-- **Fetching others' routes:** The node pays another contributor's fetch fee automatically in USDC, once per route version, up to your per-fetch maximum (`max_fetch_usdc`, $0.05 by default). Foreign routes are restricted to HTTPS and public internet addresses ([SHARING.md](../docs/SHARING.md)).
+- **Fetching others' routes:** The node pays another contributor's fetch fee automatically in USDC, up to your per-fetch maximum (`max_fetch_usdc`, $0.05 by default). A newer bounty can require another paid call on a cached route. Foreign routes are restricted to HTTPS and public internet addresses ([SHARING.md](../docs/SHARING.md)).
 - **Gas and settlement:** On a live network, every on-chain write is paid in Arc's native USDC. A node that only earns needs just a few cents once to register its ERC-8004 identity.
 
 ```bash
