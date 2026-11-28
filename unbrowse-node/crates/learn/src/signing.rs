@@ -121,6 +121,43 @@ fn samples_for(header: &str, call: &Exchange, trace: &Trace, probes: &[Probe], h
         }
     }
     }
+    if out.is_empty() {
+        out = sent_in_walks(header, call, trace, history);
+    }
+    out
+}
+
+/// The value a field held as the walk read it, when its reading carries one: the walk's own value, a constant.
+fn walked_value(class: &Class) -> Option<String> {
+    match class {
+        Class::Unconfirmed { value } | Class::Constant { value, .. } => Some(value.clone()).filter(|v| !v.is_empty()),
+        _ => None,
+    }
+}
+
+/// The value the walked call carried at `loc`, read from its own request.
+fn loc_value(call: Option<&Exchange>, loc: &crate::slots::Loc) -> Option<String> {
+    crate::slots::slots(call?).into_iter().find(|s| &s.loc == loc).map(|s| s.value).filter(|v| !v.is_empty())
+}
+
+/// The walk's own requests as sightings of a header the page's code writes, where no probe named it: every call the
+/// walk sent on the same method and path carrying the header is the value as written, with the call it was written
+/// for. A value written per call by one function is seen on each of them; a value no call carried is never guessed.
+fn sent_in_walks(header: &str, call: &Exchange, trace: &Trace, history: &[(Trace, Vec<Probe>)]) -> Vec<crate::generated::Sample> {
+    let mut out: Vec<crate::generated::Sample> = Vec::new();
+    for t in std::iter::once(trace).chain(history.iter().map(|(t, _)| t)) {
+        for ex in t.exchanges.iter().filter(|e| e.method.eq_ignore_ascii_case(&call.method) && e.url.path() == call.url.path()) {
+            let Some(expected) = ex.request_headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(header)).map(|(_, v)| v.clone()).filter(|v| !v.is_empty()) else { continue };
+            let headers = ex.request_headers.iter().filter(|(k, _)| !k.eq_ignore_ascii_case("cookie") && !k.eq_ignore_ascii_case(header)).cloned().collect();
+            let sample = crate::generated::Sample { method: ex.method.clone(), url: ex.url.to_string(), body: ex.request_body.clone(), cookies: ex.cookies(), headers, expected, pre: None };
+            if !out.iter().any(|s| s.url == sample.url && s.body == sample.body && s.cookies == sample.cookies && s.expected == sample.expected) {
+                out.push(sample);
+            }
+            if out.len() >= 8 {
+                return out;
+            }
+        }
+    }
     out
 }
 
@@ -142,18 +179,41 @@ fn written_at(scripts: &[(&str, &str)], name: &str, stack: &[crate::trace::Frame
     let spelled = |body: &str| -> Vec<usize> {
         body.match_indices(name).map(|(at, _)| at).filter(|&at| body[..at].chars().next_back().is_some_and(quote) && body[at + name.len()..].chars().next().is_some_and(quote)).collect()
     };
+    // A spelling that writes the key comes before one that only names it (a list of headers, a read of the value
+    // back): the write is where the value is made. Among writes, or among mentions where nothing writes it, the one
+    // nearest a frame of the stack, else the first in the page's code.
     let near = scripts
         .iter()
         .flat_map(|(url, body)| {
             let frames: Vec<usize> = stack.iter().filter(|f| f.script == *url).filter_map(|f| crate::slice::offset_at(body, f.line, f.column)).collect();
             let places = if frames.is_empty() { Vec::new() } else { spelled(body) };
-            places.into_iter().filter_map(move |at| frames.iter().map(|f| f.abs_diff(at)).min().map(|far| (far, *url, at))).collect::<Vec<_>>()
+            places.into_iter().filter_map(move |at| frames.iter().map(|f| f.abs_diff(at)).min().map(|far| (!writes_key(body, at, name), far, *url, at))).collect::<Vec<_>>()
         })
-        .min_by_key(|(far, _, _)| *far);
-    if let Some((_, url, at)) = near {
-        return Some(Producer { script: url.to_string(), at, frame: false });
+        .min_by_key(|(mention, far, _, _)| (*mention, *far));
+    let first_write = scripts.iter().find_map(|(url, body)| spelled(body).into_iter().find(|&at| writes_key(body, at, name)).map(|at| (*url, at)));
+    match (near, first_write) {
+        (Some((false, _, url, at)), _) | (_, Some((url, at))) | (Some((true, _, url, at)), None) => return Some(Producer { script: url.to_string(), at, frame: false }),
+        _ => {}
     }
     scripts.iter().find_map(|(url, body)| spelled(body).first().map(|&at| Producer { script: url.to_string(), at, frame: false }))
+}
+
+/// Whether the spelling of `name` at `at` (its first character, inside quotes) writes the key rather than naming it:
+/// a member assigned (`h["x-sig"]=`, not `==` or `=>`), an object literal's key (`{"x-sig": v}`), or the first
+/// argument of a call that sets a header (`set(`, `append(`, `setRequestHeader(`). The code's own shape, no site's.
+fn writes_key(body: &str, at: usize, name: &str) -> bool {
+    let (Some(before), Some(after)) = (body.get(..at), body.get(at + name.len()..)) else { return false };
+    let after = after.get(1..).unwrap_or_default().trim_start();
+    if let Some(rest) = after.strip_prefix(']') {
+        let rest = rest.trim_start();
+        return rest.starts_with('=') && !rest.starts_with("==") && !rest.starts_with("=>");
+    }
+    if after.starts_with(':') {
+        let lead = before.get(..before.len().saturating_sub(1)).unwrap_or_default().trim_end();
+        return lead.ends_with('{') || lead.ends_with(',');
+    }
+    let lead = before.get(..before.len().saturating_sub(1)).unwrap_or_default().trim_end();
+    after.starts_with(',') && ["set(", "append(", "setRequestHeader("].iter().any(|f| lead.ends_with(f))
 }
 
 /// Where the call was sent from, when nothing in the page's code spells the value's key (a key built as the code runs,
@@ -179,13 +239,28 @@ fn evidence_code(scripts: &[(&str, &str)], producer: &Producer) -> String {
     out
 }
 
-/// The scripts a walk fetched that could hold a producer: site code, not a stylesheet or an image.
-fn scripts(trace: &Trace) -> impl Iterator<Item = (&str, &str)> {
-    trace.exchanges.iter().filter_map(|e| {
-        let body = e.response_body.as_deref().filter(|b| !b.is_empty())?;
+/// The scripts a walk fetched that could hold a producer: site code, not a stylesheet or an image. Each address once,
+/// as one page boots it: in the order the walk first fetched it, from its longest copy (a walk that loaded its page
+/// again fetched each bundle again, and a copy the capture cut short is a prefix of the whole).
+fn scripts(trace: &Trace) -> Vec<(&str, &str)> {
+    let mut out: Vec<(&str, &str)> = Vec::new();
+    let mut at: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for e in &trace.exchanges {
+        let Some(body) = e.response_body.as_deref().filter(|b| !b.is_empty()) else { continue };
         let script = e.resource_type.as_deref() == Some("Script") || e.response_mime.contains("javascript") || e.response_mime.contains("ecmascript");
-        script.then(|| (e.url.as_str(), body))
-    })
+        if !script {
+            continue;
+        }
+        match at.get(e.url.as_str()) {
+            Some(&i) if body.len() > out[i].1.len() => out[i].1 = body,
+            Some(_) => {}
+            None => {
+                at.insert(e.url.as_str(), out.len());
+                out.push((e.url.as_str(), body));
+            }
+        }
+    }
+    out
 }
 
 /// The name a computed field writes: a header's own name, or a query/body key. Only a header is a producer a script
@@ -226,7 +301,7 @@ fn names(html: &str, url: &str) -> bool {
 /// name. The step becomes `page_signed` — the page's own request is its request — and the values the page writes are
 /// evidence (`page_producers`), not fields the route sends.
 pub fn discover(graph: &mut Graph, trace: &Trace, probes: &[Probe], env: &crate::generated::Environment, history: &[(Trace, Vec<Probe>)]) -> usize {
-    let scripts: Vec<(&str, &str)> = scripts(trace).collect();
+    let scripts: Vec<(&str, &str)> = scripts(trace);
     if scripts.is_empty() {
         return 0;
     }
@@ -335,6 +410,8 @@ pub fn discover(graph: &mut Graph, trace: &Trace, probes: &[Probe], env: &crate:
                                 crate::generated::Verdict::Failed(why) => {
                                     if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() {
                                         eprintln!("   [sign] the lifted code at {name} did not answer: {why}");
+                                        let shown: String = program.chars().take(3_000).collect();
+                                        eprintln!("   [sign] it lifted: {shown}");
                                     }
                                 }
                             }
@@ -428,7 +505,29 @@ pub fn discover(graph: &mut Graph, trace: &Trace, probes: &[Probe], env: &crate:
             }
             // The page's code writes this value into its own request. That is a producer for the **step**, not a
             // value the route sends: the page's request is the call, and a value it omits is simply not sent.
-            page_producers.push(crate::graph::PageProducer { loc: field.loc.clone(), producer: producer.clone() });
+            // What the first learn's request carried there is kept beside the producer: the call recalls it when the page's
+            // code makes nothing (`replay`), and the site's answer says whether it still holds.
+            let recalled = walked_value(&field.class).or_else(|| loc_value(call, &field.loc));
+            // The page's own function for the value, called with the call's own fields, where the write site is a
+            // module export's awaited answer: kept when it ran on the walk's page (its values are per call, so it
+            // differs from the walk's: the site judges each).
+            let function = crate::slice::page_function(&scripts, &producer, name).filter(|f| {
+                let program = &crate::slice::render(f);
+                let samples = call.map(|ex| samples_for(name, ex, trace, probes, history)).unwrap_or_default();
+                // The page booted with every script the walk loaded, as a call boots it with the route's: a function that
+                // loads its module on first use finds the chunk the page loaded, with no network to fetch it from here.
+                let with_the_walks = crate::generated::Environment { scripts: scripts.iter().map(|(u, b)| (u.to_string(), b.to_string())).collect(), ..env.clone() };
+                let verdict = if samples.is_empty() { crate::generated::Verdict::Failed("no sighting".into()) } else { crate::generated::verify(program, &samples, &with_the_walks) };
+                let ran = !matches!(verdict, crate::generated::Verdict::Failed(_));
+                if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() {
+                    match &verdict {
+                        crate::generated::Verdict::Failed(why) => eprintln!("   [sign] {name}: the page's own function, called with the call's fields, did not run on the walk's page: {why} ({program})"),
+                        _ => eprintln!("   [sign] {name}: the page's own function, called with the call's fields, ran on the walk's page"),
+                    }
+                }
+                ran
+            });
+            page_producers.push(crate::graph::PageProducer { loc: field.loc.clone(), producer: producer.clone(), recalled, function });
             field.class = Class::Computed;
             found += 1;
         }
@@ -436,7 +535,7 @@ pub fn discover(graph: &mut Graph, trace: &Trace, probes: &[Probe], env: &crate:
         for f in step.fields.iter() {
             if let Class::Script { producer } = &f.class {
                 if !page_producers.iter().any(|p| p.loc == f.loc) {
-                    page_producers.push(crate::graph::PageProducer { loc: f.loc.clone(), producer: producer.clone() });
+                    page_producers.push(crate::graph::PageProducer { loc: f.loc.clone(), producer: producer.clone(), recalled: None, function: None });
                 }
             }
         }
@@ -1323,9 +1422,44 @@ mod tests {
         assert!(fit_by_search_with(&sightings, "", &elsewhere).is_none(), "another script's literals do not make it");
     }
 
+    /// What a page producer recalls is the value the first learn's request carried at its place: the field's own reading
+    /// when it holds one, else the walked call's request; nothing when the walk carried none.
+    #[test]
+    fn a_page_producer_recalls_what_the_first_learns_request_carried() {
+        let call = api_call("GET", "https://shop.example/api/search", Some("sig-walked-1"), None);
+        let at = crate::slots::Loc::Header("x-sig".into());
+        assert_eq!(walked_value(&Class::Unconfirmed { value: "sig-read".into() }).as_deref(), Some("sig-read"));
+        assert_eq!(walked_value(&Class::Computed), None);
+        assert_eq!(loc_value(Some(&call), &at).as_deref(), Some("sig-walked-1"));
+        assert_eq!(loc_value(Some(&call), &crate::slots::Loc::Header("x-none".into())), None);
+        assert_eq!(loc_value(None, &at), None);
+    }
+
+    /// A page's code spells a header's name where it writes the value and where it only names it: a list of headers to
+    /// strip, a read of the value back for a beacon. The write is where the value is made, wherever the stack is: a
+    /// read sitting nearer the frame that sent the call is not the writer (a timeline site reads its transaction id
+    /// back for an impression beacon a few hundred characters from the filter that writes it, 27 November 2026).
+    #[test]
+    fn the_spelling_that_writes_the_key_is_the_writer_not_one_that_names_it() {
+        let app = r#"var strip=["cookie","x-sig","referer"];function add(t){return async(r,n)=>{let i={...r};i.headers["x-sig"]=await mk(r.path);return n(i)}}function beacon(e){var b=new URLSearchParams();b.append("id",e.headers["x-sig"]);return send(b)}"#;
+        let other = r#"function w(h){h.set("x-sig",seal());h.append('x-other',1)}var m={"x-sig":make()};"#;
+        let scripts = vec![("https://cdn.example/app.js", app)];
+        let write = app.find(r#"["x-sig"]="#).unwrap() + 2;
+        assert_eq!(written_at(&scripts, "x-sig", &[]).map(|p| p.at), Some(write), "no stack: the write, not the strip list before it");
+        let near_the_read = crate::trace::Frame { script: "https://cdn.example/app.js".into(), line: 0, column: app.find("send(b)").unwrap() as u32, function: "beacon".into() };
+        assert_eq!(written_at(&scripts, "x-sig", std::slice::from_ref(&near_the_read)).map(|p| p.at), Some(write), "a read nearer the frame is not the writer");
+        for (needle, why) in [(r#"set("x-sig""#, "a header set"), (r#"{"x-sig":"#, "an object's key")] {
+            let at = other.find(needle).unwrap() + needle.find("x-sig").unwrap();
+            assert!(writes_key(other, at, "x-sig"), "{why} writes the key");
+        }
+        assert!(!writes_key(app, app.find("x-sig").unwrap(), "x-sig"), "an array's item only names it");
+        let read = app.rfind("x-sig").unwrap();
+        assert!(!writes_key(app, read, "x-sig"), "a read of the value back only names it");
+    }
+
     /// Two scripts spell the header's name: one lists it among the headers a logger may read, the other writes it.
     /// With the stack that sent the call, the spelling in a script on that stack, nearest a frame, is the writer.
-    /// Without a stack the first spelling stands, as before; and a key spelled nowhere starts at the stack itself.
+    /// Without a stack the spelling that writes the key is the writer; and a key spelled nowhere starts at the stack.
     #[test]
     fn the_stack_that_sent_the_call_says_which_spelling_wrote_the_value() {
         let logger = r#"var allowed=["accept","x-sig","content-type"];function log(h){return allowed.filter(function(k){return h[k]})}"#;
@@ -1333,7 +1467,7 @@ mod tests {
         let scripts = vec![("https://cdn.example/logger.js", logger), ("https://cdn.example/app.js", app)];
         let frame = crate::trace::Frame { script: "https://cdn.example/app.js".into(), line: 0, column: app.find("fetch(").unwrap() as u32, function: "send".into() };
         let none = written_at(&scripts, "x-sig", &[]).expect("a spelling");
-        assert_eq!(none.script, "https://cdn.example/logger.js", "with no stack, the first spelling in the page's code");
+        assert_eq!(none.script, "https://cdn.example/app.js", "with no stack, the spelling that writes the key, not the logger's list");
         let found = written_at(&scripts, "x-sig", std::slice::from_ref(&frame)).expect("a spelling");
         assert_eq!((found.script.as_str(), found.at, found.frame), ("https://cdn.example/app.js", app.find("x-sig").unwrap(), false));
         assert!(written_at(&scripts, "x-other", std::slice::from_ref(&frame)).is_none());
@@ -1366,6 +1500,21 @@ mod tests {
         Exchange { url: url.parse().unwrap(), ..script(body) }
     }
 
+    /// A walk that loaded its page more than once fetched each bundle each time; the page booted offline is one page,
+    /// which boots each script once, from its whole copy, in the order the walk first fetched it. A walk of ten loads
+    /// once handed the sandbox ten copies of every bundle, and its run died past its memory (28 November 2026).
+    #[test]
+    fn a_script_the_walk_fetched_again_and_again_boots_once_from_its_whole_copy() {
+        let whole = "function sign(t){return 'v1.'+t}window.signer=sign;";
+        let cut = &whole[..12];
+        let trace = Trace {
+            exchanges: vec![served("https://cdn.example/app.js", cut), served("https://cdn.example/vendor.js", "var v=1;"), served("https://cdn.example/app.js", whole), served("https://cdn.example/app.js", whole), served("https://cdn.example/vendor.js", "var v=1;")],
+            inputs: vec![],
+        };
+        let booted = scripts(&trace);
+        assert_eq!(booted, vec![("https://cdn.example/app.js", whole), ("https://cdn.example/vendor.js", "var v=1;")]);
+    }
+
     fn document(url: &str, html: &str) -> Exchange {
         Exchange {
             method: "GET".into(),
@@ -1382,7 +1531,7 @@ mod tests {
     }
 
     fn step_with(class: Class, name: &str) -> Step {
-        Step {
+        Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0,
@@ -1963,6 +2112,32 @@ mod tests {
         assert!(!step.is_page_signed());
         let ctx = serde_json::json!({ "body": "{\"q\":\"ladle\"}", "url": "https://shop.example/api/search" });
         assert_eq!(crate::sandbox::run_program(program, &ctx, &serde_json::Value::Null, &Default::default()).unwrap(), "sig-13:{\"q\":\"ladle\"}");
+    }
+
+    /// The walk's own requests are the sightings of a value the page's code writes: each one it sent carries the value
+    /// as written, with the call it was written for. With no probe recorded, those are what the lifted code is held
+    /// to, so the page's own function becomes the route's program (a timeline site's transaction id was written on 51
+    /// calls the walk kept, and with no probe the signer had no sighting and lifted nothing, 27 November 2026).
+    #[test]
+    fn the_walks_own_requests_are_the_sightings_when_no_probe_was_recorded() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the lifted program is skipped");
+            return;
+        }
+        let site = r#"var send=function(t,e){t.headers["x-sig"]="sig-"+t.body.length+":"+t.body}"#;
+        let (b1, b2) = ("{\"q\":\"kettle\"}", "{\"q\":\"teapot-large\"}");
+        let (v1, v2) = (format!("sig-{}:{b1}", b1.len()), format!("sig-{}:{b2}", b2.len()));
+        let trace = Trace {
+            exchanges: vec![script(site), api_call("POST", "https://shop.example/api/search", Some(&v1), Some(b1)), api_call("POST", "https://shop.example/api/search", Some(&v2), Some(b2))],
+            inputs: vec![],
+        };
+        let mut graph = plain_graph(step_with(Class::Computed, "x-sig"));
+        graph.steps[0].needs_browser = false;
+        assert_eq!(discover(&mut graph, &trace, &[], &crate::generated::Environment::default(), &[]), 1);
+        let Class::Generated { evidence, .. } = &graph.steps[0].fields[0].class else { panic!("a program, got {:?}", graph.steps[0].fields[0].class) };
+        assert!(evidence.exact, "both sightings were reproduced");
+        assert_eq!((evidence.header.as_str(), evidence.sightings), ("x-sig", 2));
+        assert!(!graph.steps[0].is_page_signed(), "the program makes the value: the page need not boot");
     }
 
     /// Lifted code that runs but makes other values than the walk saw is still kept, marked as not reproducing: a

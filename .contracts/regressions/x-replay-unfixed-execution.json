@@ -1,0 +1,29 @@
+{
+  "claim": "Real unbrowse-node replaying x.com route 91fd4777a28522cd boots inline scripts without currentScript/sibling errors and does not refuse abs.twimg.com CDN chunks",
+  "test": [
+    "python3",
+    "-I",
+    ".contracts/verify_x_replay.py",
+    "execution"
+  ],
+  "requires": [
+    "x-replay-unfixed-source"
+  ],
+  "uses_evidence_from": [
+    "x-replay-unfixed-source"
+  ],
+  "inputs": [
+    "unbrowse-node/crates/learn/src/sandbox.rs",
+    "unbrowse-node/crates/learn/src/graph.rs"
+  ],
+  "role": "execution",
+  "against": "dbe12e76",
+  "verifier_inputs": [
+    ".contracts/verify_x_replay.py"
+  ],
+  "qualified": {
+    "at": "2026-11-28T07:47:21.003903+00:00",
+    "by": "pre-work",
+    "exit": 1
+  }
+}

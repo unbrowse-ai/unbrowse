@@ -39,32 +39,13 @@ pub(super) struct Learned {
 ///
 /// `visited` is what the kept capture records of where its browser was (`walk::addresses_from_walk`), read as a live
 /// walk's is: a capture without a whole record is None, a walk that may have been at an address with a fragment.
-pub(super) fn read(url: &str, goal: &str, mut trace: Trace, probes: &[unbrowse_learn::trace::Probe], visited: Option<&[String]>) -> Learned {
+pub(super) fn read(url: &str, goal: &str, trace: Trace, probes: &[unbrowse_learn::trace::Probe], visited: Option<&[String]>, recording: Option<unbrowse_learn::recording::Recording>) -> Learned {
     let none = |why: String| Learned { none: Some(why), ..Learned::default() };
-    let Some(host) = url::Url::parse(url).ok().and_then(|u| u.host_str().map(String::from)) else { return none("not a URL".into()) };
-    if let Err(why) = by_loading(goal) {
-        return none(why);
-    }
-    if let Some(why) = page_unreached(&trace, url) {
-        return none(why.to_string());
-    }
-    let site = walked_site(&trace.exchanges, &host);
-    let view = view_of("corpus", url, &site, &trace, 0);
-    let (in_path, _) = path_inputs(url, goal, &trace);
-    let query_values = asked_values(url, &in_path);
-    let pick = {
-        let scores = rule_scores(&trace, &view, goal, &query_values, &[]);
-        let shown = page_shown(&trace.exchanges, url, &[]);
-        let passes = |i: usize| may_answer(&trace, i, goal, url, &query_values, &shown, &view.site);
-        walk_pick(&trace, &view, goal, &query_values, scores, &passes, None)
-    };
-    let Some((index, by, _)) = pick else { return none(NEEDS_HANDS.into()) };
-    let picked = trace.exchanges[index].clone();
-    trace.inputs = walk_inputs(url, &in_path, &trace.exchanges);
-    let route = match route_of(&trace, index, goal, url, true, probes, &[], visited) {
-        Ok(route) => route,
+    let Picked { trace, index, by, route, query_values } = match picked_route(url, goal, trace, probes, visited, recording) {
+        Ok(p) => p,
         Err(why) => return none(why),
     };
+    let picked = trace.exchanges[index].clone();
     if let Some(why) = the_walk_found_nothing(&trace, index, &route, url, &query_values) {
         return none(why);
     }
@@ -80,19 +61,168 @@ pub(super) fn read(url: &str, goal: &str, mut trace: Trace, probes: &[unbrowse_l
     }
 }
 
+/// The route the live learn keeps from one walk, and what it was built from: the walk as the learner reads it (its
+/// inputs set), the picked call's index, who picked it, and the values the page's address asked.
+pub(super) struct Picked {
+    pub trace: Trace,
+    pub index: usize,
+    pub by: &'static str,
+    pub route: Route,
+    pub query_values: Vec<String>,
+}
+
+/// The learn of `pick_and_keep` up to the route, from the walk alone: `Err` says why nothing is kept.
+pub(super) fn picked_route(url: &str, goal: &str, mut trace: Trace, probes: &[unbrowse_learn::trace::Probe], visited: Option<&[String]>, recording: Option<unbrowse_learn::recording::Recording>) -> Result<Picked, String> {
+    let Some(host) = url::Url::parse(url).ok().and_then(|u| u.host_str().map(String::from)) else { return Err("not a URL".into()) };
+    by_loading(goal)?;
+    if let Some(why) = page_unreached(&trace, url) {
+        return Err(why.to_string());
+    }
+    let site = walked_site(&trace.exchanges, &host);
+    let view = view_of("corpus", url, &site, &trace, 0);
+    let (in_path, _) = path_inputs(url, goal, &trace);
+    let query_values = asked_values(url, &in_path);
+    let pick = {
+        let scores = rule_scores(&trace, &view, goal, &query_values, &[]);
+        let shown = page_shown(&trace.exchanges, url, &[]);
+        let passes = |i: usize| may_answer(&trace, i, goal, url, &query_values, &shown, &view.site);
+        walk_pick(&trace, &view, goal, &query_values, scores, &passes, None)
+    };
+    let Some((index, by, _)) = pick else { return Err(NEEDS_HANDS.into()) };
+    trace.inputs = walk_inputs(url, &in_path, &trace.exchanges);
+    let route = with_the_recording(recording, || route_of(&trace, index, goal, url, true, probes, &[], visited))?;
+    Ok(Picked { trace, index, by, route, query_values })
+}
+
 /// One case of a corpus read now, beside what was kept for it: `Err` says why the folder is no case.
 fn read_case(dir: &std::path::Path) -> Result<(Learned, Option<Learned>), String> {
+    let walk = case_walk(dir)?;
+    let kept = std::fs::read_to_string(dir.join("learned.json")).ok().and_then(|t| serde_json::from_str(&t).ok());
+    Ok((read(&walk.url, &walk.goal, walk.trace, &walk.probes, walk.visited.as_deref(), walk.recording), kept))
+}
+
+/// One kept walk as its case folder holds it: the page and goal it was walked for, the capture read as a walk, what
+/// the page's code was seen doing, and where its browser was.
+struct CaseWalk {
+    url: String,
+    goal: String,
+    trace: Trace,
+    probes: Vec<unbrowse_learn::trace::Probe>,
+    visited: Option<Vec<String>>,
+    /// The walk's recording, as the node's learn holds it while it builds the route (`with_the_recording`).
+    recording: Option<unbrowse_learn::recording::Recording>,
+}
+
+fn case_walk(dir: &std::path::Path) -> Result<CaseWalk, String> {
     let case: serde_json::Value = std::fs::read_to_string(dir.join("case.json")).map_err(|e| format!("no case.json: {e}")).and_then(|t| serde_json::from_str(&t).map_err(|e| format!("case.json: {e}")))?;
     let said = |key: &str| case.get(key).and_then(|v| v.as_str()).map(String::from).ok_or(format!("case.json names no {key}"));
     let (url, goal) = (said("url")?, said("goal")?);
     let capture = std::fs::read_dir(dir).map_err(|e| e.to_string())?.flatten().map(|f| f.path()).find(|p| p.extension().is_some_and(|x| x == "jsonl")).ok_or("no capture")?;
     let session = capture.file_stem().and_then(|s| s.to_str()).ok_or("the capture has no name")?;
-    let trace = trace_from_walk(dir, session).ok_or("the capture holds no walk")?;
+    // The walk as the node's own learn reads it: its recording, which reads a script the capture cut short whole
+    // from the source the browser parsed; the bare capture only where no recording reads.
+    let recording = unbrowse_learn::recording::Recording::read(dir, session);
+    let trace = match &recording {
+        Some(rec) => (*rec.trace).clone(),
+        None => trace_from_walk(dir, session).ok_or("the capture holds no walk")?,
+    };
     let probes = unbrowse_learn::walk::probes_from_walk(dir, session);
-    let kept = std::fs::read_to_string(dir.join("learned.json")).ok().and_then(|t| serde_json::from_str(&t).ok());
     // Where the kept walk's browser was, as its capture records it: never assumed clean.
     let visited = unbrowse_learn::walk::owners_addresses_from_walk(dir, session);
-    Ok((read(&url, &goal, trace, &probes, visited.as_deref()), kept))
+    Ok(CaseWalk { url, goal, trace, probes, visited, recording })
+}
+
+/// The case folders under `root`: `root`'s own cases, or, for a folder of corpora, each corpus's.
+fn cases_under(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out: Vec<std::path::PathBuf> = Vec::new();
+    for entry in std::fs::read_dir(root).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.join("case.json").exists() {
+            out.push(path);
+        } else if path.is_dir() {
+            out.extend(std::fs::read_dir(&path).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.join("case.json").exists()));
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Where every value on every kept route comes from (`route.value-dag`), read off every kept walk with no site asked:
+/// each value a route's steps send, counted by the way the route's body makes it (`body::sources`: an input, a
+/// constant, the session, an earlier answer, the clock, an expression, the walk's value recalled, the page's function,
+/// a program, or the page's code alone), and the opaque leaves (`body::opaque_leaves`) by where they sit. Prints; it judges nothing. `UNBROWSE_CORPUS` as above.
+#[test]
+fn what_sources_every_value_on_every_kept_route() {
+    let _offline = unbrowse_learn::http::offline();
+    let Some(root) = std::env::var_os("UNBROWSE_CORPUS").map(std::path::PathBuf::from) else { return };
+    store::scratch_home("corpus-sources");
+    let (mut routes, mut by_source, mut leaves) = (0usize, std::collections::BTreeMap::<&'static str, usize>::new(), std::collections::BTreeMap::<String, usize>::new());
+    for dir in &cases_under(&root) {
+        let Ok(walk) = case_walk(dir) else { continue };
+        let Ok(p) = picked_route(&walk.url, &walk.goal, walk.trace, &walk.probes, walk.visited.as_deref(), walk.recording) else { continue };
+        routes += 1;
+        // Each value by the way the route's body makes it: the one reader of where a value comes from.
+        for (_, _, source) in unbrowse_learn::body::sources(&p.route.graph) {
+            *by_source.entry(source.said()).or_default() += 1;
+        }
+        for (_, place, why) in unbrowse_learn::graph::opaque_leaves(&p.route.graph, &p.trace) {
+            *leaves.entry(format!("{place} ({why})")).or_default() += 1;
+        }
+    }
+    let total: usize = by_source.values().sum();
+    println!("sources: {routes} routes, {total} values");
+    let mut rows: Vec<_> = by_source.into_iter().collect();
+    rows.sort_by_key(|a| std::cmp::Reverse(a.1));
+    for (source, n) in rows {
+        println!("sources:   {n:>5}  {:>5.1}%  {source}", 100.0 * n as f64 / total.max(1) as f64);
+    }
+    let opaque: usize = leaves.values().sum();
+    println!("sources: {opaque} opaque leaves on the routes, by place:");
+    let mut places: Vec<_> = leaves.into_iter().collect();
+    places.sort_by_key(|a| std::cmp::Reverse(a.1));
+    for (place, n) in places.into_iter().take(25) {
+        println!("sources:   {n:>5}  {place}");
+    }
+}
+
+/// Contract, over every kept walk on this machine and so over every site walked: a value the walk shows the page
+/// writing anew on every call never reaches the route the learner keeps as one value recalled (a constant, the
+/// session's, the walk's own value sent again). It reaches it as something recomputed per call, or the browser makes
+/// the call. A per-call id kept as the session's is sent stale on every later call, and a site that checks it refuses
+/// the call some or all of the time (a timeline site's search, 27 November 2026). `UNBROWSE_CORPUS` names a corpus or
+/// a folder of corpora; with none named there is nothing to read and the test passes.
+#[test]
+fn no_kept_walk_leaves_a_value_its_page_made_per_call_kept_on_its_route() {
+    let _offline = unbrowse_learn::http::offline();
+    let Some(root) = std::env::var_os("UNBROWSE_CORPUS").map(std::path::PathBuf::from) else { return };
+    store::scratch_home("corpus-per-call");
+    let cases = cases_under(&root);
+    let (mut routes, mut per_call, mut kept) = (0usize, 0usize, Vec::new());
+    // What the route each walk keeps asks of the page, measured beside the contract: a build that keeps fewer values
+    // must not hand the page more calls than it can make (a tracing id made per call is not a reason to boot a page).
+    let (mut signed, mut browser) = (0usize, 0usize);
+    let mut names: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for dir in &cases {
+        let name = dir.strip_prefix(&root).unwrap_or(dir).display().to_string();
+        let Ok(walk) = case_walk(dir) else { continue };
+        let Ok(p) = picked_route(&walk.url, &walk.goal, walk.trace, &walk.probes, walk.visited.as_deref(), walk.recording) else { continue };
+        routes += 1;
+        for (k, _) in p.trace.exchanges[p.index].request_headers.iter().filter(|(k, _)| unbrowse_learn::graph::made_per_call(&p.trace, k)) {
+            per_call += 1;
+            *names.entry(k.to_ascii_lowercase()).or_default() += 1;
+        }
+        let page_signed = p.route.graph.steps.iter().filter(|s| s.is_page_signed()).count();
+        let needs = p.route.graph.steps.iter().filter(|s| s.needs_browser).count();
+        signed += usize::from(page_signed > 0);
+        browser += usize::from(needs > 0);
+        println!("route {name}: {} step(s), {page_signed} page-signed, {needs} need the browser", p.route.graph.steps.len());
+        for (step, header, class) in unbrowse_learn::graph::kept_though_made_per_call(&p.route.graph, &p.trace) {
+            kept.push(format!("{name}: step {} sends {header} as {class}", step + 1));
+        }
+    }
+    println!("corpus: {} cases, {routes} routes ({signed} with a page-signed step, {browser} with a step the browser makes), {per_call} header(s) the picked calls carry made anew per call, {} kept", cases.len(), kept.len());
+    println!("corpus: per-call headers by name: {names:?}");
+    assert!(kept.is_empty(), "routes that keep a value their page makes per call as the session's or a constant:\n{}", kept.join("\n"));
 }
 
 #[test]
@@ -152,7 +282,7 @@ fn what_a_second_walk_says_of_each_sites_calls() {
         let view = view_of("pairs", url, &walked_site(&first.exchanges, &host), first, 0);
         // No record of where the kept walk's browser was is handed on: the route read here is guarded, as a walk
         // that can't say is, and is only compared, never kept or listed.
-        let picked = read(url, goal, first.clone(), &[], None);
+        let picked = read(url, goal, first.clone(), &[], None, None);
         let mut tally = [0usize; 3];
         let mut hears = Vec::new();
         for c in &view.candidates {
@@ -328,7 +458,7 @@ fn how_many_kept_routes_the_least_chain_would_shorten() {
         let (url, goal) = (said("url"), said("goal"));
         let Some(capture) = std::fs::read_dir(&dir).ok().and_then(|d| d.flatten().map(|f| f.path()).find(|p| p.extension().is_some_and(|x| x == "jsonl"))) else { continue };
         let Some(trace) = capture.file_stem().and_then(|s| s.to_str()).and_then(|s| trace_from_walk(&dir, s)) else { continue };
-        let learned = read(&url, &goal, trace.clone(), &[], None);
+        let learned = read(&url, &goal, trace.clone(), &[], None, None);
         let Some(index) = trace.exchanges.iter().rposition(|e| format!("{} {}{}", e.method, e.url.host_str().unwrap_or_default(), e.url.path()) == learned.call) else { continue };
         let mut walked = trace.clone();
         let (in_path, _) = path_inputs(&url, &goal, &walked);
@@ -387,7 +517,7 @@ fn what_the_picked_call_changes_between_two_values() {
         let (a, b) = experiment::asked_apart(url, other_url);
         // No record of where either kept walk's browser was is handed on: the routes read here are guarded, and only
         // compared.
-        let (one, two) = (read(url, goal, first.clone(), &[], None), read(other_url, goal, second.clone(), &[], None));
+        let (one, two) = (read(url, goal, first.clone(), &[], None, None), read(other_url, goal, second.clone(), &[], None, None));
         if one.none.is_some() || two.none.is_some() {
             println!("{site}: NOPICK");
             continue;
@@ -468,7 +598,7 @@ fn what_two_walks_agree_the_answer_is() {
             experiment::answer_of_two(t, &candidates, asked, other, other_asked).map(|i| format!("{} {}{}", t.exchanges[i].method, t.exchanges[i].url.host_str().unwrap_or_default(), t.exchanges[i].url.path()))
         };
         let (from_a, from_b) = (agreed(url, first, &a, second, &b), agreed(other_url, second, &b, first, &a));
-        let (one_a, one_b) = (read(url, goal, first.clone(), &[], None).call, read(other_url, goal, second.clone(), &[], None).call);
+        let (one_a, one_b) = (read(url, goal, first.clone(), &[], None, None).call, read(other_url, goal, second.clone(), &[], None, None).call);
         let same = |x: &Option<String>, y: &Option<String>| matches!((x, y), (Some(x), Some(y)) if strike(x, &a) == strike(y, &b));
         let verdict = match (&from_a, &from_b) {
             (None, None) => "NOTHING",
@@ -503,7 +633,7 @@ fn the_recipes_a_second_walk_fits() {
     }
     for (site, walks) in &by_site {
         let [(url, goal, first), (_, _, second)] = &walks[..] else { continue };
-        let one = read(url, goal, first.clone(), &[], None);
+        let one = read(url, goal, first.clone(), &[], None, None);
         let Some(i) = first.exchanges.iter().rposition(|e| format!("{} {}{}", e.method, e.url.host_str().unwrap_or_default(), e.url.path()) == one.call) else { continue };
         let mut trace = first.clone();
         trace.inputs = walk_inputs(url, &path_inputs(url, goal, &trace).0, &trace.exchanges);
@@ -544,7 +674,7 @@ fn a_kept_walk_reads_its_call_its_inputs_and_its_fields() {
         ],
         inputs: Vec::new(),
     };
-    let learned = read(url, "search the shop for lamps", trace, &[], None);
+    let learned = read(url, "search the shop for lamps", trace, &[], None, None);
     assert_eq!(learned.none, None);
     assert_eq!((learned.call.as_str(), learned.by.as_str()), ("GET shop.example/api/search", "the rule"));
     assert_eq!(learned.inputs, vec!["q".to_string()]);

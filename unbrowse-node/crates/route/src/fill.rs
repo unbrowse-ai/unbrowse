@@ -20,6 +20,8 @@ pub struct Built {
     pub body: Option<String>,
     /// The rung of the way that filled each hole (`learn.rung`), for the holes that sent something.
     pub made: Vec<(Place, u8)>,
+    /// Which of each hole's ways filled it, counted from zero: where a refused call goes on from (`start_below`).
+    pub ways: Vec<(Place, usize)>,
 }
 
 impl Built {
@@ -38,6 +40,11 @@ impl Built {
                 cookies.iter().find(|(k, _)| k == name).or_else(|| cookies.iter().find(|(k, _)| k.eq_ignore_ascii_case(name))).map(|(_, v)| v.clone())
             }
             Sent::Header(name) => self.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(name) && !k.eq_ignore_ascii_case("cookie")).map(|(_, v)| v.clone()),
+            Sent::Origin => Some(self.url.origin().ascii_serialization()),
+            Sent::Host => self.url.host_str().map(String::from),
+            Sent::Pathname => Some(self.url.path().to_string()),
+            Sent::Address => Some(self.url.to_string()),
+            Sent::Search => Some(self.url.query().map(|q| format!("?{q}")).unwrap_or_default()),
         }
     }
 
@@ -96,16 +103,23 @@ pub fn request(step: &Step, world: &mut dyn World) -> Result<Built, Stuck> {
 
 /// Builds `step`'s request up to the values made over the request itself.
 pub fn start<'s>(step: &'s Step, world: &mut dyn World) -> Result<Draft<'s>, Stuck> {
+    start_below(step, world, &|_| 0)
+}
+
+/// [`start`], with each hole's ways tried from the one `from` names on: a call the site refused is built again with a
+/// value made per call one way down (`learn.rung`, `route.value-dag`).
+pub fn start_below<'s>(step: &'s Step, world: &mut dyn World, from: &dyn Fn(&Place) -> usize) -> Result<Draft<'s>, Stuck> {
     let host = host_of(&step.url);
     // What each hole sends, in the holes' order; the holes an unset optional slot leaves out; the holes that wait.
     let mut values: Vec<(Place, String)> = Vec::new();
     let mut unset: Vec<&Place> = Vec::new();
     let mut made: Vec<(Place, u8)> = Vec::new();
+    let mut ways: Vec<(Place, usize)> = Vec::new();
     let mut waiting: Vec<(&Hole, usize)> = Vec::new();
     for hole in &step.holes {
         let mut first: Option<Why> = None;
         let mut filled = false;
-        for (n, way) in hole.ways.iter().enumerate() {
+        for (n, way) in hole.ways.iter().enumerate().skip(from(&hole.at)) {
             if way.expr.reads_the_request() {
                 waiting.push((hole, n));
                 filled = true;
@@ -115,6 +129,7 @@ pub fn start<'s>(step: &'s Step, world: &mut dyn World) -> Result<Draft<'s>, Stu
                 Ok(Outcome::Is(value)) => {
                     values.push((hole.at.clone(), value));
                     made.push((hole.at.clone(), way.rung.max(way.expr.least_rung())));
+                    ways.push((hole.at.clone(), n));
                 }
                 Ok(Outcome::Unset) => unset.push(&hole.at),
                 Ok(Outcome::Absent) => {}
@@ -153,7 +168,7 @@ pub fn start<'s>(step: &'s Step, world: &mut dyn World) -> Result<Draft<'s>, Stu
     };
     // The ways that read the request, cheapest first: an expression over it, then a program given it.
     waiting.sort_by_key(|(hole, n)| hole.ways[*n].rung);
-    Ok(Draft { built: Built { method: step.method.clone(), url, headers, body, made }, waiting, host })
+    Ok(Draft { built: Built { method: step.method.clone(), url, headers, body, made, ways }, waiting, host })
 }
 
 impl Draft<'_> {
@@ -169,7 +184,7 @@ impl Draft<'_> {
         for (hole, from) in waiting {
             let mut first: Option<Why> = None;
             let mut done = false;
-            for way in &hole.ways[from..] {
+            for (n, way) in hole.ways.iter().enumerate().skip(from) {
                 match way.expr.eval(&mut Cx { world: &mut *world, host: host.as_deref(), sent: Some(&built) }) {
                     Ok(Outcome::Is(value)) => {
                         match &hole.at {
@@ -186,6 +201,7 @@ impl Draft<'_> {
                             _ => return Err((Stuck { at: Some(hole.at.clone()), why: Why::Needs(5) }, built)),
                         }
                         built.made.push((hole.at.clone(), way.rung.max(way.expr.least_rung())));
+                        built.ways.push((hole.at.clone(), n));
                     }
                     Ok(_) => {}
                     Err(why) => {
@@ -416,6 +432,34 @@ mod tests {
         Part { name: name.into(), filename: None, content_type: None, text: None, json: None, types: Default::default() }
     }
 
+    /// A value the page's own script makes is a way of its own (`route.value-dag`, `learn.reference`): one function of
+    /// that script, called with what the page handed it (the request's origin, its path, its method as it is sent), and
+    /// run by the world, which holds the page. After it, the value the first learn's request carried, sent only where
+    /// no way before it made one: a world that runs no page code still sends what the page sent. The function counts
+    /// at rung 2, the recalled value at 0, and the hole reads back as it was written: data, never code (`R2.7`).
+    #[test]
+    fn a_function_of_the_pages_own_script_is_a_way_its_world_runs() {
+        let made: Expr = serde_json::from_value(json!({ "op": "function", "module": "100", "export": "kc", "args": [
+            { "op": "sent", "part": { "of": "origin" } }, { "op": "sent", "part": { "of": "pathname" } }, { "op": "sent", "part": { "of": "method" } },
+        ] }))
+        .expect("a function is an expression");
+        let recalled: Expr = serde_json::from_value(json!({ "op": "recalled", "was": "walked-sig" })).expect("a recalled value is an expression");
+        let sig = Hole { at: Place::Header("x-sig".into()), ways: vec![crate::body::Way { rung: 2, expr: made }, crate::body::Way { rung: 0, expr: recalled }], over: false, open: false };
+        let step = Step { id: "s".into(), method: "GET".into(), url: "https://shop.example/api/search".into(), holes: vec![hole(Place::Query("q".into()), "q"), sig.clone()], body: None, expect: 200, script: None, page: false, writes: false, on_load: false, sets_cookie: false, lifetime: None, shape: None };
+
+        let mut page = said(&[("q", "lamp")]).running_page_code();
+        let built = request(&step, &mut page).expect("the page's function makes the value");
+        assert_eq!(built.part(&Sent::Header("x-sig".into())).as_deref(), Some("100.kc(https://shop.example,/api/search,GET)"), "called with the request as it is sent, not the walk's");
+        assert_eq!(built.rung(), 2);
+
+        let built = request(&step, &mut said(&[("q", "lamp")])).expect("a world with no page code still builds the request");
+        assert_eq!(built.part(&Sent::Header("x-sig".into())).as_deref(), Some("walked-sig"), "the first learn's value, recalled");
+        assert_eq!(built.rung(), 0);
+
+        let text = serde_json::to_string(&sig).unwrap();
+        assert_eq!(serde_json::from_str::<Hole>(&text).unwrap(), sig, "the hole reads back as it was written");
+    }
+
     /// A multipart body is written part by part on its own boundary: a part's fixed text as walked, a JSON part with the
     /// caller's value at its leaf as the kind the walk sent, a part the caller fills whole, a file's name and type.
     #[test]
@@ -508,5 +552,19 @@ mod tests {
         );
         let built = request(&step, &mut said(&[("n", "12"), ("b", "true"), ("s", "12"), ("k", "9")])).unwrap();
         assert_eq!(serde_json::from_str::<serde_json::Value>(built.body.as_deref().unwrap()).unwrap(), json!({ "n": 12, "b": true, "s": "12", "keep": 5 }), "a fixed leaf keeps its value and its kind");
+    }
+
+    /// A built request exposes its origin, host, pathname, full address, and search (with or without query) to expressions.
+    #[test]
+    fn a_built_request_exposes_its_url_parts() {
+        let built = Built { method: "GET".into(), url: "https://api.shop.example/v1/items?q=lamp&p=2".parse().unwrap(), headers: vec![], body: None, made: vec![], ways: vec![] };
+        assert_eq!(built.part(&Sent::Origin).as_deref(), Some("https://api.shop.example"));
+        assert_eq!(built.part(&Sent::Host).as_deref(), Some("api.shop.example"));
+        assert_eq!(built.part(&Sent::Pathname).as_deref(), Some("/v1/items"));
+        assert_eq!(built.part(&Sent::Address).as_deref(), Some("https://api.shop.example/v1/items?q=lamp&p=2"));
+        assert_eq!(built.part(&Sent::Search).as_deref(), Some("?q=lamp&p=2"));
+
+        let plain = Built { url: "https://api.shop.example/v1/items".parse().unwrap(), ..built };
+        assert_eq!(plain.part(&Sent::Search).as_deref(), Some(""));
     }
 }

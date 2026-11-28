@@ -231,8 +231,174 @@ fn form_of(step: &Step, body: &Body) -> route::Form {
     }
 }
 
+/// The way a function of the page's own script makes a value (`route.value-dag`): the export, handed what the page
+/// handed it, each a part of the request as it is sent or a literal. None for a function handed something no part of
+/// a request says as a text (the headers as an object): the page makes that value.
+fn function_way(f: &crate::graph::PageFunction) -> Option<Expr> {
+    use crate::graph::{Arg, CallField};
+    let sent = |part: route::Sent| Some(Expr::Sent { part });
+    let args = f
+        .args
+        .iter()
+        .map(|a| match a {
+            Arg::Literal { value } => Some(Expr::text(value.as_str())),
+            Arg::Call { field } => match field {
+                CallField::Origin => sent(route::Sent::Origin),
+                CallField::Host => sent(route::Sent::Host),
+                CallField::Path => sent(route::Sent::Pathname),
+                CallField::Method => sent(route::Sent::Method),
+                CallField::Url => sent(route::Sent::Address),
+                CallField::Search => sent(route::Sent::Search),
+                CallField::Body => sent(route::Sent::Body),
+                CallField::Headers => None,
+            },
+        })
+        .collect::<Option<Vec<Expr>>>()?;
+    Some(Expr::Function { module: f.module.clone(), export: f.export.clone(), args })
+}
+
+/// The holes of the values a step's page makes anew on every call that a function of its own script makes: that
+/// function first, then the value the first learn's request carried (recompute, else recall, else the browser:
+/// `decide.recompute-recall-browser`).
+fn page_made_holes(step: &Step) -> Vec<route::Hole> {
+    step.page_producers
+        .iter()
+        .filter(|p| !step.fields.iter().any(|f| f.loc == p.loc))
+        .filter_map(|p| {
+            let made = function_way(p.function.as_ref()?)?;
+            let mut ways = vec![Way { rung: 2, expr: made }];
+            if let Some(was) = &p.recalled {
+                ways.push(Way { rung: 0, expr: Expr::Recalled { was: was.clone() } });
+            }
+            Some(route::Hole { at: place_of(&p.loc), ways, over: false, open: false })
+        })
+        .collect()
+}
+
+/// What makes a value of a route, read off the way its body makes it (`route.value-dag`): the one reader of where a
+/// value comes from, for the coverage reading over the kept walks and for the opaque leaves the learn says and the
+/// x-ray reads. The order is the cost: a value made of several sources is the dearest of them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Source {
+    /// A fixed text, the same for every caller and every call.
+    Constant,
+    /// What the caller writes, or a piece of it, or a fact of their file.
+    Input,
+    /// A value of the session: a cookie, a stored key.
+    Session,
+    /// A place in an earlier step's reply.
+    Answer,
+    /// The clock, or chance.
+    Clock,
+    /// Standard operations over the request and the session: a digest, a table the site ships, a format.
+    Expression,
+    /// The value the first learn's request carried, sent again: a value nothing on the route makes anew.
+    Recalled,
+    /// A function of the page's own script, run for the value.
+    Function,
+    /// A program written for the value, run in the sandbox.
+    Program,
+    /// Only the page's own code makes it: the step's request is the page's.
+    PageCode,
+}
+
+impl Source {
+    /// In the coverage reading's words.
+    pub fn said(self) -> &'static str {
+        match self {
+            Source::Constant => "a constant",
+            Source::Input => "the caller's input",
+            Source::Session => "the session",
+            Source::Answer => "an earlier answer",
+            Source::Clock => "a fresh clock id",
+            Source::Expression => "an expression",
+            Source::Recalled => "the walk's value, recalled",
+            Source::Function => "the page's function",
+            Source::Program => "a program",
+            Source::PageCode => "the page's code alone",
+        }
+    }
+
+    fn of(expr: &Expr, rung: u8) -> Source {
+        let dearest = |parts: &mut dyn Iterator<Item = &Expr>| parts.map(|e| Source::of(e, rung)).max().unwrap_or(Source::Constant);
+        match expr {
+            Expr::Text { .. } => Source::Constant,
+            Expr::Nothing { .. } if rung >= 3 => Source::PageCode,
+            Expr::Nothing { .. } => Source::Constant,
+            Expr::Slot { .. } | Expr::Given { .. } | Expr::File { .. } => Source::Input,
+            Expr::Cookie { .. } | Expr::Stored { .. } => Source::Session,
+            Expr::Read { .. } | Expr::Pick { .. } => Source::Answer,
+            Expr::Fresh { .. } | Expr::Stamp { .. } => Source::Clock,
+            Expr::Sent { .. } | Expr::Hash { .. } | Expr::Hmac { .. } | Expr::Solve { .. } | Expr::Lookup { .. } => Source::Expression,
+            Expr::Recalled { .. } => Source::Recalled,
+            Expr::Function { .. } => Source::Function,
+            Expr::Program { .. } | Expr::ProgramReading { .. } => Source::Program,
+            Expr::Join { parts, .. } => dearest(&mut parts.iter()),
+            Expr::Swap { within, now, .. } => dearest(&mut [within.as_ref(), now.as_ref()].into_iter()),
+            Expr::Slice { of, .. } | Expr::Else { of, .. } | Expr::Piece { of, .. } | Expr::Written { of, .. } | Expr::Wrapped { of, .. } | Expr::Unwrapped { of, .. } | Expr::Format { of, .. } => Source::of(of, rung),
+        }
+    }
+
+    /// What fills a hole: its first way, the one a call tries first. A value seen once with nothing to say what it is
+    /// (an open hole) is the walk's own value, recalled.
+    pub fn of_hole(hole: &route::Hole) -> Source {
+        match hole.ways.first() {
+            Some(way) if hole.open && matches!(way.expr, Expr::Text { .. }) => Source::Recalled,
+            Some(way) => Source::of(&way.expr, way.rung),
+            None => Source::PageCode,
+        }
+    }
+}
+
+/// Every value a graph's steps send, by step and place, and what makes it, read off the body the graph says
+/// (`from_graph`): each hole by its first way, and each value the page's code writes that no way of the body makes as
+/// the page's code alone.
+pub fn sources(graph: &Graph) -> Vec<(usize, Place, Source)> {
+    let mut out = Vec::new();
+    for (i, step) in graph.steps.iter().enumerate() {
+        let said = step_of(graph, step);
+        for hole in &said.holes {
+            out.push((i, hole.at.clone(), Source::of_hole(hole)));
+        }
+        for p in &step.page_producers {
+            let at = place_of(&p.loc);
+            if !said.holes.iter().any(|h| h.at == at) {
+                out.push((i, at, Source::PageCode));
+            }
+        }
+    }
+    out
+}
+
+/// The values of a graph nothing on its route makes anew (`route.value-dag`): only the page's own code makes them, or
+/// the walk shows them made anew on every call and the route only ever recalls the first learn's. Each is
+/// `(step, place, why)`. Read off [`sources`], so the coverage reading and the learn's own line say one thing.
+pub fn opaque_leaves(graph: &Graph, trace: &crate::trace::Trace) -> Vec<(usize, String, &'static str)> {
+    let place = |at: &Place| match loc_of(at) {
+        Loc::Header(h) => format!("header:{}", h.to_ascii_lowercase()),
+        Loc::Query(k) => format!("query:{k}"),
+        Loc::Json(p) => format!("body:{p}"),
+        other => format!("{other:?}").to_ascii_lowercase(),
+    };
+    sources(graph)
+        .into_iter()
+        .filter_map(|(i, at, source)| match source {
+            Source::PageCode => Some((i, place(&at), "only the page's own code makes it")),
+            Source::Recalled if matches!(&at, Place::Header(h) if crate::graph::made_per_call(trace, h)) => Some((i, place(&at), "made anew on every call, only ever recalled")),
+            _ => None,
+        })
+        .collect()
+}
+
 /// One step of a graph as a step of a body.
 pub fn step_of(graph: &Graph, step: &Step) -> route::Step {
+    let made_by_the_page = page_made_holes(step);
+    // The page's own request is the step's only while some value of it has no way of the body's: a step whose every
+    // page-made value a function of the page's makes is the body's to build.
+    let the_pages = step.is_page_signed()
+        && (step.page_producers.is_empty()
+            || made_by_the_page.len() < step.page_producers.len()
+            || step.fields.iter().any(|f| matches!(f.class, Class::Script { .. } | Class::Computed)));
     let holes = step
         .fields
         .iter()
@@ -247,6 +413,7 @@ pub fn step_of(graph: &Graph, step: &Step) -> route::Step {
             }
             route::Hole { at: place_of(&f.loc), ways, over: !held.is_empty(), open }
         })
+        .chain(made_by_the_page)
         .collect();
     route::Step {
         id: step_id(step.exchange),
@@ -257,11 +424,11 @@ pub fn step_of(graph: &Graph, step: &Step) -> route::Step {
         expect: step.status,
         // A page is asked for as a page; a call a page's script made goes out from that page.
         script: (!graph.asks_as_a_page(step)).then(|| route::Caller { origin: graph.page_origin.clone() }),
-        page: step.is_page_signed(),
+        page: the_pages,
         writes: crate::ledger::writes(step),
         on_load: step.on_load,
         sets_cookie: step.sets_cookie,
-        lifetime: None,
+        lifetime: step.lifetime,
         shape: step.response_shape.clone(),
     }
 }
@@ -667,9 +834,6 @@ fn graph_step(body: &route::Route, step: &route::Step) -> Result<(Step, Vec<bool
     if step.page {
         return Err(here(None, "the page's own code makes this step, and a graph made from a body carries no page", String::new()));
     }
-    if step.lifetime.is_some() {
-        return Err(here(None, "a graph keeps no reply for a time", String::new()));
-    }
     let mut fields: Vec<Field> = Vec::new();
     let mut held: Vec<Held> = Vec::new();
     let mut by_its_ways: Vec<bool> = Vec::new();
@@ -761,6 +925,7 @@ fn graph_step(body: &route::Route, step: &route::Step) -> Result<(Step, Vec<bool
         held,
         reads_page: is_answer && body.answer.page,
         fallbacks,
+        lifetime: step.lifetime,
     };
     Ok((graph_step, by_its_ways))
 }
@@ -1146,6 +1311,7 @@ pub fn skeleton(body: &route::Route) -> Graph {
             held: Vec::new(),
             reads_page: step.id == body.answer.step && body.answer.page,
             fallbacks: Vec::new(),
+            lifetime: step.lifetime,
         };
         // Whether it writes, as the body says. A step the body says writes, which the ledger's rule would read as one
         // that only asks, is held to its method, as the rule holds a step that is someone else's.
@@ -1288,6 +1454,12 @@ impl<F: Fetch + ?Sized> route::World for Replaying<'_, F> {
         crate::generated::compute(source, &request, &sent.cookies(), &self.fetch.environment())
     }
 
+    /// The page's own export, run on the page the route carries (`Fetch::environment`), handed what the body made for
+    /// it: the one runner of a page's function, as the graph's caller runs it (`slice::call`).
+    fn function(&mut self, module: &str, export: &str, args: &[String], _sent: &route::Built) -> Option<String> {
+        crate::slice::call_given(module, export, args, &self.fetch.environment())
+    }
+
     fn program_reading(&mut self, source: &str, sent: &route::Built, fed: &[(route::Reach, Option<String>)]) -> Option<String> {
         let request = Request { method: sent.method.clone(), url: sent.url.clone(), exchange: 0, headers: sent.headers.clone(), body: sent.body.as_deref().map(unbrowse_route::wire::bytes_of) };
         // The program sees what its reads were fed and nothing else of the session, as it was held to the walks: the
@@ -1335,8 +1507,24 @@ pub(crate) fn filled_from<F: Fetch + ?Sized>(
     fresh: &HashMap<String, String>,
     reading: Reading,
 ) -> Result<route::Built, (route::Stuck, Option<route::Built>)> {
+    filled_below(body, graph, inputs, fetch, responses, fresh, reading, &HashMap::new())
+}
+
+/// [`filled_from`], with the holes `from` names filled from that way of theirs on: a read the site refused, built again
+/// with a value made per call one way down (`route.value-dag`).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn filled_below<F: Fetch + ?Sized>(
+    body: &route::Step,
+    graph: &Graph,
+    inputs: &HashMap<String, String>,
+    fetch: &F,
+    responses: &HashMap<usize, Exchange>,
+    fresh: &HashMap<String, String>,
+    reading: Reading,
+    from: &HashMap<Place, usize>,
+) -> Result<route::Built, (route::Stuck, Option<route::Built>)> {
     let mut world = Replaying { graph, inputs, fetch, responses, fresh, reading, chance: Box::new(reading.chance()) };
-    let draft = route::start(body, &mut world).map_err(|stuck| (stuck, None))?;
+    let draft = route::start_below(body, &mut world, &|at| from.get(at).copied().unwrap_or(0)).map_err(|stuck| (stuck, None))?;
     draft.finish_keeping(&mut world).map_err(|(stuck, built)| (stuck, Some(built)))
 }
 
@@ -1492,7 +1680,7 @@ pub(crate) mod tests {
             body: Some(br#"{"to":"tyo"}"#.to_vec()),
         };
         let cookies = vec![("GUID".to_string(), "0903410231".to_string()), ("token".to_string(), "abc_1800".to_string()), ("other".to_string(), "x".to_string())];
-        let built = route::Built { method: request.method.clone(), url: request.url.clone(), headers: request.headers.clone(), body: request.text().map(String::from), made: vec![] };
+        let built = route::Built { method: request.method.clone(), url: request.url.clone(), headers: request.headers.clone(), body: request.text().map(String::from), made: vec![], ways: Vec::new() };
         for algo in [Algo::Md5, Algo::Sha1, Algo::Sha256] {
             for separator in [";", "&", ""] {
                 let recipe = Recipe {
@@ -1742,6 +1930,238 @@ pub(crate) mod tests {
         assert_eq!(hole("lang").ways[0].expr, Expr::text("en"), "the graph's, as it stands");
         // A body whose every hole a graph says lays nothing: what runs is the graph's own.
         assert!(overlay(&graph, Some(&body_of(vec![script_step("x0", "/api/search", vec![own], &items)]))).laid.is_empty());
+    }
+
+    /// Where each value of a route comes from is read off the way its body makes it (`route.value-dag`), one reader for
+    /// the coverage reading and the opaque leaves: the caller's word, a constant, the session, an earlier answer, the
+    /// clock, a digest, a program, the page's function, the walk's value recalled, the page's code alone. A value made
+    /// of several is the dearest of them. A value is an opaque leaf when only the page's code makes it, or when the walk
+    /// shows it made anew on every call and the route only recalls it; the page's function is no opaque leaf.
+    #[test]
+    fn the_coverage_reading_counts_each_value_by_the_way_its_body_makes_it() {
+        let items = serde_json::json!({ "items": [] });
+        let header = |key: &str| serde_json::json!({ "in": "header", "key": key });
+        let fields = serde_json::json!([
+            query_input("q", "q", "lamp"),
+            { "loc": { "in": "query", "key": "lang" }, "class": "constant", "value": "en", "origin": null },
+            { "loc": header("x-sid"), "class": "minted", "name": "sid" },
+            { "loc": header("x-token"), "class": "derived", "origin": { "exchange": 0, "url": "https://shop.example/api/token", "at": { "from": "json", "pointer": "/t" }, "wrap": ["Bearer ", ""] } },
+            { "loc": header("x-ts"), "class": "fresh", "value": "t-1700000000000", "id": "1700000000000", "clock": "millis" },
+            { "loc": header("x-sign"), "class": "recipe", "recipe": { "algo": "md5", "separator": ";", "parts": [{ "part": "path" }, { "part": "fresh", "template": "{ms}" }] } },
+            { "loc": header("x-gen"), "class": "generated", "program": "function sign(ctx){return ctx.path}", "evidence": { "header": "x-gen", "sightings": 2, "proposed_by": "agent", "evidence_hash": "0" } },
+            { "loc": header("x-req"), "class": "unconfirmed", "value": "r-1" },
+            { "loc": header("x-ab"), "class": "unconfirmed", "value": "ab-1" },
+        ]);
+        let mut step = graph_step_at(1, "/api/search?q={q}&lang=en", fields, &items);
+        step["page_producers"] = serde_json::json!([
+            { "loc": header("x-made"), "producer": { "script": "https://shop.example/app.js", "at": 0 }, "recalled": "m-1",
+              "function": { "module": "100", "export": "kc", "args": [{ "from": "call", "field": "path" }] } },
+            { "loc": header("x-boot"), "producer": { "script": "https://shop.example/app.js", "at": 9 } },
+        ]);
+        let graph = the_graph(vec![graph_step_at(0, "/api/token", serde_json::json!([]), &serde_json::json!({ "t": "x" })), step]);
+        let sources: Vec<(String, Source)> = sources(&graph).into_iter().filter(|(i, _, _)| *i == 1).map(|(_, at, s)| (at.to_string(), s)).collect();
+        let of = |place: &str| sources.iter().find(|(at, _)| at.contains(place)).map(|(_, s)| *s);
+        assert_eq!(of("q"), Some(Source::Input));
+        assert_eq!(of("lang"), Some(Source::Constant));
+        assert_eq!(of("x-sid"), Some(Source::Session));
+        assert_eq!(of("x-token"), Some(Source::Answer), "a reply's value inside text of the walk's");
+        assert_eq!(of("x-ts"), Some(Source::Clock));
+        assert_eq!(of("x-sign"), Some(Source::Expression), "a digest over the request and the clock");
+        assert_eq!(of("x-gen"), Some(Source::Program));
+        assert_eq!(of("x-req"), Some(Source::Recalled));
+        assert_eq!(of("x-made"), Some(Source::Function));
+        assert_eq!(of("x-boot"), Some(Source::PageCode));
+
+        // x-req goes out anew on each of two calls the walk made; x-ab the same on both.
+        let call = |req: &str| Exchange {
+            method: "GET".into(),
+            url: "https://shop.example/api/search?q=lamp".parse().unwrap(),
+            request_headers: vec![("x-req".into(), req.into()), ("x-ab".into(), "ab-1".into())],
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some("{}".into()),
+            response_mime: "application/json".into(),
+            resource_type: Some("Fetch".into()),
+            main_frame: None,
+        };
+        let trace = crate::trace::Trace { exchanges: vec![call("r-1"), call("r-2")], inputs: vec![] };
+        let leaves: Vec<(String, &str)> = opaque_leaves(&graph, &trace).into_iter().map(|(_, place, why)| (place, why)).collect();
+        assert_eq!(leaves, vec![("header:x-req".to_string(), "made anew on every call, only ever recalled"), ("header:x-boot".to_string(), "only the page's own code makes it")]);
+        assert_eq!(crate::graph::opaque_leaves(&graph, &trace).len(), 2, "the graph's reading is this one");
+
+        // Every Source variant renders its reading label, empty holes and rung-0 Nothing classify cleanly,
+        // function_way maps every text call field and literal while declining Headers, and opaque_leaves formats
+        // query/json/other places too.
+        for src in [
+            Source::Constant,
+            Source::Input,
+            Source::Session,
+            Source::Answer,
+            Source::Clock,
+            Source::Expression,
+            Source::Recalled,
+            Source::Function,
+            Source::Program,
+            Source::PageCode,
+        ] {
+            assert!(!src.said().is_empty());
+        }
+        assert_eq!(Source::of_hole(&route::Hole { at: Place::Header("x".into()), ways: vec![], over: false, open: false }), Source::PageCode);
+        assert_eq!(Source::of_hole(&route::Hole { at: Place::Header("x".into()), ways: vec![Way { rung: 0, expr: Expr::Nothing { after: Some("s0".into()) } }], over: false, open: false }), Source::Constant);
+        assert_eq!(Source::of_hole(&route::Hole { at: Place::Header("x".into()), ways: vec![Way { rung: 0, expr: Expr::Recalled { was: "v".into() } }], over: false, open: false }), Source::Recalled);
+
+        use crate::graph::{Arg, CallField, PageFunction};
+        let all = PageFunction {
+            module: "1".into(),
+            export: "e".into(),
+            args: vec![
+                Arg::Literal { value: "lit".into() },
+                Arg::Call { field: CallField::Origin },
+                Arg::Call { field: CallField::Host },
+                Arg::Call { field: CallField::Path },
+                Arg::Call { field: CallField::Method },
+                Arg::Call { field: CallField::Url },
+                Arg::Call { field: CallField::Search },
+                Arg::Call { field: CallField::Body },
+            ],
+        };
+        assert!(matches!(function_way(&all), Some(Expr::Function { args, .. }) if args.len() == 8));
+        let with_headers = PageFunction { module: "1".into(), export: "e".into(), args: vec![Arg::Call { field: CallField::Headers }] };
+        assert_eq!(function_way(&with_headers), None);
+
+        let mut places_step = graph_step_at(0, "/api/search?q=1", serde_json::json!([]), &items);
+        places_step["page_producers"] = serde_json::json!([
+            { "loc": { "in": "query", "key": "sig" }, "producer": { "script": "https://shop.example/app.js", "at": 0 } },
+            { "loc": { "in": "json", "key": "/sig" }, "producer": { "script": "https://shop.example/app.js", "at": 1 } },
+            { "loc": { "in": "cookie", "key": "sig" }, "producer": { "script": "https://shop.example/app.js", "at": 2 } },
+        ]);
+        let places_leaves: Vec<String> = opaque_leaves(&the_graph(vec![places_step]), &crate::trace::Trace { exchanges: vec![], inputs: vec![] }).into_iter().map(|(_, p, _)| p).collect();
+        assert!(places_leaves.iter().any(|p| p == "query:sig") && places_leaves.iter().any(|p| p == "body:/sig") && places_leaves.len() == 3, "{places_leaves:?}");
+    }
+
+    /// A read the site refuses is made again one way down for each value the page makes anew on every call (a hole with
+    /// the first learn's value among its ways: `route.value-dag`, `learn.rung`): the value made for this call, refused,
+    /// gives way to the first learn's; that refused too, the browser makes the call. Only the holes made per call move,
+    /// a site that takes the recalled value answers the call, and a step that may change the site is sent once,
+    /// whatever it answers.
+    #[test]
+    fn a_refused_read_drops_its_per_call_holes_one_way_then_the_browser() {
+        struct Refuses {
+            takes: Option<&'static str>,
+            sent: Vec<String>,
+        }
+        impl Fetch for Refuses {
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                let sig = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.clone()).unwrap_or_default();
+                self.sent.push(sig.clone());
+                let mut reply = Empty { jar: false }.fetch(req)?;
+                reply.response_body = Some(r#"{"items":[{"name":"red lamp"}]}"#.into());
+                if self.takes != Some(sig.as_str()) {
+                    reply.status = 404;
+                    reply.response_body = Some(r#"{"errors":[{"message":"no"}]}"#.into());
+                }
+                Ok(reply)
+            }
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+        }
+        let items = serde_json::json!({ "items": [{ "name": "red lamp" }] });
+        let sig = route::Hole { at: Place::Header("x-sig".into()), ways: vec![Way { rung: 0, expr: Expr::Stamp { form: "made-{ms}".into() } }, Way { rung: 0, expr: Expr::Recalled { was: "walked-sig".into() } }], over: false, open: false };
+        let q = a_hole(Place::Query("q".into()), Expr::Slot { name: "q".into(), or: None, optional: false });
+        let read = body_of(vec![script_step("x0", "/api/search", vec![q.clone(), sig.clone()], &items)]);
+
+        let mut takes_the_recall = Refuses { takes: Some("walked-sig"), sent: Vec::new() };
+        crate::replay::replay_body(&read, &asked("lamp"), &mut takes_the_recall).unwrap_or_else(|e| panic!("the recalled value is taken: {e}"));
+        assert_eq!(takes_the_recall.sent.len(), 2, "made for the call, then recalled: {:?}", takes_the_recall.sent);
+        assert!(takes_the_recall.sent[0].starts_with("made-") && takes_the_recall.sent[1] == "walked-sig");
+
+        let mut takes_nothing = Refuses { takes: None, sent: Vec::new() };
+        let err = crate::replay::replay_body(&read, &asked("lamp"), &mut takes_nothing).unwrap_err();
+        assert!(matches!(err, ReplayError::NeedsBrowser { step: 1, .. }), "the recall refused, the browser's: {err:?}");
+        assert_eq!(takes_nothing.sent.len(), 2, "never a third send of the same read");
+
+        let mut fixed = read.clone();
+        fixed.steps[0].holes[1].ways.truncate(1);
+        let mut once = Refuses { takes: None, sent: Vec::new() };
+        assert!(matches!(crate::replay::replay_body(&fixed, &asked("lamp"), &mut once), Err(ReplayError::Failed { .. })), "a value not made per call is no reason to send again");
+        assert_eq!(once.sent.len(), 1);
+
+        let mut write = read.clone();
+        write.steps[0].method = "POST".into();
+        write.steps[0].url = "https://shop.example/api/cart/checkout".into();
+        write.steps[0].writes = true;
+        let mut sent_once = Refuses { takes: Some("walked-sig"), sent: Vec::new() };
+        assert!(crate::replay::replay_body(&write, &asked("lamp"), &mut sent_once).is_err(), "a refused write is the caller's to see");
+        assert_eq!(sent_once.sent.len(), 1, "a step that may change the site is sent once");
+    }
+
+    /// A value the page makes anew on every call, written by an export of the page's own module, is a hole of its step
+    /// (`route.value-dag`): its ways are that function, handed the request as it is sent, then the value the first
+    /// learn's request carried. The step is the body's to make, no longer the page's: a call makes the value by running
+    /// the page's own export in the sandbox, on the page the route carries, and where no page code runs the first
+    /// learn's value goes. A page-made value with no function of the page's to call stays the page's to make.
+    #[test]
+    fn a_page_made_value_the_pages_function_makes_is_a_hole_it_fills_then_the_walks_value() {
+        let items = serde_json::json!({ "items": [] });
+        let mut step = graph_step_at(0, "/api/search?q={q}", serde_json::json!([query_input("q", "q", "lamp")]), &items);
+        step["page_signed"] = serde_json::json!(true);
+        step["needs_browser"] = serde_json::json!(true);
+        step["page_producers"] = serde_json::json!([{
+            "loc": { "in": "header", "key": "x-sig" },
+            "producer": { "script": "https://cdn.app.example/main.js", "at": 0 },
+            "recalled": "walked-sig",
+            "function": { "module": "100", "export": "kc", "args": [{ "from": "call", "field": "origin" }, { "from": "call", "field": "path" }, { "from": "call", "field": "method" }] },
+        }]);
+        let graph = the_graph(vec![step.clone()]);
+        let body = from_graph(&graph, "shop.example");
+        let sent = |part: route::Sent| Expr::Sent { part };
+        let hole = body.steps[0].holes.iter().find(|h| h.at == Place::Header("x-sig".into())).expect("a hole for the value the page makes");
+        assert_eq!(
+            hole.ways,
+            vec![
+                Way { rung: 2, expr: Expr::Function { module: "100".into(), export: "kc".into(), args: vec![sent(route::Sent::Origin), sent(route::Sent::Pathname), sent(route::Sent::Method)] } },
+                Way { rung: 0, expr: Expr::Recalled { was: "walked-sig".into() } },
+            ],
+            "the page's function, then the first learn's value"
+        );
+        assert!(!body.steps[0].page, "every value the page made has a way of the body's: the step is the body's to make");
+
+        let mut bare = step.clone();
+        bare["page_producers"][0].as_object_mut().unwrap().remove("function");
+        let without = from_graph(&the_graph(vec![bare]), "shop.example");
+        assert!(without.steps[0].page && !without.steps[0].holes.iter().any(|h| h.at == Place::Header("x-sig".into())), "with no function to call, the page makes it");
+
+        let header = |built: &route::Built| built.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.clone());
+        let built = filled_from(&body.steps[0], &graph, &asked("kettle"), &Empty { jar: false }, &HashMap::new(), &HashMap::new(), Reading::take()).expect("the step builds");
+        assert_eq!(header(&built).as_deref(), Some("walked-sig"), "no page code runs here: the first learn's value");
+
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the page's function is not run");
+            return;
+        }
+        struct Page;
+        impl Fetch for Page {
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                Empty { jar: false }.fetch(req)
+            }
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn environment(&self) -> crate::generated::Environment {
+                use crate::slice::module_call_tests::{CHUNK, MAIN, RUNTIME};
+                crate::generated::Environment {
+                    page_url: Some("https://shop.example/search".into()),
+                    html: Some("<html><head></head><body></body></html>".into()),
+                    scripts: [("https://cdn.app.example/runtime.js", RUNTIME), ("https://cdn.app.example/main.js", MAIN), ("https://cdn.app.example/chunk7.js", CHUNK)].iter().map(|(u, b)| (u.to_string(), b.to_string())).collect(),
+                    ..crate::generated::Environment::default()
+                }
+            }
+        }
+        let built = filled_from(&body.steps[0], &graph, &asked("kettle"), &Page, &HashMap::new(), &HashMap::new(), Reading::take()).expect("the step builds");
+        assert_eq!(header(&built).as_deref(), Some("sig:/api/search:GET"), "the page's own export, run on the route's page, for this request");
+        assert_eq!(built.rung(), 2);
     }
 
     /// A step the graph reads as the page's to make only because it could not say one value (it reads that value as
@@ -2060,7 +2480,7 @@ pub(crate) mod tests {
         let graph = one_call();
         let step = &graph.steps[0];
         let theirs = Request { method: "GET".into(), url: "https://shop.example/api/search?q=desk&n=10".parse().unwrap(), exchange: 0, headers: vec![], body: None };
-        let ours = route::Built { method: "GET".into(), url: "https://shop.example/api/search?q=lamp&n=10".parse().unwrap(), headers: vec![], body: None, made: vec![] };
+        let ours = route::Built { method: "GET".into(), url: "https://shop.example/api/search?q=lamp&n=10".parse().unwrap(), headers: vec![], body: None, made: vec![], ways: Vec::new() };
         held_alike(step, &Ok(ours), Ok((&theirs, crate::rung::Rung::Walk)));
     }
 
@@ -2587,10 +3007,10 @@ pub(crate) mod tests {
         let mut page = step("x0");
         page.page = true;
         assert_eq!(unsaid_why(&body_of(vec![page])), "the page's own code makes this step, and a graph made from a body carries no page");
+        // A step whose reply stays good for a time is a graph's too: its step keeps the lifetime (`Step::lifetime`).
         let mut kept = step("x0");
         kept.lifetime = Some(600);
-        let refused = to_graph(&body_of(vec![kept])).map(|_| ()).unwrap_err();
-        assert_eq!((refused.why, refused.step.as_deref()), ("a graph keeps no reply for a time", Some("x0")));
+        assert_eq!(to_graph(&body_of(vec![kept])).expect("a graph keeps a reply for a time").steps[0].lifetime, Some(600));
         assert_eq!(unsaid_why(&body_of(vec![])), "the body is refused", "an answer that names no step");
         let mut stale = body_of(vec![step("x0")]);
         stale.v = route::VERSION + 1;
@@ -2858,7 +3278,7 @@ pub(crate) mod tests {
     #[test]
     fn a_request_is_made_at_the_highest_rung_any_of_its_holes_needed() {
         use crate::rung::Rung;
-        let built = |rung: u8| route::Built { method: "GET".into(), url: "https://shop.example/".parse().unwrap(), headers: vec![], body: None, made: vec![(Place::Query("a".into()), 0), (Place::Query("b".into()), rung)] };
+        let built = |rung: u8| route::Built { method: "GET".into(), url: "https://shop.example/".parse().unwrap(), headers: vec![], body: None, made: vec![(Place::Query("a".into()), 0), (Place::Query("b".into()), rung)], ways: vec![] };
         for (rung, said) in [(0, Rung::Walk), (1, Rung::Expression), (2, Rung::Function), (3, Rung::Bundle), (4, Rung::Page), (5, Rung::Browser), (9, Rung::Browser)] {
             assert_eq!(rung_of(&built(rung)), said, "rung {rung}");
         }
@@ -2889,7 +3309,7 @@ pub(crate) mod tests {
         assert!(matches!(&e, ReplayError::SourceMissing { loc, .. } if *loc == Loc::Url), "{e}: a stop of no place is the address's");
         let (e, past) = refusal(Why::File { slot: "photo".into(), reason: "no such file".into() }, None);
         assert!(matches!(&e, ReplayError::File { input, reason } if input == "photo" && reason == "no such file") && !past);
-        let built = route::Built { method: "GET".into(), url: "https://shop.example/built?q=1".parse().unwrap(), headers: vec![], body: None, made: vec![] };
+        let built = route::Built { method: "GET".into(), url: "https://shop.example/built?q=1".parse().unwrap(), headers: vec![], body: None, made: vec![], ways: Vec::new() };
         for why in [Why::Needs(3), Why::NotSent("header x".into()), Why::Unbuilt] {
             let (e, past) = refusal(why.clone(), None);
             assert!(matches!(&e, ReplayError::NeedsBrowser { step: 2, url, loc } if *url == step.url && *loc == Loc::Query("q".into())) && !past, "{e}");
@@ -2936,7 +3356,7 @@ pub(crate) mod tests {
     #[should_panic(expected = "replay stopped (no value given for input `q`), and the filler built a request")]
     fn a_filler_that_builds_where_replay_stops_fails_the_test() {
         let graph = one_call();
-        let ours = route::Built { method: "GET".into(), url: "https://shop.example/api/search?q=lamp&n=10".parse().unwrap(), headers: vec![], body: None, made: vec![] };
+        let ours = route::Built { method: "GET".into(), url: "https://shop.example/api/search?q=lamp&n=10".parse().unwrap(), headers: vec![], body: None, made: vec![], ways: Vec::new() };
         held_alike(&graph.steps[0], &Ok(ours), Err(&ReplayError::MissingInput("q".into())));
     }
 

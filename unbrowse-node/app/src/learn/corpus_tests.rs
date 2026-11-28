@@ -95,20 +95,20 @@ fn a_walk_that_cannot_be_read_as_a_call_reads_as_nothing_with_its_reason() {
     let dir = case_at(&root, "a", serde_json::json!({"url": "https://shop.example/search?q=brass", "goal": "search items"}), Some(("brass", ["lamp", "knocker", "frame"])), false);
     let trace = trace_from_walk(&dir, "learn_w").expect("a walk");
     let url = "https://shop.example/search?q=brass";
-    let not_a_url = read("shop", "search items", trace.clone(), &[], None);
+    let not_a_url = read("shop", "search items", trace.clone(), &[], None, None);
     assert_eq!(not_a_url.none.as_deref(), Some("not a URL"));
     assert_eq!(not_a_url.call, "", "nothing is kept");
-    let a_change = read(url, "submit the order", trace.clone(), &[], None);
+    let a_change = read(url, "submit the order", trace.clone(), &[], None, None);
     assert_eq!(a_change.none.as_deref(), Some(NEEDS_HANDS), "a goal that asks for a change is not answered by loading a page");
     let mut gone = trace.clone();
     gone.exchanges[0].status = 404;
-    let gone = read(url, "search items", gone, &[], None);
+    let gone = read(url, "search items", gone, &[], None, None);
     assert!(gone.none.as_deref().is_some_and(|why| why.contains("404")), "the page is gone: {gone:?}");
     let mut page_only = trace.clone();
     page_only.exchanges.truncate(1);
-    let page_only = read(url, "search items", page_only, &[], None);
+    let page_only = read(url, "search items", page_only, &[], None, None);
     assert!(page_only.none.as_deref().is_some_and(|why| why.contains("lists nothing")) && page_only.call.is_empty(), "a page that made no call keeps none: {page_only:?}");
-    let read_whole = read(url, "search items", trace, &[], None);
+    let read_whole = read(url, "search items", trace, &[], None, None);
     assert_eq!((read_whole.none, read_whole.call.as_str()), (None, "GET shop.example/api/search"));
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -169,4 +169,32 @@ fn a_kept_walk_shown_as_it_would_be_shared_writes_the_route_another_node_fetches
             assert!(fetched.to_string().contains("api/search"), "the route calls the shop's search: {fetched}");
         }
     }
+}
+
+/// A kept walk reads as the node's own learn reads it (`learn.rs`, `Recording::read`): a script whose fetched body the
+/// capture cut short reads whole, from the source the browser parsed, so the page booted offline is the page the node
+/// boots. The corpus once read the bare capture, and a page's function that ran on the node's learn did not run on the
+/// corpus's (a bundle past the capture's cut, 28 November 2026).
+#[test]
+fn a_kept_walk_reads_a_script_cut_short_whole_as_the_nodes_learn_reads_it() {
+    use sha2::Digest;
+    let root = std::env::temp_dir().join(format!("corpus-cut-script-{}", std::process::id()));
+    let dir = case_at(&root, "cut", serde_json::json!({"url": "https://shop.example/search?q=lamp", "goal": "lamps"}), Some(("lamp", ["red", "tall", "small"])), false);
+    let whole = "function sign(t){return 'v1.'+t.length}window.signer=sign;";
+    let cut = &whole[..18];
+    let url = "https://shop.example/app.js";
+    let sha: String = sha2::Sha256::digest(whole.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
+    let capture = agent_browser_core::session::capture_path(&dir, "learn_w");
+    let mut text = std::fs::read_to_string(&capture).unwrap();
+    for line in [
+        serde_json::json!({"type": "request", "t": 1.6, "requestId": "app", "method": "GET", "url": url, "headers": {}, "resourceType": "Script", "frameId": "MAIN"}),
+        serde_json::json!({"type": "response", "t": 1.7, "requestId": "app", "url": url, "status": 200, "mimeType": "application/javascript", "headers": {}, "body": cut}),
+        serde_json::json!({"type": "script", "t": 1.8, "scriptId": "7", "url": url, "language": "js", "sha256": sha, "length": whole.len(), "source": whole}),
+    ] {
+        text.push_str(&format!("{line}\n"));
+    }
+    std::fs::write(&capture, text).unwrap();
+    let walk = case_walk(&dir).expect("the case reads");
+    let body = walk.trace.exchanges.iter().find(|e| e.url.as_str() == url).and_then(|e| e.response_body.clone());
+    assert_eq!(body.as_deref(), Some(whole), "the script reads whole, as the node's learn reads it, not cut where the capture cut it");
 }

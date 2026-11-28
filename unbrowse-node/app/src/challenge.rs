@@ -237,6 +237,43 @@ impl CdpPage {
     }
 }
 
+/// Meets the check with the cheapest means that need nobody: the page's own box first (`the_check_offers`: the box a
+/// check draws, unticked, clicked by the reference the page itself names — free, no key and no round trip, which is
+/// what a short timer needs), and only a page that still asks after it goes to the node's captcha solver
+/// (`Act::Solve`). Each attempt is read back from the page, whose own answer says whether it passed.
+pub fn solve(who: &str, site: &str, session: &str, url: &str) -> Result<Value, String> {
+    let mut tried = Vec::new();
+    let at = if url.trim().is_empty() {
+        site.to_string()
+    } else {
+        crate::browse::act(&["open".to_string(), url.trim().to_string()], None, who, session)?;
+        crate::browse::last_site(session).ok_or("the page didn't open")?
+    };
+    if !at.is_empty() {
+        let snapshot = crate::browse::act(&["snapshot".to_string(), "-i".to_string()], Some(&at), who, session).unwrap_or_default();
+        if let Some(boxed) = unbrowse_learn::challenge::the_check_offers(&snapshot) {
+            let said = format!("the node ticked {:?} ({})", boxed.name, boxed.handle);
+            match crate::browse::act(&["click".to_string(), boxed.handle], Some(&at), who, session) {
+                Ok(_) => tried.push(said),
+                Err(e) => tried.push(format!("{said} failed: {e}")),
+            }
+        }
+    }
+    let site = if at.is_empty() { site.to_string() } else { at };
+    let mut reply = show(who, &site, session, "", Some(Act::Wait(1500)), false)?;
+    if reply.get("asks").and_then(Value::as_bool).unwrap_or(true) {
+        match show(who, &site, session, "", Some(Act::Solve), false) {
+            Ok(after) => {
+                tried.push("the node asked its captcha solver for a token".to_string());
+                reply = after;
+            }
+            Err(e) => tried.push(format!("the node's captcha solver didn't answer: {e}")),
+        }
+    }
+    reply["tried"] = json!(tried);
+    Ok(reply)
+}
+
 /// Takes the step on the page.
 fn take(page: &mut CdpPage, act: &Act) -> Result<(), String> {
     match act {

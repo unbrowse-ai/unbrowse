@@ -12,6 +12,7 @@ Rules:
 - For a public test site, use synthetic test values for required demo profile fields and skip optional subscriptions.
 - Open the start page in `unbrowse_browse` when the task starts with an interactive signup form. Save calls for reading the signed-in result after registration. If a confirmation or navigation opens an interstitial, refresh the snapshot and use its visible close or continue controls before checking the signed-in page.
 - Read the requested signed-in data after the signup or login. When a profile shows a non-password value in a form field, read it from the signed-in page with `unbrowse_browse` and `do: ["get", "value", "<ref>"]`. A URL, the values supplied during signup and the success message alone do not verify the signed-in data.
+- For an answered result, include the verified signed-in record in `items`, even if there is only one record. Keep all requested fields together in that entry.
 - Otherwise read-only: never buy, book, pay, add to cart, post, message anyone, or change anything but this one new account's sign-up.
 - If a bot check or CAPTCHA stops you, pass it through the node itself: unbrowse_challenge (look, then click, drag, hold or type as its picture shows) until it no longer asks. Report a gate only when the node could not pass it, or the site asks for a phone number or anything else you do not have.
 - Use at most {max_steps} tool calls. Do not guess: only report data you actually saw in a tool result.
@@ -23,7 +24,7 @@ When you finish, end your reply with exactly one JSON object in a ```json code b
 {{
   "status": "answered" | "gate" | "failed",
   "answer": "the direct answer to the task in one or two sentences",
-  "items": ["one entry per listed item, if the task asks for a list"],
+  "items": ["one entry per verified signed-in record"],
   "source_url": "the page the answer came from",
   "gate": {{"kind": "bot" | "auth" | "paywall" | "geo" | "other", "evidence": "what you saw"}},
   "notes": "anything that limits confidence"

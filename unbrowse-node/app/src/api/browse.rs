@@ -1004,15 +1004,18 @@ pub(super) async fn do_challenge(
         batch_acts.push(act);
     }
     // What the agent asked for, read before the browser: a step that names no point reaches no one.
-    let act = if action == "look" || !batch_acts.is_empty() {
+    let act = if action == "look" || action == "solve" || !batch_acts.is_empty() {
         None
     } else {
         Some(unbrowse_learn::challenge::Act::of(&action, x, y, to_x, to_y, text.as_deref(), key.as_deref(), ms).map_err(|e| (StatusCode::BAD_REQUEST, e))?)
     };
-    let (sess, what) = (session.clone(), action.clone());
+    let (sess, what, doing) = (session.clone(), action.clone(), action.clone());
     let out = tokio::task::spawn_blocking(move || {
         if !batch_acts.is_empty() {
             return crate::challenge::batch(&who, &site, &sess, batch_acts);
+        }
+        if doing == "solve" {
+            return crate::challenge::solve(&who, &site, &sess, &url);
         }
         match act {
             None => crate::challenge::look(&who, &site, &sess, &url),
@@ -1035,7 +1038,11 @@ pub(super) async fn do_challenge(
         at: store::now(),
         who: a.name.clone(),
         site: said_site,
-        what: if action == "look" { "Showed a page that asks for a person".to_string() } else { format!("Took a step on a page that asks for a person: {what}") },
+        what: match action.as_str() {
+            "look" => "Showed a page that asks for a person".to_string(),
+            "solve" => "Met a page that asks for a person, with its own box and then the solver".to_string(),
+            _ => format!("Took a step on a page that asks for a person: {what}"),
+        },
         kind: "challenge".into(),
         result: if asks { "waiting" } else { "done" }.into(),
         ms: None,

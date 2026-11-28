@@ -204,7 +204,7 @@ every front page, and names no site:
   page (`kind: read`): asked for, asked for again (it must be a call of the same route) and the route called; each
   answer must hold at least 5 lines of words and the warm two at least half the first one's lines.
 - **The run.** `bank.yml` by hand with `scope=top1000` (`limit` for a pilot, `shards`, `parallel`): every read on
-  Lewis's own runners (the steam-machine labels, no Blacksmith fallback), a scratch node with no decision model, one
+  Lewis's own runners (the steam-machine labels, no hosted fallback), a scratch node with no decision model, one
   site a call, 900 s at most a site. The report job sorts each site into `hard_sites.py`'s five labels, adds the
   hours, each job's peak memory and the ten commonest reasons a site was not right, writes them to the run's summary
   and keeps them as the `top-sites-report` artifact. It is report-only: it gates nothing.

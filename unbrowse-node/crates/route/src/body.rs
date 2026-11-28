@@ -130,6 +130,14 @@ pub struct Hole {
     pub open: bool,
 }
 
+impl Hole {
+    /// Where among its ways the first learn's value is recalled: a hole that has one is a value the page makes anew on
+    /// every call, and the ways before it make it for this call (`route.value-dag`).
+    pub fn recalled_at(&self) -> Option<usize> {
+        self.ways.iter().position(|w| matches!(w.expr, crate::expr::Expr::Recalled { .. }))
+    }
+}
+
 /// One way to fill a hole: an expression, and the rung of the maker it needs.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

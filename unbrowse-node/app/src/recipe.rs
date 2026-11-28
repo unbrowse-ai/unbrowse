@@ -1330,7 +1330,7 @@ fn steps_of(recipe: &Recipe) -> Vec<Step> {
         .steps
         .iter()
         .zip(bodies)
-        .map(|(s, body)| Step {
+        .map(|(s, body)| Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: s.exchange,
@@ -2373,7 +2373,7 @@ mod tests {
     /// contributor's id is not in the bytes at all.
     #[test]
     fn a_route_shares_an_account_key_as_a_parameter() {
-        let step = unbrowse_learn::Step {
+        let step = unbrowse_learn::Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0,
@@ -2418,7 +2418,7 @@ mod tests {
     /// refused before the route exists.
     #[test]
     fn a_shared_route_goes_only_to_its_own_site() {
-        let step = |url: &str| unbrowse_learn::Step {
+        let step = |url: &str| unbrowse_learn::Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0,

@@ -1880,6 +1880,13 @@ fn mint_trial_as_walked(
         route.plain_trial = Some(false);
         return route;
     }
+    // One a trial answered once is not one the page keeps: a value the walk shows made anew on each call answers a
+    // moment later and is refused later on, so its producer stays and the walk's value is never the session's.
+    if headers.iter().any(|(_, loc, _)| matches!(loc, Loc::Header(name) if unbrowse_learn::graph::made_per_call(walked, name))) {
+        eprintln!("   [route] keeps what the page makes: a value it writes anew on every call is never kept from one trial");
+        route.plain_trial = Some(false);
+        return route;
+    }
     let mut minted = route.graph.clone();
     for (n, loc, value) in &headers {
         let step = &mut minted.steps[*n];
@@ -3114,6 +3121,13 @@ fn route_of_by(trace: &Trace, index: usize, what: &str, root: &str, on_load: boo
     if let Some(again) = repeat_of(trace, &target) {
         settle_repeats(&mut graph, &again);
     }
+    // A value the walk shows made anew on each call is never kept, however it read above (the session's, a cookie
+    // of its name, a constant): it goes back to the signer, which finds what makes it, and the jar keeps none of it.
+    let per_call = unbrowse_learn::graph::keep_per_call_values_for_a_producer(&mut graph, walked);
+    if !per_call.is_empty() {
+        held.retain(|(k, _)| !per_call.iter().any(|n| n.eq_ignore_ascii_case(k)));
+        eprintln!("   [route] made anew on every call the walk made, kept for what makes it and never the session's: {}", per_call.join(", "));
+    }
     graph.page_origin = unbrowse_learn::graph::origin_of(root);
     let jar = unbrowse_learn::client::jar_name(&graph);
     // One address can answer many operations (a GraphQL endpoint): the body's values that name the operation are part
@@ -3276,6 +3290,15 @@ fn route_of_by(trace: &Trace, index: usize, what: &str, root: &str, on_load: boo
     }
     // Both judged now, by this build's rules: a route judged by others is read as unjudged.
     route.read_by = Some(store::ReadBy::current());
+    // The contract this build holds every route to: nothing the walk shows made anew per call is recalled. A route
+    // that still would says so once, for the x-ray (`kept-per-call`), naming the header and never its value.
+    for (step, header, class) in unbrowse_learn::graph::kept_though_made_per_call(&route.graph, walked) {
+        eprintln!("   [route] keeps a value its page made anew on every call: step {} sends {header} as {class}", step + 1);
+    }
+    // What nothing on the route makes again from inputs (`route.value-dag`): said once, for the x-ray (`opaque-leaf`).
+    for (step, place, why) in unbrowse_learn::graph::opaque_leaves(&route.graph, walked) {
+        eprintln!("   [route] a value no node sources: step {} {place}: {why}", step + 1);
+    }
     Ok(route)
 }
 
@@ -9615,7 +9638,7 @@ mod tests {
         assert!(why.contains("/index.html") && why.contains("nothing for that value"), "{why}");
         assert!(matches!(page_unreached(&turned, url), Some(Unlearned::Elsewhere(_))));
         store::scratch_home("turned-away");
-        let learned = corpus::read(url, "search stays", turned, &[], None);
+        let learned = corpus::read(url, "search stays", turned, &[], None, None);
         assert!(learned.call.is_empty() && learned.none.as_deref().is_some_and(|w| w.contains("nothing for that value")), "no route from the page it was sent to: {learned:?}");
         // The page moved and kept the value: the page.
         let kept = Trace { exchanges: vec![main_page(301, "https://stay.example/results?city=lisbon", ""), main_page(200, "https://stay.example/stays/lisbon", "<html><body>Stays</body></html>")], inputs: vec![] };
@@ -11025,7 +11048,7 @@ mod tests {
             }
             let call = format!("https://lib.example/services/search/page?user_query={q}&hits_per_page=50&client_url=https%3A%2F%2Flib.example%2Fsearch%3Fquery%3D{q}");
             let trace = Trace { exchanges: vec![walked("GET", &page, shell, true), walked("GET", &call, &answer.to_string(), false)], inputs: walk_inputs(&page, &[], &[]) };
-            corpus::read(&page, goal, trace, &[], None)
+            corpus::read(&page, goal, trace, &[], None, None)
         };
         let none = search("qzxvkjw", serde_json::Value::Null);
         assert!(none.call.is_empty() && none.none.as_deref().is_some_and(|w| w.contains("lists nothing")), "the envelope alone: {none:?}");
@@ -11043,7 +11066,7 @@ mod tests {
                 n = if found.contains("card") { 3 } else { 0 }
             );
             let trace = Trace { exchanges: vec![walked("GET", &page, &body, true)], inputs: walk_inputs(&page, &[], &[]) };
-            corpus::read(&page, goal, trace, &[], None)
+            corpus::read(&page, goal, trace, &[], None, None)
         };
         let none = rendered("qzxvkjw", "<div><p>There was nothing for 'qzxvkjw'</p></div>");
         assert!(none.call.is_empty() && none.none.as_deref().is_some_and(|w| w.contains("lists nothing")), "the page's frame alone: {none:?}");

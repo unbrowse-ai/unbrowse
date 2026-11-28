@@ -1,12 +1,10 @@
-# Runner labels actionlint does not know: Blacksmith's machines and Lewis's own runners (UNB-166).
+# Runner labels actionlint does not know: Sengi's Linux machines and Lewis's own runners (UNB-166). GitHub's own
+# (macos-15, windows-2025, ubuntu-22.04-arm) it knows.
 self-hosted-runner:
   labels:
-    - blacksmith-2vcpu-ubuntu-2404
-    - blacksmith-4vcpu-ubuntu-2404
-    - blacksmith-8vcpu-ubuntu-2404
-    - blacksmith-4vcpu-ubuntu-2204
-    - blacksmith-4vcpu-ubuntu-2204-arm
-    - blacksmith-6vcpu-macos-latest
-    - blacksmith-4vcpu-windows-2025
+    - sengi-basic-2-ubuntu-2404
+    - sengi-premium-2-ubuntu-2404
+    - sengi-premium-4-ubuntu-2404
+    - sengi-premium-8-ubuntu-2404
     - lewis-mbp
     - steam-machine

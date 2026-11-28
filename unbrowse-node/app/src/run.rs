@@ -483,6 +483,46 @@ fn says_nothing_is_there(e: &unbrowse_learn::ReplayError) -> bool {
     matches!(e, unbrowse_learn::ReplayError::Failed { status: 404 | 410, .. })
 }
 
+/// Whether `graph` itself takes `name` in any step (as a field input, upload, or held value), rather than a slot
+/// offered only from the route's body (`Route::offer_the_bodys_slots`).
+fn graph_takes(graph: &unbrowse_learn::Graph, name: &str) -> bool {
+    graph.steps.iter().any(|s| {
+        s.held.iter().any(|h| h.input == name)
+            || matches!(&s.body, Some(unbrowse_learn::Body::Upload { input, .. }) if input == name)
+            || s.fields.iter().any(|f| matches!(&f.class, unbrowse_learn::Class::Input { name: n, .. } | unbrowse_learn::Class::File { name: n, .. } if n == name))
+    })
+}
+
+/// The route's walked defaults that belong to its graph, leaving out optional slots offered only from its body (which
+/// keep their own `or` fallback and may not appear literally in the target step).
+fn walked_values(route: &store::Route) -> HashMap<String, String> {
+    route
+        .inputs
+        .iter()
+        .filter(|i| !i.optional || i.secret || graph_takes(&route.graph, &i.name))
+        .filter_map(|i| Some((i.name.clone(), i.default.clone()?)))
+        .collect()
+}
+
+/// Inputs for calling `route`: its walked graph defaults plus `given`, omitting an optional body-only slot whose value
+/// still equals its walked default so replay and browser answer matching do not mistake a page-only param (such as
+/// `f=live` translated to `product=Latest`) for a caller value lost in the target step. A different value stays, so
+/// the call goes to the browser instead of sending the walked value.
+fn call_values(route: &store::Route, given: &HashMap<String, String>) -> HashMap<String, String> {
+    let mut values = walked_values(route);
+    for (k, v) in given {
+        let unchanged_body_slot = route
+            .inputs
+            .iter()
+            .find(|i| i.name == *k)
+            .is_some_and(|i| i.optional && !i.secret && !graph_takes(&route.graph, &i.name) && i.default.as_deref() == Some(v.as_str()));
+        if !unchanged_body_slot {
+            values.insert(k.clone(), v.clone());
+        }
+    }
+    values
+}
+
 /// Whether `values` asks the route another value than the one it was learned on.
 fn another_value(route: &store::Route, values: &HashMap<String, String>) -> bool {
     route.inputs.iter().any(|i| i.default.as_ref().is_some_and(|was| values.get(&i.name).is_some_and(|now| now != was)))
@@ -491,7 +531,7 @@ fn another_value(route: &store::Route, values: &HashMap<String, String>) -> bool
 /// Whether the site still answers the route for the value it was learned on, asked once, plainly (`asks`): an answer
 /// that holds something, with its list where the route's fields sit under one.
 fn still_answers_its_own(route: &store::Route, asks: &mut impl FnMut(&unbrowse_learn::Graph, &HashMap<String, String>) -> Option<serde_json::Value>) -> bool {
-    let walked: HashMap<String, String> = route.inputs.iter().filter_map(|i| Some((i.name.clone(), i.default.clone()?))).collect();
+    let walked = walked_values(route);
     asks(&route.graph, &walked).is_some_and(|v| !v.is_null() && (route.fields.is_empty() || !unbrowse_learn::fields::frame_without_records(&v, &route.fields)))
 }
 
@@ -503,10 +543,9 @@ fn found_nothing(route: &store::Route, values: &HashMap<String, String>, asks: &
     if route.write || route.socket.is_some() {
         return false;
     }
-    let walked: HashMap<String, String> = route.inputs.iter().filter_map(|i| Some((i.name.clone(), i.default.clone()?))).collect();
-    let another = walked.iter().any(|(name, was)| values.get(name).is_some_and(|now| now != was));
+    let walked = walked_values(route);
     // Held, the node asks the site nothing of its own: the answer without its list fails as the site sent it.
-    another && !own_asks::held_at(own_asks::Ask::Recheck, "run::found_nothing") && asks(&route.graph, &walked).is_some_and(|v| !unbrowse_learn::fields::frame_without_records(&v, &route.fields))
+    another_value(route, values) && !own_asks::held_at(own_asks::Ask::Recheck, "run::found_nothing") && asks(&route.graph, &walked).is_some_and(|v| !unbrowse_learn::fields::frame_without_records(&v, &route.fields))
 }
 
 /// Whether a plain ask's failure (`e`) is the call's answer, with nothing asked again: the site said nothing is at the
@@ -565,8 +604,7 @@ fn call_with(mut route: store::Route, filled: &crate::vault::Filled, who: &str, 
         unbrowse_learn::egress::Egress::Own => None,
         _ => owner_session_for(&route, &run_graph(&route), &mut |q| ask_on_this_thread(node.as_deref(), q).unwrap_or_else(|| Err("no one to ask".into()))),
     };
-    let mut values: HashMap<String, String> = route.inputs.iter().filter_map(|i| Some((i.name.clone(), i.default.clone()?))).collect();
-    values.extend(filled.values.iter().map(|(k, v)| (k.clone(), v.clone())));
+    let values = call_values(&route, &filled.values);
     if let Some(missing) = route.inputs.iter().find(|i| !i.optional && !values.contains_key(&i.name)) {
         return Err(format!("the route needs a value for {}", missing.name));
     }
@@ -3438,5 +3476,63 @@ mod tests {
         let reply = serde_json::to_string(&r).unwrap();
         assert!(!reply.contains("JAR-SESSION-7f3a91"), "the jar's session came back to the agent: {reply}");
         assert_eq!(r.data.as_ref().unwrap()["lang"], "en", "a short value is the site's word, not a session: {reply}");
+    }
+
+    /// An optional input offered only from the route's body (e.g. a page URL tab `f=live` whose walked value was
+    /// mapped by the site's JS to `product=Latest` in the API step) must not block browserless replay when omitted
+    /// or kept at its walked default `"live"`, while still requiring the browser when changed to another value (`"top"`).
+    #[test]
+    fn an_optional_body_slot_at_its_walked_default_does_not_block_graph_replay() {
+        store::scratch_home("run-optional-body-default");
+        let (port, seen) = site_by(|path, _| (200, "", serde_json::json!({ "ok": true, "path": path, "items": [{ "title": "hyperframes" }] }).to_string()));
+        let api_url = format!("http://127.0.0.1:{port}/i/api/SearchTimeline?q={{q}}&src={{src}}&product=Latest");
+        let root_url = format!("http://127.0.0.1:{port}/search?q=seedance&src=typed_query&f=live");
+        let mut r: store::Route = serde_json::from_value(serde_json::json!({
+            "id": "x-search-opt", "site": "127.0.0.1", "what": "search posts", "method": "GET",
+            "path": "/i/api/SearchTimeline", "root": root_url,
+            "inputs": [
+                { "name": "q", "secret": false, "default": "seedance", "optional": false },
+                { "name": "src", "secret": false, "default": "typed_query", "optional": false },
+                { "name": "f", "secret": false, "default": "live", "optional": true }
+            ],
+            "steps": 1, "browser_assisted": true, "walk_without_fragment": true,
+            "read_by": crate::store::ReadBy::current(), "write": false, "provisional": false, "learned_at": 1,
+            "graph": {
+                "provisional": false,
+                "steps": [{
+                    "exchange": 0, "method": "GET", "status": 200, "url": api_url,
+                    "needs_browser": true, "page_signed": true,
+                    "page_producers": [{ "loc": { "in": "header", "key": "x-client-transaction-id" }, "producer": { "script": format!("http://127.0.0.1:{port}/app.js"), "at": 7 }, "recalled": "tx-walked" }],
+                    "fields": [
+                        { "loc": { "in": "query", "key": "q" }, "class": "input", "name": "q", "secret": false, "default": "seedance" },
+                        { "loc": { "in": "query", "key": "src" }, "class": "input", "name": "src", "secret": false, "default": "typed_query" },
+                        { "loc": { "in": "query", "key": "product" }, "class": "constant", "value": "Latest" }
+                    ]
+                }]
+            }
+        }))
+        .unwrap();
+        store::save_route(&r).unwrap();
+
+        // 1. Caller omits `f`: must replay browserless without blocking on "live".
+        let omitted = with_the_browser_shut(true, || {
+            call("x-search-opt", &HashMap::from([("q".into(), "hyperframes".into()), ("src".into(), "typed_query".into())]), "You").unwrap()
+        });
+        assert!(omitted.ok && !omitted.browser, "omitting optional f must replay browserless: {:?}", omitted.error);
+        assert!(seen.lock().unwrap().iter().any(|p| p.contains("q=hyperframes")), "{:?}", seen.lock().unwrap());
+
+        // 2. Caller passes `f=live` (same as the walked default, e.g. extracted from a URL with &f=live): must also replay browserless.
+        let same_default = with_the_browser_shut(true, || {
+            call("x-search-opt", &HashMap::from([("q".into(), "remotion".into()), ("src".into(), "typed_query".into()), ("f".into(), "live".into())]), "You").unwrap()
+        });
+        assert!(same_default.ok && !same_default.browser, "passing walked default f=live must replay browserless: {:?}", same_default.error);
+
+        // 3. Caller changes `f=top` (differs from walked default "live"): must refuse to silently send product=Latest.
+        let changed = with_the_browser_shut(true, || {
+            call("x-search-opt", &HashMap::from([("q".into(), "seedance".into()), ("src".into(), "typed_query".into()), ("f".into(), "top".into())]), "You").unwrap()
+        });
+        assert!(!changed.ok, "changing f to 'top' when SearchTimeline only has Latest must not succeed browserless");
+        assert!(seen.lock().unwrap().iter().all(|p| !p.contains("q=seedance")), "changed f=top must not send the stale Latest request: {:?}", seen.lock().unwrap());
+        let _ = &mut r;
     }
 }

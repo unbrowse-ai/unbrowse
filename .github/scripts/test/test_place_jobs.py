@@ -1,4 +1,4 @@
-"""place_jobs.py: an agent job goes to a free local runner, and to Blacksmith whenever none is free (UNB-166)."""
+"""place_jobs.py: an agent job goes to a free local runner, and to a hosted machine whenever none is free (UNB-166)."""
 
 import importlib.util
 import io
@@ -109,7 +109,7 @@ class PoolState(unittest.TestCase):
 
 
 class Place(unittest.TestCase):
-    def test_one_free_mac_takes_the_first_job_asked_and_the_rest_go_to_blacksmith(self):
+    def test_one_free_mac_takes_the_first_job_asked_and_the_rest_go_to_a_hosted_mac(self):
         placed, _ = pj.place([("qa", "mac"), ("check", "mac"), ("slice", "mac")], {"mac": MAC}, {"mac": (1, "")}, False)
         self.assertEqual(placed, {"qa": MAC, "check": pj.FALLBACK["mac"], "slice": pj.FALLBACK["mac"]})
 
@@ -118,13 +118,71 @@ class Place(unittest.TestCase):
         self.assertEqual(placed, {"qa": pj.FALLBACK["mac"], "skills": pj.FALLBACK["linux"]})
         self.assertIn("fork", why["qa"])
 
-    def test_no_pool_set_means_blacksmith(self):
+    def test_no_pool_set_means_a_hosted_machine(self):
         placed, _ = pj.place([("qa", "mac")], {"mac": None}, {"mac": (0, "")}, False)
         self.assertEqual(placed["qa"], pj.FALLBACK["mac"])
 
     def test_an_unknown_pool_is_refused(self):
         with self.assertRaises(ValueError):
             pj.place([("qa", "windows")], {}, {}, False)
+
+
+class TheSliceRunsOnlyOnLewissMac(unittest.TestCase):
+    """Lewis, 28 Nov 2026: "run slices only on my Mac". A `mac-only` job (the gate bank's slice) goes to Lewis's Mac
+    (OWN_MAC) whatever the pool's state, and waits for it: on a hosted Mac (a data centre's address) Ticketmaster and
+    Carousell refuse the slice's tasks and its gate says PROMOTION_REFUSED (PR #945, run 46116646462)."""
+
+    def test_a_busy_mac_keeps_the_slice_and_the_qa_shards_go_hosted(self):
+        placed, why = pj.place([("slice", "mac-only"), ("qa1", "mac")], {"mac": MAC, "mac-only": MAC},
+                               {"mac": (0, "busy")}, False)
+        self.assertEqual(placed, {"slice": MAC, "qa1": pj.FALLBACK["mac"]})
+        self.assertIn("waits", why["slice"])
+
+    def test_a_free_mac_goes_to_the_slice_first_so_no_qa_shard_queues_beside_it(self):
+        placed, _ = pj.place([("slice", "mac-only"), ("qa4", "mac"), ("qa1", "mac")], {"mac": MAC, "mac-only": MAC},
+                             {"mac": (1, "idle")}, False)
+        self.assertEqual(placed, {"slice": MAC, "qa4": pj.FALLBACK["mac"], "qa1": pj.FALLBACK["mac"]})
+
+    def test_with_no_mac_pool_for_the_rest_the_slice_still_goes_to_the_mac(self):
+        # qa.yml on a push: MAC_POOL is empty (only the nightly run puts QA shards on the Mac).
+        placed, _ = pj.place([("slice", "mac-only"), ("qa1", "mac")], {"mac": None, "mac-only": MAC}, {}, False)
+        self.assertEqual(placed, {"slice": MAC, "qa1": pj.FALLBACK["mac"]})
+
+    def test_it_is_never_a_hosted_machine(self):
+        for state in [(0, ""), (1, ""), (5, "")]:
+            placed, _ = pj.place([("slice", "mac-only")], {"mac": MAC, "mac-only": MAC}, {"mac": state}, False)
+            self.assertEqual(placed["slice"], MAC)
+            self.assertNotIn(placed["slice"], pj.FALLBACK.values())
+
+    def test_a_fork_or_no_own_mac_is_refused_never_sent_to_a_hosted_mac(self):
+        with self.assertRaisesRegex(ValueError, "only on Lewis's Mac"):
+            pj.place([("slice", "mac-only")], {"mac": MAC, "mac-only": MAC}, {"mac": (1, "")}, True)
+        with self.assertRaisesRegex(ValueError, "only on Lewis's Mac"):
+            pj.place([("slice", "mac-only")], {"mac": MAC, "mac-only": None}, {"mac": (1, "")}, False)
+
+    def test_main_places_the_slice_on_the_mac_when_nothing_can_be_read(self):
+        # No GH_TOKEN: every other job goes to its hosted fallback, the slice to the Mac all the same.
+        env = {"GITHUB_REPOSITORY": REPO, "MAC_POOL": json.dumps(MAC), "OWN_MAC": json.dumps(MAC)}
+        placed, out, summary = Main.run_main(self, ["slice=mac-only", "qa1=mac", "skills=linux"], env)
+        self.assertEqual(placed, {"slice": MAC, "qa1": pj.FALLBACK["mac"], "skills": pj.FALLBACK["linux"]})
+        self.assertIn(f"slice={json.dumps(MAC)}", out)
+        self.assertIn("| slice |", summary)
+
+    def test_main_places_the_slice_on_the_mac_when_it_is_asleep_or_busy(self):
+        asleep = {7: ("queued", [{"status": "queued", "labels": MAC, "created_at": ago(30)}])}
+        real = pj._http
+        pj._http = lambda token: api(asleep)
+        try:
+            env = {"GITHUB_REPOSITORY": REPO, "GH_TOKEN": "x", "MAC_POOL": json.dumps(MAC), "OWN_MAC": json.dumps(MAC)}
+            placed, _, _ = Main.run_main(self, ["slice=mac-only", "qa1=mac"], env)
+        finally:
+            pj._http = real
+        self.assertEqual(placed, {"slice": MAC, "qa1": pj.FALLBACK["mac"]})
+
+    def test_main_refuses_when_no_own_mac_is_set_or_it_is_not_self_hosted(self):
+        for own in ["", json.dumps("macos-15"), json.dumps(["macos-15"])]:
+            with self.subTest(own=own), self.assertRaises(SystemExit), redirect_stdout(io.StringIO()):
+                pj.main(["slice=mac-only"], {"GITHUB_REPOSITORY": REPO, "OWN_MAC": own, "GITHUB_OUTPUT": os.devnull})
 
 
 class Main(unittest.TestCase):
@@ -136,7 +194,7 @@ class Main(unittest.TestCase):
                 placed = pj.main(argv, env)
             return placed, Path(out).read_text(), Path(summary).read_text()
 
-    def test_anything_unreadable_sends_every_job_to_blacksmith(self):
+    def test_anything_unreadable_sends_every_job_to_a_hosted_machine(self):
         # No GH_TOKEN: the read fails, and the jobs still get a machine that starts.
         placed, out, summary = self.run_main(["qa=mac", "skills=linux"], {"GITHUB_REPOSITORY": REPO, "MAC_POOL": json.dumps(MAC)})
         self.assertEqual(placed, {"qa": pj.FALLBACK["mac"], "skills": pj.FALLBACK["linux"]})

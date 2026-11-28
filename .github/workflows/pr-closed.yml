@@ -21,7 +21,7 @@ jobs:
   stop:
     name: Stop the closed pull request's checks
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: write
@@ -49,7 +49,7 @@ jobs:
     if: >-
       github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'staging' &&
       github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 10
     permissions:
       actions: write

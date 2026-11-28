@@ -44,9 +44,16 @@ export function fakeStore(db, { fails = false, failOn = () => false } = {}) {
   };
 }
 
+/** Cloudflare's SQLite (a Durable Object's storage.sql, and D1) refuses a compound SELECT of more than 5 terms; the stock
+    SQLite allows 500. Every test store runs on Cloudflare's limit, so a schema or question the deployed store refuses
+    fails here first (UNB-315: a sixth UNION in the `ours` view made every staging request answer 503, 2026-11-27). */
+export const CLOUDFLARE_LIMITS = { compoundSelect: 5 };
+/** An in-memory SQLite with Cloudflare's limits. */
+export const cloudflareSqlite = () => new DatabaseSync(":memory:", { limits: CLOUDFLARE_LIMITS });
+
 /** `fails`: every call throws, as the store down. `failOn(sql)`: the calls whose SQL it says yes to throw. */
 export function d1({ fails = false, failOn = () => false } = {}) {
-  const db = new DatabaseSync(":memory:");
+  const db = cloudflareSqlite();
   db.exec(readFileSync(new URL("../schema.sql", import.meta.url), "utf8"));
   const rows = (sql, ...values) => db.prepare(sql).all(...values);
   if (process.env.TELEMETRY_TEST_STORE === "do") return { sqlite: db, ...client(fakeStore(db, { fails, failOn })), rows };

@@ -21,9 +21,9 @@ CREATE INDEX IF NOT EXISTS events_by_hour ON events (received_hour, event);
 CREATE INDEX IF NOT EXISTS events_by_install ON events (install_id, received_hour);
 -- A store made before from_tag gets it from src/sql.js's `migrate` (CREATE TABLE IF NOT EXISTS leaves a table as it is).
 
--- Our own installs, kept out of every count but `gate` and `ours` (UNB-303). An entry is an install id, or a version
--- that was never offered to anyone (a device test build): every install that sent it is ours. Added and removed by an
--- admin at /v1/ours.
+-- Our own installs and versions, kept out of every real count (UNB-303). An entry is an install id (every event of that
+-- install is ours), or a version that was never offered to anyone (a device test build: every event that sent it is
+-- ours, and the same install's other versions still count). Added and removed by an admin at /v1/ours.
 CREATE TABLE IF NOT EXISTS ours_list (
   kind TEXT NOT NULL CHECK (kind IN ('install', 'version')),
   value TEXT NOT NULL,
@@ -32,16 +32,66 @@ CREATE TABLE IF NOT EXISTS ours_list (
   PRIMARY KEY (kind, value)
 );
 
--- Every install that is ours, with the reason that makes it so: the release train's gate, an install on the list, one
--- that sent a version on the list, a source build (0.x: no release carries it), or a node started with an internal
--- source tag. Made again on every start, so a change here reaches a store that already has the view.
+-- The prerelease builds the site's Download buttons offered to people (unbrowse-landing src/downloads.ts): every other
+-- prerelease (13.21.0-installers.6, 13.21.0-staging.2) was only ever a device test or a staging build, so its installs
+-- are ours. Added by an admin at /v1/ours with kind "offered" when the buttons move to a new prerelease (UNB-315).
+-- A release candidate (X.Y.P-rc.N) needs no entry: the ours view below counts it as people's by its shape.
+CREATE TABLE IF NOT EXISTS offered_list (
+  version TEXT PRIMARY KEY,
+  why TEXT NOT NULL,
+  added_hour INTEGER NOT NULL
+);
+-- The seeds go in once per store, not on every start: this file runs each time the store starts, and an entry an admin
+-- removed must stay removed. `seeded` names each seed that has gone in.
+CREATE TABLE IF NOT EXISTS seeded (name TEXT PRIMARY KEY);
+INSERT OR IGNORE INTO offered_list (version, why, added_hour)
+  SELECT '13.21.0-installers.3', 'site Download buttons 21-22 Nov 2026', 1795219200 WHERE NOT EXISTS (SELECT 1 FROM seeded WHERE name = 'offered_list');
+INSERT OR IGNORE INTO offered_list (version, why, added_hour)
+  SELECT '13.21.0-installers.4', 'site Download buttons from 22 Nov 2026', 1795305600 WHERE NOT EXISTS (SELECT 1 FROM seeded WHERE name = 'offered_list');
+INSERT OR IGNORE INTO seeded (name) VALUES ('offered_list');
+
+-- Real or ours, and what an install is (UNB-303, UNB-315; PR #1002 review). Every question in queries.sql reads the
+-- one view `labelled`: each event, with what its install is, read once over all of that install's events, and then
+-- whether the event is a person's ('real') or ours.
+--
+-- What an install is, over all its events, before any event is split: its first source tag (`install_from`, as a
+-- node sends `from` on a start only) and the hero test's arm that tag names (`install_arm`: a tag ending in "-" and
+-- one letter, `hn-e` is arm e), and whether all of it is ours: the release train's gate, an install on the list, a
+-- node ever started with an internal source tag, or one that ever ran a source build (0.x, which no release carries:
+-- a node built from a checkout). Then, for an install that isn't, each event by its own version: a version on the
+-- list, or a prerelease build the site never offered (a version with a "-", not on offered_list, and not a release
+-- candidate, which a release branch publishes to npm's public `next` tag and to canary,
+-- .github/scripts/release-version.sh). So a person who tried a staging build counts as a person on stable, and the
+-- tag their staging start sent still attributes them. `why` is the reason an event is ours (NULL for a person's).
+-- Made again on every start, so a change here reaches a store that already has the view. A question never reads the
+-- events table itself, so none can split events before what their install is has been read.
 DROP VIEW IF EXISTS ours;
-CREATE VIEW ours AS
-  SELECT 'ffffffffffffffffffffffffffffffff' AS install_id, 'gate' AS why
-  UNION SELECT value, 'listed' FROM ours_list WHERE kind = 'install'
-  UNION SELECT DISTINCT e.install_id, 'listed version' FROM events e JOIN ours_list l ON l.kind = 'version' AND l.value = e.version
-  UNION SELECT DISTINCT install_id, 'source build' FROM events WHERE version LIKE '0.%'
-  UNION SELECT DISTINCT install_id, 'internal tag' FROM events WHERE from_tag IN ('internal', 'dev', 'ci', 'test');
+DROP VIEW IF EXISTS ours_installs;
+DROP VIEW IF EXISTS labelled;
+CREATE VIEW labelled AS
+  SELECT *, CASE WHEN why IS NULL THEN 'real' ELSE 'ours' END AS who FROM (
+    SELECT e.*, i.install_from, i.install_arm, COALESCE(i.why, CASE
+        WHEN e.version IN (SELECT value FROM ours_list WHERE kind = 'version') THEN 'listed version'
+        WHEN instr(e.version, '-') > 0 AND e.version NOT IN (SELECT version FROM offered_list)
+          AND NOT (substr(e.version, instr(e.version, '-') + 1) GLOB 'rc.[0-9]*' AND substr(e.version, instr(e.version, '-') + 4) NOT GLOB '*[^0-9]*')
+          THEN 'test build' END) AS why
+    FROM events e JOIN (
+      SELECT install_id, install_from,
+             CASE WHEN length(install_from) >= 3 AND substr(install_from, -2, 1) = '-' AND substr(install_from, -1) BETWEEN 'a' AND 'z'
+               THEN substr(install_from, -1) END AS install_arm,
+             CASE WHEN install_id = 'ffffffffffffffffffffffffffffffff' THEN 'gate'
+               WHEN install_id IN (SELECT value FROM ours_list WHERE kind = 'install') THEN 'listed'
+               WHEN internal_tag THEN 'internal tag'
+               WHEN source_build THEN 'source build' END AS why
+      FROM (
+        SELECT install_id,
+               substr(MIN(CASE WHEN from_tag IS NOT NULL THEN printf('%012d|%s', received_hour, from_tag) END), 14) AS install_from,
+               MAX(from_tag IN ('internal', 'dev', 'ci', 'test')) AS internal_tag,
+               MAX(version LIKE '0.%') AS source_build
+        FROM events GROUP BY install_id
+      )
+    ) i ON i.install_id = e.install_id
+  );
 
 -- Bug reports (POST /v1/reports). A report's text is never kept here: it goes into the public GitHub issue. What is
 -- kept is which issue each problem (fingerprint) has and how often it was reported, and today's count of reports per

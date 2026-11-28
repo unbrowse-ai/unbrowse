@@ -1,0 +1,23 @@
+{
+  "claim": "Unit tests and clippy prove CDN chunk allowlist, inline currentScript/previousElementSibling, and service-worker header dedup pass in isolation",
+  "test": [
+    "python3",
+    "-I",
+    ".contracts/verify_x_replay.py",
+    "source"
+  ],
+  "inputs": [
+    "unbrowse-node/crates/learn/src/sandbox.rs",
+    "unbrowse-node/crates/learn/src/graph.rs"
+  ],
+  "role": "source",
+  "against": "dbe12e76",
+  "verifier_inputs": [
+    ".contracts/verify_x_replay.py"
+  ],
+  "qualified": {
+    "at": "2026-11-28T07:43:26.322388+00:00",
+    "by": "pre-work",
+    "exit": 1
+  }
+}

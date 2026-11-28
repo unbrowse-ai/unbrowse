@@ -43,7 +43,7 @@ impl Answer for Moved {
 }
 
 fn a_client(wire: fn() -> Box<dyn Fetch>, walker: &str, tag: &str) -> RouteClient {
-    let step = crate::graph::Step {
+    let step = crate::graph::Step { lifetime: None,
         page_signed: false,
         page_producers: Vec::new(),
         exchange: 1,
@@ -166,7 +166,7 @@ impl Answer for Expiring {
 }
 
 fn a_route_behind_a_sign_in(wire: fn() -> Box<dyn Fetch>) -> RouteClient {
-    let step = |exchange: usize, path: &str| crate::graph::Step {
+    let step = |exchange: usize, path: &str| crate::graph::Step { lifetime: None,
         page_signed: false,
         page_producers: Vec::new(),
         exchange,

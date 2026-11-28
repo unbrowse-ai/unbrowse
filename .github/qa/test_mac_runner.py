@@ -13,8 +13,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ["qa.yml", "pr-agent-checks.yml", "gate-bank.yml", "bank.yml"]
 # A job reaches the Mac through the workflow's `place` job (UNB-166): `place_jobs.py qa=mac ...` names it, and its
-# runs-on reads `needs.place.outputs.qa`.
-PLACED_ON = re.compile(r"place_jobs\.py((?: [\w]+=(?:mac|linux))+)")
+# runs-on reads `needs.place.outputs.qa`. `slice=mac-only` is a job that runs on the Mac and nowhere else (the gate
+# bank's slice; Lewis, 28 Nov 2026).
+PLACED_ON = re.compile(r"place_jobs\.py((?: [\w]+=(?:mac-only|mac|linux)(?![\w-]))+)")
 NODE_CALL = re.compile(r"(^|[\s;&|(])(npm|npx|node)\s")
 
 
@@ -42,7 +43,7 @@ def may_run_on_the_mac(text):
     """Job ids of a workflow that can land on a Mac runner of Lewis's: placed there, or reading MAC_RUNNER."""
     placed = set()
     for match in PLACED_ON.finditer(text):
-        placed |= {arg.split("=")[0] for arg in match.group(1).split() if arg.endswith("=mac")}
+        placed |= {arg.split("=")[0] for arg in match.group(1).split() if arg.endswith(("=mac", "=mac-only"))}
     found = set()
     for job, j in jobs(text).items():
         out = re.search(r"needs\.place\.outputs\.(\w+)", j["runs_on"])
@@ -122,7 +123,9 @@ class MacRunner(unittest.TestCase):
             "  place:\n"
             "    runs-on: blacksmith-2vcpu-ubuntu-2404\n"
             "    steps:\n"
-            "      - run: python3 -I .github/scripts/place_jobs.py qa=mac skills=linux\n"
+            "      - run: python3 -I .github/scripts/place_jobs.py slice=mac-only qa=mac skills=linux\n"
+            "  slice:\n"
+            "    runs-on: ${{ fromJSON(needs.place.outputs.slice) }}\n"
             "  qa:\n"
             "    runs-on: ${{ fromJSON(needs.place.outputs.qa) }}\n"
             "  skills:\n"
@@ -130,7 +133,7 @@ class MacRunner(unittest.TestCase):
             "  node:\n"
             "    runs-on: blacksmith-6vcpu-macos-latest\n"
         )
-        self.assertEqual(may_run_on_the_mac(workflow), {"qa"})
+        self.assertEqual(may_run_on_the_mac(workflow), {"slice", "qa"})
 
     def test_a_node_pid_is_not_a_node_call(self):
         self.assertIsNone(NODE_CALL.search('kill "$(cat "$UNBROWSE_HOME/node.pid")" ; sh start-node.sh unbrowse-node x'))

@@ -132,6 +132,16 @@ pub enum Expr {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         evidence: Option<serde_json::Value>,
     },
+    /// One function of the page's own script, called for the value (`route.value-dag`, `learn.reference`): `export` of
+    /// the module `module` as the page's bundle registers it, given `args` as the page's code gave them, each made by
+    /// its own expression (most read the request as it is sent). Data, never code (`R2.7`): the world runs the site's
+    /// own script, from the page the route carries, and one that runs no page code makes nothing here, so the hole
+    /// falls to its next way.
+    Function { module: String, export: String, args: Vec<Expr> },
+    /// The value the first learn's request carried here, for a value the page makes anew on every call: sent only
+    /// where no way before it made one this call (recompute, else recall, else the browser:
+    /// `decide.recompute-recall-browser`). It stands for a value of the page's, not a fixed text of the site's.
+    Recalled { was: String },
 
     // Searches.
     /// A value the page searched for rather than made (a proof of work): the least count from zero, in decimal, such
@@ -331,6 +341,16 @@ pub enum Sent {
     /// A header the request carries, by name: a page that signs over a clock reading it also sends in a header
     /// (`x-ts`) hashes what that header carries, so the signature reads it off the request being built.
     Header(String),
+    /// The scheme and host the request goes to, as a page's `location.origin` reads.
+    Origin,
+    /// The host alone, as a page's `hostname` reads.
+    Host,
+    /// The path alone, without the query: what a page's code reads as `pathname`.
+    Pathname,
+    /// The whole address, query and all.
+    Address,
+    /// The query with its `?`, or nothing with no query: a page's `search`.
+    Search,
 }
 
 /// How a value is written where it sits.
@@ -568,6 +588,11 @@ pub trait World {
     fn program_reading(&mut self, _source: &str, _sent: &Built, _fed: &[(Reach, Option<String>)]) -> Option<String> {
         None
     }
+    /// The value `export` of the page's module `module` makes, called with `args` for the request as it stands. None
+    /// from a world that runs no page code, or when the page's code made nothing: the hole falls to its next way.
+    fn function(&mut self, _module: &str, _export: &str, _args: &[String], _sent: &Built) -> Option<String> {
+        None
+    }
 }
 
 /// What an expression came to.
@@ -672,7 +697,7 @@ impl Expr {
             .into_iter()
             .map(|e| match e {
                 Expr::Lookup { .. } | Expr::Solve { .. } => 1,
-                Expr::Program { .. } | Expr::ProgramReading { .. } => 2,
+                Expr::Program { .. } | Expr::ProgramReading { .. } | Expr::Function { .. } => 2,
                 _ => 0,
             })
             .max()
@@ -709,6 +734,8 @@ impl Expr {
                 now.gather(into_digests, out);
             }
             Expr::Hash { of, .. } if into_digests => of.gather(into_digests, out),
+            // What the page's function is handed is no part of what is sent, as what a digest is made over is not.
+            Expr::Function { args, .. } if into_digests => args.iter().for_each(|a| a.gather(into_digests, out)),
             // What an item is held to is no part of what is sent.
             Expr::Pick { fits, .. } | Expr::Lookup { fits, .. } if into_digests => fits.is().gather(into_digests, out),
             Expr::Hmac { key, of, .. } if into_digests => {
@@ -839,7 +866,7 @@ impl Expr {
 
     /// Whether the expression reads the request it is part of, so it can only be worked out once the rest is built.
     pub fn reads_the_request(&self) -> bool {
-        self.all().into_iter().any(|e| matches!(e, Expr::Sent { .. } | Expr::Program { .. } | Expr::ProgramReading { .. }))
+        self.all().into_iter().any(|e| matches!(e, Expr::Sent { .. } | Expr::Program { .. } | Expr::ProgramReading { .. } | Expr::Function { .. }))
     }
 
     /// Whether the expression holds a program.
@@ -997,6 +1024,20 @@ impl Expr {
                 let sent = cx.sent.ok_or(Why::Unbuilt)?;
                 Is(cx.world.program(source, sent).ok_or(Why::Needs(2))?)
             }
+            Expr::Function { module, export, args } => {
+                let sent = cx.sent.ok_or(Why::Unbuilt)?;
+                let mut given = Vec::with_capacity(args.len());
+                for arg in args {
+                    let mut inner = Cx { world: &mut *cx.world, host: cx.host, sent: Some(sent) };
+                    given.push(match arg.eval(&mut inner)? {
+                        Is(v) => v,
+                        // The page's code hands what it has: an absent part is an empty one.
+                        Unset | Absent => String::new(),
+                    });
+                }
+                Is(cx.world.function(module, export, &given, sent).ok_or(Why::Needs(2))?)
+            }
+            Expr::Recalled { was } => Is(was.clone()),
             Expr::Lookup { rows, fits, take } => {
                 let wanted = match fits.is().eval(cx)? {
                     Is(v) => v,
@@ -1045,12 +1086,20 @@ pub(crate) mod tests {
         lists: HashMap<(String, String), Vec<serde_json::Value>>,
         answered: Vec<String>,
         program: Option<String>,
+        /// It runs the page's code: a function answers with its name and what it was handed.
+        runs_page_code: bool,
     }
 
     impl Desk {
         /// A desk that knows only what the caller wrote.
         pub(crate) fn saying(pairs: &[(&str, &str)]) -> Desk {
             Desk { slots: pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), ..Desk::default() }
+        }
+
+        /// The same desk, running the page's code.
+        pub(crate) fn running_page_code(mut self) -> Desk {
+            self.runs_page_code = true;
+            self
         }
     }
 
@@ -1087,6 +1136,9 @@ pub(crate) mod tests {
         }
         fn program(&mut self, _source: &str, _sent: &Built) -> Option<String> {
             self.program.clone()
+        }
+        fn function(&mut self, module: &str, export: &str, args: &[String], _sent: &Built) -> Option<String> {
+            self.runs_page_code.then(|| format!("{module}.{export}({})", args.join(",")))
         }
     }
 
@@ -1248,7 +1300,7 @@ pub(crate) mod tests {
         assert_eq!(world.cookie_for("sid", None), None, "a host built at call time gets no jar's cookie");
         assert_eq!(world.stored(Area::Local, "k"), None);
         assert_eq!(world.list("s", "/l"), None);
-        let built = Built { method: "GET".into(), url: "https://shop.example/a".parse().unwrap(), headers: vec![], body: None, made: vec![] };
+        let built = Built { method: "GET".into(), url: "https://shop.example/a".parse().unwrap(), headers: vec![], body: None, made: vec![], ways: vec![] };
         assert_eq!(world.program("return 1", &built), None);
         assert_eq!(world.program_reading("return 1", &built, &[]), None);
         // So an expression that needs one of them stops, and says it needs a maker.
@@ -1384,5 +1436,33 @@ pub(crate) mod tests {
         assert!(serde_json::from_value::<Expr>(json!({ "op": "eval", "code": "1+1" })).is_err());
         assert!(serde_json::from_value::<Expr>(json!({ "op": "text", "is": "a", "run": "rm -rf" })).is_err());
         assert!(serde_json::from_value::<Fits>(json!({ "when": "matches", "at": "/a", "is": { "op": "text", "is": "a" } })).is_err());
+    }
+
+    /// A world that runs no page functions answers None by default, and absent or unset function arguments pass as empty.
+    #[test]
+    fn a_function_expr_passes_empty_for_absent_args_and_default_world_declines() {
+        struct Bare;
+        impl World for Bare {
+            fn slot(&self, _: &str) -> Option<String> { None }
+            fn cookie(&self, _: &str) -> Option<String> { None }
+            fn read(&self, _: &str, _: &At) -> Option<String> { None }
+            fn answered(&self, _: &str) -> bool { false }
+            fn fresh(&mut self, _: &str, _: Clock) -> String { String::new() }
+            fn now_ms(&self) -> u64 { 0 }
+            fn digits(&mut self, _: usize) -> String { String::new() }
+            fn file(&self, _: &str, _: FileFact) -> Result<String, String> { Err(String::new()) }
+            fn same_site(&self, _: &str, _: &str) -> bool { true }
+        }
+        let sent = Built { method: "GET".into(), url: "https://shop.example/a".parse().unwrap(), headers: vec![], body: None, made: vec![], ways: vec![] };
+        let f = Expr::Function {
+            module: "100".into(),
+            export: "mk".into(),
+            args: vec![Expr::text("ok"), Expr::Slot { name: "opt".into(), or: None, optional: true }, expr(json!({ "op": "cookie", "name": "missing" }))],
+        };
+        let mut bare = Bare;
+        assert_eq!(f.eval(&mut Cx { world: &mut bare, host: None, sent: Some(&sent) }), Err(Why::Needs(2)));
+
+        let mut desk = Desk::default().running_page_code();
+        assert_eq!(f.eval(&mut Cx { world: &mut desk, host: None, sent: Some(&sent) }), Ok(Outcome::Is("100.mk(ok,,)".into())));
     }
 }

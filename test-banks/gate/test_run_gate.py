@@ -62,6 +62,31 @@ TASK = {"id": "u6:t1", "source": "unbrowse6", "url": "https://example.com/", "ta
 ANSWERED = {"status": "answered", "answer": "HTS 8507.60", "items": [], "source_url": "https://example.com/"}
 
 
+def node_reply(kind, **fields):
+    """A node reply built only from what the node's own manifest (unbrowse-node/agent-api.json, rewritten from the
+    node's types and held current by `the_agent_api_manifest_is_current`) declares for `kind`: every field must be
+    one the type has, of the JSON type it declares. A fixture in the shape the node sends, never one imagined here."""
+    api = json.loads((HERE.parents[1] / "unbrowse-node" / "agent-api.json").read_text())
+    kind_schema = api["types"][kind]
+    props = kind_schema.get("properties") or next(a["properties"] for a in kind_schema["anyOf"] if "properties" in a)
+    simple = {"boolean": bool, "integer": int, "number": (int, float), "string": str, "object": dict, "array": list}
+    for name, value in fields.items():
+        assert name in props, f"the node's {kind} has no field {name!r}"
+        declared = props[name]
+        if "$ref" in declared:
+            assert isinstance(value, dict), f"{kind}.{name} is a {declared['$ref']}"
+            continue
+        types = declared.get("type")
+        types = types if isinstance(types, list) else [types] if types else []
+        if types:
+            assert any(value is None if t == "null" else isinstance(value, simple[t]) for t in types), f"{kind}.{name}: {types}"
+        if declared.get("enum"):
+            assert value in declared["enum"], f"{kind}.{name} is one of {declared['enum']}"
+        if isinstance(value, list) and declared.get("items", {}).get("type") == "string":
+            assert all(isinstance(v, str) for v in value), f"{kind}.{name} holds strings"
+    return dict(fields)
+
+
 def judged(meets, finished=True):
     return "```json\n" + json.dumps({"meets_check": meets, "finished": finished, "why": "w"}) + "\n```"
 
@@ -303,6 +328,15 @@ class TheNodesMemory(Fixture):
         self.assertEqual([c for c in self.calls() if not c["client"]], [], "a memory kill goes to no judge")
         self.assertEqual(len(res), 1, "no task starts on a node that was stopped")
 
+    def test_the_run_hands_each_warm_client_the_routes_its_cold_ask_saved(self):
+        self.bank.write_text(json.dumps({"tasks": [TASK, dict(TASK, id="u6:t1#warm", phase="warm", after="u6:t1")]}))
+        self.run_bank({"tool_text": '{"how":"learned","route":{"id":"api"},"learned_routes":["opening"],"result":{"ok":true}}',
+                       "warm_tool_text": '{"how":"called","route":{"id":"api"},"result":{"ok":true,"browser":false}}',
+                       "answer": ANSWERED}, ids="u6:t1,u6:t1#warm")
+        warm = [c["prompt"] for c in self.calls() if c["client"] and "This warm task" in c["prompt"]]
+        self.assertEqual(len(warm), 1)
+        self.assertIn("`api`, `opening`", warm[0])
+
     def test_no_node_named_records_nothing(self):
         res = self.run_bank({"tool_text": "rows", "answer": ANSWERED})
         self.assertNotIn("node_peak_rss_mb", res["u6:t1"])
@@ -343,6 +377,72 @@ class TheCiSteps(Fixture):
                          {"u6:t1": "confidently_wrong", "u6:t2": "confidently_wrong"})
         judge_prompts = [c["prompt"] for c in self.calls() if not c["client"]]
         self.assertTrue(all("regex:8507\\.60" in p for p in judge_prompts))
+
+    def test_the_warm_runs_are_written_from_the_cold_asks_output_before_the_warm_wave(self):
+        d = pathlib.Path(self.tmp.name) / "ci"
+        self.bank.write_text(json.dumps({"tasks": [TASK, dict(TASK, id="u6:t1#warm", phase="warm", after="u6:t1")]}))
+        run_gate.main(["prepare", "--dir", str(d), "--mcp", "m0.json", "--per", "5", "--bank", str(self.bank),
+                       "--claude", str(self.claude)])
+        warm = d / "round-0" / "warm"
+        self.assertEqual(list(warm.glob("*.args")), [], "no warm run is written before its cold ask has run")
+        os.environ["FAKE_CLIENT"] = json.dumps({"tool_text": '{"learned":[{"route_id":"opening"}],"ok":true}',
+                                                "tool": "mcp__unbrowse__unbrowse_browse", "answer": ANSWERED})
+        self.run_folder(d / "round-0")
+        run_gate.main(["warm-args", "--dir", str(d)])
+        args = (warm / "000.args").read_bytes().decode()
+        self.assertIn("`opening`", args)
+        self.assertNotIn(run_gate.SAVED_SLOT, args)
+        self.assertIn("--mcp-config\0m0.json", args, "the rest of the run is what prepare wrote")
+        self.assertEqual(json.loads((warm / "000.saved.json").read_text()), ["opening"])
+
+    def test_every_step_is_a_quiet_success_when_there_is_nothing_to_do(self):
+        d = pathlib.Path(self.tmp.name)
+        empty = d / "empty.json"
+        empty.write_text(json.dumps({"tasks": []}))
+        out, none = d / "out.jsonl", d / "never-written.jsonl"
+        out.write_text("")
+        steps = {
+            "prepare": ["prepare", "--dir", str(d / "p"), "--mcp", "m0.json", "--bank", str(empty)],
+            "warm-args after an empty prepare": ["warm-args", "--dir", str(d / "p")],
+            "warm-args on no folder": ["warm-args", "--dir", str(d / "absent")],
+            "judges": ["judges", "--dir", str(d / "p")],
+            "collect": ["collect", "--dir", str(d / "p"), "--out", str(d / "collected.jsonl")],
+            "run": ["run", "--mcp", "m.json", "--out", str(out), "--bank", str(empty), "--claude", str(self.claude)],
+            "score": ["score", "--out", str(none), "--bank", str(empty)],
+            "left": ["left", "--out", str(out), "--bank", str(empty)],
+            "tasks": ["tasks", "--bank", str(empty)],
+            "again": ["again", "--out", str(out), "--bank", str(empty), "--write", str(d / "again.ids")],
+        }
+        for name, argv in steps.items():
+            with self.subTest(step=name):
+                said = io.StringIO()
+                with contextlib.redirect_stdout(said):
+                    self.assertEqual(run_gate.main(argv), 0, said.getvalue())
+        self.assertTrue((d / "p").is_dir(), "prepare leaves the folder the next steps read, even with no round")
+        self.calls()  # no client was started
+
+    def test_a_resumed_split_run_with_every_task_done_runs_through(self):
+        d = pathlib.Path(self.tmp.name) / "ci"
+        self.bank.write_text(json.dumps({"tasks": [TASK, dict(TASK, id="u6:t1#warm", phase="warm", after="u6:t1")]}))
+        self.out.write_text("".join(json.dumps({"id": i, "outcome": "right"}) + "\n" for i in ("u6:t1", "u6:t1#warm")))
+        for argv in (["prepare", "--dir", str(d), "--mcp", "m0.json", "--out", str(self.out), "--bank", str(self.bank)],
+                     ["warm-args", "--dir", str(d)], ["judges", "--dir", str(d)],
+                     ["collect", "--dir", str(d), "--out", str(self.out)]):
+            with self.subTest(step=argv[0]):
+                said = io.StringIO()
+                with contextlib.redirect_stdout(said):
+                    self.assertEqual(run_gate.main(argv), 0)
+                if argv[0] in ("prepare", "warm-args", "judges"):
+                    self.assertEqual(said.getvalue().split(), ["0"], argv[0])
+        self.assertEqual(self.calls(), [])
+
+    def test_the_browser_verdict_still_refuses_a_run_that_left_no_launch_counts(self):
+        # The one step that is a verdict, not a step of work: nothing to read there is missing evidence, never a pass.
+        d = pathlib.Path(self.tmp.name)
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            self.assertEqual(run_gate.main(["browser-verdict", "--dir", str(d / "absent"), "--results", str(self.out)]), 1)
+        self.assertIn("REFUSE", said.getvalue())
 
     def test_a_client_killed_by_its_alarm_is_an_error_not_a_pass(self):
         d = pathlib.Path(self.tmp.name) / "ci"
@@ -1011,6 +1111,7 @@ class Phases(unittest.TestCase):
             round_dir = runs / "round-0"
             alone = (round_dir / "000.args").read_text()
             paired = (round_dir / "001.args").read_text()
+            run_gate.main(["warm-args", "--dir", str(runs)])
             warm = (round_dir / "warm/000.args").read_text()
             self.assertIn('do: ["open", "<Start page>"]', paired)
             self.assertIn('do: ["close"]', paired)
@@ -1039,6 +1140,17 @@ class Phases(unittest.TestCase):
             self.assertLessEqual(len(names[0]), 20, "the username must fit older practice forms")
             self.assertRegex(names[0], r"[0-9a-f]{16}$")
 
+    def test_the_authenticated_client_puts_one_verified_record_in_items(self):
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(model="sonnet", max_steps=30, max_turns=40,
+                               claude="claude", judge_model="sonnet")
+        task = dict(TASK, phase="authed", task="Read the signed-in account's display name and email.",
+                    check="count>=1:one signed-in profile record with a display name and email")
+        prompt = " ".join(run_gate.client_argv(args, task, "mcp.json"))
+        self.assertIn("include the verified signed-in record in `items`, even if there is only one record", prompt)
+        self.assertIn("Keep all requested fields together in that entry", prompt)
+
     def test_a_created_account_gets_time_for_the_signed_in_check(self):
         class A:
             model = "sonnet"; max_steps = 25; max_turns = 40; judge_model = "sonnet"; claude = "claude"
@@ -1052,14 +1164,149 @@ class Phases(unittest.TestCase):
         class A:
             model = "sonnet"; max_steps = 30; max_turns = 40; claude = "claude"; judge_model = "sonnet"
         cold = " ".join(run_gate.client_argv(A(), TASK, "mcp.json"))
-        warm = " ".join(run_gate.client_argv(A(), dict(TASK, phase="warm"), "mcp.json"))
+        warm = " ".join(run_gate.client_argv(A(), dict(TASK, phase="warm"), "mcp.json", saved=["r1"]))
         self.assertIn("full Task text as goal", cold)
         self.assertIn("full Task text as goal", warm)
         self.assertIn('browser: "never"', warm)
         self.assertIn("collect the same ask", warm)
-        self.assertIn("unbrowse_search with an empty query", warm)
+        self.assertIn("`r1`", warm)
         self.assertNotIn("If it offers a browser", warm)
         self.assertNotIn('browser: "never"', cold)
+
+    def test_the_paired_client_recovers_the_tab_and_checks_the_native_result_list(self):
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(model="sonnet", max_steps=30, max_turns=40,
+                               claude="claude", judge_model="sonnet")
+        cold = " ".join(run_gate.client_argv(args, TASK, "mcp.json", paired_cold=True))
+        warm = " ".join(run_gate.client_argv(args, dict(TASK, phase="warm"), "mcp.json"))
+        self.assertIn('use do: ["snapshot"] on the same browser site', cold)
+        self.assertIn("Go on in that tab when the snapshot shows the requested page or a page on the way to it", cold)
+        self.assertIn("use that control in the same tab", cold)
+        self.assertNotIn("Continue only if the snapshot shows the requested page", cold)
+        self.assertIn("verify the query on the result list itself", warm)
+        self.assertIn("keep the site's order even when individual titles omit the search words", warm)
+
+    def test_the_warm_fallback_stays_on_the_route_the_cold_ask_saved(self):
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(model="sonnet", max_steps=30, max_turns=40,
+                               claude="claude", judge_model="sonnet")
+        warm = " ".join(run_gate.client_argv(args, dict(TASK, phase="warm"), "mcp.json", saved=["api"]))
+        self.assertIn("These are the only routes this warm ask may replay", warm)
+        self.assertIn("Never call a route that is not in that list", warm)
+
+    def test_a_cold_recovery_opens_the_start_page_only_when_the_last_address_read_is_blank(self):
+        # A snapshot prints the page's tree without its address, and an address read and a snapshot are two reads: the
+        # navigation can commit between them. It only moves forward (blank, then the page), so the address read after
+        # the snapshot is the one that decides: blank then means the snapshot was blank too.
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(model="sonnet", max_steps=30, max_turns=40,
+                               claude="claude", judge_model="sonnet")
+        cold = " ".join(run_gate.client_argv(args, TASK, "mcp.json", paired_cold=True))
+        self.assertIn('use do: ["snapshot"] on the same browser site, then do: ["get", "url"]', cold)
+        self.assertIn("The address read after the snapshot decides, never an empty snapshot alone", cold)
+        self.assertIn('Open the Start page only when that address is about:blank or empty: use do: ["open", "<Start page>"] once in that tab', cold)
+        self.assertIn("Any other address means the navigation started, so never open the Start page again", cold)
+        self.assertIn('if the snapshot is empty, the page is still rendering: use do: ["wait", "2000"] and snapshot again', cold)
+        self.assertIn("a consent notice or an interstitial with a visible Continue control", cold)
+        self.assertNotIn('use do: ["get", "url"] on the same browser site, then do: ["snapshot"]', cold)
+
+    def test_a_warm_fallback_judges_each_saved_route_by_what_it_returned(self):
+        # A cold read can save two routes under one goal (an API route and its opening-page route). Whichever the goal
+        # call reaches first may answer short (three of five records) or not at all without a browser, while the other
+        # answers in full; the pair is scored on either. So the client tries the next saved route on what the reply
+        # returned, whether or not the goal call named a route.
+        cold = {"outcome": "right", "chrome_launches": 1, "trace": [
+            call("unbrowse_browse", '{"learned":[{"route_id":"api"}]}'),
+            call("unbrowse_do", '{"how":"learned","route":{"id":"api"},"learned_routes":["opening"],"result":{"ok":true}}'),
+        ]}
+        full = dict(call("unbrowse_call", '{"ok":true,"browser":false,"data":[1,2,3,4,5]}'), input={"route_id": "opening"})
+        short = call("unbrowse_do", '{"how":"called","route":{"id":"api"},"result":{"ok":true,"browser":false,"data":[1,2,3]}}')
+        miss = call("unbrowse_do", '{"code":"browser_missing","declined":true,"outcome":"browser_declined"}', is_error=True)
+        needs = dict(call("unbrowse_call", '{"code":"browser_missing","declined":true,"outcome":"browser_declined"}',
+                          is_error=True), input={"route_id": "api"})
+        for trace in ([short, full], [miss, needs, full]):
+            warm = {"phase": "warm", "outcome": "right", "trace": trace}
+            self.assertEqual(run_gate.warm_browser(trace), "")
+            self.assertEqual(run_gate.twin_outcome(warm, cold), "right", "the scorer accepts either saved route")
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(model="sonnet", max_steps=30, max_turns=40,
+                               claude="claude", judge_model="sonnet")
+        prompt = " ".join(run_gate.client_argv(args, dict(TASK, phase="warm"), "mcp.json",
+                                               saved=run_gate.saved_routes(cold)))
+        self.assertIn("If the goal call's reply is not a complete answer, call each saved route", prompt)
+        self.assertIn("judge each reply by what it returned: stop at the first complete answer", prompt)
+        self.assertIn("A route that answered short or failed does not end the fallback while a saved route is left", prompt)
+
+    def test_a_complete_warm_answer_is_the_tasks_own_ask_and_a_verified_empty_one_counts(self):
+        # The bank's nonsense twin asks for "the first 5 results" of a value the site has nothing for: a browserless
+        # reply that verifies zero results answers it in full. A route that ignored the query and served default rows
+        # has five records with every field and still did not answer it. "Complete" is read from the Task's own ask
+        # against the reply, never from a fixed number, and the check (the expected answer) is never shown the client.
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(model="sonnet", max_steps=30, max_turns=40,
+                               claude="claude", judge_model="sonnet")
+        none = dict(TASK, id="c#none", phase="warm", after="c", check="none:zzqxvkwj",
+                    task='Search listings for "zzqxvkwj" and list the first 5 results (title, price and link of each).')
+        prompt = " ".join(run_gate.client_argv(args, none, "mcp.json", saved=["api"]))
+        self.assertIn("A complete answer is what the Task asks for from the site's own result list for this Task's query: "
+                      "the records the Task names, all of them when the site has fewer, and none when the site "
+                      "verifiably has none for the query", prompt)
+        self.assertIn("did not use the value it was sent under that name, so it did not answer the query, whatever it "
+                      "returned", prompt)
+        self.assertNotIn("fewer records than asked", prompt)
+        self.assertNotIn("requested number of records", prompt)
+        self.assertNotIn("zzqxvkwj\"", prompt.split("Task:")[0], "the expected answer stays with the judge")
+        self.assertNotIn("none:zzqxvkwj", prompt)
+
+    def test_a_warm_reply_that_ignored_an_input_says_its_name_and_the_client_reads_the_name(self):
+        # The node says what a call did not use by the input's name, never its value: bind_inputs (api/goal.rs) keeps
+        # the key the route has no place for, and run_route (api/call.rs) publishes the list as ignored_inputs, beside
+        # inputs, the names the route takes. A route that takes `query`, sent `q: "ipad mini"`, serves its default rows.
+        sent = {"q": "ipad mini"}
+        direct = node_reply("CallResult", ok=True, data=[{"title": f"default {i}"} for i in range(5)],
+                            ignored_inputs=sorted(sent), inputs=["query"])
+        goal = node_reply("DoResult", how="called", result=direct)
+        self.assertEqual(goal["result"]["ignored_inputs"], ["q"], "a goal call carries it in its result (DoResult.result)")
+        self.assertNotIn("ipad mini", direct["ignored_inputs"], "the node names the input, not the value")
+        with self.assertRaises(AssertionError, msg="a field the node never sends is refused"):
+            node_reply("CallResult", ignored_values=["ipad mini"])
+        with self.assertRaises(AssertionError, msg="and so is a field of the wrong type"):
+            node_reply("CallResult", ignored_inputs=[1])
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(model="sonnet", max_steps=30, max_turns=40,
+                               claude="claude", judge_model="sonnet")
+        prompt = " ".join(run_gate.client_argv(args, dict(TASK, phase="warm"), "mcp.json", saved=["api", "opening"]))
+        self.assertIn("A reply whose ignored_inputs (for a goal call, in its result) lists the name of an input did not use "
+                      "the value it was sent under that name", prompt)
+        self.assertIn("its inputs lists the names the route does take", prompt)
+        self.assertIn("call the same route once more with that value under the name from inputs that stands for it", prompt)
+        self.assertNotIn("lists one of this Task's values in ignored_inputs", prompt)
+
+    def test_a_warm_client_is_handed_the_routes_its_cold_ask_saved_not_left_to_infer_them(self):
+        # Routes' saved goals do not say which ask saved them: an older local route for the same read matches, and one
+        # named from its endpoint does not. The gate reads the saved IDs from the cold ask's own replies, with the reader
+        # twin_outcome scores by, and hands them to the warm client.
+        cold = {"trace": [call("unbrowse_browse", '{"learned":[{"route_id":"opening"}]}'),
+                          call("unbrowse_do", '{"how":"learned","route":{"id":"api"},"result":{"ok":true}}')]}
+        self.assertEqual(run_gate.saved_routes(cold), sorted(run_gate.route_evidence(cold["trace"], cold=True)))
+        self.assertEqual(run_gate.saved_routes(cold), ["api", "opening"])
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(model="sonnet", max_steps=30, max_turns=40,
+                               claude="claude", judge_model="sonnet")
+        warm = " ".join(run_gate.client_argv(args, dict(TASK, phase="warm"), "mcp.json", saved=run_gate.saved_routes(cold)))
+        self.assertIn("The routes the preceding cold ask saved for this read, read by the gate from that ask's own replies: "
+                      "`api`, `opening`.", warm)
+        self.assertNotIn("unbrowse_search with an empty query", warm)
+        self.assertNotIn("saved goal (its what)", warm)
+        bare = " ".join(run_gate.client_argv(args, dict(TASK, phase="warm"), "mcp.json", saved=[]))
+        self.assertIn("The gate read no route saved by the preceding cold ask, so there is no saved route to fall back to", bare)
 
     def test_a_warm_direct_call_reports_browser_fallback(self):
         call = {"tool": "mcp__unbrowse__unbrowse_call", "result": '{"ok":true,"browser":true}'}
@@ -1071,8 +1318,8 @@ class Phases(unittest.TestCase):
         class A:
             model = "sonnet"; max_steps = 30; max_turns = 40; claude = "claude"; judge_model = "sonnet"
         task = dict(TASK, phase="warm", after="cold")
-        prompt = " ".join(run_gate.client_argv(A(), task, "mcp.json"))
-        self.assertIn('unbrowse_search with an empty query', prompt)
+        prompt = " ".join(run_gate.client_argv(A(), task, "mcp.json", saved=["r1"]))
+        self.assertIn("`r1`", prompt)
         self.assertIn("unbrowse_call", prompt)
         self.assertNotIn("If it offers a browser", prompt)
 
@@ -1521,7 +1768,7 @@ class RunAgain(Fixture):
         self.assertIn("env.SCOPE == 'top1k'", again["if"])
         start = steps[names.index("Start the scratch nodes again and write the clients' runs")]
         self.assertIn('start-rounds.sh "$GATE/again" a 18810 --again "$GATE/again.ids"', start["run"])
-        for name in ("The clients, again", "The judges, again"):
+        for name in ("The clients, cold, again", "The clients, warm, again", "The judges, again"):
             st = steps[names.index(name)]
             self.assertIn("steps.again.outputs.n > 0", st["if"], name)
             self.assertTrue(st["env"]["RUNS"].endswith("/again"), name)
@@ -1532,7 +1779,11 @@ class RunAgain(Fixture):
         write = steps[names.index("Write the judges' runs, again")]
         self.assertIn("steps.again.outputs.n > 0", write["if"])
         self.assertEqual(write["run"], steps[names.index("Write the judges' runs")]["run"].replace("$GATE/runs", "$GATE/again"))
-        self.assertEqual(steps[names.index("The clients, again")]["env"]["NODES"], "a")
+        warm = steps[names.index("Write the warm runs, again")]
+        self.assertIn("steps.again.outputs.n > 0", warm["if"])
+        self.assertEqual(warm["run"], steps[names.index("Write the warm runs")]["run"].replace("$GATE/runs", "$GATE/again"))
+        for name in ("The clients, cold, again", "The clients, warm, again"):
+            self.assertEqual(steps[names.index(name)]["env"]["NODES"], "a")
         collect = steps[names.index("Collect the verdicts of the run again")]
         self.assertIn('collect --dir "$GATE/again" --out "$GATE/results.jsonl"', collect["run"])
         self.assertLess(names.index("Collect the clients' and the judges' verdicts"), names.index("What to run again"))

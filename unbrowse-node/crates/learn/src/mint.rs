@@ -32,12 +32,17 @@ fn is_widget_field(key: &str) -> bool {
     key.to_ascii_lowercase().ends_with("-response")
 }
 
+/// The markup of the page open in the browser, as the browser holds it: one read, for both questions a walk asks of
+/// it (is this a door, and does it ask for a person).
+fn page_html(ab: &dyn Fn(&[&str]) -> Result<String, MintError>) -> Result<String, MintError> {
+    let out = ab(&["eval", "document.documentElement.outerHTML"])?;
+    Ok(serde_json::from_str::<String>(out.trim()).unwrap_or_else(|_| out.trim().to_string()))
+}
+
 /// Whether the page open in the browser is a door, for a walk that asked for `asked` (`page::a_door`): read from the
 /// page, since a door can sit at the site's own address, and a walk that stopped logging may be stopped at one.
 fn at_a_door(ab: &dyn Fn(&[&str]) -> Result<String, MintError>, asked: &url::Url) -> Result<bool, MintError> {
-    let out = ab(&["eval", "document.documentElement.outerHTML"])?;
-    let html = serde_json::from_str::<String>(out.trim()).unwrap_or_else(|_| out.trim().to_string());
-    Ok(crate::page::a_door(200, &html, asked))
+    Ok(crate::page::a_door(200, &page_html(ab)?, asked))
 }
 
 /// Reads a sidecar capture log into a session: every `Set-Cookie` the site
@@ -1297,25 +1302,18 @@ pub fn jar_with(
     out
 }
 
-/// Clicks through an interactive Cloudflare challenge if one is showing: a
-/// Turnstile checkbox ("Verify you are human") in the page or an iframe. A
-/// human would click it, so the node does too; then clearance is awaited by
-/// watching the page state settle. Ok(true): a box was clicked.
-fn pass_challenge(ab: &dyn Fn(&[&str]) -> Result<String, MintError>) -> Result<bool, MintError> {
+/// Ticks the one act a page that asks for a person offers and only a person makes: a box the check's own widget draws,
+/// nobody having ticked it, by the reference the page's snapshot names (`challenge::the_check_offers`). A human seeing
+/// the box would click it, so the node does too, and it does it inside the walk with no round trip to anyone's model:
+/// a short timer outlasts a turn spent asking. Nothing is clicked on a page that asks nobody, and the page's own answer
+/// afterwards is what says whether it passed. Ok(true): a box was clicked.
+fn pass_challenge(ab: &dyn Fn(&[&str]) -> Result<String, MintError>, asked: &url::Url) -> Result<bool, MintError> {
+    if !crate::challenge::asks_a_person(&page_html(ab)?, asked) {
+        return Ok(false);
+    }
     let snap = ab(&["snapshot"])?;
-    // The checkbox appears as `checkbox "Verify you are human" [ref=eN]`.
-    let clicked = snap
-        .lines()
-        .filter_map(|l| {
-            let r = l.find("[ref=")?;
-            let rest = &l[r + 5..];
-            let end = rest.find(']')?;
-            Some((l.contains("Verify you are human") || l.contains("Verify you\u{2019}re a human"), &rest[..end]))
-        })
-        .find(|(is_box, _)| *is_box)
-        .map(|(_, r)| r.to_string());
-    let Some(r#ref) = clicked else { return Ok(false) };
-    let target = format!("@{ref}");
+    let Some(boxed) = crate::challenge::the_check_offers(&snap) else { return Ok(false) };
+    let target = format!("@{}", boxed.handle);
     let _ = ab(&["click", &target]);
     // Clearance takes a moment; the click is logged, the wait lets the
     // challenge resolve before the caller re-checks the landing.
@@ -1792,7 +1790,7 @@ impl BrowserMint {
             // A human, seeing the box, clicks it: an interactive challenge is
             // passed by clicking "Verify you are human" and waiting out the
             // clearance, which is behavior, not spoofing.
-            let _ = pass_challenge(&ab);
+            let _ = pass_challenge(&ab, url);
             if !ab(&["get", "title"])?.trim().is_empty() && !at_a_door(&ab, url)? {
                 landed = true;
                 break;
@@ -2755,30 +2753,42 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// A box that says it checks for a human is clicked, by its own reference, and the walk says so; a page that has
-    /// none is left alone, and a browser that can't snapshot is an error, not a page without one.
+    /// The walk that exposed it: t-online.de's check drew a box in the widget's frame, and the walk clicked nothing
+    /// because its name was not the one English phrase a click was written for. A box the check's frame draws, nobody
+    /// having ticked it, is ticked by its own reference whatever it is called; a page that asks nobody is left alone
+    /// (its newsletter box is not a check), and a browser that can't read the page is an error, not a page without one.
     #[test]
     fn a_challenge_box_is_clicked_by_its_reference() {
         let told = std::cell::RefCell::new(Vec::<String>::new());
-        let ab = |snapshot: &'static str| {
+        let ab = |html: &'static str, snapshot: &'static str| {
             let told = &told;
             move |args: &[&str]| -> Result<String, MintError> {
                 told.borrow_mut().push(args.join(" "));
                 match args[0] {
+                    "eval" if html.is_empty() => Err(MintError::Browser("no page".into())),
+                    "eval" => Ok(html.to_string()),
                     "snapshot" if snapshot.is_empty() => Err(MintError::Browser("no page".into())),
                     "snapshot" => Ok(snapshot.to_string()),
                     _ => Ok(String::new()),
                 }
             }
         };
-        let none = ab("- link \"Home\" [ref=e1]\n- text \"Welcome\"");
-        assert!(!pass_challenge(&none).unwrap());
-        assert_eq!(*told.borrow(), ["snapshot"], "nothing was clicked");
-        assert!(matches!(pass_challenge(&ab("")), Err(MintError::Browser(_))));
+        let at = url::Url::parse("https://shop.example/search").unwrap();
+        // A page of its own site that links around and carries no widget asks nobody: no snapshot, no click.
+        let none = ab("<html><body><form><input name=q></form><a href=/about>About</a><p>Welcome</p></body></html>", "- checkbox \"Newsletter\" [checked=false, ref=e2]");
+        assert!(!pass_challenge(&none, &at).unwrap());
+        assert_eq!(*told.borrow(), ["eval document.documentElement.outerHTML"], "a page that asks nobody is left alone");
         told.borrow_mut().clear();
-        let boxed = ab("- link \"Home\" [ref=e1]\n- checkbox \"Verify you are human\" [ref=e7]\n- button \"Other\" [ref=e8]");
-        assert!(pass_challenge(&boxed).unwrap());
-        assert_eq!(*told.borrow(), ["snapshot", "click @e7"]);
+        let door = ab("<html><head><title>One moment</title><script src=/c.js></script></head><body>Checking</body></html>", "");
+        assert!(matches!(pass_challenge(&door, &at), Err(MintError::Browser(_))));
+        told.borrow_mut().clear();
+        // The box's name is the site's own words, in its own language: nothing here reads them.
+        let boxed = ab(
+            "<html><head><title>One moment</title><script src=/c.js></script></head><body>Checking</body></html>",
+            "- link \"Home\" [ref=e1]\n- Iframe \"reCAPTCHA\" [ref=e15]\n  - checkbox \"Ich bin kein Roboter\" [checked=false, ref=e17]\n- button \"Other\" [ref=e8]",
+        );
+        assert!(pass_challenge(&boxed, &at).unwrap());
+        assert_eq!(*told.borrow(), ["eval document.documentElement.outerHTML", "snapshot", "click @e17"]);
     }
 
     /// A line that ends a cookie the capture saw set takes it out of the session, a widget token in a submitted form is

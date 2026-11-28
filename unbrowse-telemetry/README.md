@@ -146,13 +146,18 @@ The stats door needs the secret `ADMIN_TOKEN` on each Worker (`npx wrangler secr
 are the questions in [queries.sql](queries.sql); `funnel` is the node's half of the funnel: by the week an
 install was first seen, how many started, had an agent call a tool, got a first good call (within 7 days, and at
 all), and came back a week on.
-`funnel_by_from` is the same split by each install's first source tag (`from_tag`, `direct` for none), over the last 12
-weeks. `arms` judges the site's hero test on the first good call: per arm (a tag ending in `-<one letter>`, so `hn-e`
-is arm `e`), installs, how many got a first good call within 7 days, and the same for `settled` installs, first seen 7
-or more days ago, whose window is over.
-**Internal installs are left out** of every question but `gate`, `ours` and `install`: the release train's
-gate, a source build (`0.x`; no release carries it), a node started with source tag `internal`, `dev`, `ci` or
-`test`, and whatever an admin put on the list. To list an install (for example a developer's node: `unbrowse-node telemetry`
+`funnel_by_from` is the same split by each install's first source tag (`from_tag`, `direct` for none), over the
+funnel's 12 whole weeks, this one the last. `arms` judges the site's hero test on the first good call: per arm (a tag ending in `-<one letter>`, so `hn-e`
+is arm `e`), installs, how many got a first good call within 7 days, and the same for `settled` installs, whose 7 days
+of follow-up are over by the clock.
+**Our own use is left out** of every question but `gate`, `ours` and `install`. Every question reads one view,
+`labelled` in [schema.sql](schema.sql), and never the events table, so none can split events before it knows what their
+install is. The view first reads, over all of an install's events, what the install is: its first source tag and the
+arm that tag names, and whether all of it is ours (the release train's gate, an install an admin listed, a node ever
+started with source tag `internal`, `dev`, `ci` or `test`, or one that ever ran a source build, `0.x`, which no release
+carries). Only then is each event of an install that isn't ours split by its own version: a prerelease the site never
+offered (below) or a version an admin listed is ours. So a person who tried a staging build and went back to stable
+counts as a person on stable, still under the tag their staging start sent. To list an install (for example a developer's node: `unbrowse-node telemetry`
 prints its id) or a version never offered to anyone (a device test build):
 
 ```bash
@@ -160,7 +165,37 @@ curl -X POST https://telemetry.unbrowse.ai/v1/ours -H "authorization: Bearer $TO
   -d '{"kind": "install", "value": "<32 hex>", "why": "dev machine"}'      # DELETE with kind and value takes it off
 ```
 
-`ours` answers what was left out in the last 30 days: installs and calls, by reason.
+`ours` answers what was left out in the last 30 days: by reason, the installs that sent those events and their calls.
+Every question starts `WITH clock`, which [src/sql.js](src/sql.js) writes out as the one clock helper at the top of
+[queries.sql](queries.sql). The worker binds the second it is asked at (`clocked`; never SQLite's own clock), every
+window's start is a column of `clock`, and every question reads `seen`, the events before the clock. So each window is
+`>= start` and `< now`, nothing after the clock is counted, and questions over one span share one start: `funnel` and
+`funnel_by_from` cover the same 12 whole weeks, and `weeks`, `cohorts`, `tool_weeks`, `error_weeks` and `arm_weeks` the
+same 28. A window over days or weeks starts at a whole day or Monday, so its oldest bucket is whole. An arm's install is
+`settled` once its whole 7 days of follow-up are over by the clock, including the hour bucket the last qualifying call
+is kept in. The tests pin the clock and run the time-sensitive questions again at 00:30, 01:30 and 23:30 UTC.
+
+A **prerelease build** (a version with a `-`, such as `13.21.0-installers.6` or `13.21.0-staging.2`) is ours unless the
+site's Download buttons offered it to people: `offered_list` in [schema.sql](schema.sql) holds those
+(`13.21.0-installers.3` and `13.21.0-installers.4`, seeded once per store, so a seed an admin removes stays removed
+across restarts). A release candidate (`X.Y.P-rc.N`, which a release branch publishes to npm's public `next` tag and to
+canary) is people's by its shape and needs no entry. When the buttons move to a new prerelease, offer it (`DELETE` takes
+it back). Offering a version takes it off the list of versions that are ours, and listing one as ours takes back its
+offer: the later word wins:
+
+```bash
+curl -X POST https://telemetry.unbrowse.ai/v1/ours -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"kind": "offered", "value": "13.22.0-installers.1", "why": "site Download buttons"}'
+```
+
+`days`, `weeks`, `cohorts`, `releases`, `release_errors`, `tool_weeks`, `error_weeks` and `arm_weeks` keep our own
+installs in, and label every row `who`: `real` or `ours`. The site's `/admin` reads them to show people by default
+and our testing beside them (UNB-315): installs active, new, calling and getting a first good call by day and week;
+weekly cohorts and who called again 1, 2 and 4 weeks on (a call that week after an earlier one: a first call ever is
+not a return); each version's installs, calls, ok calls, call times and
+error classes; each tool and error class by week; and the hero test's arms by week.
+`period?days=7|30|90` is the range against the same number of days before it (`period` current or previous, with
+`who`): installs active, new, calling and getting a first good call, calls and ok calls.
 
 `install` is the one question that takes a value: `GET /v1/stats/install?id=<install id>` (32 hex, checked, then bound
 as a value, never written into the SQL) answers one install's first and last seen hour, first source tag, first tool

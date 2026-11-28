@@ -139,7 +139,7 @@ are in `docs/COVERAGE-EXCLUSIONS.md`, each approved by Lewis.
 slice's logic over `test-banks/popular-sites/top-1000.json`, cold and warm: 2,000 tasks, made from the list by
 `run_gate.py`'s one rule (`bench_tasks`). Every push to a release branch runs it (`gate-1k.yml`, which calls gate-bank.yml
 with scope `top1k`, 25 shards side by side), all on one pinned kind of runner (`vars.GATE_1K_RUNNER`, else
-`blacksmith-6vcpu-macos-latest`). Each shard then runs once more, on fresh nodes, every task whose verdict measured
+`macos-15`). Each shard then runs once more, on fresh nodes, every task whose verdict measured
 nothing (infra, error) or is not the floor's, with its twin; the second verdict is the one counted. The last job
 reads every shard together and keeps `gate-1k-<tree>` (results, `meta.json`: where it ran and which shards; `rereads.json`;
 the verdict), which promotion-gate.sh reads beside the other two. The rule is Lewis's, rates not every task: it refuses
@@ -203,14 +203,14 @@ for the provenance attestation, so the checkout and attestation name the same so
 
 | Job | Runner | Does |
 |---|---|---|
-| `version` | `blacksmith-2vcpu-ubuntu-2404` | the ref's version and channel, and that npm has every package a release publishes and not yet this version (`npm-preflight.mjs`), so a missing package or a spent version stops the run before anything is built |
-| `programs` | darwin-arm64 `blacksmith-6vcpu-macos-15` (there is no Intel Mac build since 22 November 2026, UNB-224); linux-x64 `blacksmith-4vcpu-ubuntu-2204`; linux-arm64 `blacksmith-4vcpu-ubuntu-2204-arm`; win32-x64 `blacksmith-4vcpu-windows-2025` | `UNBROWSE_RELEASE=1 cargo build --release --locked --bin unbrowse-node --bin unb`, the UI (`bun run build`), the window (`zig build`), the Mac app and dmg, a smoke test |
-| `sdks` | `blacksmith-2vcpu-ubuntu-2404` | signs `manifest.json` (checked against `update.rs`'s key), packs the npm packages and Python wheels (a prerelease's in PEP 440's form, `13.19.0rc7`, `13.20.0.dev9`), and but for staging writes and signs the update metadata (`updates.mjs release`), checked against the root nodes trust |
-| `installers` | `blacksmith-2vcpu-ubuntu-2404` | a production release's, and a dry run's: the Windows setup and the Linux packages, packed from the archives `programs` made (`package-windows-installer.sh`, `package-linux-deb.sh`), and each file's hash recorded |
+| `version` | `sengi-basic-2-ubuntu-2404` | the ref's version and channel, and that npm has every package a release publishes and not yet this version (`npm-preflight.mjs`), so a missing package or a spent version stops the run before anything is built |
+| `programs` | darwin-arm64 `macos-15` (there is no Intel Mac build since 22 November 2026, UNB-224); linux-x64 `sengi-premium-4-ubuntu-2404`; linux-arm64 `ubuntu-22.04-arm`; win32-x64 `windows-2025` | `UNBROWSE_RELEASE=1 cargo build --release --locked --bin unbrowse-node --bin unb`, the UI (`bun run build`), the window (`zig build`), the Mac app and dmg, a smoke test |
+| `sdks` | `sengi-basic-2-ubuntu-2404` | signs `manifest.json` (checked against `update.rs`'s key), packs the npm packages and Python wheels (a prerelease's in PEP 440's form, `13.19.0rc7`, `13.20.0.dev9`), and but for staging writes and signs the update metadata (`updates.mjs release`), checked against the root nodes trust |
+| `installers` | `sengi-basic-2-ubuntu-2404` | a production release's, and a dry run's: the Windows setup and the Linux packages, packed from the archives `programs` made (`package-windows-installer.sh`, `package-linux-deb.sh`), and each file's hash recorded |
 | `installer-device-test` | a fresh Mac, Windows machine and Ubuntu (`installers-device-test.yml`) | each installer installed and opened as a person does, the node it starts answering MCP (`DEVICE_TEST_OK`); npm publishes nothing until all three pass |
 | `verify-packages` | `ubuntu-24.04` | verifies the uploaded archives against their signed inventory for core builds and rehearsals |
 | `npm` | `ubuntu-24.04` (trusted publishing needs GitHub's own runners), environment `release` | in `unbrowse-ai/unbrowse`, verifies and publishes each `@unbrowse/<platform>`, then `unbrowse`, under the ref's dist-tag, then `@unbrowse/updates` (`npm-publish.sh`); a version npm has with the same bytes is skipped, and one it has with other bytes fails the run |
-| `release` | `blacksmith-2vcpu-ubuntu-2404` | a tag's alone, last, once npm has everything: `gh release create v$VERSION --verify-tag --latest`, with `SHA256SUMS` and every installer at a name that stays (`releases/latest/download/{Unbrowse-macos-arm64.dmg,Unbrowse-windows-x64-setup.exe,unbrowse_amd64.deb,unbrowse_arm64.deb}`) |
+| `release` | `sengi-basic-2-ubuntu-2404` | a tag's alone, last, once npm has everything: `gh release create v$VERSION --verify-tag --latest`, with `SHA256SUMS` and every installer at a name that stays (`releases/latest/download/{Unbrowse-macos-arm64.dmg,Unbrowse-windows-x64-setup.exe,unbrowse_amd64.deb,unbrowse_arm64.deb}`) |
 
 **One release is the whole download page.** A production release carries the Mac disk image, the Windows setup and the
 Linux packages, and the site, the README and the SDKs link the names that stay (`releases/latest/download/…`), so a
@@ -694,21 +694,22 @@ Leave the centralised app's own routes on the zone alone.
 
 ## 6. CI
 
-Every workflow is in [`.github/workflows/`](../.github/workflows), and runs on Blacksmith's runners except the two
-jobs that can't. The agent jobs (a model, a simulated user or the task bank: Claude QA, the MCP check, skill
+Every workflow is in [`.github/workflows/`](../.github/workflows). Linux x64 jobs run on Sengi; macOS, Windows and
+Linux arm64 jobs on GitHub's own machines (`macos-15`, `windows-2025`, `ubuntu-22.04-arm`), and npm publishing on
+GitHub's `ubuntu-24.04`. The agent jobs (a model, a simulated user or the task bank: Claude QA, the MCP check, skill
 triggers, the gate bank and its slice, Bank, Code review, PR Steward, SDK polish) may run on Lewis's own runners instead: see
 **Agent jobs on Lewis's runners** below.
 
 | Workflow | Trigger | Jobs and runners |
 |---|---|---|
-| `ci.yml` (CI) | push to `main`, `staging` or `release/**`, pull requests, by hand | `sdk-typescript`, `sdk-python` (3.9, 3.13), `ui`, `telemetry`, `settlement` on `blacksmith-2vcpu-ubuntu-2404`; `engine` on `blacksmith-4vcpu-ubuntu-2404`; `node` and `window` on `blacksmith-6vcpu-macos-latest`; `elsewhere` on `blacksmith-4vcpu-ubuntu-2204` and `blacksmith-4vcpu-windows-2025` |
+| `ci.yml` (CI) | push to `main`, `staging` or `release/**`, pull requests, by hand | the small jobs (`scope`, `papers`, `sdk-python` 3.9 and 3.13, the route-coin spec) on `sengi-basic-2-ubuntu-2404`; `sdk-typescript` and `short` on `sengi-premium-2-ubuntu-2404`; `engine` on `sengi-premium-4-ubuntu-2404`; `settlement` on `sengi-premium-8-ubuntu-2404`; `node`, `lint` and `window` on `macos-15`; `elsewhere` on `sengi-premium-4-ubuntu-2404` and `windows-2025` |
 | `release.yml` (Release) | CI passing on a push to `staging` or `release/**`, a pushed `vX.Y.Z` tag, by hand | §2 |
 | `main-source-guard.yml` | pull requests into `main` or `release/**` | fails one into `main` from anything but `release/*`, and one into a release branch not titled `fix:` |
-| `coverage.yml` (Coverage) | pull requests into `staging`, `release/**` or `main`; pushes to `staging` and `release/**`; by hand | line coverage per part: `rust-node` on `blacksmith-8vcpu-ubuntu-2404`, `rust-browser` on `blacksmith-4vcpu-ubuntu-2404`, the SDKs and the contracts (reported apart) on `blacksmith-2vcpu-ubuntu-2404`; posts one comment on a pull request and never blocks it; keeps `coverage-summary-<tree>` for the promotion gate |
-| `gate-bank.yml` (Gate bank) | called by QA (qa.yml) on every push to `staging` and `main` (the six-task slice, in QA's report; not again for a push to staging whose tree already passed it on its pull request), nightly on staging and every push to `release/**` (the whole bank), by hand (also `top1k`: the top 1,000 sites, cold and warm, in shards, UNB-307; `gate-1k.yml` calls it so on every push to `release/**`) | the task gate's bank through a scratch node's MCP, a model as client and judge, on `blacksmith-6vcpu-macos-latest`; no pull request starts it (it holds a model credential); keeps `gate-bank-<scope>-<tree>` (`top1k`: one per shard, `-<i>of<n>`, each with its tasks run again; then the release gate on every shard together, `gate-1k-<tree>`) |
-| `gate-1k.yml` (Gate 1k) | every push to `release/**`; by hand once on main | the release gate on the top 1,000 sites (UNB-307, §2): calls gate-bank.yml with scope `top1k`, 25 shards on `blacksmith-6vcpu-macos-latest` (`vars.GATE_1K_RUNNER`); keeps `gate-1k-<tree>`, which promotion-gate.sh reads; no pull request starts it |
+| `coverage.yml` (Coverage) | pull requests into `staging`, `release/**` or `main`; pushes to `staging` and `release/**`; by hand | line coverage per part: `rust-node` on `sengi-premium-8-ubuntu-2404`, `rust-browser` on `sengi-premium-4-ubuntu-2404`, the SDKs and the contracts (reported apart) on `sengi-premium-2-ubuntu-2404` and `sengi-basic-2-ubuntu-2404`; posts one comment on a pull request and never blocks it; keeps `coverage-summary-<tree>` for the promotion gate |
+| `gate-bank.yml` (Gate bank) | called by QA (qa.yml) on every push to `staging` and `main` (the six-task slice, in QA's report; not again for a push to staging whose tree already passed it on its pull request), nightly on staging and every push to `release/**` (the whole bank), by hand (also `top1k`: the top 1,000 sites, cold and warm, in shards, UNB-307; `gate-1k.yml` calls it so on every push to `release/**`) | the task gate's bank through a scratch node's MCP, a model as client and judge, on `macos-15` (the slice on Lewis's Mac only, below); no pull request starts it (it holds a model credential); keeps `gate-bank-<scope>-<tree>` (`top1k`: one per shard, `-<i>of<n>`, each with its tasks run again; then the release gate on every shard together, `gate-1k-<tree>`) |
+| `gate-1k.yml` (Gate 1k) | every push to `release/**`; by hand once on main | the release gate on the top 1,000 sites (UNB-307, §2): calls gate-bank.yml with scope `top1k`, 25 shards on `macos-15` (`vars.GATE_1K_RUNNER`); keeps `gate-1k-<tree>`, which promotion-gate.sh reads; no pull request starts it |
 | `promotion-gate.yml` (Promotion gate) | pull requests, pushes to `staging` and `release/**` | the gate's own tests and its refusal of staging as measured on 17 Nov 2026; on a pull request into `main`, the gate's verdict on the release branch's tree |
-| `qa.yml` | nightly on staging, by hand | an agent runs `.github/qa/checklist.md` against a built node on `blacksmith-6vcpu-macos-latest`; skips without a Claude secret |
+| `qa.yml` | nightly on staging, by hand | an agent runs `.github/qa/checklist.md` against a built node on `macos-15`; skips without a Claude secret |
 | `pr-signal.yml` (PR signal, no credential) | every pull request event | one hosted job that says the pull request moved, so the agents that hold a key can start; no secret, no permission |
 | `opencode-review.yml` (Code review) | after `pr-signal`, by hand | placed (below); reviews the change, posts the findings inline, writes the `Code review` check; holds `OPENCODE_API_KEY` in the `opencode-review` environment |
 | `opencode-steward.yml` (PR Steward) | after CI, Coverage, the PR check or Code review, or by hand | placed (below); fixes what failed or what was found, one commit on the branch; holds `OPENCODE_API_KEY` in the `opencode-steward` environment |
@@ -718,14 +719,30 @@ triggers, the gate bank and its slice, Bank, Code review, PR Steward, SDK polish
 
 **Agent jobs on Lewis's runners (UNB-166).** From 20 to 21 Nov 2026 every job ran on the local pool (four slots on
 the Steam Machine, one MacBook). It was asked for about twice what it could do, and 0 of 43 pull requests into staging
-went green. Now each workflow with agent jobs starts with a `place` job on Blacksmith
+went green. Now each workflow with agent jobs starts with a `place` job on Sengi
 (`.github/scripts/place_jobs.py`). It sends an agent job to one of Lewis's runners while one is free, and otherwise to
-a Blacksmith machine that starts at once, and the run's summary says why. The Mac pool is the repository variable
-`MAC_RUNNER` (unset means no Mac pool). The Linux pool is `LINUX_POOL` (default `["self-hosted", "linux", "x64"]`).
+a hosted machine that starts at once (Sengi for Linux, GitHub's `macos-15` for macOS), and the run's summary says why.
+The Mac pool is the repository variable `MAC_RUNNER` (unset means no Mac pool; in unbrowse-core it is
+`["self-hosted", "macOS", "ARM64", "lewis-mbp"]` since 28 Nov 2026, and the public repository, which cannot reach
+that runner, leaves it unset). The Linux pool is `LINUX_POOL` (default `["self-hosted", "linux", "x64"]`).
 With the repository secret `RUNNER_READ_TOKEN` (a fine-grained token, Administration: read on this repository) the
 placement reads whether each runner is online and idle. Without it, a runner counts as asleep once a job has waited
 2 minutes for it while nothing runs on it. Pull request workflows never get that token, because in them only the
 model's jobs hold a secret.
+
+**The gate bank's slice runs only on Lewis's Mac.** Lewis, 28 Nov 2026: "run slices only on my Mac". On a hosted Mac (a
+data centre's address) Ticketmaster and Carousell refuse the slice's tasks and its gate says `PROMOTION_REFUSED`, so a
+pull request's agent checks went red for reasons not in its code (PR #945, run 46116646462); on lewis-mbp, from a home
+connection, the same slice passes (run 46117099629). So the place job asks for the slice as `slice=mac-only` (in
+pr-agent-checks.yml and qa.yml; gate-bank.yml asks `bank=mac-only` for scope slice and ignores the `runs_on` a caller
+hands it), and `place_jobs.py` gives it `OWN_MAC` (`vars.MAC_RUNNER`) every time: free, busy, asleep or unreadable.
+There is no hosted fallback, and no probe that sends it elsewhere. When the Mac is busy the job waits in GitHub's queue
+for it (up to GitHub's 24 hours for a queued job; `timeout-minutes` counts only once it starts). A slice that waits holds
+its pull request's `PR agent checks` open. That is the trade-off: slices queue for one machine, and slicing is slower
+and stays strict. The slice takes the Mac's free slot before the Claude QA shards, so they go to hosted Macs at once
+rather than queue beside it. With no self-hosted `MAC_RUNNER` (the public repository), or on a fork's pull request, the
+place step fails and says why. It does not fall back. The whole bank, top1k and every other agent job are placed as
+above.
 
 What each CI job tests is in [TESTING.md](TESTING.md).
 
@@ -734,6 +751,15 @@ Code moved too, after GitHub's October bill went $63 over the included minutes (
 (UNB-224) every release, update and installer job moved to Blacksmith too, and the Intel Mac build was dropped. Only
 the npm publishing jobs stay on GitHub's runners (`ubuntu-24.04`): npm's trusted publishing works from cloud-hosted
 runners only.
+
+**Sengi, and no Blacksmith.** On 27 November 2026 (Lewis: "switch from blacksmith to sengi on unb core n public")
+every Linux x64 job moved to Sengi (#1020). Blacksmith had stopped starting jobs at all that day (110 runs queued in
+core, none running, while its status page said it was up). On 28 November ("remove blacksmith") what Sengi has no
+machine for moved to GitHub's own: macOS to `macos-15`, Windows to `windows-2025`, Linux arm64 to `ubuntu-22.04-arm`.
+An agent job goes to Lewis's Mac first (`MAC_RUNNER`) and to `macos-15` when it is busy or asleep, except the gate
+bank's slice, which runs on the Mac only and waits for it (above). Release builds, the
+installer tests and the credential-free PR check never run on the Mac (UNB-166), so they are always on `macos-15`. In
+the private unbrowse-core a hosted macOS minute counts ten times against the free plan's included minutes.
 
 **The startup failures.** On 30 October 2026, between 05:30 and 12:13 UTC, 88 runs ended `startup_failure`: every push
 and pull request, on every branch, each with no jobs. The workflow files weren't the cause: a CI run dispatched by

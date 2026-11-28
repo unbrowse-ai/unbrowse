@@ -269,6 +269,14 @@ pub trait Fetch {
     /// than the route says is never silent about it.
     fn fell_back(&mut self, _why: String) {}
 
+    /// The values `req`'s step's page makes, made again by its own functions on the site's page as it stands now,
+    /// fetched afresh: the rung between a refused recompute and the first learn's value, for a value the page's code
+    /// made from the page the route carries (`route.value-dag`: that page's markup is a node whose lifetime ends when
+    /// the site refuses what was made from it). None from a runner that holds no page, or where nothing was made.
+    fn remade_on_a_fresh_page(&mut self, _req: &Request) -> Option<Vec<(String, String)>> {
+        None
+    }
+
     /// The node's browser-minted session value for a cookie, if this runner holds one.
     /// A browser runner answers from its live cookie jar; plain HTTP holds none.
     fn minted(&self, _name: &str) -> Option<String> {
@@ -419,6 +427,14 @@ impl Fetch for HttpFetch {
     }
 }
 
+/// Whether a status is the site refusing what the request sent (malformed, unknown, no longer there): a 4xx other than
+/// a session's refusal (401, 403), which signing in again answers, and other than 429, a site out of asks. The one
+/// reader for "did the site refuse what was sent, or who sent it": a drift (`client::a_drift`) and a recalled value the
+/// site refused both ask it.
+pub(crate) fn refuses_what_was_sent(status: u16) -> bool {
+    (400..500).contains(&status) && !matches!(status, 401 | 403 | 429)
+}
+
 /// What a request says, for a question about the values in it: its address and its body, percent-decoded and
 /// lowercased. One reader for the question "does this request carry this value?", whether it is the request the route
 /// built, a step sent as the route builds it, or the call the page's own code made.
@@ -441,6 +457,23 @@ pub fn values_it_lacks(said: &str, inputs: &HashMap<String, String>) -> Vec<Stri
     values.sort();
     values.retain(|v| !said.contains(v.as_str()));
     values
+}
+
+/// The caller's inputs that `step` is held to carrying: every value in `inputs`, except an input that `step` itself
+/// does not take and that another step of `graph` already holds at its walked default (unchanged from the walk, so
+/// `step`'s walked request already reflects it). A caller-changed value is always checked.
+fn values_for_step(graph: &Graph, step: &Step, inputs: &HashMap<String, String>) -> HashMap<String, String> {
+    let step_takes = |name: &str| {
+        step.held.iter().any(|h| h.input == name)
+            || step.fields.iter().any(|f| matches!(&f.class, Class::Input { name: n, .. } if n == name))
+    };
+    let walked_elsewhere = |name: &str, val: &str| {
+        graph.steps.iter().filter(|s| s.exchange != step.exchange).any(|s| {
+            s.held.iter().any(|h| h.input == name && h.sits == val)
+                || s.fields.iter().any(|f| matches!(&f.class, Class::Input { name: n, default: Some(was), .. } if n == name && was == val))
+        })
+    };
+    inputs.iter().filter(|(k, v)| step_takes(k) || !walked_elsewhere(k, v)).map(|(k, v)| (k.clone(), v.clone())).collect()
 }
 
 /// What a successful HTTP replay did.
@@ -818,6 +851,89 @@ fn run(
     ledger: &mut crate::ledger::Ledger,
     requests: Requests<'_>,
 ) -> Result<HttpReplay, ReplayError> {
+    // A call that fails drops every kept reply it was answered from: a reply's lifetime ends when what was made from
+    // it is refused (`route.value-dag`), and the next call asks the site again.
+    kept::begin();
+    let ran = run_steps(graph, inputs, fetch, ledger, requests);
+    if ran.is_err() {
+        kept::forget_used();
+    }
+    ran
+}
+
+/// Replies kept for the lifetime the site gave them (`Step::lifetime`, `graph::reply_lifetime`), by the very request
+/// they answered: a step that only asks and is not the call's answer, sent again with the same request within that
+/// lifetime, is answered from the reply kept (`route.value-dag`: an earlier answer is a node with a lifetime, its
+/// value cached for it). Held in this process only, at most [`kept::HELD`] replies.
+mod kept {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    pub(super) const HELD: usize = 256;
+    static KEPT: Mutex<Option<HashMap<u64, (crate::trace::Exchange, std::time::Instant)>>> = Mutex::new(None);
+    thread_local! {
+        static USED: std::cell::RefCell<Vec<u64>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    /// The request a reply answered, as one key: its method, address, headers (cookies included: the session) and body.
+    pub(super) fn key(req: &super::Request) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        req.method.to_ascii_uppercase().hash(&mut h);
+        req.url.as_str().hash(&mut h);
+        let mut headers: Vec<(String, &str)> = req.headers.iter().map(|(k, v)| (k.to_ascii_lowercase(), v.as_str())).collect();
+        headers.sort();
+        headers.hash(&mut h);
+        req.body.hash(&mut h);
+        h.finish()
+    }
+
+    pub(super) fn begin() {
+        USED.with(|u| u.borrow_mut().clear());
+    }
+
+    /// The reply kept for `key`, while its lifetime lasts.
+    pub(super) fn get(key: u64) -> Option<crate::trace::Exchange> {
+        let mut held = KEPT.lock().unwrap_or_else(|e| e.into_inner());
+        let map = held.get_or_insert_with(HashMap::new);
+        let now = std::time::Instant::now();
+        map.retain(|_, (_, until)| *until > now);
+        let found = map.get(&key).map(|(ex, _)| ex.clone())?;
+        USED.with(|u| u.borrow_mut().push(key));
+        Some(found)
+    }
+
+    pub(super) fn put(key: u64, ex: &crate::trace::Exchange, secs: u64) {
+        let mut held = KEPT.lock().unwrap_or_else(|e| e.into_inner());
+        let map = held.get_or_insert_with(HashMap::new);
+        if map.len() >= HELD {
+            if let Some(oldest) = map.iter().min_by_key(|(_, (_, until))| *until).map(|(k, _)| *k) {
+                map.remove(&oldest);
+            }
+        }
+        map.insert(key, (ex.clone(), std::time::Instant::now() + std::time::Duration::from_secs(secs)));
+        USED.with(|u| u.borrow_mut().push(key));
+    }
+
+    /// Drops every reply this call was answered from, or kept.
+    pub(super) fn forget_used() {
+        let used: Vec<u64> = USED.with(|u| std::mem::take(&mut *u.borrow_mut()));
+        let mut held = KEPT.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(map) = held.as_mut() {
+            for key in used {
+                map.remove(&key);
+            }
+        }
+    }
+}
+
+fn run_steps(
+    graph: &Graph,
+    inputs: &HashMap<String, String>,
+    fetch: &mut impl Fetch,
+    ledger: &mut crate::ledger::Ledger,
+    requests: Requests<'_>,
+) -> Result<HttpReplay, ReplayError> {
     let mut responses: HashMap<usize, Exchange> = HashMap::new();
     let mut steps = Vec::new();
     let mut rungs = Vec::new();
@@ -871,10 +987,16 @@ fn run(
         if let Some(why) = chosen_credential(n, step).or_else(|| misplaced_session(n, step)) {
             return Err(ReplayError::Refused(why));
         }
+        // Which way of each of the body's holes made this request: where a refused read goes on from.
+        let mut body_ways: Vec<(unbrowse_route::Place, usize)> = Vec::new();
         let made = match requests {
             Requests::Body(body) => {
                 said_by_name(n, step);
-                sent(crate::body::filled_from(&body.steps[n - 1], graph, inputs, &*fetch, &responses, &fresh, reading))
+                let filled = crate::body::filled_from(&body.steps[n - 1], graph, inputs, &*fetch, &responses, &fresh, reading);
+                if let Ok(built) = &filled {
+                    body_ways = built.ways.clone();
+                }
+                sent(filled)
             }
             Requests::Graph { fill_body } => {
                 let filler_sends = fill_body && !uploads;
@@ -927,11 +1049,18 @@ fn run(
         // computed value always has.
         // The page's own request is this step's request. `is_page_signed` covers both the step marker and the
         // Script/Computed fields older routes carry; the page's call is authoritative either way.
+        // The step whose page-made value went as the first learn recalled it, this run: its refusal is the browser's.
+        let mut recalled_at: Option<usize> = None;
+        // The step whose page-made values the call recomputed this run: a refusal of them recalls the first learn's.
+        let mut recomputed_at: Option<usize> = None;
         let script_signed = step.is_page_signed();
         if script_signed {
             match fetch.sign_request(&req, inputs) {
                 Some(signed) => {
                     rung = rung.max(signed.by);
+                    if step.page_producers.iter().any(|p| p.recalled.is_some()) {
+                        recomputed_at = Some(n);
+                    }
                     // The page's own request, as it made it: its address, body and signatures travel together. A
                     // header the page set is *that* header, not a second copy beside the route's own value: a stale
                     // value left in front of a signature is a signature the site reads as wrong.
@@ -973,15 +1102,37 @@ fn run(
                     }
                     // A request that lost a value of the caller's on the way — the page computes it, so its place went
                     // unsent — asks the site another value, and its answer is that value's: nothing is sent.
-                    if let Some(value) = values_it_lacks(&what_it_says(req.url.as_str(), req.body.as_deref()), inputs).first() {
+                    let checked = values_for_step(graph, step, inputs);
+                    if let Some(value) = values_it_lacks(&what_it_says(req.url.as_str(), req.body.as_deref()), &checked).first() {
                         eprintln!("   [replay] step {} {} does not carry {value:?}: the page's code makes it, so nothing is sent", n, req.url.path());
                         return Err(ReplayError::NeedsBrowser { step: n, url: req.url.to_string(), loc });
                     }
-                    eprintln!("   [replay] step {} {} is sent as the route builds it: the page's code made nothing for it", n, req.url.path());
-                    fetch.fell_back(format!(
-                        "the page's own code made no call for step {n} ({}), so it was sent as the route builds it: the site's answer says whether it needed the page's values",
-                        req.url.path()
-                    ));
+                    // Recompute failed, so recall: a value the page makes there goes as the first learn's request carried
+                    // it, never the call without it. The site's answer says whether it still holds; a refusal sends the
+                    // call to the browser, whose page makes the value itself.
+                    let mut recalled_names: Vec<String> = Vec::new();
+                    for p in &step.page_producers {
+                        let (crate::slots::Loc::Header(name), Some(value)) = (&p.loc, p.recalled.as_ref()) else { continue };
+                        if !req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(name)) {
+                            req.headers.push((name.clone(), value.clone()));
+                            recalled_names.push(name.clone());
+                        }
+                    }
+                    if recalled_names.is_empty() {
+                        eprintln!("   [replay] step {} {} is sent as the route builds it: the page's code made nothing for it", n, req.url.path());
+                        fetch.fell_back(format!(
+                            "the page's own code made no call for step {n} ({}), so it was sent as the route builds it: the site's answer says whether it needed the page's values",
+                            req.url.path()
+                        ));
+                    } else {
+                        eprintln!("   [replay] step {} {}: the page's code made nothing, so the first learn's {} recalled", n, req.url.path(), recalled_names.join(", "));
+                        fetch.fell_back(format!(
+                            "the page's own code made nothing for step {n} ({}), so the first learn's {} was recalled: a refusal sends the call to the browser",
+                            req.url.path(),
+                            recalled_names.join(", ")
+                        ));
+                        recalled_at = Some(n);
+                    }
                 }
             }
         }
@@ -993,8 +1144,17 @@ fn run(
         // A page the route carries is the walk's own markup, not the site's current answer: it cannot be the site
         // checking a caller, and a client-rendered shell (a short static text, no links, its app's scripts) is a page.
         let from_markup = carried.is_some();
-        let ex = match carried {
-            Some(html) => crate::trace::Exchange {
+        // A step that only asks and is not the call's answer, whose reply the site said stays good, is answered from
+        // the reply kept for this very request while that lasts.
+        let keeps = step.lifetime.filter(|_| n < graph.steps.len() && !crate::ledger::writes(step) && !step.is_page_signed());
+        let kept_key = keeps.map(|_| kept::key(&req));
+        let kept_reply = if carried.is_none() { kept_key.and_then(kept::get) } else { None };
+        let ex = match (carried, kept_reply) {
+            (None, Some(kept)) => {
+                eprintln!("   [replay] step {} {} answered from the reply kept for its lifetime", n, req.url.path());
+                kept
+            }
+            (Some(html), _) => crate::trace::Exchange {
                 method: req.method.clone(),
                 url: req.url.clone(),
                 request_headers: req.headers.clone(),
@@ -1006,7 +1166,7 @@ fn run(
                 resource_type: Some("Document".into()),
                 main_frame: Some(true),
             },
-            None => {
+            (None, None) => {
                 fetch.allows(&req)?;
                 // From here the request may reach the site, whatever the transport answers or fails with.
                 ledger.sending(n);
@@ -1024,7 +1184,98 @@ fn run(
                     }
                     None => ex,
                 };
-                asked_again_when_busy(fetch, &req, ex, step)?
+                // A value the call recomputed that the site refuses: the first learn's value goes in its place, and the
+                // read is sent once more (recompute, else recall, else the browser). A write is never sent twice.
+                // Before that, the values are made again on the site's page as it stands now: what the page's code made
+                // from the page the route carries may be stale where the page has changed since (`route.value-dag`).
+                let ex = if recomputed_at == Some(n) && (400..500).contains(&ex.status) && !crate::ledger::writes(step) {
+                    match fetch.remade_on_a_fresh_page(&req).filter(|made| !made.is_empty()) {
+                        Some(made) => {
+                            let mut again = req.clone();
+                            for (name, value) in &made {
+                                again.headers.retain(|(k, _)| !k.eq_ignore_ascii_case(name));
+                                again.headers.push((name.clone(), value.clone()));
+                            }
+                            eprintln!("   [replay] step {} {} answered {} to the value the page made: made again on the site's page as it stands now", n, req.url.path(), ex.status);
+                            fetch.fell_back(format!("the site refused the value the page's code made for step {n} ({}) from the page the route carries, so it was made again on the site's page as it stands now", req.url.path()));
+                            fetch.allows(&again)?;
+                            req = again;
+                            fetch.fetch(&req)?
+                        }
+                        None => ex,
+                    }
+                } else {
+                    ex
+                };
+                let ex = if recomputed_at == Some(n) && (400..500).contains(&ex.status) && !crate::ledger::writes(step) {
+                    let mut again = req.clone();
+                    let mut swapped: Vec<String> = Vec::new();
+                    for p in &step.page_producers {
+                        let (crate::slots::Loc::Header(name), Some(value)) = (&p.loc, p.recalled.as_ref()) else { continue };
+                        again.headers.retain(|(k, _)| !k.eq_ignore_ascii_case(name));
+                        again.headers.push((name.clone(), value.clone()));
+                        swapped.push(name.clone());
+                    }
+                    if swapped.is_empty() {
+                        ex
+                    } else {
+                        eprintln!("   [replay] step {} {} answered {} to the value the page made: the first learn's {} recalled, sent once more", n, req.url.path(), ex.status, swapped.join(", "));
+                        fetch.fell_back(format!("the site refused the value the page's code made for step {n} ({}), so the first learn's {} was recalled", req.url.path(), swapped.join(", ")));
+                        fetch.allows(&again)?;
+                        req = again;
+                        recalled_at = Some(n);
+                        fetch.fetch(&req)?
+                    }
+                } else {
+                    ex
+                };
+                // A body's read the site refuses (an answer of its own, no door) is built again with each value made per
+                // call one way down: made for this call, then the first learn's (`route.value-dag`, `learn.rung`). The
+                // first learn's refused too, the browser makes the call. A write is never sent twice.
+                let ex = match requests {
+                    Requests::Body(body) if !crate::ledger::writes(step) => {
+                        let held = &body.steps[n - 1];
+                        let mut ex = ex;
+                        let mut from: HashMap<unbrowse_route::Place, usize> = HashMap::new();
+                        while (400..500).contains(&ex.status) && ex.status != step.status && crate::graph::Door::answered(&ex).is_none() {
+                            let mut recalled_refused: Option<unbrowse_route::Place> = None;
+                            let mut moved = false;
+                            for (at, used) in &body_ways {
+                                let Some(r) = held.holes.iter().find(|h| h.at == *at).and_then(|h| h.recalled_at()) else { continue };
+                                if *used < r {
+                                    from.insert(at.clone(), used + 1);
+                                    moved = true;
+                                } else {
+                                    recalled_refused = Some(at.clone());
+                                }
+                            }
+                            if !moved {
+                                if let Some(at) = recalled_refused {
+                                    eprintln!("   [replay] step {} {} answered {} to the first learn's value: the browser makes it", n, req.url.path(), ex.status);
+                                    return Err(ReplayError::NeedsBrowser { step: n, url: req.url.to_string(), loc: crate::body::loc_of(&at) });
+                                }
+                                break;
+                            }
+                            let built = crate::body::filled_below(held, graph, inputs, &*fetch, &responses, &fresh, reading, &from).map_err(|(stuck, built)| crate::body::refusal_of(&stuck, n, step, built.as_ref()).0)?;
+                            eprintln!("   [replay] step {} {} answered {} to the values made for this call: made again one way down", n, req.url.path(), ex.status);
+                            fetch.fell_back(format!("the site refused the values made for step {n} ({}), so they were made one way down", req.url.path()));
+                            body_ways = built.ways.clone();
+                            let again = Request { method: built.method, url: built.url, exchange: step.exchange, headers: built.headers, body: built.body.map(|b| unbrowse_route::wire::bytes_of(&b)) };
+                            fetch.allows(&again)?;
+                            req = again;
+                            ex = fetch.fetch(&req)?;
+                        }
+                        ex
+                    }
+                    _ => ex,
+                };
+                let ex = asked_again_when_busy(fetch, &req, ex, step)?;
+                if let (Some(key), Some(secs)) = (kept_key, keeps) {
+                    if (200..300).contains(&ex.status) {
+                        kept::put(key, &ex, secs);
+                    }
+                }
+                ex
             }
         };
         ledger.heard(n, &req.url, &ex);
@@ -1053,6 +1304,21 @@ fn run(
             if let Some(door) = met {
                 let wall = crate::refusal::read(&crate::refusal::Answer { status: ex.status, body: ex.response_body.as_deref().unwrap_or_default(), url: &ex.url, asked: Some(&req.url) });
                 return Err(ReplayError::Door { step: n, url: req.url.to_string(), status: ex.status, door, wall });
+            }
+            // A value recalled from the first learn that the site refuses is one only the page can make now: the
+            // browser makes the call, and its page makes the value.
+            // So is a header the step sends as the walk saw it, with no source (`Unconfirmed`): the first learn's value,
+            // recalled. A refusal (the site answered, and not a door) is the browser's to make the call on its page.
+            let recalls_the_walk = step.fields.iter().any(|f| matches!(f.loc, Loc::Header(_)) && matches!(f.class, Class::Unconfirmed { .. }));
+            // Only a read: a step that may change the site is never made again, by the browser or anything else, for a
+            // refusal of what it sent (the write rule, `ledger::writes`, is the one reader of that).
+            // Only a refusal of what was sent is the recalled value's: a session's refusal (401, 403) is the session's to
+            // renew, and a site out of asks (429) refuses nothing that was sent. A header with no source may be any
+            // header the walk saw (a tracing id), so it never takes a session's refusal from the session.
+            if (recalled_at == Some(n) || (recalls_the_walk && refuses_what_was_sent(ex.status))) && !crate::ledger::writes(step) {
+                eprintln!("   [replay] step {} {} answered {} to the recalled value: the browser makes it", n, req.url.path(), ex.status);
+                let loc = step.page_producers.first().map(|p| p.loc.clone()).unwrap_or(Loc::Url);
+                return Err(ReplayError::NeedsBrowser { step: n, url: req.url.to_string(), loc });
             }
             return Err(ReplayError::Failed { step: n, url: req.url.to_string(), status: ex.status, body: ex.response_body.clone().unwrap_or_default() });
         }
@@ -1958,6 +2224,295 @@ mod tests {
         assert!(write.seen.borrow().is_empty(), "nothing was sent: {:?}", write.seen.borrow());
     }
 
+    /// A value the page's own code makes per call is recomputed first; when the page's code makes nothing this run, the
+    /// value the first learn's request carried is recalled and sent in its place, never the call without it (a site
+    /// that checks the value refuses a call that lacks it every time: a timeline site's search, 27 November 2026); and
+    /// when the site refuses the recalled value, the call goes to the browser, whose page makes the value itself.
+    #[test]
+    fn a_page_made_value_is_recomputed_else_recalled_from_the_first_learn_else_the_browser_makes_it() {
+        struct Site { accepts: &'static str, seen: RefCell<Vec<Option<String>>>, told: RefCell<Vec<String>> }
+        impl Fetch for Site {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                let sent = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-request-sig")).map(|(_, v)| v.clone());
+                let ok = sent.as_deref() == Some(self.accepts);
+                self.seen.borrow_mut().push(sent);
+                Ok(Exchange {
+                    method: req.method.clone(), url: req.url.clone(), request_headers: req.headers.clone(), request_body: None,
+                    status: if ok { 200 } else { 404 },
+                    response_headers: vec![("content-type".into(), "application/json".into())],
+                    response_body: Some(if ok { r#"{"items":[{"id":1}]}"# } else { "" }.into()), response_mime: "application/json".into(),
+                    resource_type: Some("XHR".into()), main_frame: None,
+                })
+            }
+            fn sign_request(&mut self, _req: &Request, _inputs: &HashMap<String, String>) -> Option<crate::sandbox::Signed> {
+                None
+            }
+            fn fell_back(&mut self, why: String) {
+                self.told.borrow_mut().push(why);
+            }
+        }
+        let graph: Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "steps": [{
+                "exchange": 0, "method": "GET", "status": 200, "url": "https://app.example/api/search",
+                "needs_browser": true, "page_signed": true,
+                "page_producers": [{ "loc": { "in": "header", "key": "x-request-sig" }, "producer": { "script": "https://app.example/app.js", "at": 12 }, "recalled": "sig-from-the-first-learn" }],
+                "fields": []
+            }]
+        }))
+        .unwrap();
+        let mut still = Site { accepts: "sig-from-the-first-learn", seen: RefCell::new(vec![]), told: RefCell::new(vec![]) };
+        let ran = replay(&graph, &HashMap::new(), &mut still).expect("the recalled value answers");
+        assert_eq!(ran.target.status, 200);
+        assert_eq!(&*still.seen.borrow(), &[Some("sig-from-the-first-learn".to_string())], "the first learn's value, never the call without it");
+        assert!(still.told.borrow().iter().any(|t| t.contains("recalled")), "the call says it recalled: {:?}", still.told.borrow());
+        let mut refuses = Site { accepts: "a value only the page can make now", seen: RefCell::new(vec![]), told: RefCell::new(vec![]) };
+        assert!(
+            matches!(replay(&graph, &HashMap::new(), &mut refuses), Err(ReplayError::NeedsBrowser { step: 1, .. })),
+            "a recalled value the site refuses sends the call to the browser"
+        );
+        assert_eq!(refuses.seen.borrow().len(), 1, "asked once with the recalled value, then the browser");
+    }
+
+    /// A value the call recomputed with the page's own code that the site refuses is sent once more with the value the
+    /// first learn's request carried, and a refusal of that is the browser's: recompute, else recall, else the browser,
+    /// on every page-made value. A write is never sent twice. (A timeline site refused the ids its own function made
+    /// in the sandbox, and the call failed where the recalled id answered about half the time, 27 November 2026.)
+    #[test]
+    fn a_refused_recompute_is_recalled_once_then_the_browsers() {
+        struct Site { accepts: &'static str, seen: RefCell<Vec<Option<String>>> }
+        impl Fetch for Site {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                let sent = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-request-sig")).map(|(_, v)| v.clone());
+                let ok = sent.as_deref() == Some(self.accepts);
+                self.seen.borrow_mut().push(sent);
+                Ok(Exchange {
+                    method: req.method.clone(), url: req.url.clone(), request_headers: req.headers.clone(), request_body: None, status: if ok { 200 } else { 404 },
+                    response_headers: vec![("content-type".into(), "application/json".into())],
+                    response_body: Some(if ok { r#"{"items":[{"id":1}]}"# } else { "" }.into()), response_mime: "application/json".into(),
+                    resource_type: Some("XHR".into()), main_frame: None,
+                })
+            }
+            fn sign_request(&mut self, req: &Request, _inputs: &HashMap<String, String>) -> Option<crate::sandbox::Signed> {
+                Some(crate::sandbox::Signed { method: req.method.clone(), url: req.url.to_string(), headers: vec![("x-request-sig".into(), "made-by-the-page-now".into())], body: None, modules: vec![], values: vec![], by: crate::rung::Rung::Function })
+            }
+        }
+        let graph = |method: &str| -> Graph {
+            serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [{
+                "exchange": 0, "method": method, "status": 200, "url": "https://app.example/api/search", "needs_browser": true, "page_signed": true,
+                "page_producers": [{ "loc": { "in": "header", "key": "x-request-sig" }, "producer": { "script": "https://app.example/app.js", "at": 12 }, "recalled": "sig-from-the-first-learn" }],
+                "fields": []
+            }]}))
+            .unwrap()
+        };
+        let mut recall_answers = Site { accepts: "sig-from-the-first-learn", seen: RefCell::new(vec![]) };
+        assert_eq!(replay(&graph("GET"), &HashMap::new(), &mut recall_answers).expect("the recalled value answers").target.status, 200);
+        assert_eq!(&*recall_answers.seen.borrow(), &[Some("made-by-the-page-now".to_string()), Some("sig-from-the-first-learn".to_string())], "recomputed, refused, then recalled once");
+        let mut neither = Site { accepts: "only the browser's", seen: RefCell::new(vec![]) };
+        assert!(matches!(replay(&graph("GET"), &HashMap::new(), &mut neither), Err(ReplayError::NeedsBrowser { step: 1, .. })), "then the browser's");
+        assert_eq!(neither.seen.borrow().len(), 2, "two asks, then the browser");
+        let mut write = Site { accepts: "sig-from-the-first-learn", seen: RefCell::new(vec![]) };
+        let mut posting = graph("POST");
+        posting.steps[0].sets_cookie = true;
+        posting.steps[0].url = "https://app.example/api/cart/checkout".into();
+        assert!(crate::ledger::writes(&posting.steps[0]), "the write rule names it a write");
+        let _ = replay(&posting, &HashMap::new(), &mut write);
+        assert!(write.seen.borrow().len() <= 1, "a write is never sent twice: {:?}", write.seen.borrow());
+    }
+
+    /// A step's reply the site said stays good (its `Cache-Control` when the walk asked it: `graph::reply_lifetime`) is
+    /// kept for that long and answers the same request on a later call, for a step that only asks and is not the call's
+    /// answer (`route.value-dag`: an earlier answer is a node with a lifetime, cached for it). The answer is asked every
+    /// call. A call that fails drops what it was answered from, so the next asks again; a step that may change the site,
+    /// and one the site gave no lifetime, are asked every time.
+    #[test]
+    fn a_reply_the_site_said_stays_good_is_kept_for_that_long_and_dropped_when_its_call_fails() {
+        struct Site { fail_answer: bool, asked: RefCell<Vec<String>> }
+        impl Fetch for Site {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.asked.borrow_mut().push(req.url.path().to_string());
+                let token = req.url.path() != "/api/search";
+                let status = if !token && self.fail_answer { 500 } else { 200 };
+                Ok(Exchange {
+                    method: req.method.clone(), url: req.url.clone(), request_headers: req.headers.clone(), request_body: None, status,
+                    response_headers: vec![("content-type".into(), "application/json".into()), ("cache-control".into(), "max-age=600".into())],
+                    response_body: Some(if token { r#"{"token":"t-1"}"# } else { r#"{"items":[{"id":1}]}"# }.into()), response_mime: "application/json".into(),
+                    resource_type: Some("XHR".into()), main_frame: None,
+                })
+            }
+        }
+        let graph = |lifetime: Option<u64>, method: &str| -> Graph {
+            serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [
+                { "exchange": 0, "method": method, "status": 200, "url": "https://kept.example/api/token", "needs_browser": false, "fields": [], "lifetime": lifetime },
+                { "exchange": 1, "method": "GET", "status": 200, "url": "https://kept.example/api/search", "needs_browser": false, "lifetime": 600,
+                  "fields": [{ "loc": { "in": "header", "key": "x-token" }, "class": "derived", "origin": { "exchange": 0, "url": "https://kept.example/api/token", "at": { "from": "json", "pointer": "/token" } } }] },
+            ]}))
+            .unwrap()
+        };
+        let asked = |site: &Site| site.asked.borrow().iter().filter(|p| p.as_str() == "/api/token" || p.as_str() == "/api/cart/checkout/token").count();
+        let mut site = Site { fail_answer: false, asked: RefCell::new(vec![]) };
+        let kept = graph(Some(600), "GET");
+        replay(&kept, &HashMap::new(), &mut site).expect("the first call");
+        replay(&kept, &HashMap::new(), &mut site).expect("the second call");
+        assert_eq!(asked(&site), 1, "the token step asked once, kept for its lifetime: {:?}", site.asked.borrow());
+        assert_eq!(site.asked.borrow().iter().filter(|p| p.as_str() == "/api/search").count(), 2, "the answer asked every call");
+
+        site.fail_answer = true;
+        assert!(replay(&kept, &HashMap::new(), &mut site).is_err());
+        site.fail_answer = false;
+        replay(&kept, &HashMap::new(), &mut site).expect("a call after the failure");
+        assert_eq!(asked(&site), 2, "a failed call drops the reply it used, and the next call asks again");
+
+        let mut plain = Site { fail_answer: false, asked: RefCell::new(vec![]) };
+        let unkept = serde_json::from_value::<Graph>(serde_json::json!({ "provisional": false, "steps": [
+            { "exchange": 0, "method": "GET", "status": 200, "url": "https://plain.example/api/token", "needs_browser": false, "fields": [] },
+            { "exchange": 1, "method": "GET", "status": 200, "url": "https://plain.example/api/search", "needs_browser": false,
+              "fields": [{ "loc": { "in": "header", "key": "x-token" }, "class": "derived", "origin": { "exchange": 0, "url": "https://plain.example/api/token", "at": { "from": "json", "pointer": "/token" } } }] },
+        ]})).unwrap();
+        replay(&unkept, &HashMap::new(), &mut plain).unwrap();
+        replay(&unkept, &HashMap::new(), &mut plain).unwrap();
+        assert_eq!(asked(&plain), 2, "a reply the site gave no lifetime is asked every call");
+
+        let mut writes = Site { fail_answer: false, asked: RefCell::new(vec![]) };
+        let mut posting = graph(Some(600), "POST");
+        posting.steps[0].url = "https://writes.example/api/cart/checkout/token".into();
+        posting.steps[1].fields[0] = serde_json::from_value(serde_json::json!({ "loc": { "in": "header", "key": "x-token" }, "class": "derived", "origin": { "exchange": 0, "url": "https://writes.example/api/cart/checkout/token", "at": { "from": "json", "pointer": "/token" } } })).unwrap();
+        posting.steps[1].url = "https://writes.example/api/search".into();
+        assert!(crate::ledger::writes(&posting.steps[0]));
+        replay(&posting, &HashMap::new(), &mut writes).unwrap();
+        replay(&posting, &HashMap::new(), &mut writes).unwrap();
+        assert_eq!(asked(&writes), 2, "a step that may change the site is sent every call, never answered from a kept reply");
+
+        // The reply cache evicts the earliest-expiring entry once it reaches capacity.
+        let ex = Exchange {
+            method: "GET".into(),
+            url: "https://evict.example/t".parse().unwrap(),
+            request_headers: vec![],
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some("{}".into()),
+            response_mime: "application/json".into(),
+            resource_type: Some("XHR".into()),
+            main_frame: None,
+        };
+        kept::begin();
+        for i in 0..=(kept::HELD as u64) {
+            kept::put(9_000_000 + i, &ex, 60 + i);
+        }
+        assert!(kept::get(9_000_000 + kept::HELD as u64).is_some());
+        kept::forget_used();
+    }
+
+    /// A value the page's own code made from the page the route carries that the site refuses is made again from the
+    /// site's page as it stands now, before the first learn's value is recalled (`route.value-dag`: the page's markup is
+    /// a node whose lifetime ends when the site refuses what was made from it). The site takes the value made afresh:
+    /// three asks in order, recomputed, made again on a fresh page, answered. With no page to fetch afresh, the ladder
+    /// is as it was: recomputed, recalled, then the browser.
+    #[test]
+    fn a_refused_recompute_is_made_again_on_a_fresh_page_before_the_recall() {
+        struct Site { accepts: &'static str, fresh: bool, seen: RefCell<Vec<Option<String>>> }
+        impl Fetch for Site {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                let sent = req.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-request-sig")).map(|(_, v)| v.clone());
+                let ok = sent.as_deref() == Some(self.accepts);
+                self.seen.borrow_mut().push(sent);
+                Ok(Exchange {
+                    method: req.method.clone(), url: req.url.clone(), request_headers: req.headers.clone(), request_body: None, status: if ok { 200 } else { 404 },
+                    response_headers: vec![("content-type".into(), "application/json".into())],
+                    response_body: Some(if ok { r#"{"items":[{"id":1}]}"# } else { "" }.into()), response_mime: "application/json".into(),
+                    resource_type: Some("XHR".into()), main_frame: None,
+                })
+            }
+            fn sign_request(&mut self, req: &Request, _inputs: &HashMap<String, String>) -> Option<crate::sandbox::Signed> {
+                Some(crate::sandbox::Signed { method: req.method.clone(), url: req.url.to_string(), headers: vec![("x-request-sig".into(), "made-on-the-carried-page".into())], body: None, modules: vec![], values: vec![], by: crate::rung::Rung::Function })
+            }
+            fn remade_on_a_fresh_page(&mut self, _req: &Request) -> Option<Vec<(String, String)>> {
+                self.fresh.then(|| vec![("x-request-sig".to_string(), "made-on-the-page-now".to_string())])
+            }
+        }
+        let graph: Graph = serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [{
+            "exchange": 0, "method": "GET", "status": 200, "url": "https://app.example/api/search", "needs_browser": true, "page_signed": true,
+            "page_producers": [{ "loc": { "in": "header", "key": "x-request-sig" }, "producer": { "script": "https://app.example/app.js", "at": 12 }, "recalled": "sig-from-the-first-learn" }],
+            "fields": []
+        }]}))
+        .unwrap();
+        let mut fresh = Site { accepts: "made-on-the-page-now", fresh: true, seen: RefCell::new(vec![]) };
+        assert_eq!(replay(&graph, &HashMap::new(), &mut fresh).expect("the value made on the page as it stands answers").target.status, 200);
+        assert_eq!(&*fresh.seen.borrow(), &[Some("made-on-the-carried-page".to_string()), Some("made-on-the-page-now".to_string())], "recomputed, refused, made again on a fresh page");
+        let mut stale = Site { accepts: "sig-from-the-first-learn", fresh: true, seen: RefCell::new(vec![]) };
+        assert_eq!(replay(&graph, &HashMap::new(), &mut stale).expect("then the recall answers").target.status, 200);
+        assert_eq!(stale.seen.borrow().len(), 3, "recomputed, made again, recalled: {:?}", stale.seen.borrow());
+        let mut no_page = Site { accepts: "sig-from-the-first-learn", fresh: false, seen: RefCell::new(vec![]) };
+        assert_eq!(replay(&graph, &HashMap::new(), &mut no_page).expect("the recall answers").target.status, 200);
+        assert_eq!(no_page.seen.borrow().len(), 2, "with no fresh page, recomputed then recalled");
+
+        // A recalled producer that is not a header leaves nothing to swap and keeps the site's refusal as-is.
+        let query_graph: Graph = serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [{
+            "exchange": 0, "method": "GET", "status": 200, "url": "https://app.example/api/search", "needs_browser": true, "page_signed": true,
+            "page_producers": [{ "loc": { "in": "query", "key": "sig" }, "producer": { "script": "https://app.example/app.js", "at": 12 }, "recalled": "q-sig" }],
+            "fields": []
+        }]}))
+        .unwrap();
+        let mut q_site = Site { accepts: "never", fresh: false, seen: RefCell::new(vec![]) };
+        assert!(replay(&query_graph, &HashMap::new(), &mut q_site).is_err());
+        assert_eq!(q_site.seen.borrow().len(), 1);
+    }
+
+    /// A plain step that sends a value as the first learn carried it (a header seen with no source, `Unconfirmed`: the
+    /// walk's own value recalled) is answered on that value while the site takes it; when the site refuses it, the
+    /// call goes to the browser, whose page makes the value now. A refusal of a step that recalls nothing (its values
+    /// constants, inputs, the session's) fails as it always did.
+    #[test]
+    fn a_refused_step_that_recalled_the_first_learns_value_goes_to_the_browser() {
+        struct Site { status: u16 }
+        impl Fetch for Site {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                Ok(Exchange {
+                    method: req.method.clone(), url: req.url.clone(), request_headers: req.headers.clone(), request_body: None, status: self.status,
+                    response_headers: vec![("content-type".into(), "application/json".into())],
+                    response_body: Some(if self.status == 200 { r#"{"items":[{"id":1}]}"# } else { "" }.into()), response_mime: "application/json".into(),
+                    resource_type: Some("XHR".into()), main_frame: None,
+                })
+            }
+        }
+        let graph = |class: serde_json::Value| -> Graph {
+            let mut field = serde_json::json!({ "loc": { "in": "header", "key": "x-request-id" } });
+            field.as_object_mut().unwrap().extend(class.as_object().unwrap().clone());
+            serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [{
+                "exchange": 0, "method": "GET", "status": 200, "url": "https://app.example/api/search", "needs_browser": false,
+                "fields": [field]
+            }]}))
+            .unwrap()
+        };
+        let recalled = graph(serde_json::json!({ "class": "unconfirmed", "value": "rid-from-the-first-learn" }));
+        assert_eq!(replay(&recalled, &HashMap::new(), &mut Site { status: 200 }).expect("taken").target.status, 200);
+        assert!(matches!(replay(&recalled, &HashMap::new(), &mut Site { status: 404 }), Err(ReplayError::NeedsBrowser { step: 1, .. })), "a refused recall is the browser's");
+        let constant = graph(serde_json::json!({ "class": "constant", "value": "v1" }));
+        assert!(matches!(replay(&constant, &HashMap::new(), &mut Site { status: 404 }), Err(ReplayError::Failed { status: 404, .. })), "a step that recalls nothing fails as it did");
+        // A session's refusal (401, 403) is the session's to renew, and a site out of asks (429) is not refusing the
+        // value: neither is the recalled value's, so each fails as it did and the caller renews the session or waits.
+        for status in [401, 403, 429] {
+            let e = replay(&recalled, &HashMap::new(), &mut Site { status });
+            assert!(matches!(e, Err(ReplayError::Failed { status: s, .. }) if s == status), "{status} is not the recalled value's: {e:?}");
+        }
+    }
+
     /// A value at a path segment fills that segment: a `..` or `.` never walks the request to another path of the site,
     /// and a slash or a percent sign in it is the segment's text.
     #[test]
@@ -2052,6 +2607,76 @@ mod tests {
             "a request that lost the caller's value is never sent"
         );
         assert!(lost.seen.borrow().is_empty(), "nothing was sent: {:?}", lost.seen.borrow());
+    }
+
+    /// A page-signed read step that never carried an earlier step's walked default (e.g. a page tab `f=live` that the
+    /// site's JS mapped to `product=Latest` in the API query) still runs browserless when `f` stays at its walked
+    /// default, and still refuses (going to the browser) when the caller asks for another value (`f=top`).
+    #[test]
+    fn a_plain_read_ignores_another_steps_unchanged_default_but_refuses_a_new_value() {
+        use std::cell::RefCell;
+        struct Site {
+            seen: RefCell<Vec<String>>,
+        }
+        impl Fetch for Site {
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.seen.borrow_mut().push(req.url.to_string());
+                Ok(Exchange {
+                    method: req.method.clone(),
+                    url: req.url.clone(),
+                    request_headers: vec![],
+                    request_body: None,
+                    status: 200,
+                    response_headers: vec![],
+                    response_body: Some(r#"{"items":[{"title":"hyperframes"}]}"#.into()),
+                    response_mime: "application/json".into(),
+                    resource_type: Some("XHR".into()),
+                    main_frame: None,
+                })
+            }
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn sign_request(&mut self, _req: &Request, _inputs: &HashMap<String, String>) -> Option<crate::sandbox::Signed> {
+                None
+            }
+        }
+        let two_step: Graph = serde_json::from_value(serde_json::json!({
+            "provisional": false,
+            "steps": [
+                {
+                    "exchange": 0, "method": "GET", "status": 200, "url": "https://site.example/search?q={q}&f={f}",
+                    "needs_browser": false,
+                    "fields": [
+                        { "loc": { "in": "query", "key": "q" }, "class": "input", "name": "q", "secret": false, "default": "seedance" },
+                        { "loc": { "in": "query", "key": "f" }, "class": "input", "name": "f", "secret": false, "default": "live", "optional": true }
+                    ]
+                },
+                {
+                    "exchange": 1, "method": "GET", "status": 200, "url": "https://site.example/api/SearchTimeline?q={q}&product=Latest",
+                    "needs_browser": true, "page_signed": true,
+                    "page_producers": [{ "loc": { "in": "header", "key": "x-client-transaction-id" }, "producer": { "script": "https://site.example/app.js", "at": 7 }, "recalled": "tx-1" }],
+                    "fields": [
+                        { "loc": { "in": "query", "key": "q" }, "class": "input", "name": "q", "secret": false, "default": "seedance" },
+                        { "loc": { "in": "query", "key": "product" }, "class": "constant", "value": "Latest" }
+                    ]
+                }
+            ]
+        }))
+        .unwrap();
+        let unchanged = HashMap::from([("q".to_string(), "hyperframes".to_string()), ("f".to_string(), "live".to_string())]);
+        let mut ok_site = Site { seen: RefCell::new(vec![]) };
+        let ran = replay(&two_step, &unchanged, &mut ok_site).expect("unchanged default on step 1 must not block step 2");
+        assert_eq!(ran.target.status, 200);
+        assert!(ok_site.seen.borrow().iter().any(|u| u.contains("/api/SearchTimeline?q=hyperframes")), "{:?}", ok_site.seen.borrow());
+
+        let changed = HashMap::from([("q".to_string(), "hyperframes".to_string()), ("f".to_string(), "top".to_string())]);
+        let mut blocked = Site { seen: RefCell::new(vec![]) };
+        assert!(
+            matches!(replay(&two_step, &changed, &mut blocked), Err(ReplayError::NeedsBrowser { step: 2, .. })),
+            "a caller-changed value absent from step 2 must still go to the browser"
+        );
+        assert!(blocked.seen.borrow().iter().all(|u| !u.contains("/api/SearchTimeline")), "{:?}", blocked.seen.borrow());
     }
 
     /// A refusal from a wall the route knows is said as a door, with the class and what earns a credential: not the
@@ -3495,7 +4120,7 @@ mod rekey_tests {
     fn a_piece_of_the_callers_value_is_written_from_what_they_send_now() {
         use crate::graph::{Body, Field, Step};
         let piece = |pointer: &str, from: usize, len: usize| Field { loc: Loc::Json(pointer.into()), class: Class::Piece { input: "dateTime".into(), from, len } };
-        let step = Step {
+        let step = Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0, method: "POST".into(), status: 200, url: "https://book.example/api/availability".into(),
@@ -3531,7 +4156,7 @@ mod rekey_tests {
         use crate::graph::{Held, Written};
         let held = |loc: Loc, sits: &str, written| Held { loc, input: "q".into(), sits: sits.into(), written, inside: None };
         let constant = |loc: Loc, value: &str| crate::graph::Field { loc, class: Class::Constant { value: value.into(), origin: None } };
-        let step = Step {
+        let step = Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0,
@@ -3577,7 +4202,7 @@ mod rekey_tests {
     fn a_hole_in_a_list_is_not_the_request_the_walk_sent() {
         use crate::graph::{Body, Class, Field, Step};
         let value = |loc: Loc| Field { loc, class: Class::Input { name: "restaurantIds".into(), secret: false, default: None, optional: false } };
-        let step = |body: Body, fields: Vec<Field>| Step {
+        let step = |body: Body, fields: Vec<Field>| Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0, method: "POST".into(), status: 200, url: "https://book.example/api".into(), fields, body: Some(body),
@@ -3608,7 +4233,7 @@ mod rekey_tests {
         use crate::graph::{Body, Class, Field, Step};
         use crate::provenance::{At, Origin};
         let from = |n: usize| Field { loc: Loc::Json(format!("/ids/{n}")), class: Class::Derived { origin: Origin { exchange: 0, url: "https://book.example/s".into(), at: At::Json { pointer: format!("/list/{n}/id") }, wrap: None } } };
-        let step = Step {
+        let step = Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 1, method: "POST".into(), status: 200, url: "https://book.example/api".into(), fields: (0..4).map(from).collect(),
@@ -3632,7 +4257,7 @@ mod rekey_tests {
     #[test]
     fn a_forms_field_sends_what_the_route_gives_it() {
         use crate::graph::{Body, Class, Field, Step};
-        let step = Step {
+        let step = Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0, method: "POST".into(), status: 200, url: "https://funds.example/rest/search".into(),
@@ -3657,7 +4282,7 @@ mod rekey_tests {
     #[test]
     fn a_json_slot_opened_for_its_field_sends_the_fields_value() {
         use crate::graph::{Body, Class, Field, Step};
-        let mut step = Step {
+        let mut step = Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0, method: "POST".into(), status: 200, url: "https://docs.example/api/search".into(),
@@ -3773,7 +4398,7 @@ mod rekey_tests {
     #[test]
     fn an_unset_optional_input_is_not_sent() {        use crate::graph::{Body, Class, Field, Step};
         let optional = |loc: Loc, name: &str| Field { loc, class: Class::Input { name: name.into(), secret: false, default: None, optional: true } };
-        let step = |body: Option<Body>, fields: Vec<Field>| Step {
+        let step = |body: Option<Body>, fields: Vec<Field>| Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0, method: "POST".into(), status: 200, url: "https://shop.example/api".into(), fields, body,
@@ -3936,7 +4561,7 @@ mod rekey_tests {
     fn a_callers_word_is_written_into_the_json_leaf_it_rode_in() {
         use super::*;
         use crate::graph::{Body, Held, Step, Written};
-        let step = Step {
+        let step = Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: 0, method: "POST".into(), status: 200, url: "https://shop.example/api".into(), fields: Vec::new(),

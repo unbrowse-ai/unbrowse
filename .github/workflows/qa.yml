@@ -47,7 +47,8 @@
 #   choice, skill triggers and the gate bank's slice, on the merge commit, before it merges. A draft, a fork's pull
 #   request and a pull request into main never reach that credential; pr-check.yml is what they get.
 #   A push to staging or main (this workflow): the build, MCP check, Claude QA, skill triggers, the gate bank's slice,
-#   journey coverage and the report, on the pushed commit, all on Blacksmith machines. The MCP check, Claude QA and the
+#   journey coverage and the report, on the pushed commit, on hosted machines (Sengi, GitHub's Macs) but the slice,
+#   which runs on Lewis's Mac and only there, waiting for it (Lewis, 28 Nov 2026). The MCP check, Claude QA and the
 #   slice are not run again for a tree that already passed them on its pull request (`passed`, passed_on_pr.py).
 #   Nightly and by hand only: this workflow whatever passed before (nightly, one job may take Lewis's Mac when it is
 #   free), the full gate bank (gate-bank.yml) and the hard-site and writes banks (bank.yml).
@@ -83,12 +84,12 @@ env:
   AGENT_AUTH: chatgpt
 
 jobs:
-  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
+  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a GitHub-hosted
   # machine that starts at once, so a Mac that is asleep or busy never holds a run up. The summary says why for each
   # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
   place:
     name: Where the agent jobs run
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: read
@@ -115,21 +116,25 @@ jobs:
           # on dispatch 44948600956 it took 9 min 36 s to download the build (42 to 54 s before, 7 to 11 s on
           # Blacksmith) and ran shard 4 in 430 s against Blacksmith's 295 to 335 s. So only the nightly run uses it.
           MAC_POOL: ${{ github.event_name == 'schedule' && vars.MAC_RUNNER || '' }}
+          # The gate bank's slice runs on Lewis's Mac on every event, and only there (Lewis, 28 Nov 2026: "run slices
+          # only on my Mac"): a hosted Mac's data-centre address is refused by sites the slice asks (run 46116646462).
+          OWN_MAC: ${{ vars.MAC_RUNNER }}
           LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
-        # One Mac takes one job, the gate bank's slice (as before sharding); the Claude QA shards and the MCP check go
-        # to Blacksmith at once, side by side, rather than queueing behind each other on it. The slice's place is
-        # handed to gate-bank.yml (runs_on), whose own place job can't see this run's jobs (UNB-235).
-        run: python3 -I .github/scripts/place_jobs.py slice=mac qa4=mac qa1=mac qa2=mac qa3=mac check=mac skills=linux
+        # One Mac takes one job, the gate bank's slice (`mac-only`: always the Mac, waiting for it when busy); the Claude
+        # QA shards and the MCP check go to hosted Macs at once, side by side, rather than queueing behind each other on
+        # it. The slice's place is handed to gate-bank.yml (runs_on), whose own place job can't see this run's jobs
+        # (UNB-235), and which puts a slice on the Mac whatever it is handed.
+        run: python3 -I .github/scripts/place_jobs.py slice=mac-only qa4=mac qa1=mac qa2=mac qa3=mac check=mac skills=linux
 
   # A push to staging whose tree already passed these checks on its pull request does not run them again (UNB-166,
   # Lewis, 21 Nov 2026): pr-agent-checks.yml ran the MCP check, Claude QA and the slice on the pull request's merge
   # commit, and when staging had not moved the push holds the same tree, so the same code, workflows and tests.
   # passed_on_pr.py looks for a successful pull request run of pr-agent-checks.yml, from this repository, that kept its
   # slice under this tree; anything it cannot read is no hit and every check runs. The nightly run and a run by hand
-  # never look. A plain job, on Blacksmith (#787).
+  # never look. A plain job, on a hosted machine (#787).
   passed:
     name: Look up the pull request's run
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: read
@@ -159,9 +164,9 @@ jobs:
     name: Build the node once
     needs: passed
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/staging') && (github.event_name != 'push' || needs.passed.outputs.hit != 'true')
-    # A plain build, no agent: on Blacksmith (#787), so the one Mac slot stays for an agent job. Lewis's Mac and
-    # Blacksmith's are both Apple-silicon macOS, so the archive runs on whichever the place job picks.
-    runs-on: blacksmith-6vcpu-macos-latest
+    # A plain build, no agent: on a hosted Mac (#787), so the one Mac slot stays for an agent job. Lewis's Mac and
+    # GitHub's macos-15 are both Apple-silicon macOS, so the archive runs on whichever the place job picks.
+    runs-on: macos-15
     timeout-minutes: 45
     permissions:
       contents: read
@@ -269,7 +274,7 @@ jobs:
           echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
           tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
           # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
-          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
+          # runner (a hosted Mac's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
           # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
           browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
           test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
@@ -425,7 +430,7 @@ jobs:
           echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
           tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
           # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
-          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
+          # runner (a hosted Mac's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
           # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
           browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
           test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
@@ -745,7 +750,7 @@ jobs:
     name: Skill triggers, remembered
     needs: skills
     if: needs.skills.outputs.pass == 'true' && needs.skills.outputs.key != ''
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions: {}
     steps:
@@ -761,7 +766,7 @@ jobs:
   # model, no build, no secret.
   coverage:
     name: Journey coverage
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: read
@@ -808,7 +813,7 @@ jobs:
     name: QA report
     needs: [check, qa, skills, coverage, bank]
     if: always() && needs.qa.result != 'skipped'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     permissions:
       contents: read
     steps:

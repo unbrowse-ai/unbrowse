@@ -32,12 +32,12 @@ env:
   AGENT_AUTH: chatgpt
 
 jobs:
-  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
+  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a GitHub-hosted
   # machine that starts at once, so a Mac that is asleep or busy never holds a run up. The summary says why for each
   # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
   place:
     name: Where the agent jobs run
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: read
@@ -61,7 +61,7 @@ jobs:
   # A staging push hands the spec change to a dispatch of the drafting workflow.
   hand-over:
     if: github.event_name == 'push'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     permissions:
       actions: write # to dispatch this workflow
     steps:
@@ -184,7 +184,7 @@ jobs:
   propose:
     needs: polish
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     permissions:
       contents: write # to push the pull request's branch
       pull-requests: write # to open the pull request
