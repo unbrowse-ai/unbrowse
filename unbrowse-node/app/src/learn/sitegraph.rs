@@ -374,7 +374,7 @@ fn the_graph_of_a_site_walked_twice() {
     }
     for (site, walks) in &by_site {
         let [(url, goal, first, log), (other_url, _, second, other_log)] = &walks[..] else { continue };
-        let draft = corpus::read(url, goal, first.clone(), &[], None);
+        let draft = corpus::read(url, goal, first.clone(), &[], None, None);
         let mut graph = of_two_walks(goal, (url, first), (other_url, second), Some(&draft.call).filter(|c| !c.is_empty()).map(String::as_str));
         // The layers a trace does not hold, laid on each walk: what the walk did, and who sent each call.
         for (n, log) in [log, other_log].into_iter().enumerate() {

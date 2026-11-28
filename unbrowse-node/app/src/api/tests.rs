@@ -2185,7 +2185,7 @@ fn a_route_deaf_to_the_word_the_goal_spells_is_not_learned() {
 fn a_value_that_never_reaches_the_answer_is_said() {
     let mut route = route("deaf", "shop.example", "search shop", &[]);
     let input = |name: &str, default: &str| unbrowse_learn::Field { loc: unbrowse_learn::Loc::Query(name.into()), class: unbrowse_learn::Class::Input { name: name.into(), secret: false, default: Some(default.into()), optional: false } };
-    let step = |exchange, fields: Vec<unbrowse_learn::Field>| unbrowse_learn::Step {
+    let step = |exchange, fields: Vec<unbrowse_learn::Field>| unbrowse_learn::Step { lifetime: None,
         page_signed: false,
         page_producers: Vec::new(),
         exchange, method: "GET".into(), status: 200, url: "https://shop.example/a".into(), fields, body: None, response_shape: None,

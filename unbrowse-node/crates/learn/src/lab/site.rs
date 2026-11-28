@@ -75,9 +75,11 @@ fn made_over(step: &route::Step, at: &Place, part: &route::Sent) -> Vec<Place> {
         route::Sent::Query(key) => vec![Place::Query(key.clone())],
         route::Sent::Cookie(name) => vec![Place::Cookie(name.clone())],
         route::Sent::Header(name) => vec![Place::Header(name.clone())],
-        route::Sent::Path => others(|p| matches!(p, Place::Path(_) | Place::Query(_))),
+        route::Sent::Path | route::Sent::Address => others(|p| matches!(p, Place::Path(_) | Place::Query(_))),
+        route::Sent::Pathname => others(|p| matches!(p, Place::Path(_))),
+        route::Sent::Search => others(|p| matches!(p, Place::Query(_))),
         route::Sent::Body => others(|p| matches!(p, Place::Json(_) | Place::Form(_) | Place::Part(..))),
-        route::Sent::Method => Vec::new(),
+        route::Sent::Method | route::Sent::Origin | route::Sent::Host => Vec::new(),
     }
 }
 
@@ -204,7 +206,7 @@ mod tests {
 
     fn step(method: &str, writes: bool) -> (route::Step, route::Built) {
         let step = route::Step { id: "s".into(), method: method.into(), url: "https://shop.example/api/x".into(), holes: vec![], body: None, expect: 200, script: None, page: false, writes, on_load: false, sets_cookie: false, lifetime: None, shape: None };
-        let built = route::Built { method: method.into(), url: "https://shop.example/api/x".parse().unwrap(), headers: vec![], body: None, made: vec![] };
+        let built = route::Built { method: method.into(), url: "https://shop.example/api/x".parse().unwrap(), headers: vec![], body: None, made: vec![], ways: Vec::new() };
         (step, built)
     }
 
@@ -274,7 +276,7 @@ mod tests {
     }
 
     fn the_ask(url: &str, step: &route::Step) -> (route::Step, route::Built) {
-        (step.clone(), route::Built { method: "GET".into(), url: url.parse().unwrap(), headers: vec![], body: None, made: vec![] })
+        (step.clone(), route::Built { method: "GET".into(), url: url.parse().unwrap(), headers: vec![], body: None, made: vec![], ways: Vec::new() })
     }
 
     /// A recording answers the ask it holds, and names the ones it does not: the walked call nearest the ask and where

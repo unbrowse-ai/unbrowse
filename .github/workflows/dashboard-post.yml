@@ -29,7 +29,7 @@ permissions: {}
 jobs:
   post:
     name: Dashboard
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 10
     permissions:
       actions: read

@@ -260,7 +260,7 @@ fn sent_but(e: &Exchange, loc: &Loc) -> route::Built {
     if !cookies.is_empty() {
         headers.push(("cookie".into(), cookies.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("; ")));
     }
-    route::Built { method: e.method.clone(), url, headers, body: e.request_body.clone(), made: Vec::new() }
+    route::Built { method: e.method.clone(), url, headers, body: e.request_body.clone(), made: Vec::new(), ways: Vec::new() }
 }
 
 /// `value` with each reading of the clock near `now` struck out for what it is: `{ms}` for milliseconds, `{s}` for

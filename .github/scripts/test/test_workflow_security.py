@@ -1,5 +1,9 @@
 from pathlib import Path
+import json
+import os
 import re
+import subprocess
+import tempfile
 import unittest
 
 import yaml
@@ -53,12 +57,12 @@ def _evaluate(expr, draft, same_repo):
 # pull request never reaches one; on a push or a dispatch it is true.
 SAME_REPO_GUARD = "(github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)"
 # A job reaches the pool only through its workflow's `place` job (.github/scripts/place_jobs.py), which hands out a free
-# local runner and otherwise a Blacksmith machine. Such a job can be on the pool, so it is held to every pool rule.
+# local runner and otherwise a hosted machine. Such a job can be on the pool, so it is held to every pool rule.
 # A placed job reads its place job's output, by name, or (a matrix of shards, UNB-235) by a name made of a prefix and
 # each matrix row's value: `needs.place.outputs[format('qa{0}', matrix.shard)]` reads qa1, qa2, ...
 PLACED = re.compile(r"^\$\{\{ fromJSON\(needs\.place\.outputs(?:\.(\w+)|\[format\('(\w+)\{0\}', matrix\.(\w+)\)\])\) \}\}$")
-# Hosted machines: Blacksmith's and GitHub's. Every other job (build, unit, lint, coverage) runs on one of these.
-HOSTED = re.compile(r"^(blacksmith-\d+vcpu-(ubuntu-\d{4}(-arm)?|macos-[\w.]+|windows-\d{4})|ubuntu-[\d.]+(-arm)?|macos-[\d.]+|windows-\d{4})$")
+# Hosted machines: Sengi's and GitHub's (no Blacksmith since 28 Nov 2026). Every other job (build, unit, lint, coverage) runs on one of these.
+HOSTED = re.compile(r"^(sengi-(basic|premium)-[248]-ubuntu-2404|ubuntu-[\d.]+(-arm)?|macos-[\d.]+|windows-\d{4})$")
 # Environments holding the keys that sign what users install, or publish it.
 SHIP_ENVIRONMENTS = {"release", "targets-cosign"}
 # Workflows whose builds users install (release.yml: the programs, the installers and the Mac app; updates.yml: the
@@ -152,6 +156,45 @@ def _credential_free_problems(doc, text):
             if uses.startswith("actions/checkout@") and (step.get("with") or {}).get("persist-credentials") is not False:
                 problems.append(f"{name}: keeps the token on disk")
     return problems
+
+
+# Lewis, 28 Nov 2026: "run slices only on my Mac". The gate bank's slice runs on Lewis's Mac (the self-hosted runner
+# lewis-mbp, vars.MAC_RUNNER) and never on a hosted one: from a data centre's address Ticketmaster and Carousell refuse
+# its tasks and the slice's gate says PROMOTION_REFUSED (PR #945, run 46116646462; on lewis-mbp it passes, run
+# 46117099629). Every other agent job keeps its hosted fallback.
+OWN_MAC = ["self-hosted", "macOS", "ARM64", "lewis-mbp"]
+
+
+def _run_place_step(doc, given):
+    """Run a workflow's `place` step as GitHub would, from the repository's root, with `vars.MAC_RUNNER` set to Lewis's
+    Mac, `given` for the env keys it names (only those the step itself maps), and every other expression empty: no
+    token, so nothing about the runners can be read. Returns the step's outputs."""
+    step = next(s for s in doc["jobs"]["place"]["steps"] if s.get("id") == "place")
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "1"}
+    for key, value in (step.get("env") or {}).items():
+        value = str(value)
+        if key in given:
+            value = given[key]
+        elif value == "${{ vars.MAC_RUNNER }}":
+            value = json.dumps(OWN_MAC)
+        elif "${{" in value:
+            value = ""
+        if value:
+            env[key] = value
+    with tempfile.TemporaryDirectory() as tmp:
+        env["GITHUB_OUTPUT"] = os.path.join(tmp, "out")
+        env["GITHUB_STEP_SUMMARY"] = os.path.join(tmp, "summary")
+        done = subprocess.run(["bash", "-e", "-c", step["run"]], cwd=ROOT, env=env, capture_output=True, text=True)
+        assert done.returncode == 0, done.stdout + done.stderr
+        lines = Path(env["GITHUB_OUTPUT"]).read_text().splitlines()
+    return dict(line.split("=", 1) for line in lines if "=" in line)
+
+
+def _place_output(doc, name):
+    """The step output a `place` job output reads: `slice: ${{ steps.place.outputs.slice }}` -> `slice`."""
+    m = re.fullmatch(r"\$\{\{ steps\.place\.outputs\.(\w+) \}\}", str(doc["jobs"]["place"]["outputs"][name]))
+    assert m, f"place output {name!r} does not read the place step"
+    return m.group(1)
 
 
 BY_HAND = re.compile(r"^\s*github\.event_name\s*==\s*'workflow_dispatch'\s*(&&|$)")
@@ -820,7 +863,9 @@ class WorkflowSecurityTest(unittest.TestCase):
     def test_no_job_waits_on_a_local_runner_without_a_fallback(self):
         # A job named for a local runner waits for ever when that runner is asleep, offline or busy, and the run never
         # ends: 0 of 43 pull requests into staging went green on the pool (20 to 21 Nov 2026, UNB-166). Every job runs
-        # on a hosted machine, or is placed by its workflow's `place` job, which falls back to Blacksmith.
+        # on a hosted machine, or is placed by its workflow's `place` job, which falls back to a hosted machine. The
+        # gate bank's slice is placed too, but on Lewis's Mac with no fallback (`mac-only`; Lewis, 28 Nov 2026: "run
+        # slices only on my Mac"): test_the_gate_slice_runs_only_on_lewiss_mac_never_a_hosted_runner holds that.
         # One exception: a job only a person starts by hand (its `if` opens with the workflow_dispatch guard) may
         # name the pool's own labels. No pull request, push or deploy waits on it, so it holds nothing up, and a
         # benchmark that must read from a home connection is what it is for (UNB-260, Lewis, 22 Nov 2026: the top
@@ -854,17 +899,48 @@ class WorkflowSecurityTest(unittest.TestCase):
                 self.assertEqual(place.get("permissions"), {"actions": "read", "contents": "read"}, f"{path.name}: place reads only")
         self.assertGreaterEqual(placed, 11, "the placed agent jobs were found")
 
+
+    def test_the_gate_slice_runs_only_on_lewiss_mac_never_a_hosted_runner(self):
+        # Each place step that hands out the slice, run as GitHub runs it with nothing about the runners readable (a
+        # Mac asleep, busy or unknown reads the same: the old placement sent the slice to macos-15 on all three).
+        wf = ROOT / ".github/workflows"
+        checked = 0
+        # pr-agent-checks.yml: its own slice job.
+        doc = yaml.safe_load((wf / "pr-agent-checks.yml").read_text())
+        names = _placed_outputs(doc["jobs"]["slice"])
+        self.assertEqual(names, ["slice"], "the slice job reads its place job's slice output")
+        out = _run_place_step(doc, {})
+        self.assertEqual(json.loads(out[_place_output(doc, "slice")]), OWN_MAC, "pr-agent-checks.yml")
+        checked += 1
+        # qa.yml hands its slice to gate-bank.yml, which must put it on the Mac whatever a caller hands it.
+        qa = yaml.safe_load((wf / "qa.yml").read_text())
+        handed = _run_place_step(qa, {})[_place_output(qa, "slice")]
+        self.assertEqual(json.loads(handed), OWN_MAC, "qa.yml's place job")
+        gate = yaml.safe_load((wf / "gate-bank.yml").read_text())
+        self.assertEqual(_placed_outputs(gate["jobs"]["bank"]), ["bank"])
+        steps = [s.get("id") for s in gate["jobs"]["place"]["steps"]]
+        self.assertLess(steps.index("shards"), steps.index("place"), "the scope is known before the bank is placed")
+        for placed in [handed, json.dumps("macos-15"), json.dumps(["macos-15"]), ""]:
+            with self.subTest(runs_on=placed):
+                out = _run_place_step(gate, {"PLACED": placed, "SCOPE": "slice"})
+                self.assertEqual(json.loads(out[_place_output(gate, "bank")]), OWN_MAC, "gate-bank.yml, scope slice")
+                checked += 1
+        self.assertEqual(checked, 5)
+        # The whole bank (nightly, a release branch) still falls back to a hosted Mac when Lewis's is not free.
+        out = _run_place_step(gate, {"PLACED": "", "SCOPE": "full"})
+        self.assertEqual(json.loads(out[_place_output(gate, "bank")]), "macos-15")
+
     def test_only_a_job_started_by_hand_names_the_pool_without_a_fallback(self):
         bank = yaml.safe_load((ROOT / ".github/workflows/bank.yml").read_text())["jobs"]
         self.assertTrue(_by_hand_on_the_pool(bank["top-sites"], bank["top-sites"]["runs-on"]))
         for cond in ("always()", "github.ref == 'refs/heads/staging'", "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'",
                      "github.event_name != 'workflow_dispatch'"):
             self.assertFalse(_by_hand_on_the_pool({"if": cond}, ["self-hosted", "Linux", "X64", "steam-machine"]), cond)
-        self.assertFalse(_by_hand_on_the_pool({"if": "github.event_name == 'workflow_dispatch'"}, "blacksmith-2vcpu-ubuntu-2404"))
+        self.assertFalse(_by_hand_on_the_pool({"if": "github.event_name == 'workflow_dispatch'"}, "sengi-basic-2-ubuntu-2404"))
 
     def test_every_agent_job_is_placed(self):
         # The agent and simulation jobs (a model, a simulated user, the task bank) are the ones that may use Lewis's
-        # runners; build, unit, lint and coverage run on Blacksmith, side by side.
+        # runners; build, unit, lint and coverage run on hosted machines, side by side.
         agents = {
             "pr-agent-checks.yml": {"qa", "skills", "slice"},
             "qa.yml": {"check", "qa", "skills"},
@@ -892,10 +968,11 @@ class WorkflowSecurityTest(unittest.TestCase):
         self.assertTrue(_on_the_pool(["self-hosted", "linux", "x64"]))
         self.assertFalse(_on_the_pool("ubuntu-24.04"))
         self.assertTrue(_on_the_pool("${{ fromJSON(needs.place.outputs.qa) }}"))
-        self.assertFalse(_on_the_pool("blacksmith-6vcpu-macos-latest"))
-        self.assertNotRegex("${{ vars.MAC_RUNNER && fromJSON(vars.MAC_RUNNER) || 'blacksmith-6vcpu-macos-latest' }}", HOSTED)
+        self.assertFalse(_on_the_pool("macos-15"))
+        self.assertNotRegex("${{ vars.MAC_RUNNER && fromJSON(vars.MAC_RUNNER) || 'macos-15' }}", HOSTED)
         self.assertNotRegex("self-hosted", HOSTED)
-        self.assertRegex("blacksmith-4vcpu-ubuntu-2204", HOSTED)
+        self.assertNotRegex("blacksmith-4vcpu-ubuntu-2204", HOSTED)
+        self.assertNotRegex("blacksmith-6vcpu-macos-latest", HOSTED)
         self.assertRegex("ubuntu-22.04-arm", HOSTED)
 
     def test_nothing_built_signed_or_published_for_users_runs_on_the_local_pool(self):
@@ -951,13 +1028,41 @@ class WorkflowSecurityTest(unittest.TestCase):
             "an environment": text.replace("    name: Journey coverage\n", "    name: Journey coverage\n    environment: pr-agent-checks\n", 1),
             "a write permission": text.replace("permissions:\n      contents: read", "permissions:\n      contents: write", 1),
             "a saved cache": text.replace("actions/cache/restore@", "actions/cache@", 1),
-            "Lewis's machine": text.replace("runs-on: blacksmith-2vcpu-ubuntu-2404", "runs-on: [self-hosted, linux, x64]", 1),
+            "Lewis's machine": text.replace("runs-on: sengi-basic-2-ubuntu-2404", "runs-on: [self-hosted, linux, x64]", 1),
             "the head": text.replace("DRAFT: ${{ github.event.pull_request.draft }}", "DRAFT: ${{ github.event.pull_request.head.ref }}"),
             "a kept token": text.replace("persist-credentials: false", "persist-credentials: true", 1),
         }
         for what, bad in planted.items():
             self.assertNotEqual(bad, text, f"the {what} plant changed nothing")
             self.assertTrue(_credential_free_problems(yaml.safe_load(bad), bad), f"{what} went unnoticed")
+
+    def test_linux_x64_runs_on_sengi_and_nothing_runs_on_blacksmith(self):
+        # Lewis, 27 Nov 2026: "switch from blacksmith to sengi on unb core n public". Sengi runs Ubuntu 24.04 on x64
+        # only. Lewis, 28 Nov 2026: "remove blacksmith": its macOS, Windows and arm64 jobs moved to GitHub's own
+        # machines (macos-15, windows-2025, ubuntu-22.04-arm), and an agent job the Mac cannot take falls back to
+        # macos-15. The pool is told apart by its runners' names (steam-machine-N): Sengi's names are random, so the
+        # old "self-hosted and not blacksmith-" test would have read a Sengi job as the pool.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("place_jobs", ROOT / ".github/scripts/place_jobs.py")
+        place_jobs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(place_jobs)
+        self.assertTrue(place_jobs.FALLBACK["linux"].startswith("sengi-"), place_jobs.FALLBACK)
+        self.assertEqual(place_jobs.FALLBACK["mac"], "macos-15", place_jobs.FALLBACK)
+        on_blacksmith, name_tests, sengi = [], [], 0
+        for path in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
+            text = path.read_text()
+            if "startsWith(runner.name, 'blacksmith-')" in text:
+                name_tests.append(path.name)
+            if re.search(r"blacksmith-\d+vcpu", text):
+                on_blacksmith.append(f"{path.name}: names a Blacksmith runner")
+            for name, job in (yaml.safe_load(text).get("jobs") or {}).items():
+                for runner in _runners(job):
+                    sengi += str(runner).startswith("sengi-")
+        self.assertEqual(on_blacksmith, [], "a job still runs on Blacksmith")
+        self.assertEqual(name_tests, [], "a step tells the pool apart by a Blacksmith runner name")
+        self.assertGreater(sengi, 0)
+        lint = (ROOT / ".github/actionlint.yaml").read_text()
+        self.assertNotIn("blacksmith-", lint, "actionlint still lists a Blacksmith label")
 
     def test_pr_check_runs_the_same_steps_as_the_checks_it_stands_for(self):
         # Copies drift; these can't. The MCP check builds as pr-agent-checks.yml's `build` does, step for step, and the

@@ -32,7 +32,7 @@ impl crate::replay::Fetch for Answering<'_> {
         self.sent.push(format!("{} {} {:?} {:?}", req.method, req.url, req.headers, req.text()));
         let id = crate::body::step_id(req.exchange);
         let step = self.body.step(&id).ok_or_else(|| ReplayError::Transport(format!("no step {id} in the body")))?;
-        let built = unbrowse_route::Built { method: req.method.clone(), url: req.url.clone(), headers: req.headers.clone(), body: req.text().map(String::from), made: Vec::new() };
+        let built = unbrowse_route::Built { method: req.method.clone(), url: req.url.clone(), headers: req.headers.clone(), body: req.text().map(String::from), made: Vec::new(), ways: Vec::new() };
         match (Recorded { walk: self.walk }).ask(step, &built) {
             Said::Reply { at, reply } => {
                 self.heard.push((id, at));

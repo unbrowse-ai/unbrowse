@@ -90,6 +90,30 @@ pub enum Class {
     CookieIn { template: String, name: String },
 }
 
+/// The most a kept reply is kept for, whatever the site says.
+pub const LIFETIME_MAX: u64 = 3600;
+
+/// How long a reply stays good, as the site said when it answered: `Cache-Control`'s `max-age` (or `s-maxage`),
+/// else `Expires` against the answer's `Date`; never for a reply the site says not to keep (`no-store`, `no-cache`), nor
+/// for a failed one, and never past [`LIFETIME_MAX`]. None: the site gave the reply no lifetime.
+pub fn reply_lifetime(ex: &Exchange) -> Option<u64> {
+    if !(200..300).contains(&ex.status) {
+        return None;
+    }
+    let cache = ex.response_header("cache-control").unwrap_or_default().to_ascii_lowercase();
+    let directives: Vec<&str> = cache.split(',').map(str::trim).collect();
+    if directives.iter().any(|d| *d == "no-store" || *d == "no-cache" || d.starts_with("max-age=0")) {
+        return None;
+    }
+    let max_age = directives.iter().filter_map(|d| d.strip_prefix("s-maxage=").or_else(|| d.strip_prefix("max-age="))).filter_map(|v| v.trim_matches('"').parse::<u64>().ok()).max();
+    let secs = max_age.or_else(|| {
+        let expires = crate::fresh::http_date(ex.response_header("expires")?)?;
+        let date = crate::fresh::http_date(ex.response_header("date")?)?;
+        u64::try_from(expires - date).ok()
+    })?;
+    (secs > 0).then_some(secs.min(LIFETIME_MAX))
+}
+
 /// Where a session cookie's value stands in a [`Class::CookieIn`] template.
 pub const COOKIE_IN: &str = "{cookie}";
 
@@ -125,6 +149,51 @@ pub struct PageProducer {
     pub loc: Loc,
     /// The page's code that writes it.
     pub producer: crate::signing::Producer,
+    /// The value the first learn's request carried there: what a call recalls when the page's code makes nothing this
+    /// run, before the browser makes it (recompute, else recall, else the browser). Never a reason to skip the page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recalled: Option<String>,
+    /// The page's own function that makes the value, as data (`route.value-dag`, R2.7): the module and export of the
+    /// page's own scripts and its arguments as edges to the call's own fields. The engine writes the program that calls
+    /// it (`slice::render`) and runs it on the booted page: the recompute a page whose UI never reaches the call still
+    /// has. Kept only when it ran on the walk's page; the site's answer judges each value it makes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub function: Option<PageFunction>,
+}
+
+/// A function of the page's own scripts, as data: the module its bundle keys it by, the name that module exports it
+/// under, and what it is called with. No code: the engine writes the call (`slice::render`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PageFunction {
+    /// The module's id as the bundle keys it (`265390`, or a quoted name).
+    pub module: String,
+    pub export: String,
+    pub args: Vec<Arg>,
+}
+
+/// One argument of a page function: an edge to a field of the call being made, or a literal the write site wrote.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "from", rename_all = "snake_case")]
+pub enum Arg {
+    Call { field: CallField },
+    Literal { value: String },
+}
+
+/// A field of the call being made, as a page function's argument reads it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CallField {
+    /// The scheme and host (`https://app.example`).
+    Origin,
+    /// The host alone.
+    Host,
+    Path,
+    Method,
+    Url,
+    /// The query, with its `?`.
+    Search,
+    Body,
+    Headers,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -186,6 +255,12 @@ pub struct Step {
     /// sent as the walk's.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fallbacks: Vec<(Loc, String)>,
+    /// Seconds the step's reply stays good for the same request, as the site said when the walk asked it (its
+    /// `Cache-Control` or `Expires`: `reply_lifetime`). A call that sends the same request within it is answered from
+    /// the reply it kept, for a step that only asks and is not the call's answer (`route.value-dag`: an earlier answer
+    /// is a node with a lifetime). None: asked on every call.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lifetime: Option<u64>,
 }
 
 impl Step {
@@ -940,6 +1015,7 @@ pub fn build(traces: &[Trace], is_target: impl Fn(&Exchange) -> bool) -> Result<
                     let bound = |loc: &Loc| fields.iter().any(|f| f.loc == *loc && matches!(f.class, Class::Input { .. }));
                     slots(ex).iter().filter(|s| !bound(&s.loc)).flat_map(|s| held_in(s, &a.inputs)).collect()
                 },
+                lifetime: reply_lifetime(ex),
                 fields,
                 fallbacks: Vec::new(),
             }
@@ -1653,18 +1729,117 @@ fn immutable_public_script(e: &Exchange) -> bool {
         && vary.split(',').map(str::trim).all(|part| matches!(part, "" | "accept-encoding" | "origin"))
 }
 
-/// Whether the walk kept the header `name` at `value` across its requests: it sent the header once, or some request
-/// repeated a value (session state: a token the session keeps, rotated now and then). One different on every request
-/// is the page's to compute, per call (a signature), and stays for a producer or a recipe to be fitted to.
+/// Whether the walk kept the header `name` at `value` across its requests: it sent the header once, or some value went
+/// out on two different calls (session state: a token the session keeps, rotated now and then). One different on every
+/// call is the page's to compute, per call (a signature), and stays for a producer or a recipe to be fitted to.
+///
+/// A sending is a call (method, URL, request body) and the value it carried: the same call seen twice with the same
+/// value is one sending. A page whose requests a service worker relays shows each one twice, the page's request and
+/// then the worker's, to the same address with the same body and headers; counted twice, every value the page signed
+/// anew would look repeated, and a per-call signature would be kept as the session's and sent stale on every later call.
 fn held_across(trace: &Trace, name: &str, value: &str) -> bool {
-    let (mut sent, mut values) = (0usize, std::collections::HashSet::new());
-    for s in trace.exchanges.iter().flat_map(slots) {
-        if matches!(&s.loc, Loc::Header(n) if n.eq_ignore_ascii_case(name)) {
-            sent += 1;
-            values.insert(s.value);
+    let (sent, calls_of) = sendings(trace, name);
+    (sent == 1 || calls_of.values().any(|&n| n > 1)) && calls_of.contains_key(value)
+}
+
+/// The walk's sendings of the header `name`: how many there were, and on how many calls each value went out. A sending
+/// is a call (method, URL, request body) and the value it carried, so the same call seen twice with the same value (a
+/// service worker's relay of the page's own request) is one. The one reader for "was this value kept, or made anew"
+/// ([`held_across`], [`made_per_call`]).
+fn sendings(trace: &Trace, name: &str) -> (usize, HashMap<String, usize>) {
+    let mut seen: std::collections::HashSet<(&str, &str, Option<&str>, String)> = std::collections::HashSet::new();
+    for e in &trace.exchanges {
+        for s in slots(e) {
+            if matches!(&s.loc, Loc::Header(n) if n.eq_ignore_ascii_case(name)) {
+                seen.insert((e.method.as_str(), e.url.as_str(), e.request_body.as_deref(), s.value));
+            }
         }
     }
-    (sent == 1 || values.len() < sent) && values.contains(value)
+    let mut calls_of: HashMap<String, usize> = HashMap::new();
+    for (_, _, _, v) in &seen {
+        *calls_of.entry(v.clone()).or_default() += 1;
+    }
+    (seen.len(), calls_of)
+}
+
+/// Whether the walk shows the page writing the header `name` anew on each call: sent on two calls at least, and no
+/// value went out on two different calls. Such a value is computed per call; a route that keeps one and sends it again
+/// sends a value the page would never have sent, and the site may refuse it.
+///
+/// A request's content type is never one: it says how that request's body is written (the classifier keeps each
+/// request's own), so two calls that send two kinds of body show two values without either being made per call.
+pub fn made_per_call(trace: &Trace, name: &str) -> bool {
+    if name.eq_ignore_ascii_case("content-type") {
+        return false;
+    }
+    let (sent, calls_of) = sendings(trace, name);
+    sent >= 2 && calls_of.values().all(|&n| n == 1)
+}
+
+/// The values a route sends that nothing on it makes again from inputs (`route.value-dag`): a value only the page's
+/// own code makes, with no function of the page's to call for it (a page producer without `call`, a `Computed` or
+/// `Script` field), and a header made anew on every call that is only ever recalled (`Unconfirmed`, with nothing that
+/// recomputes it). Each is `(step, place, why)`, the place as the x-ray writes one (`header:x-sig`).
+pub fn opaque_leaves(graph: &Graph, trace: &Trace) -> Vec<(usize, String, &'static str)> {
+    // One reader of where a value comes from: the way the route's body makes it (`body::sources`).
+    crate::body::opaque_leaves(graph, trace)
+}
+
+/// The headers a route keeps as one value although the walk shows the page writing them anew on every call: a field of
+/// one that is a constant or the session's, on a step a plain call makes (one the browser makes, the page writes
+/// itself). Each is `(step, header, class)`. Empty is the contract: whatever the walk shows made per call reaches the
+/// route recomputed (an input, a value from an earlier answer, the page's own producer, a recipe, a program, a fresh
+/// clock id), else recalled from the first learn (the walk's value, `Unconfirmed`, whose refusal the replay hands to
+/// the browser), never kept as the session's or as a constant.
+pub fn kept_though_made_per_call(graph: &Graph, trace: &Trace) -> Vec<(usize, String, &'static str)> {
+    let mut out = Vec::new();
+    for (i, step) in graph.steps.iter().enumerate() {
+        if step.needs_browser {
+            continue;
+        }
+        for f in &step.fields {
+            let Loc::Header(name) = &f.loc else { continue };
+            let class = match f.class {
+                Class::Constant { .. } => "a constant",
+                Class::Minted { .. } => "the session's",
+                _ => continue,
+            };
+            if made_per_call(trace, name) {
+                out.push((i, name.to_ascii_lowercase(), class));
+            }
+        }
+    }
+    out
+}
+
+/// A header the walk shows made anew on each call is never the route's to keep: wherever a field of one reads as the
+/// session's, a constant, or the walk's value sent again, it goes back to being a value seen with no source
+/// (`Unconfirmed`), which is what the signer looks for a producer, a recipe or a program for. Returns the headers it
+/// put back. Run before the signer: what it puts back is recomputed per call, never recalled.
+pub fn keep_per_call_values_for_a_producer(graph: &mut Graph, trace: &Trace) -> Vec<String> {
+    let mut put_back: Vec<String> = Vec::new();
+    for step in &mut graph.steps {
+        // The value put back is the one this step's own request carried, never another call's of the same name.
+        let own = trace.exchanges.get(step.exchange).map(slots).unwrap_or_default();
+        for f in &mut step.fields {
+            let Loc::Header(name) = &f.loc else { continue };
+            if !matches!(f.class, Class::Minted { .. } | Class::Constant { .. }) || !made_per_call(trace, name) {
+                continue;
+            }
+            let walked = own.iter().find(|s| matches!(&s.loc, Loc::Header(n) if n.eq_ignore_ascii_case(name))).map(|s| s.value.clone());
+            let Some(value) = walked.or_else(|| match &f.class {
+                Class::Constant { value, .. } => Some(value.clone()),
+                _ => None,
+            }) else {
+                continue;
+            };
+            f.class = Class::Unconfirmed { value };
+            if !put_back.iter().any(|n| n.eq_ignore_ascii_case(name)) {
+                put_back.push(name.to_ascii_lowercase());
+            }
+        }
+    }
+    put_back
 }
 
 /// Whether the header `name`, which the call at `i` of `trace` sends as `value`, is the session's: the jar keeps it,
@@ -1964,6 +2139,235 @@ mod session_header_tests {
         assert!(!text.contains("tok_dummy_123456"), "{text}");
         assert!(g.steps[0].fields.iter().any(|f| f.loc == Loc::Header("authorization".into()) && f.class == Class::Minted { name: "authorization".into() }));
         assert!(g.provisional, "what the value is, a second sighting still settles");
+    }
+
+    /// A page whose requests a service worker relays is seen sending each one twice: the page's own request, then
+    /// the worker's, to the same address with the same headers, moments later and from another target. That is one
+    /// sending of each value, not a value kept across requests. A header the page signs anew on every call (a
+    /// transaction id) stays the page's to compute, for a producer or a recipe, while a bearer the session keeps on
+    /// every call is still the session's. (The walk that exposed it: a timeline site's search, where 11 relayed calls
+    /// made 51 per-call values look held, so the route sent one stale id and the site refused it about half the time.)
+    #[test]
+    fn a_request_a_worker_relays_is_one_sending_not_a_value_kept() {
+        let bearer = "Bearer app_token_0123456789abcdef";
+        let call = |path: &str, sig: &str, by: &str| Exchange {
+            method: "GET".into(),
+            url: format!("https://app.example{path}").parse().unwrap(),
+            request_headers: vec![("authorization".into(), bearer.into()), ("x-request-sig".into(), sig.into())],
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(r#"{"data":{"items":[{"id":1}]}}"#.into()),
+            response_mime: "application/json".into(),
+            resource_type: Some(by.into()),
+            main_frame: None,
+        };
+        // Each call the page makes, and the worker's copy of the first two: the same address and the same values.
+        let sigs = ["k3Jq9vXtR5nB8yLpZ1dQ4sU6wJ0hC3eKmA2", "Tb7Hn1Lw4Qe8Rz0Yc6Vx2Ps5Mk9Df3Gj7Ua1", "Wq5Er8Ty2Ui6Op0As4Df7Gh1Jk3Lz9Xc5Vb2"];
+        let trace = Trace {
+            exchanges: vec![
+                call("/api/search?q=kettle", sigs[0], "XHR"),
+                call("/api/search?q=kettle", sigs[0], "Fetch"),
+                call("/api/sidebar", sigs[1], "XHR"),
+                call("/api/sidebar", sigs[1], "Fetch"),
+                call("/api/badges", sigs[2], "XHR"),
+            ],
+            inputs: vec![],
+        };
+        let mut g = build(std::slice::from_ref(&trace), |e| e.url.path() == "/api/search").expect("a graph");
+        for f in g.steps.iter_mut().flat_map(|s| s.fields.iter_mut()) {
+            match &f.loc {
+                Loc::Header(h) if h == "x-request-sig" => f.class = Class::Unconfirmed { value: sigs[0].into() },
+                Loc::Header(h) if h == "authorization" => f.class = Class::Unconfirmed { value: bearer.into() },
+                _ => {}
+            }
+        }
+        let moved = session_headers(&mut g, &trace);
+        let class = |name: &str| g.steps.last().unwrap().fields.iter().find(|f| matches!(&f.loc, Loc::Header(h) if h == name)).map(|f| f.class.clone());
+        assert!(matches!(class("x-request-sig"), Some(Class::Unconfirmed { .. })), "a value new on every call is the page's, relayed or not: {:?}", class("x-request-sig"));
+        assert!(!moved.iter().any(|(k, _)| k == "x-request-sig"), "the jar never keeps it: {moved:?}");
+        assert!(matches!(class("authorization"), Some(Class::Minted { ref name }) if name == "authorization"), "the bearer every call sends is the session's: {:?}", class("authorization"));
+    }
+
+    /// Contract: a value the walk shows the page writing anew on every call is never the route's to keep. Whatever an
+    /// earlier pass read it as (the session's, a constant), it goes back to a value with no source, for the signer to
+    /// find what makes it; a value the page kept across calls (a bearer) stays the session's, and a header sent only
+    /// once says nothing about how it is made and is left as it was. (A kept per-call id is sent stale on every later
+    /// call: a timeline site refused its search about half the time for it, 27 November 2026.)
+    #[test]
+    fn a_value_made_anew_on_every_call_is_never_kept_whatever_it_was_read_as() {
+        let call = |path: &str, sig: &str, once: Option<&str>| Exchange {
+            method: "GET".into(),
+            url: format!("https://app.example{path}").parse().unwrap(),
+            request_headers: [("authorization", "Bearer app_token_0123456789abcdef"), ("x-request-sig", sig)]
+                .into_iter()
+                .chain(once.map(|v| ("x-once", v)))
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(r#"{"data":{"items":[{"id":1}]}}"#.into()),
+            response_mime: "application/json".into(),
+            resource_type: Some("XHR".into()),
+            main_frame: None,
+        };
+        let trace = Trace {
+            exchanges: vec![call("/api/badges", "Sig-one-aaaaaaaaaaaa", None), call("/api/sidebar", "Sig-two-bbbbbbbbbbbb", None), call("/api/search?q=kettle", "Sig-three-cccccccccc", Some("only-sent-here"))],
+            inputs: vec![],
+        };
+        for read_as in [Class::Minted { name: "x-request-sig".into() }, Class::Constant { value: "Sig-three-cccccccccc".into(), origin: None }] {
+            let mut g = build(std::slice::from_ref(&trace), |e| e.url.path() == "/api/search").expect("a graph");
+            for f in g.steps.iter_mut().flat_map(|s| s.fields.iter_mut()) {
+                match &f.loc {
+                    Loc::Header(h) if h == "x-request-sig" => f.class = read_as.clone(),
+                    Loc::Header(h) if h == "authorization" => f.class = Class::Minted { name: "authorization".into() },
+                    Loc::Header(h) if h == "x-once" => f.class = Class::Constant { value: "only-sent-here".into(), origin: None },
+                    _ => {}
+                }
+            }
+            let put_back = keep_per_call_values_for_a_producer(&mut g, &trace);
+            let class = |name: &str| g.steps.last().unwrap().fields.iter().find(|f| matches!(&f.loc, Loc::Header(h) if h == name)).map(|f| f.class.clone());
+            assert!(matches!(class("x-request-sig"), Some(Class::Unconfirmed { .. })), "read as {read_as:?}, a per-call value is kept: {:?}", class("x-request-sig"));
+            assert_eq!(put_back, vec!["x-request-sig".to_string()]);
+            assert!(matches!(class("authorization"), Some(Class::Minted { .. })), "the bearer every call sends stays the session's: {:?}", class("authorization"));
+            assert!(matches!(class("x-once"), Some(Class::Constant { .. })), "one sending says nothing about how it is made: {:?}", class("x-once"));
+        }
+    }
+
+    /// A header put back for a producer keeps the value its own step's request carried, never another step's: a walk
+    /// whose JSON save and form search each send their own content type and their own per-call id has each step keep
+    /// its own. A request's content type says how its body is written: it is never a value the page makes per call,
+    /// whatever the other calls sent.
+    #[test]
+    fn a_value_put_back_for_a_producer_is_its_own_steps_value() {
+        let call = |path: &str, kind: &str, sig: &str| Exchange {
+            method: "POST".into(),
+            url: format!("https://app.example{path}").parse().unwrap(),
+            request_headers: vec![("content-type".into(), kind.into()), ("x-request-sig".into(), sig.into())],
+            request_body: Some("a=1".into()),
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(r#"{"data":{"items":[{"id":1}]}}"#.into()),
+            response_mime: "application/json".into(),
+            resource_type: Some("XHR".into()),
+            main_frame: None,
+        };
+        let trace = Trace {
+            exchanges: vec![call("/api/save", "application/json", "Sig-save-aaaaaaaaaaaa"), call("/api/search", "application/x-www-form-urlencoded", "Sig-search-bbbbbbbbbb")],
+            inputs: vec![],
+        };
+        let step = |exchange: usize, path: &str, kind: &str| -> serde_json::Value {
+            serde_json::json!({ "exchange": exchange, "method": "POST", "status": 200, "url": format!("https://app.example{path}"), "needs_browser": false, "fields": [
+                { "loc": { "in": "header", "key": "content-type" }, "class": "constant", "value": kind, "origin": null },
+                { "loc": { "in": "header", "key": "x-request-sig" }, "class": "minted", "name": "x-request-sig" }
+            ]})
+        };
+        let mut g: Graph = serde_json::from_value(serde_json::json!({ "provisional": false, "steps": [step(0, "/api/save", "application/json"), step(1, "/api/search", "application/x-www-form-urlencoded")] })).unwrap();
+        let put_back = keep_per_call_values_for_a_producer(&mut g, &trace);
+        let class = |n: usize, name: &str| g.steps[n].fields.iter().find(|f| matches!(&f.loc, Loc::Header(h) if h == name)).map(|f| f.class.clone());
+        assert!(!made_per_call(&trace, "content-type"), "a content type is how the body is written, not a value made per call");
+        assert_eq!(class(0, "content-type"), Some(Class::Constant { value: "application/json".into(), origin: None }), "the JSON save keeps its own content type");
+        assert_eq!(class(1, "content-type"), Some(Class::Constant { value: "application/x-www-form-urlencoded".into(), origin: None }));
+        assert_eq!(class(0, "x-request-sig"), Some(Class::Unconfirmed { value: "Sig-save-aaaaaaaaaaaa".into() }), "the save's own id, not the search's");
+        assert_eq!(class(1, "x-request-sig"), Some(Class::Unconfirmed { value: "Sig-search-bbbbbbbbbb".into() }));
+        assert_eq!(put_back, vec!["x-request-sig".to_string()]);
+    }
+
+    /// An opaque leaf is a value a route sends that nothing on it makes again from inputs: a value only the page's own
+    /// code makes, with no function of the page's to call for it, or a value made anew on every call that is only ever
+    /// recalled. A page producer with its function, an input, a constant and the session's are sourced. Each is named
+    /// by its step and place, for the x-ray's `opaque-leaf` and the corpus's count.
+    #[test]
+    fn an_opaque_leaf_is_a_value_nothing_on_the_route_makes_again() {
+        let call = |sig: &str| Exchange {
+            method: "GET".into(), url: "https://app.example/api/search".parse().unwrap(),
+            request_headers: vec![("x-request-sig".into(), sig.into()), ("x-kept".into(), "same".into())], request_body: None, status: 200,
+            response_headers: vec![], response_body: Some(r#"{"items":[1]}"#.into()), response_mime: "application/json".into(), resource_type: Some("XHR".into()), main_frame: None,
+        };
+        let trace = Trace { exchanges: vec![call("s-one-aaaaaaaa"), call("s-two-bbbbbbbb")], inputs: vec![] };
+        let mut g = build(std::slice::from_ref(&trace), |e| e.url.path() == "/api/search").expect("a graph");
+        let producer = crate::signing::Producer { script: "https://app.example/app.js".into(), at: 1, frame: false };
+        {
+            let step = g.steps.last_mut().unwrap();
+            for f in &mut step.fields {
+                match &f.loc {
+                    Loc::Header(h) if h == "x-request-sig" => f.class = Class::Unconfirmed { value: "s-two-bbbbbbbb".into() },
+                    Loc::Header(h) if h == "x-kept" => f.class = Class::Minted { name: "x-kept".into() },
+                    _ => {}
+                }
+            }
+            step.page_producers.push(PageProducer { loc: Loc::Header("x-page-made".into()), producer: producer.clone(), recalled: None, function: None });
+            step.page_producers.push(PageProducer { loc: Loc::Header("x-page-fn".into()), producer, recalled: None, function: Some(PageFunction { module: "1".into(), export: "a".into(), args: vec![Arg::Call { field: CallField::Path }] }) });
+        }
+        let leaves = opaque_leaves(&g, &trace);
+        let places: Vec<&str> = leaves.iter().map(|(_, p, _)| p.as_str()).collect();
+        assert!(places.contains(&"header:x-request-sig"), "a per-call value only ever recalled: {leaves:?}");
+        assert!(places.contains(&"header:x-page-made"), "the page's code alone makes it: {leaves:?}");
+        assert!(!places.contains(&"header:x-page-fn"), "the page's function makes it again: {leaves:?}");
+        assert!(!places.contains(&"header:x-kept"), "the session's value is sourced: {leaves:?}");
+    }
+
+    /// Contract, over generated walks: for any number of calls, any of them relayed by a worker (sent twice the same),
+    /// and any earlier reading of the header, a header whose value differs on every call the walk made is never left
+    /// as the session's or a constant after the route's passes (`session_headers`, then the per-call guard), and a
+    /// value sent the same on every call is never taken from the session. Five hundred walks from a fixed seed.
+    #[test]
+    fn no_generated_walk_leaves_a_per_call_value_kept() {
+        let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let token = |n: u64| format!("t{n:016x}{:08x}", n.rotate_left(17) as u32);
+        for walk in 0..500u64 {
+            let calls = 2 + (next() % 7) as usize;
+            let kept = token(next());
+            let mut exchanges = Vec::new();
+            for i in 0..calls {
+                let ex = Exchange {
+                    method: "GET".into(),
+                    url: format!("https://app.example/api/{}?i={i}", if i + 1 == calls { "search" } else { "other" }).parse().unwrap(),
+                    request_headers: vec![("x-per-call".into(), token(next())), ("x-kept".into(), kept.clone())],
+                    request_body: None,
+                    status: 200,
+                    response_headers: vec![],
+                    response_body: Some(r#"{"data":{"items":[{"id":1}]}}"#.into()),
+                    response_mime: "application/json".into(),
+                    resource_type: Some("XHR".into()),
+                    main_frame: None,
+                };
+                // A worker's relay of the page's own request: the same call, the same values.
+                if next() % 3 == 0 {
+                    exchanges.push(Exchange { resource_type: Some("Fetch".into()), ..ex.clone() });
+                }
+                exchanges.push(ex);
+            }
+            let trace = Trace { exchanges, inputs: vec![] };
+            let mut g = build(std::slice::from_ref(&trace), |e| e.url.path() == "/api/search").expect("a graph");
+            let pick = next() % 3;
+            for f in g.steps.iter_mut().flat_map(|s| s.fields.iter_mut()) {
+                if let Loc::Header(h) = &f.loc {
+                    let value = trace.exchanges.last().and_then(|e| e.request_headers.iter().find(|(k, _)| k == h)).map(|(_, v)| v.clone()).unwrap_or_default();
+                    f.class = match pick {
+                        0 => Class::Unconfirmed { value },
+                        1 => Class::Minted { name: h.clone() },
+                        _ => Class::Constant { value, origin: None },
+                    };
+                }
+            }
+            let _ = session_headers(&mut g, &trace);
+            let _ = keep_per_call_values_for_a_producer(&mut g, &trace);
+            let class = |name: &str| g.steps.last().unwrap().fields.iter().find(|f| matches!(&f.loc, Loc::Header(h) if h == name)).map(|f| f.class.clone());
+            assert!(
+                !matches!(class("x-per-call"), Some(Class::Minted { .. } | Class::Constant { .. })),
+                "walk {walk} ({calls} calls, read as {pick}): a per-call value was kept: {:?}",
+                class("x-per-call")
+            );
+            assert!(made_per_call(&trace, "x-per-call") && !made_per_call(&trace, "x-kept"), "walk {walk}: the reader itself");
+        }
     }
 }
 
@@ -2316,6 +2720,27 @@ impl Graph {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// How long a reply stays good is what the site said when it answered: `max-age` (or `s-maxage`), else `Expires`
+    /// against its `Date`; nothing for a reply it says not to keep, a failed one, or one with no word on it; never more
+    /// than an hour (`route.value-dag`: a node's lifetime measured from the walk).
+    #[test]
+    fn a_replys_lifetime_is_what_the_site_said_when_it_answered() {
+        let reply = |status: u16, headers: &[(&str, &str)]| Exchange {
+            method: "GET".into(), url: "https://shop.example/api/config".parse().unwrap(), request_headers: vec![], request_body: None, status,
+            response_headers: headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), response_body: Some("{}".into()),
+            response_mime: "application/json".into(), resource_type: Some("Fetch".into()), main_frame: None,
+        };
+        assert_eq!(reply_lifetime(&reply(200, &[("cache-control", "public, max-age=600")])), Some(600));
+        assert_eq!(reply_lifetime(&reply(200, &[("Cache-Control", "max-age=60, s-maxage=300")])), Some(300));
+        assert_eq!(reply_lifetime(&reply(200, &[("date", "Sat, 28 Nov 2026 02:00:00 GMT"), ("expires", "Sat, 28 Nov 2026 02:02:00 GMT")])), Some(120));
+        assert_eq!(reply_lifetime(&reply(200, &[("cache-control", "max-age=86400")])), Some(LIFETIME_MAX), "never more than an hour");
+        assert_eq!(reply_lifetime(&reply(200, &[("cache-control", "no-store, max-age=600")])), None);
+        assert_eq!(reply_lifetime(&reply(200, &[("cache-control", "private, no-cache")])), None);
+        assert_eq!(reply_lifetime(&reply(200, &[("cache-control", "max-age=0")])), None);
+        assert_eq!(reply_lifetime(&reply(500, &[("cache-control", "max-age=600")])), None, "a failed reply is kept for nothing");
+        assert_eq!(reply_lifetime(&reply(200, &[])), None, "a reply the site said nothing of is asked every call");
+    }
 
     /// The door is kept as a step of the route: the address the wall stood at in the walk, which need not be the
     /// page the walk began on. It is what the node's engine runs again to earn the pass; the route's own wire never
@@ -3061,6 +3486,48 @@ mod header_minted_tests {
         let field = g.steps[0].fields.iter().find(|f| f.loc == Loc::Header("csrf-token".into())).unwrap();
         assert_eq!(field.class, Class::Minted { name: "csrf-token".into() });
     }
+
+    /// X's service worker relays each XHR as a second Fetch exchange with the exact same URL and per-call
+    /// `x-client-transaction-id`. Counting both exchanges made `values.len() < sent` hold even though every distinct
+    /// request carried a fresh signature, misfiling the header as `Minted`.
+    #[test]
+    fn a_per_call_header_relayed_by_a_service_worker_is_not_minted() {
+        let req = |path: &str, tid: &str| Exchange {
+            method: "GET".into(),
+            url: format!("https://x.com{path}").parse().unwrap(),
+            request_headers: vec![("x-client-transaction-id".into(), tid.into())],
+            request_body: None,
+            status: 200,
+            response_headers: vec![],
+            response_body: Some(r#"{"data":{}}"#.into()),
+            response_mime: "application/json".into(),
+            resource_type: Some("XHR".into()),
+            main_frame: None,
+        };
+        let trace = Trace {
+            exchanges: vec![
+                // Request 1 + its service-worker relay
+                req("/i/api/graphql/abc/HomeTimeline", "tx_aaaa_11111111"),
+                req("/i/api/graphql/abc/HomeTimeline", "tx_aaaa_11111111"),
+                // Request 2 + its service-worker relay
+                req("/i/api/graphql/abc/SearchTimeline?q=rust", "tx_bbbb_22222222"),
+                req("/i/api/graphql/abc/SearchTimeline?q=rust", "tx_bbbb_22222222"),
+            ],
+            inputs: vec![],
+        };
+        let mut g = build(std::slice::from_ref(&trace), |e| e.url.path().contains("SearchTimeline")).unwrap();
+        let moved = session_headers(&mut g, &trace);
+        assert!(
+            !moved.iter().any(|(k, _)| k.eq_ignore_ascii_case("x-client-transaction-id")),
+            "per-call header relayed by a service worker must not be filed as a session header: {moved:?}"
+        );
+        let field = g.steps.last().unwrap().fields.iter().find(|f| f.loc == Loc::Header("x-client-transaction-id".into())).unwrap();
+        assert!(
+            !matches!(field.class, Class::Minted { .. }),
+            "per-call header must not be Minted, got {:?}",
+            field.class
+        );
+    }
 }
 
 #[cfg(test)]
@@ -3383,7 +3850,7 @@ mod held_tests {
     }
 
     fn step(exchange: usize, method: &str, fields: Vec<Field>) -> Step {
-        Step {
+        Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange,

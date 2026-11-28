@@ -410,6 +410,15 @@ impl RouteClient {
         self.used_browser.store(true, std::sync::atomic::Ordering::Relaxed);
         self.made.reach(crate::rung::Rung::Browser);
         said(&self.fell_back, why.to_string());
+        #[cfg(test)]
+        let sighting = match SIGHTED_IN_TEST.with(|t| t.borrow_mut().take()) {
+            Some(trace) => {
+                SIGHTED_AT_IN_TEST.with(|a| a.borrow_mut().push(root.to_string()));
+                Ok(crate::mint::Sighting { trace, session: Default::default() })
+            }
+            None => mint.sight(root),
+        };
+        #[cfg(not(test))]
         let sighting = mint.sight(root);
         let _ = std::fs::remove_dir_all(&mint.capture_dir);
         let sighting = match sighting {
@@ -1369,10 +1378,15 @@ impl RouteClient {
                 return cleared;
             }
         }
-        // Held, nothing of the node's own mends the call: it fails as it failed (`holding_the_heal`).
-        if self.heal_held {
+        // Held, nothing of the node's own mends the call: it fails as it failed (`holding_the_heal`). One failure passes
+        // the hold: a value only the page can make now (recomputed nothing, recalled refused), for which the browser
+        // walking the page again is the call itself, not a mend of the node's own.
+        if self.heal_held && !the_held_heal_lets_through(first.as_ref().err()) {
             eprintln!("   [own-ask] held: heal at RouteClient::call_with_ledger");
             return (first, first_ledger);
+        }
+        if self.heal_held {
+            eprintln!("   [heal] a value only the page can make now: the browser walks the page again, the held heal excepted");
         }
         // The call failed. If the site has drifted — a step now answers 422, a
         // field the site renamed — the recorded chain is no longer the site's
@@ -1441,9 +1455,31 @@ impl RouteClient {
             }
         }
         let why = first.as_ref().err().map(|e| e.to_string().chars().take(160).collect::<String>()).unwrap_or_default();
-        let Some(trace) = self.sight_the_root(&root, &format!("the call failed ({why}), so the node's browser walked the page again")) else {
+        // A value only the page can make now (`NeedsBrowser`) is the browser's to make for this call: the route's page
+        // is walked with the caller's values, so the page's own call there is this call, with a value the page made.
+        let page_makes = matches!(first, Err(ReplayError::NeedsBrowser { .. }));
+        let walk = self
+            .graph
+            .page
+            .as_deref()
+            .filter(|_| page_makes)
+            .map(|page| page_with(page, inputs))
+            .filter(|page| !page.contains('{') && self.on_the_routes_site(page))
+            .unwrap_or_else(|| root.clone());
+        let Some(trace) = self.sight_the_root(&walk, &format!("the call failed ({why}), so the node's browser walked the page again")) else {
             return (first, first_ledger);
         };
+        // The page's own call answered on that walk: its answer is the call's. The value it carried was spent on that
+        // answer, so neither the old chain nor one rebuilt from the walk is sent it again.
+        if page_makes {
+            let origin = self.graph.steps.last().map(|s| origin_of(&s.url));
+            if let Some((v, own_json)) = the_browsers_own_answer(&self.graph, &trace, &method, &frag, origin.as_deref(), inputs) {
+                said(&self.fell_back, "a value only the page makes: the browser's own call on the route's page answered, and its answer is the call's".into());
+                self.answered_with_data = own_json;
+                self.save_jar();
+                return (Ok(v), first_ledger);
+            }
+        }
         // What the sighting changed may be only the session (a door's credential): the same chain, called again with
         // it, is the cheapest answer. Only a chain that still fails is rebuilt from the sighting. Nothing was sent by
         // the failed call (the heal is reached only then), so this sends nothing twice.
@@ -2464,6 +2500,27 @@ impl Fetch for Runner {
         self.walled.contains(&exchange)
     }
 
+    /// The step's page-made values, made again by the page's own functions on the site's page as it stands now: the
+    /// route's page fetched afresh (its address's holes left empty, since a function is handed the call's own fields
+    /// and reads only the page's markup), booted and kept apart from the carried one. Only a step whose every
+    /// page-made value has a function.
+    fn remade_on_a_fresh_page(&mut self, req: &Request) -> Option<Vec<(String, String)>> {
+        if !self.made_by_its_functions(req) || self.scripts.is_empty() {
+            return None;
+        }
+        let page = regex::Regex::new(r"\{[^}]*\}").ok()?.replace_all(self.page.as_deref()?, "").into_owned();
+        let html = self.the_sites_page(&page)?;
+        let now = crate::generated::Environment {
+            fingerprint: self.fingerprint.clone(),
+            storage: self.storage.clone(),
+            page_url: Some(page),
+            html: Some(html),
+            answers: self.answers.clone(),
+            scripts: self.scripts.iter().map(|s| (s.url.clone(), s.body.clone())).collect(),
+        };
+        self.made_by_the_pages_function(req, &now).map(|made| made.headers)
+    }
+
     /// The page's own scripts, run again: booted at the route's page with the caller's values in its address, the
     /// page's code builds and signs the call, and the headers it sets are the answer. A route with no scripts (or a
     /// machine with no signing runtime) says so, and the step goes to the browser.
@@ -2934,11 +2991,27 @@ fn said_source(source: crate::refusal::Source) -> &'static str {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// The walk a test's browser makes, in place of a browser: the next sighting's trace.
+    static SIGHTED_IN_TEST: std::cell::RefCell<Option<crate::trace::Trace>> = const { std::cell::RefCell::new(None) };
+    /// The pages a test's browser was sent to walk.
+    static SIGHTED_AT_IN_TEST: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
 /// Whether an answer says the session is gone, rather than that the site moved: a refusal, a value only a session
 /// holds, or a page that isn't the answer (a sign-in the site sent the call to). A challenge is the site checking the
 /// caller, not the session: signing in again answers nothing, and it spends the owner's login.
 fn session_gone(e: &ReplayError) -> bool {
     matches!(e, ReplayError::Failed { status: 401 | 403, .. } | ReplayError::MissingMinted(_) | ReplayError::NotAnAnswer { challenge: false, .. })
+}
+
+/// The one failure a held heal still sends to the browser: a step whose value only the page can make now
+/// (`NeedsBrowser`: the page's code made nothing this run, and the first learn's value was refused or there was none).
+/// Nothing but the page answers it, so the browser walking the page is the agent's own call; every other failure
+/// stays held and fails as it failed.
+fn the_held_heal_lets_through(e: Option<&ReplayError>) -> bool {
+    matches!(e, Some(ReplayError::NeedsBrowser { .. }))
 }
 
 /// Whether a fresh walk of the route's page could mend this failure. A value the caller didn't give, a file it named
@@ -2964,7 +3037,7 @@ fn a_walk_can_mend(e: &ReplayError) -> bool {
 /// transport that failed, a site out of asks or down, nor anything the caller or the call's rule got wrong.
 fn a_drift(e: &ReplayError) -> bool {
     match e {
-        ReplayError::Failed { status, .. } => (400..500).contains(status) && !matches!(status, 401 | 403 | 429),
+        ReplayError::Failed { status, .. } => crate::replay::refuses_what_was_sent(*status),
         ReplayError::NotAnAnswer { challenge, .. } => !challenge,
         ReplayError::ShapeMismatch { .. } | ReplayError::SourceMissing { .. } => true,
         _ => false,
@@ -3059,6 +3132,37 @@ mod heal_tests {
 /// key is an input's name (a page kept as the address it was walked on, `?acity=kul`, still says what the page asks
 /// for in that key). Else a page whose code signs the call would sign the walk's search, not the caller's.
 impl Runner {
+    /// Whether every value `req`'s step's page makes has a function of the page's own script to make it.
+    fn made_by_its_functions(&self, req: &Request) -> bool {
+        self.steps.get(&req.exchange).is_some_and(|s| !s.page_producers.is_empty() && s.page_producers.iter().all(|p| p.function.is_some()))
+    }
+
+    /// The values of `req`'s step the page's own functions make, each called with this call's own fields on the page
+    /// `on_this_page` holds (`slice::call`, the one runner of a page's function), as the request's page-made headers.
+    /// None when the step has no such function or none made a value.
+    fn made_by_the_pages_function(&self, req: &Request, on_this_page: &crate::generated::Environment) -> Option<crate::sandbox::Signed> {
+        let step = self.steps.get(&req.exchange)?;
+        let page_cookies = url::Url::parse(on_this_page.page_url.as_deref()?).map(|u| self.page_cookies(&u)).unwrap_or_default();
+        let jar: Vec<(String, String)> = page_cookies.split(';').filter_map(|c| c.trim().split_once('=')).map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let ctx = crate::generated::context_of(&req.method, req.url.as_str(), req.text(), &jar, &req.headers);
+        let made: Vec<(String, String)> = step
+            .page_producers
+            .iter()
+            .filter_map(|p| {
+                let (Loc::Header(name), Some(function)) = (&p.loc, p.function.as_ref()) else { return None };
+                let started = std::time::Instant::now();
+                let value = crate::slice::call(function, &ctx, on_this_page)?;
+                eprintln!("   [sign] {} {}: the page's own function made {name} in {} ms", req.method, req.url.path(), started.elapsed().as_millis());
+                Some((name.clone(), value))
+            })
+            .collect();
+        if made.is_empty() {
+            return None;
+        }
+        self.reach(crate::rung::Rung::Function);
+        Some(crate::sandbox::Signed { method: req.method.clone(), url: req.url.to_string(), headers: made, body: req.body.clone(), modules: Vec::new(), values: Vec::new(), by: crate::rung::Rung::Function })
+    }
+
     /// The call the page's own code makes for `req`: in the sandbox, else in the browser the node runs.
     fn signed_by_the_page(&mut self, req: &Request, inputs: &HashMap<String, String>) -> Option<crate::sandbox::Signed> {
         let Some(page) = self.page.as_deref() else { eprintln!("   [sign] no page on the route"); return None };
@@ -3072,6 +3176,24 @@ impl Runner {
         let key = page_call_key(&req.method, req.url.as_str(), req.body.as_deref());
         if let Some(found) = the_pages_call(&self.signed.borrow(), &key) {
             return Some(found.clone());
+        }
+        // A step whose every page-made value a function of the page's own script makes is made by calling those
+        // functions (`route.value-dag`), on the page the route carries: the function is handed this call's own fields,
+        // so neither the site's page for this value is asked for nor the page booted first to see whether its code makes
+        // the whole call (a timeline site's search: both, every call, 16 s). The page booted for the functions is kept
+        // between calls (`sandbox::run_program_on_page_warm`). Where they make nothing, the page is booted as before.
+        if self.made_by_its_functions(req) && !self.scripts.is_empty() && !self.sandbox_off.get() {
+            let carried = crate::generated::Environment {
+                fingerprint: self.fingerprint.clone(),
+                storage: self.storage.clone(),
+                page_url: Some(walked_page.clone()),
+                html: Some(self.page_html.clone().unwrap_or_default()),
+                answers: self.answers.clone(),
+                scripts: self.scripts.iter().map(|s| (s.url.clone(), s.body.clone())).collect(),
+            };
+            if let Some(made) = self.made_by_the_pages_function(req, &carried) {
+                return Some(made);
+            }
         }
         // A page already booted at this address has already made the calls this run read: take this step's from that
         // run. A step it did *not* make may be one the walk's storage suppressed (its result cache): boot the page once
@@ -3128,6 +3250,16 @@ impl Runner {
             // every step of this call is held to ([`Runner::page_asks`]).
             let answers = if for_another_value { Vec::new() } else { self.answers.clone() };
             let targets = self.signing_targets.clone();
+            // The page as this call boots it, for a function of its own script: its address with the caller's values, its
+            // markup, the data it read, its scripts.
+            let on_this_page = crate::generated::Environment {
+                fingerprint: fingerprint.clone(),
+                storage: storage.clone(),
+                page_url: Some(page.clone()),
+                html: Some(html.clone()),
+                answers: answers.clone(),
+                scripts: bundle.iter().map(|(u, b)| (u.clone(), b.clone())).collect(),
+            };
             let mut page_net = crate::http::ChromeFetch::held_to(crate::egress::Egress::Foreign).ok().map(|t| t.with_client_hints(crate::http::ClientHints::of(&fingerprint)));
             let mut bridge = |r: &Request, until: std::time::Instant| -> Result<Exchange, String> {
                 let Some(transport) = page_net.as_mut() else { return Err("no transport for the page's own calls".to_string()) };
@@ -3186,6 +3318,14 @@ impl Runner {
             }
             if let Some(made) = made_last {
                 self.sandbox_pages.borrow_mut().insert(page.clone(), made);
+            }
+            // The page booted and made no call for this step: its own function for each value it writes, called with
+            // this call's own fields, is the recompute that remains, with no browser. A value it makes goes in that
+            // value's place; the site's answer judges it, and a refusal is the recall's, then the browser's (`replay`).
+            if !self.made_by_its_functions(req) {
+                if let Some(made) = self.made_by_the_pages_function(req, &on_this_page) {
+                    return Some(made);
+                }
             }
         }
         // A plain read the page's own code made no call for is the route's to send: `Fetch::sign_request` already says
@@ -3354,10 +3494,10 @@ fn heals_onto(ex: &Exchange, method: &str, frag: &str, origin: &str) -> bool {
 
 /// The chain a heal's fresh walk gives the route, or why it can't have one: the walk shows no target on the route's
 /// `origin`, it has no place for the route's inputs, or it reaches a host the owner excluded.
-fn rebuilt(old: &Graph, trace: crate::trace::Trace, method: &str, frag: &str, origin: Option<&str>, excluded: &[String]) -> Result<Graph, String> {
-    // The same operation, where the route's call names one: a value its query fixes that reads as a name (letters, no
-    // digits: `operationName=SearchQuery`) is the same in the call the repair takes. Another operation at the address
-    // (a ticker beside the search) is not the route's call, and a chain rebuilt on it answers something else.
+/// Whether `ex` is the same operation as the route's call, where that call names one: a value its query fixes that
+/// reads as a name (letters, no digits: `operationName=SearchQuery`) is the same in `ex`. Another operation at the
+/// address (a ticker beside the search) is not the route's call, and a chain rebuilt on it answers something else.
+fn same_operation(old: &Graph, ex: &Exchange) -> bool {
     let names: Vec<(String, String)> = old
         .steps
         .last()
@@ -3369,7 +3509,31 @@ fn rebuilt(old: &Graph, trace: crate::trace::Trace, method: &str, frag: &str, or
         })
         .filter(|(_, v)| v.chars().count() >= 3 && v.chars().all(|c| c.is_alphabetic() || c == '_' || c == '.'))
         .collect();
-    let same_operation = |ex: &Exchange| names.iter().all(|(k, v)| ex.url.query_pairs().find(|(q, _)| q == k).is_none_or(|(_, sent)| sent == v.as_str()));
+    names.iter().all(|(k, v)| ex.url.query_pairs().find(|(q, _)| q == k).is_none_or(|(_, sent)| sent == v.as_str()))
+}
+
+/// The answer the browser's own call gave on a walk of the route's page, when that call is this one: the route's
+/// target (its method, its address, its origin, the same operation), a read, carrying every value the caller asked
+/// (`replay::values_it_lacks`), and answered (`answer::not_an_answer`, then read as the call's answer is,
+/// `answer::data_with_source`). The latest such call on the walk, with whether its answer was the call's own JSON.
+fn the_browsers_own_answer(graph: &Graph, trace: &crate::trace::Trace, method: &str, frag: &str, origin: Option<&str>, inputs: &HashMap<String, String>) -> Option<(Value, bool)> {
+    let target = graph.steps.last()?;
+    let origin = origin?;
+    if crate::ledger::writes(target) {
+        return None;
+    }
+    trace
+        .exchanges
+        .iter()
+        .rev()
+        .filter(|e| heals_onto(e, method, frag, origin) && same_operation(graph, e))
+        .filter(|e| crate::replay::values_it_lacks(&crate::replay::what_it_says(e.url.as_str(), e.request_body.as_deref().map(str::as_bytes)), inputs).is_empty())
+        .filter(|e| crate::answer::not_an_answer(e, false).is_none())
+        .find_map(|e| crate::answer::data_with_source(e, target.response_shape.as_ref()))
+}
+
+fn rebuilt(old: &Graph, trace: crate::trace::Trace, method: &str, frag: &str, origin: Option<&str>, excluded: &[String]) -> Result<Graph, String> {
+    let same_operation = |ex: &Exchange| same_operation(old, ex);
     let mut g = crate::graph::build(std::slice::from_ref(&trace), |ex| origin.is_some_and(|o| heals_onto(ex, method, frag, o)) && same_operation(ex)).map_err(|e| format!("rebuild failed: {e}"))?;
     if !carry_inputs(old, &mut g) {
         return Err("the fresh sighting has no place for the route's inputs; keeping the old chain".into());
@@ -4347,6 +4511,96 @@ mod tests {
         }
     }
 
+    /// A step whose every page-made value a function of the page's own script makes is made by calling that function,
+    /// with no boot of the page first to see whether its code makes the whole call (`route.value-dag`): that boot,
+    /// twice over, was most of a timeline site's 16 s a call. Here the page's code would make the call itself, with a
+    /// value of its own; the function's value is the one sent, made at rung 2.
+    #[test]
+    fn a_step_the_pages_functions_make_is_made_by_them_without_booting_the_page() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        use crate::slice::module_call_tests::{CHUNK, MAIN, RUNTIME};
+        let mut r = runner("https://app.example/");
+        r.page = Some("https://app.example/search".to_string());
+        r.page_html = Some("<!doctype html><html><head></head><body></body></html>".to_string());
+        let script = |url: &str, body: &str| crate::signing::Script { url: url.into(), body: body.into() };
+        r.scripts = vec![
+            script("https://cdn.app.example/runtime.js", RUNTIME),
+            script("https://cdn.app.example/main.js", MAIN),
+            script("https://cdn.app.example/chunk7.js", CHUNK),
+            script("https://cdn.app.example/boot.js", "fetch('/api/search', { headers: { 'x-sig': 'booted' } });"),
+        ];
+        let step: crate::graph::Step = serde_json::from_value(serde_json::json!({
+            "exchange": 1, "method": "GET", "status": 200, "url": "https://app.example/api/search", "fields": [], "needs_browser": true, "page_signed": true,
+            "page_producers": [{ "loc": { "in": "header", "key": "x-sig" }, "producer": { "script": "https://cdn.app.example/main.js", "at": 0 },
+                "function": { "module": "100", "export": "kc", "args": [{ "from": "call", "field": "origin" }, { "from": "call", "field": "path" }, { "from": "call", "field": "method" }] } }],
+        }))
+        .unwrap();
+        r.steps = HashMap::from([(1, step)]);
+        let asked = Request { method: "GET".into(), url: "https://app.example/api/search".parse().unwrap(), exchange: 1, headers: vec![], body: None };
+        let signed = r.sign_request(&asked, &HashMap::new()).expect("the step's page-made value");
+        assert_eq!(signed.by, crate::rung::Rung::Function, "made by the page's function, not by booting the page for its call");
+        assert!(signed.headers.iter().any(|(k, v)| k == "x-sig" && v == "sig:/api/search:GET"), "{:?}", signed.headers);
+    }
+
+    /// When the site refuses a value made from carried markup, `remade_on_a_fresh_page` fetches the site's current
+    /// page and recomputes the step's page functions against the fresh DOM; without scripts or when a function makes
+    /// nothing, it returns None.
+    #[test]
+    fn remade_on_a_fresh_page_fetches_current_markup_and_recomputes() {
+        if !crate::sandbox::available() {
+            return;
+        }
+        struct FreshMarkup;
+        impl Fetch for FreshMarkup {
+            fn fetch_unredirected(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                self.fetch(req)
+            }
+            fn fetch(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                Ok(Exchange {
+                    method: req.method.clone(),
+                    url: req.url.clone(),
+                    request_headers: vec![],
+                    request_body: None,
+                    status: 200,
+                    response_headers: vec![],
+                    response_body: Some(r#"<!doctype html><html><head><meta name="site-key" content="fresh-k"></head><body></body></html>"#.into()),
+                    response_mime: "text/html".into(),
+                    resource_type: Some("Document".into()),
+                    main_frame: Some(true),
+                })
+            }
+        }
+        use crate::slice::module_call_tests::RUNTIME;
+        let mod_src = r#"(self.webpackChunk_app=self.webpackChunk_app||[]).push([[4],{400(e,t,r){r.d(t,{mk:()=>function(p){var m=document.querySelector('meta[name="site-key"]');return m?m.getAttribute('content')+':'+p:''},empty:()=>function(){return ''}})}}]);"#;
+        let mut r = runner("https://app.example/");
+        r.transport.fetch = Box::new(FreshMarkup);
+        r.page = Some("https://app.example/search?q={q}".into());
+        r.page_html = Some(r#"<!doctype html><html><head><meta name="site-key" content="stale-k"></head><body></body></html>"#.into());
+        let step: crate::graph::Step = serde_json::from_value(serde_json::json!({
+            "exchange": 1, "method": "GET", "status": 200, "url": "https://app.example/api/search", "fields": [], "needs_browser": true, "page_signed": true,
+            "page_producers": [{ "loc": { "in": "header", "key": "x-sig" }, "producer": { "script": "https://cdn.app.example/mod4.js", "at": 0 },
+                "function": { "module": "400", "export": "mk", "args": [{ "from": "call", "field": "path" }] } }],
+        }))
+        .unwrap();
+        r.steps = HashMap::from([(1, step)]);
+        let asked = Request { method: "GET".into(), url: "https://app.example/api/search".parse().unwrap(), exchange: 1, headers: vec![], body: None };
+        assert_eq!(r.remade_on_a_fresh_page(&asked), None, "no scripts returns None");
+
+        r.scripts = vec![
+            crate::signing::Script { url: "https://cdn.app.example/runtime.js".into(), body: RUNTIME.into() },
+            crate::signing::Script { url: "https://cdn.app.example/mod4.js".into(), body: mod_src.into() },
+        ];
+        let remade = r.remade_on_a_fresh_page(&asked).expect("remade on fresh page");
+        assert_eq!(remade, vec![("x-sig".to_string(), "fresh-k:/api/search".to_string())]);
+
+        // A function returning empty produces no headers.
+        r.steps.get_mut(&1).unwrap().page_producers[0].function.as_mut().unwrap().export = "empty".into();
+        assert_eq!(r.remade_on_a_fresh_page(&asked), None);
+    }
+
     /// The walk's page holds the walked search in its document. Opened for another value, the sandbox boots the
     /// site's own document for that address, so the page signs the call the caller asked for and not the walk's.
     #[test]
@@ -5271,7 +5525,7 @@ mod tests {
                 })
             }
         }
-        let step = |exchange: usize, url: &str, foreign: bool| crate::graph::Step {
+        let step = |exchange: usize, url: &str, foreign: bool| crate::graph::Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange,
@@ -5387,11 +5641,13 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_page_signed_post_that_only_asks_opens_no_browser() {
-        let step = |on_load: bool, sets_cookie: bool| crate::graph::Step {
+        let step = |on_load: bool, sets_cookie: bool| crate::graph::Step { lifetime: None,
             page_signed: true,
             page_producers: vec![crate::graph::PageProducer {
                 loc: Loc::Header("x-canva-analytics".into()),
                 producer: crate::signing::Producer { script: "https://shop.example/app.js".into(), at: 12, frame: false },
+                recalled: None,
+                function: None,
             }],
             exchange: 2,
             method: "POST".into(),
@@ -5480,7 +5736,7 @@ mod tests {
 
 
     fn session_step_route(step: impl FnOnce(&mut crate::graph::Step)) -> Graph {
-        let plain = |exchange: usize, method: &str, url: &str| crate::graph::Step {
+        let plain = |exchange: usize, method: &str, url: &str| crate::graph::Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange,
@@ -6014,6 +6270,18 @@ mod tests {
         assert!(text["text"].as_str().unwrap().contains("for agents"));
     }
 
+    /// A held heal lets one failure through to the browser: a value only the page can make now. Every other failure,
+    /// a refusal and a site that is down among them, stays held.
+    #[test]
+    fn a_held_heal_lets_through_only_a_value_the_page_must_make() {
+        let failed = |status: u16| ReplayError::Failed { step: 1, url: "https://app.example/api".into(), status, body: String::new() };
+        assert!(the_held_heal_lets_through(Some(&ReplayError::NeedsBrowser { step: 2, url: "https://app.example/api/search".into(), loc: crate::slots::Loc::Header("x-request-sig".into()) })));
+        for e in [failed(403), failed(404), failed(503), ReplayError::Transport("EOF".into()), ReplayError::MissingInput("q".into())] {
+            assert!(!the_held_heal_lets_through(Some(&e)), "{e:?} stays held");
+        }
+        assert!(!the_held_heal_lets_through(None));
+    }
+
     /// Held (`holding_the_heal`), a failed call fails as it failed: the site is asked the call once, and nothing of
     /// the node's own follows it. Not held, the same refusal of a stale session has the route's page fetched again for
     /// a fresh one before anything else is tried.
@@ -6084,7 +6352,7 @@ mod strangers_tests {
     }
 
     fn step(exchange: usize, path: &str, foreign: bool) -> crate::graph::Step {
-        crate::graph::Step {
+        crate::graph::Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange,
@@ -6930,7 +7198,7 @@ mod session_refresh_tests {
     }
 
     fn step(exchange: usize, path: &str) -> crate::graph::Step {
-        crate::graph::Step {
+        crate::graph::Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange,
@@ -7188,6 +7456,61 @@ mod session_refresh_tests {
         assert!(c.healed().is_none());
     }
 
+    /// A call whose value only the page can make now (`NeedsBrowser`: the site refused the value the route recalled)
+    /// is the browser's to make: the browser walks the route's page with the caller's values, and the page's own call
+    /// there, when it carries those values and the site answered it, is the call's answer. Its value was spent on that
+    /// answer, so the chain is not run again on it. A walk whose call asked another value (the page the route was
+    /// learned on) answers another question, and the call fails as it failed.
+    #[test]
+    fn a_value_only_the_page_makes_is_answered_by_the_browsers_own_call() {
+        struct Refuses;
+        impl Answer for Refuses {
+            fn answer(&mut self, req: &Request) -> Result<Exchange, ReplayError> {
+                Ok(Exchange { method: req.method.clone(), url: req.url.clone(), request_headers: vec![], request_body: None, status: 404, response_headers: vec![], response_body: Some(String::new()), response_mime: "application/json".into(), resource_type: None, main_frame: None })
+            }
+        }
+        let route = |tag: &str| {
+            let mut search = step(0, "/api/search?q=kettle");
+            search.fields.push(crate::graph::Field { loc: Loc::Query("q".into()), class: Class::Input { name: "q".into(), secret: false, default: Some("kettle".into()), optional: false } });
+            search.fields.push(crate::graph::Field { loc: Loc::Header("x-request-id".into()), class: Class::Unconfirmed { value: "rid-from-the-first-learn".into() } });
+            let graph = Graph { steps: vec![search], provisional: false, page_origin: None, page: Some(format!("https://shop.example.com/search{tag}&q={{q}}")), ..Graph::default() };
+            let mut c = RouteClient::new(graph);
+            c.root = Some(format!("https://shop.example.com/search{tag}&q=kettle"));
+            c.target = Some(("GET".into(), "/api/search".into()));
+            c.wire = Some(|| Box::new(Refuses));
+            c.with_browser("/bin/true")
+        };
+        let walk = |q: &str| crate::trace::Trace {
+            exchanges: vec![Exchange {
+                method: "GET".into(),
+                url: format!("https://shop.example.com/api/search?q={q}").parse().unwrap(),
+                request_headers: vec![("x-request-id".into(), "rid-the-page-made-now".into())],
+                request_body: None,
+                status: 200,
+                response_headers: vec![("content-type".into(), "application/json".into())],
+                response_body: Some(format!(r#"{{"items":[{{"name":"{q}"}}]}}"#)),
+                response_mime: "application/json".into(),
+                resource_type: Some("Fetch".into()),
+                main_frame: None,
+            }],
+            inputs: vec![],
+        };
+        let inputs = HashMap::from([("q".to_string(), "lamps".to_string())]);
+        let mut c = route("?walk=page-makes");
+        SIGHTED_IN_TEST.with(|t| *t.borrow_mut() = Some(walk("lamps")));
+        SIGHTED_AT_IN_TEST.with(|a| a.borrow_mut().clear());
+        let answer = c.call(&inputs).expect("the browser's own call answered");
+        assert_eq!(answer["items"][0]["name"], "lamps", "{answer}");
+        assert!(c.used_browser());
+        let walked = SIGHTED_AT_IN_TEST.with(|a| a.borrow().clone());
+        assert!(walked.iter().all(|p| p.contains("q=lamps")), "the browser walked the page with the caller's values: {walked:?}");
+        assert!(c.fell_back().iter().any(|f| f.contains("the browser's own call")), "the call says the browser answered it: {:?}", c.fell_back());
+        let mut other = route("?walk=page-asked-another");
+        SIGHTED_IN_TEST.with(|t| *t.borrow_mut() = Some(walk("kettle")));
+        assert!(other.call(&inputs).is_err(), "a call that asked another value is not this call's answer");
+        SIGHTED_IN_TEST.with(|t| *t.borrow_mut() = None);
+    }
+
     /// One walk per page at a time: a call that fails while another walks the same page does not open a second
     /// browser, and fails as it failed.
     #[test]
@@ -7231,7 +7554,7 @@ mod client_state_tests {
     }
 
     fn step(exchange: usize, path: &str) -> crate::graph::Step {
-        crate::graph::Step {
+        crate::graph::Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange,

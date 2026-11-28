@@ -208,7 +208,8 @@ class OnePlaceJobTest(unittest.TestCase):
 
     def test_the_slice_is_placed_by_qa_and_handed_to_the_gate_bank(self):
         text = WORKFLOW.read_text()
-        self.assertIn("place_jobs.py slice=mac ", text)
+        # The slice first, and `mac-only`: the Mac and nowhere else (Lewis, 28 Nov 2026: "run slices only on my Mac").
+        self.assertIn("place_jobs.py slice=mac-only ", text)
         self.assertIn("      slice: ${{ steps.place.outputs.slice }}\n", text)
         bank = text.split("\n  bank:\n", 1)[1].split("\n  report:\n", 1)[0]
         self.assertIn("runs_on: ${{ needs.place.outputs.slice }}", bank)
@@ -216,7 +217,8 @@ class OnePlaceJobTest(unittest.TestCase):
         gate = WORKFLOW.with_name("gate-bank.yml").read_text().split("\n  place:\n", 1)[1].split("\n  bank:\n", 1)[0]
         self.assertIn("PLACED: ${{ inputs.runs_on }}", gate)
         self.assertIn('echo "bank=$PLACED" >> "$GITHUB_OUTPUT"', gate)
-        self.assertIn("python3 -I .github/scripts/place_jobs.py bank=mac", gate)
+        self.assertIn("python3 -I .github/scripts/place_jobs.py bank=mac\n", gate)
+        self.assertIn("python3 -I .github/scripts/place_jobs.py bank=mac-only\n", gate)
 
     def test_only_the_nightly_run_uses_the_mac(self):
         # A push has 15 minutes; the Mac took 9 min 36 s to download the build on dispatch 44948600956.

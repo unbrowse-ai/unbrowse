@@ -23,7 +23,7 @@ jobs:
       contents: read
     name: Promotion gate, harness
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,7 +31,7 @@ jobs:
       # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it.
       # Skipped on hosted runners.
       - name: Tools the local runner may lack
-        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        if: startsWith(runner.name, 'steam-machine')
         run: dpkg -s python3-yaml > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq python3-yaml > /dev/null; }
       - run: python3 -m unittest discover -s test-banks/gate -p 'test_*.py' -v
       - run: python3 -m unittest discover -s .github/scripts/test -p 'test_promotion_gate.py' -v
@@ -51,7 +51,7 @@ jobs:
       contents: read
       actions: read
     name: Promotion gate, release
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -59,7 +59,7 @@ jobs:
       # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it.
       # Skipped on hosted runners.
       - name: Tools the local runner may lack
-        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        if: startsWith(runner.name, 'steam-machine')
         run: dpkg -s gh > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq gh > /dev/null; }
       # The release branch's head passed every check its pushes ran (UNB-248), waited on while they run. This pull
       # request's own checks are its own runs and are not read here; release.yml reads the tag's commit the same way.

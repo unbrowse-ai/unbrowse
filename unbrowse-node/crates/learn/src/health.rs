@@ -188,7 +188,7 @@ mod tests {
     use crate::provenance::{At, Origin};
 
     fn step(exchange: usize, path: &str) -> Step {
-        Step {
+        Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange,

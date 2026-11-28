@@ -143,8 +143,8 @@ class TheSliceRunsEveryClient(unittest.TestCase):
     def run_step(self, workflow):
         import os, subprocess, tempfile, yaml
         doc = yaml.safe_load((WORKFLOWS / workflow).read_text())
-        step = next(s for job in doc["jobs"].values() for s in job.get("steps") or []
-                    if isinstance(s, dict) and s.get("name") == "The clients")
+        steps = {s.get("name"): s for job in doc["jobs"].values() for s in job.get("steps") or [] if isinstance(s, dict)}
+        cold, warm = steps["The clients, cold"], steps["The clients, warm"]
         with tempfile.TemporaryDirectory() as d:
             runs, temp = os.path.join(d, "runs"), os.path.join(d, "temp")
             for r in (0, 1):
@@ -163,7 +163,10 @@ class TheSliceRunsEveryClient(unittest.TestCase):
             os.chmod(fake, 0o755)
             # gate-bank.yml names its run's folder and nodes on the step (RUNS, NODES: the first run, or the run again).
             env = dict(os.environ, GATE=d, RUNNER_TEMP=temp, CLAUDE_BIN=fake, RUNS=runs, NODES="n")
-            got = subprocess.run(["bash", "-e", "-c", step["run"]], env=env, capture_output=True, text=True, timeout=120)
+            first = subprocess.run(["bash", "-e", "-c", cold["run"]], env=env, capture_output=True, text=True, timeout=120)
+            got = subprocess.run(["bash", "-e", "-c", warm["run"]], env=env, capture_output=True, text=True, timeout=120)
+            got.returncode = first.returncode or got.returncode
+            got.stdout, got.stderr = first.stdout + got.stdout, first.stderr + got.stderr
             ran = open(fake + ".log").read().count("ran") if os.path.exists(fake + ".log") else 0
             outs = sum(1 for r in (0, 1) for w in ("", "warm") for k in range(2)
                        if os.path.exists(os.path.join(runs, f"round-{r}", w, f"{k:03}.out")))
@@ -177,6 +180,37 @@ class TheSliceRunsEveryClient(unittest.TestCase):
                 self.assertEqual(ran, 8, f"every client of both rounds runs, cold and warm: {got.stdout}{got.stderr}")
                 self.assertIn("round 0 done", got.stdout)
                 self.assertIn("round 1 done", got.stdout)
+
+
+class TheWarmRunsAreWrittenAfterTheColdWave(unittest.TestCase):
+    """A warm client is handed the routes its cold ask saved, which exist only once that ask has run. The cold wave, a
+    step with no credential that writes the warm runs from the cold asks' own output (`run_gate.py warm-args`), and
+    the warm wave are three steps in that order, in every workflow that runs the gate's clients."""
+
+    def test_every_clients_run_writes_its_warm_runs_between_the_waves_without_a_credential(self):
+        import yaml
+        seen = 0
+        for workflow in ("gate-bank.yml", "pr-agent-checks.yml"):
+            doc = yaml.safe_load((WORKFLOWS / workflow).read_text())
+            for job in doc["jobs"].values():
+                steps = [s for s in job.get("steps") or [] if isinstance(s, dict)]
+                names = [str(s.get("name") or "") for s in steps]
+                for i, name in enumerate(names):
+                    if not name.startswith("The clients, cold"):
+                        continue
+                    seen += 1
+                    with self.subTest(workflow=workflow, step=name):
+                        suffix = name[len("The clients, cold"):]
+                        write, warm = names.index("Write the warm runs" + suffix), names.index("The clients, warm" + suffix)
+                        self.assertLess(i, write)
+                        self.assertLess(write, warm)
+                        step = steps[write]
+                        self.assertIn("test-banks/gate/run_gate.py warm-args --dir", step["run"])
+                        self.assertNotIn("secrets.", yaml.safe_dump(step), "the step that runs the script holds no credential")
+                        self.assertEqual(step.get("if"), steps[i].get("if"), "it runs whenever the cold wave ran")
+                        self.assertNotIn("kill", steps[i]["run"], "the round's node stays up for its warm wave")
+                        self.assertIn("node.pid", steps[warm]["run"], "the warm wave stops each round's node")
+        self.assertEqual(seen, 3, "the bank's run, the bank's run again and the pull request's slice")
 
 
 class WhatAJobIsHandedIsWhatItUses(unittest.TestCase):

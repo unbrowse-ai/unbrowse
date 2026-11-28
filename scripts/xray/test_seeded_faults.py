@@ -227,6 +227,10 @@ LOG_SEEDS = {
     'kept-unanswered': learn('w1', 'r', after=(UNANSWERED,)),
     'shell-kept': learn('w1', 'r', reasons=(NONE_OF_THE_FIELDS,), after=(UNANSWERED,)),
     'second-walk-elsewhere': learn('w1', 'r', after=('[trial] the word offered led to another page',)),
+    # The route kept recalls a header the walk shows the page writing anew on every call.
+    # The route kept sends a value no node of it sources.
+    'opaque-leaf': learn('w1', 'r', after=('   [route] a value no node sources: step 1 header:x-request-sig: only the page\'s own code makes it',)),
+    'kept-per-call': learn('w1', 'r', after=('   [route] keeps a value its page made anew on every call: step 1 sends x-request-sig as the session\'s',)),
     # A route of another goal was called and its answer set aside, and this learn followed.
     'learned-after-set-aside': learn('w0', 'r0', goal='list the shop opening hours') + [SET_ASIDE] + learn('w1', 'r'),
     # The route of this goal was called, its answer set aside, and the route this learn kept is no longer beside it.

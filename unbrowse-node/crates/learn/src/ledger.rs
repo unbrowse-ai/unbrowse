@@ -374,7 +374,7 @@ mod tests {
     use crate::graph::{Body, Step};
 
     fn step(n: usize, method: &str, url: &str, sets_cookie: bool) -> Step {
-        Step {
+        Step { lifetime: None,
             page_signed: false,
             page_producers: Vec::new(),
             exchange: n,

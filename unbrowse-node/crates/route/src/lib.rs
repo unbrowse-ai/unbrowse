@@ -22,5 +22,5 @@ pub mod wire;
 
 pub use body::{fragment_pairs, Answer, Decode, Asked, AskedAt, AskedBy, Caller, Chars, Done, Form, Hole, Part, Place, Plan, Route, Seen, Shape, Sighting, Slot, Source, Step, Test, Way, VERSION};
 pub use expr::{Algo, At, Clock, Expr, Feed, FileFact, Fits, How, Outcome, Reach, Sent, Stuck, Why, World, Wrap};
-pub use fill::{request, start, Built, Draft};
+pub use fill::{request, start, start_below, Built, Draft};
 pub use format::Pattern;

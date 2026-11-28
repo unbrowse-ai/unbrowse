@@ -615,6 +615,242 @@ function sign(ctx) {{
     )))
 }
 
+/// A program that makes a header's value by calling the page's own function for it, where the write site is the
+/// awaited answer of a module's export (`h["x-sig"] = await a(t.host, t.path, t.method)`). The page's scripts run first
+/// (the page-shaped sandbox boots them), and the program reaches the page's module registry the way a chunk the page
+/// loads does: through the bundle's chunk array, the global array whose `push` the page's runtime replaced, which hands
+/// its `require` to a chunk it is pushed. The module, the export and the arguments are read from the write site: the
+/// module is the one whose body holds it, the export the name that module gives the function it calls, and each
+/// argument a field of the request the write site was handed (its host, path, method, address, body), filled from the
+/// call. Nothing names a site, a module or a bundler. None where the write site calls no export of its own module, or
+/// hands it something that is not the request's own.
+///
+/// The value may be made after a chunk loads (`await` on first use): the program answers a promise, and the runner
+/// waits for it. The site's answer judges the value, as for every program.
+pub fn module_call(scripts: &[(&str, &str)], producer: &Producer, header: &str) -> Option<String> {
+    page_function(scripts, producer, header).map(|f| render(&f))
+}
+
+/// The page function at a value's write site, as data (`module_call` says what it reads): None where the write site
+/// calls no export of its own module, or hands it something that is not the request's own.
+pub fn page_function(scripts: &[(&str, &str)], producer: &Producer, header: &str) -> Option<crate::graph::PageFunction> {
+    let (_, body) = scripts.iter().find(|(u, _)| *u == producer.script)?;
+    let at = producer.at;
+    // `["header"] =`, then the called function and its arguments.
+    let rest = body.get(at + header.len()..)?.get(1..)?.trim_start().strip_prefix(']')?.trim_start().strip_prefix('=')?;
+    if rest.starts_with('=') || rest.starts_with('>') {
+        return None;
+    }
+    let rest = rest.trim_start();
+    let rest = rest.strip_prefix("await").map(str::trim_start).unwrap_or(rest);
+    let end = rest.find(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '$'))?;
+    let func = &rest[..end];
+    if func.is_empty() || func.starts_with(|c: char| c.is_ascii_digit()) {
+        return None;
+    }
+    let args_at = rest[end..].trim_start().strip_prefix('(')?;
+    let args_src = &args_at[..closing_paren(args_at)?];
+    let args: Vec<crate::graph::Arg> = top_level_args(args_src).iter().map(|a| request_field(a.trim())).collect::<Option<_>>()?;
+    let (id, start, close) = enclosing_module(body, at)?;
+    let export = exported_as(&body[start..close], func)?;
+    Some(crate::graph::PageFunction { module: id.trim_matches('"').to_string(), export, args })
+}
+
+/// The program that calls a page function on the booted page with a call's own fields (`sign(ctx)`): the registry is
+/// the global array whose `push` the page's runtime replaced, which hands its `require` to a chunk it is pushed, once.
+/// The program is the engine's, written from the route's data; the route carries none (R2.7).
+/// The value a function of the page's own script makes, run on the page `env` holds (its address, markup, answers,
+/// scripts, browser and storage), handed `ctx` as the call's fields: the one runner of a page's function, for the
+/// graph's caller and the body's alike. None when no page code runs here, or the page's code made nothing.
+pub fn call(f: &crate::graph::PageFunction, ctx: &serde_json::Value, env: &crate::generated::Environment) -> Option<String> {
+    use crate::graph::{Arg, CallField};
+    // Each argument as the text it comes to for this call, so the graph's caller and the body's run one program, on one
+    // page kept booted (`call_given`). The headers, which a page hands as an object, are no text: that call is
+    // rendered with the call's fields instead.
+    let field = |name: &str| ctx.get(name).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let given: Option<Vec<String>> = f
+        .args
+        .iter()
+        .map(|a| match a {
+            Arg::Literal { value } => Some(value.clone()),
+            Arg::Call { field: CallField::Origin } => Some(field("origin")),
+            Arg::Call { field: CallField::Host } => Some(field("host")),
+            Arg::Call { field: CallField::Path } => Some(field("path")),
+            Arg::Call { field: CallField::Method } => Some(field("method")),
+            Arg::Call { field: CallField::Url } => Some(field("url")),
+            Arg::Call { field: CallField::Search } => Some(field("search")),
+            Arg::Call { field: CallField::Body } => Some(field("body")),
+            Arg::Call { field: CallField::Headers } => None,
+        })
+        .collect();
+    match given {
+        Some(args) => call_given(&f.module, &f.export, &args, env),
+        None => run(&render(f), ctx, env),
+    }
+}
+
+/// The value export `export` of the page's module `module` makes, handed `args` as they are (each already made for
+/// this call), run on the page `env` holds: the body's way of calling a page's function (`Expr::Function`). The
+/// program is the same for every call, its arguments ride in the call's fields, so the page booted for it is kept.
+pub fn call_given(module: &str, export: &str, args: &[String], env: &crate::generated::Environment) -> Option<String> {
+    let given: Vec<String> = (0..args.len()).map(|i| format!("ctx.args[{i}]")).collect();
+    run(&render_with(module, export, &given), &serde_json::json!({ "args": args }), env)
+}
+
+/// A page function's program run for one call, on the page `env` holds, kept booted between calls
+/// (`sandbox::run_program_on_page_warm`).
+fn run(program: &str, ctx: &serde_json::Value, env: &crate::generated::Environment) -> Option<String> {
+    let page = env.page_url.as_deref()?;
+    if env.scripts.is_empty() {
+        return None;
+    }
+    let html = env.html.clone().unwrap_or_default();
+    crate::sandbox::run_program_on_page_warm(program, ctx, &env.fingerprint, &env.storage, page, &html, &env.answers, &env.scripts).ok().filter(|v| !v.is_empty() && v != "undefined")
+}
+
+pub fn render(f: &crate::graph::PageFunction) -> String {
+    use crate::graph::{Arg, CallField};
+    let args: Vec<String> = f
+        .args
+        .iter()
+        .map(|a| match a {
+            Arg::Literal { value } => serde_json::to_string(value).unwrap_or_default(),
+            Arg::Call { field } => match field {
+                CallField::Origin => "ctx.origin",
+                CallField::Host => "ctx.host",
+                CallField::Path => "ctx.path",
+                CallField::Method => "ctx.method",
+                CallField::Url => "ctx.url",
+                CallField::Search => "ctx.search",
+                CallField::Body => "ctx.body",
+                CallField::Headers => "ctx.headers",
+            }
+            .to_string(),
+        })
+        .collect();
+    render_with(&f.module, &f.export, &args)
+}
+
+/// The program that calls export `export` of the page's module `module` with `args`, each a JavaScript expression over
+/// the call's fields (`ctx`).
+fn render_with(module: &str, export: &str, args: &[String]) -> String {
+    let module = if !module.is_empty() && module.chars().all(|c| c.is_ascii_digit()) { module.to_string() } else { serde_json::to_string(module).unwrap_or_default() };
+    format!(
+        "var __ub_f=null,__ub_n=0;function __ub_find(){{if(__ub_f)return __ub_f;var ns=Object.getOwnPropertyNames(globalThis);for(var i=0;i<ns.length;i++){{var reg;try{{reg=globalThis[ns[i]]}}catch(e){{continue}}if(!Array.isArray(reg)||typeof reg.push!=='function'||reg.push===Array.prototype.push)continue;var req=null;try{{reg.push([['__ub_call_'+i+'_'+(__ub_n++)],{{}},function(r){{req=r}}])}}catch(e){{continue}}if(typeof req!=='function')continue;var m;try{{m=req({module})}}catch(e){{continue}}var f=m&&m[{export}];if(typeof f==='function')return __ub_f=f}}return null}}function sign(ctx){{var f=__ub_find();if(!f)return '';return Promise.resolve(f({args})).then(function(v){{return v==null?'':String(v)}})}}",
+        module = module,
+        export = serde_json::to_string(export).unwrap_or_default(),
+        args = args.join(","),
+    )
+}
+
+/// The `)` that closes the call whose arguments start `src`, skipping strings and nested brackets.
+fn closing_paren(src: &str) -> Option<usize> {
+    let bytes = src.as_bytes();
+    let mut depth = 0i32;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' | b'}' => {
+                if depth == 0 {
+                    return (bytes[i] == b')').then_some(i);
+                }
+                depth -= 1;
+            }
+            b'\'' | b'"' | b'`' => {
+                let q = bytes[i];
+                i += 1;
+                while i < bytes.len() && bytes[i] != q {
+                    i += if bytes[i] == b'\\' { 2 } else { 1 };
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+/// A call's arguments, split at its own commas.
+fn top_level_args(src: &str) -> Vec<&str> {
+    let (mut out, mut depth, mut from) = (Vec::new(), 0i32, 0usize);
+    let mut quote: Option<char> = None;
+    for (i, c) in src.char_indices() {
+        if let Some(q) = quote {
+            if c == q {
+                quote = None;
+            }
+            continue;
+        }
+        match c {
+            '\'' | '"' | '`' => quote = Some(c),
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth -= 1,
+            ',' if depth == 0 => {
+                out.push(&src[from..i]);
+                from = i + 1;
+            }
+            _ => {}
+        }
+    }
+    if !src[from..].trim().is_empty() {
+        out.push(&src[from..]);
+    }
+    out
+}
+
+/// What one argument of the write site's call is, as the program fills it from the call: a field of the request it
+/// was handed (`t.host`, `t.path`, `t.method`, its address, its body), or a literal. None for anything else.
+fn request_field(arg: &str) -> Option<crate::graph::Arg> {
+    use crate::graph::{Arg, CallField};
+    if let Some(q) = arg.chars().next().filter(|c| *c == '"' || *c == '\'') {
+        return arg.strip_prefix(q).and_then(|v| v.strip_suffix(q)).map(|v| Arg::Literal { value: v.to_string() });
+    }
+    if arg.parse::<f64>().is_ok() {
+        return Some(Arg::Literal { value: arg.to_string() });
+    }
+    let (_, field) = arg.split_once('.')?;
+    let field = match field {
+        "host" | "origin" | "baseUrl" | "baseURL" => CallField::Origin,
+        "hostname" => CallField::Host,
+        "path" | "pathname" => CallField::Path,
+        "method" => CallField::Method,
+        "url" | "uri" | "href" => CallField::Url,
+        "search" | "query" => CallField::Search,
+        "body" | "data" => CallField::Body,
+        "headers" => CallField::Headers,
+        _ => return None,
+    };
+    Some(Arg::Call { field })
+}
+
+/// The module of a bundle whose body holds `at`: its id as the bundle keys it, and its body's span. A module is an
+/// entry of the object a chunk pushes: `<id>(e,t,r){…}`, `<id>:function(e,t,r){…}` or `<id>:(e,t,r)=>{…}`.
+fn enclosing_module(src: &str, at: usize) -> Option<(String, usize, usize)> {
+    let head = regex::Regex::new(r#"(?:^|[{,])\s*(\d+|"[^"]+")\s*(?::\s*function\s*)?(?::\s*)?\(\s*[\w$]+\s*(?:,\s*[\w$]+\s*){0,2}\)\s*(?:=>\s*)?$"#).ok()?;
+    let mut search = at;
+    loop {
+        let (open, close) = enclosing_brace(src, search)?;
+        let lead = &src[open.saturating_sub(80)..open];
+        if let Some(c) = head.captures(lead) {
+            return Some((c.get(1)?.as_str().to_string(), open, close));
+        }
+        if open == 0 {
+            return None;
+        }
+        search = open;
+    }
+}
+
+/// The name a module gives `func` among its exports: `name:()=>func` in its export map, or `"name",0,func` in the
+/// list form.
+fn exported_as(module: &str, func: &str) -> Option<String> {
+    let f = regex::escape(func);
+    let map = regex::Regex::new(&format!(r#"(?:^|[{{,])\s*([\w$]+|"[^"]+")\s*:\s*\(\)\s*=>\s*{f}\b"#)).ok()?;
+    let list = regex::Regex::new(&format!(r#""([^"]+)"\s*,\s*0\s*,\s*{f}\b"#)).ok()?;
+    map.captures(module).or_else(|| list.captures(module)).and_then(|c| c.get(1)).map(|m| m.as_str().trim_matches('"').to_string())
+}
+
 /// A program that unpacks a reply as the page's own code does: the slice's script runs (its IIFE defines the page's
 /// own decoder and exposes a search function), then that function is called with `fetch` stubbed to hand back the
 /// reply and a capture in place of the callback it feeds the decoded answer to. What the callback receives is the
@@ -715,6 +951,128 @@ fn window_names(code: &str) -> Vec<String> {
         rest = after;
     }
     out
+}
+
+#[cfg(test)]
+pub(crate) mod module_call_tests {
+    use super::*;
+
+    /// A bundler's runtime as the page loads it: a module table, its `require`, a lazy chunk loader that appends a
+    /// script, and a chunk array whose `push` the runtime replaced to register what each chunk brings.
+    pub(crate) const RUNTIME: &str = r#"(function(){var modules={},cache={};function req(id){if(cache[id])return cache[id].exports;var m=cache[id]={exports:{}};modules[id](m,m.exports,req);return m.exports}req.d=function(ex,defs){for(var k in defs)Object.defineProperty(ex,k,{enumerable:true,get:defs[k]})};var files={7:"https://cdn.app.example/chunk7.js"},loading={};req.e=function(id){if(loading[id])return loading[id];return loading[id]=new Promise(function(done){var s=document.createElement("script");s.src=files[id];s.onload=function(){done()};document.head.appendChild(s)})};function cb(push,data){var more=data[1];for(var k in more)modules[k]=more[k];if(data[2])data[2](req);return push(data)}var reg=self.webpackChunk_app=self.webpackChunk_app||[];reg.forEach(function(d){cb(function(){},d)});reg.push=cb.bind(null,reg.push.bind(reg))})();"#;
+    /// The page's client: a filter writes the header with the awaited value of an export of its own module, and that
+    /// export loads the maker from a chunk on first use.
+    pub(crate) const MAIN: &str = r#"(self.webpackChunk_app=self.webpackChunk_app||[]).push([[1],{100(e,t,r){r.d(t,{kc:()=>a,Ay:()=>c});let i;async function s(p,m){i=i||r.e(7).then(()=>r(200));let g=await i;return g.make(p,m)}async function a(h,p,m){try{return await s((p||"").split("?")[0],m)}catch(x){return "e:"+x}}function c(){return async(t,n)=>{let i={...t};i.headers["x-sig"]=await a(t.host,t.path,t.method);return n(i)}}}}]);"#;
+    pub(crate) const CHUNK: &str = r#"(self.webpackChunk_app=self.webpackChunk_app||[]).push([[7],{200(e,t,r){r.d(t,{make:()=>function(p,m){return "sig:"+p+":"+m}})}}]);"#;
+
+    /// A value written as the awaited answer of a module's own export (`h["x-sig"] = await a(t.host, t.path,
+    /// t.method)`) is made by calling that export through the page's module registry with the call's own host, path
+    /// and method, once the page's scripts have run: the page's UI never has to reach the call, and the export may load
+    /// what it needs on first use. Nothing names a site, a module or a bundler: the registry is the global array whose
+    /// `push` the page's runtime replaced, and the module, export and arguments are read from the write site.
+    #[test]
+    fn a_value_an_export_of_the_pages_module_makes_is_made_by_calling_that_export() {
+        if !crate::sandbox::available() {
+            eprintln!("no signing runtime on this machine: the module call is skipped");
+            return;
+        }
+        let scripts = [("https://cdn.app.example/runtime.js", RUNTIME), ("https://cdn.app.example/main.js", MAIN), ("https://cdn.app.example/chunk7.js", CHUNK)];
+        let at = MAIN.find("x-sig").unwrap();
+        let producer = Producer { script: "https://cdn.app.example/main.js".into(), at, frame: false };
+        let program = module_call(&scripts, &producer, "x-sig").expect("a call of the module's export");
+        assert!(program.contains("100") && program.contains("kc"), "the module and its export, read from the write site: {program}");
+        use crate::graph::{Arg, CallField};
+        let data = page_function(&scripts, &producer, "x-sig").expect("the function as data");
+        assert_eq!((data.module.as_str(), data.export.as_str()), ("100", "kc"));
+        assert_eq!(data.args, vec![Arg::Call { field: CallField::Origin }, Arg::Call { field: CallField::Path }, Arg::Call { field: CallField::Method }], "its arguments are edges to the call's own fields");
+        assert!(!serde_json::to_string(&data).unwrap().contains("function"), "the route carries data, never code (R2.7)");
+        let ctx = crate::generated::context_of("GET", "https://app.example/api/search?q=kettle", None, &[], &[]);
+        let owned: Vec<(String, String)> = scripts.iter().map(|(u, b)| (u.to_string(), b.to_string())).collect();
+        let made = crate::sandbox::run_program_on_page_many(&program, std::slice::from_ref(&ctx), &serde_json::Value::Null, &Default::default(), "https://app.example/search", "<html><head></head><body></body></html>", &[], &owned).expect("the export answers");
+        assert_eq!(made, vec!["sig:/api/search:GET".to_string()]);
+        // A write site that calls no export of its module is no module call.
+        let plain = r#"(self.webpackChunk_app=self.webpackChunk_app||[]).push([[1],{100(e,t,r){function c(){return async(t,n)=>{t.headers["x-sig"]=String(Date.now());return n(t)}}}}]);"#;
+        let none = Producer { script: "https://cdn.app.example/plain.js".into(), at: plain.find("x-sig").unwrap(), frame: false };
+        assert!(module_call(&[("https://cdn.app.example/plain.js", plain)], &none, "x-sig").is_none());
+    }
+
+    /// Parsing a page function's write site handles string and numeric literals, quoted commas/escapes, every request
+    /// field, and rejects non-assignment operators, unclosed calls, and non-module blocks.
+    #[test]
+    fn page_function_parses_literals_and_all_fields_and_rejects_bad_sites() {
+        use crate::graph::{Arg, CallField};
+        let all_fields = r#"(self.webpackChunk_app=self.webpackChunk_app||[]).push([[1],{101(e,t,r){r.d(t,{mk:()=>a});function a(){return "ok"}function c(t){t.headers["x-sig"]=a("lit, \"q\"",42,t.hostname,t.url,t.search,t.body,t.headers)}}}]);"#;
+        let prod = Producer { script: "https://cdn.app.example/all.js".into(), at: all_fields.find("x-sig").unwrap(), frame: false };
+        let parsed = page_function(&[("https://cdn.app.example/all.js", all_fields)], &prod, "x-sig").expect("parsed");
+        assert_eq!((parsed.module.as_str(), parsed.export.as_str()), ("101", "mk"));
+        assert_eq!(
+            parsed.args,
+            vec![
+                Arg::Literal { value: r#"lit, \"q\""#.into() },
+                Arg::Literal { value: "42".into() },
+                Arg::Call { field: CallField::Host },
+                Arg::Call { field: CallField::Url },
+                Arg::Call { field: CallField::Search },
+                Arg::Call { field: CallField::Body },
+                Arg::Call { field: CallField::Headers },
+            ]
+        );
+        let js = render(&parsed);
+        for needle in ["ctx.host", "ctx.url", "ctx.search", "ctx.body", "ctx.headers", "\"42\""] {
+            assert!(js.contains(needle), "rendered program should include {needle}: {js}");
+        }
+
+        // Comparison `==` is not an assignment write site.
+        let cmp = r#"(self.webpackChunk_app=[]).push([[1],{101(e,t,r){r.d(t,{mk:()=>a});function c(t){return t.headers["x-sig"]==a(t.path)}}}]);"#;
+        let cmp_prod = Producer { script: "https://cdn.app.example/cmp.js".into(), at: cmp.find("x-sig").unwrap(), frame: false };
+        assert!(page_function(&[("https://cdn.app.example/cmp.js", cmp)], &cmp_prod, "x-sig").is_none());
+
+        // Unclosed paren and top-level block with no module header both return None.
+        assert_eq!(closing_paren("a, 'x, \\'y\\'"), None);
+        let bare = r#"{t.headers["x-sig"]=a(t.path)}"#;
+        assert_eq!(enclosing_module(bare, bare.find("x-sig").unwrap()), None);
+    }
+
+    /// Calling a page function passes literals, every call field, and header-object calls through the warm sandbox,
+    /// returning None when the environment carries no scripts.
+    #[test]
+    fn calling_a_page_function_handles_empty_scripts_all_fields_and_headers() {
+        use crate::graph::{Arg, CallField, PageFunction};
+        let empty_env = crate::generated::Environment { page_url: Some("https://app.example/search".into()), ..Default::default() };
+        let f_all = PageFunction {
+            module: "300".into(),
+            export: "join".into(),
+            args: vec![
+                Arg::Literal { value: "tag".into() },
+                Arg::Call { field: CallField::Origin },
+                Arg::Call { field: CallField::Host },
+                Arg::Call { field: CallField::Path },
+                Arg::Call { field: CallField::Method },
+                Arg::Call { field: CallField::Url },
+                Arg::Call { field: CallField::Search },
+                Arg::Call { field: CallField::Body },
+            ],
+        };
+        let ctx = crate::generated::context_of("POST", "https://app.example/api/go?q=1", Some("payload"), &[], &[("x-in".into(), "hv".into())]);
+        assert_eq!(call(&f_all, &ctx, &empty_env), None, "no scripts means no page function call");
+
+        if !crate::sandbox::available() {
+            return;
+        }
+        let mod_src = r#"(self.webpackChunk_app=self.webpackChunk_app||[]).push([[3],{300(e,t,r){r.d(t,{join:()=>function(){return Array.prototype.slice.call(arguments).join("|")},hdr:()=>function(h){return "h:"+(h&&h["x-in"]||"")}})}}]);"#;
+        let env = crate::generated::Environment {
+            page_url: Some("https://app.example/call-fields".into()),
+            html: Some("<html><head></head><body></body></html>".into()),
+            scripts: vec![("https://cdn.app.example/runtime.js".into(), RUNTIME.into()), ("https://cdn.app.example/mod3.js".into(), mod_src.into())],
+            ..Default::default()
+        };
+        let out = call(&f_all, &ctx, &env).expect("call with all text fields");
+        assert_eq!(out, "tag|https://app.example|app.example|/api/go|POST|https://app.example/api/go?q=1|?q=1|payload");
+
+        let f_hdr = PageFunction { module: "300".into(), export: "hdr".into(), args: vec![Arg::Call { field: CallField::Headers }] };
+        let hdr_out = call(&f_hdr, &ctx, &env).expect("call with headers object");
+        assert_eq!(hdr_out, "h:hv");
+    }
 }
 
 #[cfg(test)]

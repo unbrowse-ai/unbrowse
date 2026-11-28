@@ -135,6 +135,11 @@ def findings(l):
         out.append(('kept-unanswered', ''))
         if any(f == 'picked-without-fields' for f, _ in out): out.append(('shell-kept', ''))
     if l['saved'] and any(t == 'trial' and 'another page' in r for t, r in l['after']): out.append(('second-walk-elsewhere', ''))
+    for t, r in l['after']:
+        k = re.match(r'keeps a value its page made anew on every call: step (\d+) sends (\S+) as (.*)$', r) if t == 'route' else None
+        if k and l['saved']: out.append(('kept-per-call', 'step %s sends %s as %s' % (k.group(1), k.group(2), k.group(3))))
+        o = re.match(r'a value no node sources: step (\d+) (\S+): (.*)$', r) if t == 'route' else None
+        if o and l['saved']: out.append(('opaque-leaf', 'step %s %s: %s' % (o.group(1), o.group(2), o.group(3))))
     if l['saved'] and l.get('set_aside'): out.append(('learned-after-set-aside', hush(l['set_aside'].split('not taken:', 1)[-1].strip(), l['words'])))
     return out
 

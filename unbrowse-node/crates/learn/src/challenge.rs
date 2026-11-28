@@ -189,6 +189,114 @@ pub fn shows_a_widget(html: &str, at: &url::Url) -> bool {
         })
 }
 
+/// One control a page offers its reader, as the page's own snapshot names it: the role it plays, the words it shows,
+/// whether a box is ticked, the handle the browser acts on it by, and whether it sits inside a frame another page
+/// draws (a check's own widget) rather than in the page's own form.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Control {
+    pub role: String,
+    pub name: String,
+    pub checked: Option<bool>,
+    pub handle: String,
+    pub in_a_frame: bool,
+}
+
+/// The role a snapshot line gives a control, and the indent it sits at: a line is `- role "name" [attrs, ref=eN]`,
+/// and its children are indented under it.
+struct Line {
+    indent: usize,
+    role: String,
+    name: String,
+    attrs: String,
+}
+
+fn lines_of(snapshot: &str) -> Vec<Line> {
+    snapshot
+        .lines()
+        .filter_map(|l| {
+            let indent = l.len() - l.trim_start().len();
+            let body = l.trim_start().strip_prefix('-')?.trim_start();
+            let role_end = body.find(|c: char| c.is_whitespace() || c == '[' || c == '"').unwrap_or(body.len());
+            let role = body[..role_end].to_string();
+            if role.is_empty() {
+                return None;
+            }
+            let name = match body[role_end..].trim_start().strip_prefix('"') {
+                Some(rest) => rest.split('"').next().unwrap_or_default().to_string(),
+                None => String::new(),
+            };
+            let attrs = match body.rfind('[') {
+                Some(at) if body.ends_with(']') && at < body.len() - 1 => body[at + 1..body.len() - 1].to_string(),
+                _ => String::new(),
+            };
+            Some(Line { indent, role, name, attrs })
+        })
+        .collect()
+}
+
+/// Whether a line is a frame another page is drawn in: the widget of a check is always one, and the page's own
+/// content is not.
+fn is_frame(role: &str) -> bool {
+    role.eq_ignore_ascii_case("iframe") || role.eq_ignore_ascii_case("frame")
+}
+
+/// The handle a line's attributes name (`ref=e12`), if it names one.
+fn handle_of(attrs: &str) -> Option<String> {
+    attrs.split(',').map(str::trim).find_map(|a| a.strip_prefix("ref=")).filter(|r| !r.is_empty()).map(String::from)
+}
+
+/// Whether a line's attributes say its box is ticked: `checked=true`, or `checked=false`.
+fn checked_of(attrs: &str) -> Option<bool> {
+    attrs.split(',').map(str::trim).find_map(|a| a.strip_prefix("checked=")).and_then(|v| match v {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    })
+}
+
+/// The controls a page's snapshot names, in the order it shows them, each knowing whether a frame draws it.
+pub fn controls_in(snapshot: &str) -> Vec<Control> {
+    let mut frames: Vec<usize> = Vec::new();
+    let mut out = Vec::new();
+    for line in lines_of(snapshot) {
+        // A frame's children sit deeper than it: only frames above this line are its ancestors.
+        frames.retain(|indent| *indent < line.indent);
+        let Some(handle) = handle_of(&line.attrs) else {
+            if is_frame(&line.role) {
+                frames.push(line.indent);
+            }
+            continue;
+        };
+        let frame = is_frame(&line.role);
+        out.push(Control {
+            role: line.role,
+            name: line.name,
+            checked: checked_of(&line.attrs),
+            handle,
+            in_a_frame: !frames.is_empty(),
+        });
+        if frame {
+            frames.push(line.indent);
+        }
+    }
+    out
+}
+
+/// The one act a page that asks for a person offers and only a person can make: a box nobody has ticked. A check's
+/// box is inside the widget's frame; a page whose own form carries the only box offers that one. The page's own
+/// reading of what it asks for is what makes a box the check's: this is asked only of a page that asks, and it takes
+/// nothing from a page that doesn't.
+pub fn the_check_offers(snapshot: &str) -> Option<Control> {
+    let boxes: Vec<Control> = controls_in(snapshot)
+        .into_iter()
+        .filter(|c| c.role.eq_ignore_ascii_case("checkbox") && c.checked != Some(true))
+        .collect();
+    boxes.iter().find(|c| c.in_a_frame).cloned().or_else(|| match boxes.len() {
+        1 => boxes.into_iter().next(),
+        _ => None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,5 +429,39 @@ mod tests {
         assert_eq!(page_or_body(head, "", true), head, "with no body sent, the fragment is what there is");
         let whole = "<html><head><title>Search</title></head><body><h1>Results</h1></body></html>";
         assert_eq!(page_or_body(whole, "", false), whole, "sent whole, the page is not replaced by anything");
+    }
+    /// The walk that exposed it: t-online.de's check is a frame the widget draws, and the box inside it is the one act
+    /// the page offers that only a person makes. The snapshot names it, so the node ticks it without a model, a
+    /// picture or a round trip, which is the whole of a short timer.
+    #[test]
+    fn the_box_a_checks_frame_draws_is_the_act_a_page_that_asks_offers() {
+        let snapshot = "- document\n  - heading \"Suche\" [ref=e1]\n  - Iframe \"reCAPTCHA\" [ref=e15, url=https://widget.example/anchor]\n    - checkbox \"I'm not a robot\" [checked=false, ref=e17]\n    - link \"reCAPTCHA\" [ref=e16, url=https://widget.example/]\n  - button \"zur Suche\" [ref=e13]\n";
+        assert_eq!(the_check_offers(snapshot), Some(Control { role: "checkbox".into(), name: "I'm not a robot".into(), checked: Some(false), handle: "e17".into(), in_a_frame: true }));
+    }
+
+    /// The page's own box is no check: a page that asks offers a box inside the widget's frame, and a page whose only
+    /// box is its own form's offers that one only when it is the only box there is. A page with several own boxes,
+    /// none of them the check's, offers nothing for the node to take.
+    #[test]
+    fn a_pages_own_boxes_are_not_the_check_unless_one_is_all_it_has() {
+        let own = "- document\n  - checkbox \"Newsletter\" [checked=false, ref=e4]\n  - checkbox \"Terms\" [checked=false, ref=e5]\n";
+        assert_eq!(the_check_offers(own), None, "a page's own boxes are nobody's check");
+        let one = "- document\n  - checkbox \"I am a person\" [checked=false, ref=e5]\n  - button \"Continue\" [ref=e6]\n";
+        assert_eq!(the_check_offers(one).map(|c| c.handle), Some("e5".into()));
+        let ticked = "- document\n  - Iframe \"check\" [ref=e1]\n    - checkbox \"I'm not a robot\" [checked=true, ref=e2]\n";
+        assert_eq!(the_check_offers(ticked), None, "a box already ticked is no act left to make");
+        assert_eq!(the_check_offers("- document\n  - heading \"Nothing here\" [ref=e1]\n"), None);
+        assert_eq!(the_check_offers(""), None);
+    }
+
+    /// A frame's children are its own, and a control after it is the page's again: the box a later frame draws is the
+    /// second frame's.
+    #[test]
+    fn a_frame_is_its_childrens_and_the_page_after_it() {
+        let snapshot = "- document\n  - Iframe \"first\" [ref=e1]\n    - checkbox \"a\" [checked=false, ref=e2]\n  - checkbox \"b\" [checked=false, ref=e3]\n  - Iframe \"second\" [ref=e4]\n    - checkbox \"c\" [checked=false, ref=e5]\n";
+        let all = controls_in(snapshot);
+        let got: Vec<(&str, bool)> = all.iter().map(|c| (c.name.as_str(), c.in_a_frame)).collect();
+        assert_eq!(got, vec![("first", false), ("a", true), ("b", false), ("second", false), ("c", true)]);
+        assert_eq!(the_check_offers(snapshot).map(|c| c.handle), Some("e2".into()), "the frame's box is the first taken");
     }
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Where each agent job of this run goes: one of Lewis's own runners when one is free, else Blacksmith (UNB-166).
+"""Where each agent job of this run goes: one of Lewis's own runners when one is free, else a hosted machine (UNB-166):
+Sengi for Linux, GitHub's macos-15 for macOS.
 
     place_jobs.py qa=mac check=mac slice=mac skills=linux
 
@@ -8,7 +9,7 @@ Each argument is `<job>=<pool>`, in the order the free slots are handed out. For
 
 A pool is a label set of self-hosted runners: `mac` is the repository variable MAC_RUNNER (unset: no Mac pool),
 `linux` is LINUX_POOL (default `["self-hosted", "linux", "x64"]`). A job goes to its pool only while the pool has a
-free runner nobody is waiting for; otherwise it goes to the pool's fallback, a Blacksmith machine that starts at once.
+free runner nobody is waiting for; otherwise it goes to the pool's fallback, a hosted machine that starts at once.
 One Mac runs one job at a time, so a run never queues three agent jobs behind each other on it, and a Mac that is
 asleep or busy never holds a pull request up.
 
@@ -22,8 +23,16 @@ What "free" is read from:
     is asleep or offline, and one waiting STALE_MINUTES (10) says it is not keeping up: nothing new goes there until
     that job starts. The one job sent to a pool that has just gone to sleep waits for it; the runs after it do not.
 
-A fork's pull request is never placed on a pool (FORK=true). Anything this cannot read sends the job to Blacksmith:
+A fork's pull request is never placed on a pool (FORK=true). Anything this cannot read sends the job to its hosted fallback:
 a wrong guess here costs money, never a hung check.
+
+One exception, `mac-only`: the gate bank's slice (Lewis, 28 Nov 2026: "run slices only on my Mac"). It goes to
+OWN_MAC (the workflows pass vars.MAC_RUNNER, `["self-hosted", "macOS", "ARM64", "lewis-mbp"]`) every time, free or
+not, and waits for it: GitHub queues a job for a self-hosted runner until one takes it. From a hosted Mac (a data
+centre's address) Ticketmaster and Carousell refuse the slice's tasks and its gate says PROMOTION_REFUSED (PR #945, run
+46116646462); on lewis-mbp it passes (run 46117099629). It takes the Mac's free slot first, so no other agent job of
+the run queues beside it there. With no OWN_MAC, one that is not self-hosted, or a fork's pull request, it is refused
+(the place step fails, saying why): it never goes to a hosted machine.
 """
 
 import concurrent.futures
@@ -33,7 +42,9 @@ import sys
 import urllib.request
 from datetime import datetime, timezone
 
-FALLBACK = {"mac": "blacksmith-6vcpu-macos-latest", "linux": "blacksmith-2vcpu-ubuntu-2404"}
+FALLBACK = {"mac": "macos-15", "linux": "sengi-premium-2-ubuntu-2404"}
+# A job that runs on Lewis's Mac and nowhere else, never a hosted fallback: the gate bank's slice (Lewis, 28 Nov 2026).
+MAC_ONLY = "mac-only"
 DEFAULT_SLOTS = {"mac": 1, "linux": 4}
 MAX_RUNS_READ = 40
 # Workflows that only ever run on hosted runners: skipping their `/jobs` queries cuts API calls per placement.
@@ -149,6 +160,21 @@ def place(requests, pools, states, fork):
     free = {kind: state[0] for kind, state in states.items()}
     placed, why = {}, {}
     for job, kind in requests:
+        if kind == MAC_ONLY:
+            own = pools.get(MAC_ONLY)
+            if fork:
+                raise ValueError(f"{job} runs only on Lewis's Mac, and a fork's pull request never runs there")
+            if not own or "self-hosted" not in {label.lower() for label in own}:
+                raise ValueError(f"{job} runs only on Lewis's Mac (OWN_MAC, the self-hosted labels of vars.MAC_RUNNER), "
+                                 f"and none is set here: {own!r}")
+            mac = pools.get("mac")
+            state = states.get("mac", (0, "not read"))[1]
+            if mac and {label.lower() for label in mac} == {label.lower() for label in own} and free.get("mac", 0) > 0:
+                free["mac"] -= 1
+                placed[job], why[job] = own, f"only Lewis's Mac, never a hosted one (Lewis, 28 Nov 2026); free: {state}"
+            else:
+                placed[job], why[job] = own, f"only Lewis's Mac, never a hosted one (Lewis, 28 Nov 2026); it waits for it: {state}"
+            continue
         if kind not in FALLBACK:
             raise ValueError(f"{job}: unknown pool {kind!r}")
         pool = pools.get(kind)
@@ -181,10 +207,16 @@ def main(argv, env):
     for arg in argv:
         job, _, kind = arg.partition("=")
         if not job or not kind:
-            raise SystemExit(f"usage: place_jobs.py <job>=<mac|linux> ...  (got {arg!r})")
+            raise SystemExit(f"usage: place_jobs.py <job>=<mac|mac-only|linux> ...  (got {arg!r})")
         requests.append((job, kind))
     fork = env.get("FORK", "false") == "true"
     pools, states = {}, {}
+    # Read apart from the pools below: nothing that fails to read there may move a mac-only job off the Mac.
+    try:
+        own_mac = _labels(env.get("OWN_MAC", ""))
+    except ValueError as error:
+        own_mac = None
+        print(f"::warning::OWN_MAC is not a runs-on label list ({error})")
     try:
         pools = {"mac": _labels(env.get("MAC_POOL", "")),
                  "linux": _labels(env.get("LINUX_POOL", '["self-hosted", "linux", "x64"]'))}
@@ -192,7 +224,8 @@ def main(argv, env):
         get = _http(env["GH_TOKEN"])
         runner_get = _http(env["RUNNER_READ_TOKEN"]) if env.get("RUNNER_READ_TOKEN") else None
         now = datetime.now(timezone.utc)
-        needed = [k for k in sorted({k for _, k in requests}) if pools.get(k) is not None and not fork]
+        kinds = sorted({"mac" if k == MAC_ONLY else k for _, k in requests})
+        needed = [k for k in kinds if pools.get(k) is not None and not fork]
         active_jobs, runners_list = None, None
         if needed:
             if runner_get is not None:
@@ -202,7 +235,7 @@ def main(argv, env):
                     active_jobs, runners_list = jobs_fut.result(), runners_fut.result()
             else:
                 active_jobs = _collect_active_jobs(get, repo, this_run)
-        for kind in sorted({k for _, k in requests}):
+        for kind in kinds:
             if pools.get(kind) is None or fork:
                 states[kind] = (0, "not read")
                 continue
@@ -210,10 +243,14 @@ def main(argv, env):
             states[kind] = pool_state(pools[kind], get, repo, this_run, now, runner_get, slots,
                                       float(env.get("STALE_MINUTES", "10")),
                                       active_jobs=active_jobs, runners=runners_list)
-    except Exception as error:  # noqa: BLE001: anything unread sends the job to Blacksmith, said in the summary
-        print(f"::warning::Could not read the local runners ({type(error).__name__}: {error}); every job goes to Blacksmith")
+    except Exception as error:  # noqa: BLE001: anything unread sends the job to its hosted fallback, said in the summary
+        print(f"::warning::Could not read the local runners ({type(error).__name__}: {error}); every job goes to its hosted fallback")
         pools, states = {}, {}
-    placed, why = place(requests, pools, states, fork)
+    try:
+        placed, why = place(requests, dict(pools, **{MAC_ONLY: own_mac}), states, fork)
+    except ValueError as error:
+        print(f"::error::{error}")
+        raise SystemExit(1) from error
     out = env.get("GITHUB_OUTPUT")
     lines = [f"{job}={json.dumps(placed[job])}" for job, _ in requests]
     if out:

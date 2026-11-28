@@ -51,7 +51,22 @@ export function migrate(exec) {
 /** The questions that take values from the caller's query string, each value's name and the one shape it may have,
     in the order the question's `?`s bind them. A value is only ever bound, never written into the SQL; a missing one,
     or one off its shape, is refused before the store is asked. */
-export const PARAMS = { install: [["id", /^[0-9a-f]{32}$/]] };
+export const PARAMS = { install: [["id", /^[0-9a-f]{32}$/]], period: [["days", /^(7|30|90)$/]] };
+
+/** Every question in queries.sql starts `WITH clock`, which `namedQueries` writes out as the file's one clock helper
+    (`-- helper: clock`): the clock it is asked at, bound as its first value, every window's start read from it, and
+    `seen`, the events before it. So questions over one span share one start, and none counts an event after the clock
+    (PR #1002 review, round 5). A question written out so starts with this. */
+export const CLOCK = "WITH clock AS (";
+
+/** The values to bind for `sql` asked at `now` (milliseconds): the worker's clock, in Unix seconds, first when the
+    question reads the time, then `values`. So every question answers by the worker's clock, never SQLite's own, and
+    the same question asked at the same clock gives the same answer (PR #1002 review: tests pin it). The second is
+    rounded up: an event kept before the request, in the hour that starts at h, has h before it, and one in a later
+    hour starts at or after it, so `received_hour < now` keeps exactly the hours that began before the request. */
+export function clocked(sql, now, values) {
+  return sql.startsWith(CLOCK) ? [Math.ceil(now / 1000), ...values] : values;
+}
 
 /** The values to bind for question `name` from `search` (a URLSearchParams), or { error } when one is missing or off
     its shape. A question that takes none binds none, whatever the query string says. */
@@ -68,8 +83,21 @@ export function bindings(name, search) {
 
 /** The named questions in queries.sql: each `-- name: <name>` line starts one, up to its closing `;`. */
 export function namedQueries(text) {
+  const [head, ...questions] = text.split(/^-- name: /m);
+  const helpers = blocks(head.split(/^-- helper: /m).slice(1));
   const out = {};
-  for (const block of text.split(/^-- name: /m).slice(1)) {
+  for (const [name, body] of Object.entries(blocks(questions))) {
+    // `WITH <helper>` at the start of a question is that helper written out in its place.
+    const use = body.match(/^WITH ([a-z_]+)(?=,|\s)(?!\s+AS\b)/);
+    out[name] = use && Object.hasOwn(helpers, use[1]) ? `WITH ${helpers[use[1]]}${body.slice(use[0].length)}` : body;
+  }
+  return out;
+}
+
+/** Each block's first line is its name, and the rest up to its closing `;`, comment lines left out, its body. */
+function blocks(list) {
+  const out = {};
+  for (const block of list) {
     const [name, ...rest] = block.split("\n");
     const body = rest.filter((l) => !l.startsWith("--")).join("\n").trim().replace(/;$/, "");
     if (/^[a-z_]+$/.test(name.trim()) && body) out[name.trim()] = body;

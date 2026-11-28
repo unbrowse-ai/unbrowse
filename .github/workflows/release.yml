@@ -1,6 +1,6 @@
 # Every job here runs on a fresh machine, never on the local runner pool (UNB-166): the pool runs pull-request code
-# and shares a cargo cache across jobs, so nothing built or signed for users runs there. Blacksmith gives each job a
-# fresh VM (UNB-224). The publishing jobs run on GitHub's own machines, because npm's trusted publishing works from
+# and shares a cargo cache across jobs, so nothing built or signed for users runs there. Sengi (Linux x64)
+# and GitHub (macOS, Windows, arm64) give each job a fresh VM that ends with it. The publishing jobs run on GitHub's own machines, because npm's trusted publishing works from
 # cloud-hosted runners only. There is no Intel Mac build (UNB-224, 22 Nov 2026): Apple silicon only.
 #
 # The programs for every machine (the Mac app on Apple silicon, Linux on x64 and arm64, Windows on x64), the installers
@@ -65,7 +65,7 @@ jobs:
       github.repository == 'unbrowse-ai/unbrowse' && toJSON(github.event.repository.private) == 'false' &&
       github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     permissions:
       actions: write
     steps:
@@ -92,7 +92,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       (github.repository != 'unbrowse-ai/unbrowse' || toJSON(github.event.repository.private) != 'false')
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     outputs:
       version: ${{ steps.free.outputs.version }}
       sha: ${{ steps.next.outputs.sha }}
@@ -199,11 +199,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-15 }
+          - { platform: darwin-arm64, runner: macos-15 }
           # Ubuntu 22.04's glibc (2.35) is the oldest a Linux machine needs; the wheels are tagged for it.
-          - { platform: linux-x64, runner: blacksmith-4vcpu-ubuntu-2204 }
-          - { platform: linux-arm64, runner: blacksmith-4vcpu-ubuntu-2204-arm }
-          - { platform: win32-x64, runner: blacksmith-4vcpu-windows-2025 }
+          - { platform: linux-x64, runner: sengi-premium-4-ubuntu-2404 }
+          - { platform: linux-arm64, runner: ubuntu-22.04-arm }
+          - { platform: win32-x64, runner: windows-2025 }
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -321,7 +321,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-15 }
+          - { platform: darwin-arm64, runner: macos-15 }
     runs-on: ${{ matrix.runner }}
     environment: release
     steps:
@@ -422,7 +422,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { platform: darwin-arm64, runner: blacksmith-6vcpu-macos-15 }
+          - { platform: darwin-arm64, runner: macos-15 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     env:
@@ -451,7 +451,7 @@ jobs:
       programs: ${{ steps.programs.outputs.programs }}
     needs: [version, programs, mac-sign, mac-install]
     if: needs.version.outputs.version != ''
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -503,7 +503,7 @@ jobs:
       installers: ${{ steps.files.outputs.installers }}
     needs: [version, platforms]
     if: needs.version.outputs.version != '' && (needs.version.outputs.channel == 'production' || inputs.dry_run == true)
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -556,7 +556,7 @@ jobs:
 
   # The release key signs the manifest here and nowhere else. The job installs nothing and runs nothing a package
   # registry gave it: the checkout of the signing script and the node's trusted key, the manifest, and the runner's own
-  # Node with its built-in crypto. Its runner is a fresh Blacksmith VM for this job, so no earlier step of another job can
+  # Node with its built-in crypto. Its runner is a fresh Sengi VM for this job, so no earlier step of another job can
   # be waiting on it to read the key. The key is a secret of the `release` environment, and the job refuses any ref but
   # the three that release.
   sign-manifest:
@@ -565,7 +565,7 @@ jobs:
     name: Sign the manifest
     needs: [version, platforms]
     if: needs.version.outputs.version != ''
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -606,7 +606,7 @@ jobs:
       files: ${{ steps.hashes.outputs.files }}
     needs: [version, platforms, sign-manifest]
     if: needs.version.outputs.version != ''
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
@@ -662,7 +662,7 @@ jobs:
     name: Sign package hashes
     needs: [version, sdks]
     if: needs.version.outputs.version != ''
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -696,7 +696,7 @@ jobs:
     needs: [version, sdks, sign-artifacts, platforms]
     # A staging build goes to npm's `staging` tag alone: no node updates to it.
     if: needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     environment: release
     outputs:
       targets_changed: ${{ steps.sign.outputs.targets_changed }}
@@ -770,7 +770,7 @@ jobs:
     name: Co-sign changed targets
     needs: [version, sign-updates, sdks, sign-artifacts]
     if: needs.sign-updates.outputs.cosign_required == 'true'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     environment: targets-cosign
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -814,7 +814,7 @@ jobs:
     outputs:
       updates: ${{ steps.updates.outputs.updates }}
     if: always() && needs.version.outputs.version != '' && needs.version.outputs.channel != 'staging' && needs.sdks.result == 'success' && needs.sign-updates.result == 'success' && needs.sign-updates.outputs.published == 'true' && (needs.cosign-updates.result == 'success' || needs.cosign-updates.result == 'skipped')
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -857,7 +857,7 @@ jobs:
     name: Release
     needs: [version, programs, platforms, installers, installer-device-test, sdks, pack-updates, sign-artifacts, npm]
     if: ${{ !cancelled() && !failure() && needs.npm.result == 'success' && needs.version.outputs.channel == 'production' && inputs.dry_run != true }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     permissions:
       contents: write
     env:

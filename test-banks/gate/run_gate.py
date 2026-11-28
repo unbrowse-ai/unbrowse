@@ -106,25 +106,65 @@ PAIRED_COLD_RULES = (
     'site, the full Task text as goal, and do: ["open", "<Start page>"]. Collect the requested data in that session '
     'using the site’s search page and controls. Keep the session through any visible interaction and use it for any '
     'normal verification the site asks you to complete. If access is blocked in this session, report what the site showed.\n'
+    '- If open times out or returns no receipt, read the tab before another navigation: use do: ["snapshot"] on the same '
+    'browser site, then do: ["get", "url"]. The address read after the snapshot decides, never an empty snapshot alone: '
+    'a navigation only moves forward, so a blank address then means the snapshot was blank too. Open the Start page only '
+    'when that address is about:blank or empty: use do: ["open", "<Start page>"] once in that tab and go on. Any other '
+    'address means the navigation started, so never open the Start page again: if the snapshot is empty, the page is '
+    'still rendering: use do: ["wait", "2000"] and snapshot again, up to three times. Go on in that tab when the snapshot '
+    'shows the requested page or a page on the way to it, such as a consent notice or an interstitial with a visible '
+    'Continue control: use that control in the same tab. Report what the tab showed, with its address, only when it '
+    'shows an error page or a block with no visible way on.\n'
     + READ_LINKS +
     '- After you have read the requested data, close that session with unbrowse_browse, do: ["close"], the same browser '
     'site and the full Task text as goal. This saves the route the warm ask will use. Confirm the close reply recorded '
     'the route before reporting the answer.'
 )
+# Where a warm run's saved routes go until `warm-args` (CI) or `run_one` (one process) reads them from its cold ask.
+SAVED_SLOT = "<the routes the gate reads from the cold ask>"
 WARM_RULES = (
     '- This warm task measures replay of a route learned by the preceding task on this node. '
+    + SAVED_SLOT + ' '
     'Start with unbrowse_do using the Start page as url, the full Task text as goal, and browser: "never". '
     'If the node is still working, collect the same ask by its ID.\n'
     '- If replay meets a person check (the reply says a challenge, or next: unbrowse_challenge), pass it through the '
     'node before giving up: unbrowse_challenge (look, then click, drag, hold or type as its picture shows) until it no '
     'longer asks, then replay the same ask. That is the only browser step a warm ask may take; report a gate only when '
     'the node could not pass it.\n'
-    '- If goal lookup misses, use unbrowse_search with an empty query to list local routes. Inspect a saved route '
-    'for the same site and operation, then use unbrowse_call with browser: "never" and the current task\'s values.\n'
+    '- A complete answer is what the Task asks for from the site\'s own result list for this Task\'s query: the records '
+    'the Task names, all of them when the site has fewer, and none when the site verifiably has none for the query. '
+    'ignored_inputs lists input names, never values. A reply whose ignored_inputs (for a goal call, in its result) lists the '
+    'name of an input did not use the value it was sent under that name, so it did not answer the query, whatever it '
+    'returned; its inputs lists the names the route does take. Then call the same route once more with that value under '
+    'the name from inputs that stands for it, and if there is none, go on to the next saved route.\n'
+    '- If the goal call\'s reply is not a complete answer, call each saved route it did not already answer with, by its ID, '
+    'using unbrowse_call with browser: "never" and the current task\'s values, one at a time, and judge each reply by what it '
+    'returned: stop at the first complete answer. A route the goal call already answered with is called again only to '
+    'request fields its reply left out. A route that answered short or failed does not end the fallback while a saved route '
+    'is left. Never call a route that is not in that list: the warm ask is scored on the routes its cold ask saved. If no '
+    'saved route gives a complete answer, answer from the fullest reply and say what was missing.\n'
     '- Use the order and fields of the site records returned by replay. Use the saved route for any additional '
-    'fields you need. Keep the requested search values in any follow-up calls. Do not open a browser to confirm the '
+    'fields you need. When the replay contains several lists, verify the query on the result list itself, with an explicit '
+    'request label when available. For tasks asking for the site’s first results, keep the site\'s order even when individual titles omit the search words. '
+    'Keep the requested search values in any follow-up calls. Do not open a browser to confirm the '
     'results, learn the route again, or use a remote route. If replay does not supply the requested data, report the failure and its evidence.'
 )
+
+
+def saved_routes(cold):
+    """The route IDs a warm twin may replay: what its cold ask saved, read by the reader twin_outcome scores with."""
+    return sorted(route_evidence((cold or {}).get("trace") or [], cold=True))
+
+
+def saved_line(ids):
+    """The warm prompt's sentence naming the routes its cold ask saved (the gate's reading, never the client's)."""
+    if not ids:
+        return ("The gate read no route saved by the preceding cold ask, so there is no saved route to fall back to: "
+                "if the goal call does not answer, report that.")
+    return ("The routes the preceding cold ask saved for this read, read by the gate from that ask's own replies: "
+            + ", ".join(f"`{i}`" for i in ids) + ". These are the only routes this warm ask may replay.")
+
+
 SYSTEM = ("You are a careful web research agent in a benchmark. Follow the user's rules exactly and end "
           "with the requested JSON block. If three attempts to access the same site fail with DNS, "
           "connection, or request-timeout errors, stop retrying that site. Changing its path, country, "
@@ -600,7 +640,9 @@ def twin_outcome(res, cold):
     return was if was in ("set_aside", "infra") else "honest_fail"
 
 
-def client_argv(args, task, mcp, *, paired_cold=False):
+def client_argv(args, task, mcp, *, paired_cold=False, saved=None):
+    """One client run's arguments. A warm run names the routes its cold ask saved (`saved`); with None they are left
+    for `warm-args` to fill once that ask has run."""
     phase = task.get("phase")
     # Some practice forms store usernames in a 20-character column. Keep all 64 random bits.
     signup_name = "ubqa" + secrets.token_hex(8) if phase == "authed" else ""
@@ -608,7 +650,8 @@ def client_argv(args, task, mcp, *, paired_cold=False):
     prompt = (PROMPT_AUTHED if phase == "authed" else PROMPT).format(
         task=taskmod.fill_dates(task["task"]), url=taskmod.fill_dates(task["url"]),
         today=taskmod.today_sgt().isoformat(), max_steps=args.max_steps,
-        phase_rules=WARM_RULES if phase == "warm" else cold_rules,
+        phase_rules=(WARM_RULES if saved is None else WARM_RULES.replace(SAVED_SLOT, saved_line(saved)))
+        if phase == "warm" else cold_rules,
         signup_name=signup_name,
     )
     return claude_cmd(args, prompt, SYSTEM, args.model, mcp=mcp)[1:]
@@ -707,7 +750,8 @@ def run_one(task, args, watch=None):
     t0 = time.time()
     if watch:
         watch.start(task["id"])
-    lines, err, timed_out = run_model([args.claude] + client_argv(args, task, args.mcp), args.timeout)
+    saved = saved_routes(load_results(args.out).get(task["after"])) if task.get("after") else None
+    lines, err, timed_out = run_model([args.claude] + client_argv(args, task, args.mcp, saved=saved), args.timeout)
     res = client_result(task, args, lines, err, timed_out, time.time() - t0)
     if watch:
         res["node_peak_rss_mb"], killed = watch.end(task["id"])
@@ -762,6 +806,7 @@ def _todo(args):
 
 
 def cmd_prepare(args):
+    os.makedirs(args.dir, exist_ok=True)  # the folder the next steps read, even when nothing is left to run
     todo = _todo(args)
     cold = [t for t in todo if not t.get("after")]
     paired = {t["after"] for t in todo if t.get("after")} if args.slice else set()
@@ -781,10 +826,41 @@ def cmd_prepare(args):
         if twins:
             os.makedirs(os.path.join(folder, "warm"), exist_ok=True)
         for k, t in enumerate(twins):
-            _write_args(os.path.join(folder, "warm", f"{k:03}.args"), client_argv(args, t, args.mcp[r]))
+            # Pending: `warm-args` names the routes its cold ask saved, once that ask has run, and writes the .args.
+            _write_args(os.path.join(folder, "warm", f"{k:03}.args.pending"), client_argv(args, t, args.mcp[r]))
             with open(os.path.join(folder, "warm", f"{k:03}.task.json"), "w") as f:
                 json.dump(t, f)
     print(len(rounds))
+    return 0
+
+
+def cmd_warm_args(args):
+    """Write each warm run's arguments from its pending ones, naming the routes its cold ask saved: read from that ask's
+    own output, in the same round, with the reader twin_outcome scores by. Runs with no credential, between the waves."""
+    n = 0
+    rounds = os.listdir(args.dir) if os.path.isdir(args.dir) else []  # nothing prepared: no warm run to write
+    for d in sorted(x for x in rounds if x.startswith("round-")):
+        folder, warm = os.path.join(args.dir, d), os.path.join(args.dir, d, "warm")
+        if not os.path.isdir(warm):
+            continue
+        cold = {}
+        for name in os.listdir(folder):
+            if name.endswith(".task.json"):
+                with open(os.path.join(folder, name)) as f:
+                    cold[json.load(f)["id"]] = os.path.join(folder, name[:-len(".task.json")])
+        for name in sorted(f for f in os.listdir(warm) if f.endswith(".args.pending")):
+            stem = os.path.join(warm, name[:-len(".args.pending")])
+            with open(stem + ".task.json") as f:
+                task = json.load(f)
+            twin = cold.get(task.get("after"))
+            ids = saved_routes({"trace": parse_stream(_read_lines(twin + ".out"))[0]}) if twin else []
+            with open(stem + ".args.pending", "rb") as f:
+                argv = [a.decode() for a in f.read().split(b"\0")]
+            _write_args(stem + ".args", [a.replace(SAVED_SLOT, saved_line(ids)) for a in argv])
+            with open(stem + ".saved.json", "w") as f:
+                json.dump(ids, f)
+            n += 1
+    print(n)
     return 0
 
 
@@ -1150,6 +1226,8 @@ def main(argv=None):
     pr.add_argument("--out", help="results so far: their tasks are not prepared again (but infra)")
     pr.add_argument("--ids")
     pr.add_argument("--slice")
+    wa = sub.add_parser("warm-args", help="after the cold wave: write each warm run's arguments with its cold ask's routes")
+    wa.add_argument("--dir", required=True)
     jd = sub.add_parser("judges", help="read the clients' runs, write each judge run's arguments")
     jd.add_argument("--dir", required=True)
     co = sub.add_parser("collect", help="read the judges' runs, append every task's result")
@@ -1185,7 +1263,7 @@ def main(argv=None):
         p.add_argument("--max-turns", type=int, default=40)
         p.add_argument("--build", default="")
     a = ap.parse_args(argv)
-    return {"run": cmd_run, "score": cmd_score, "left": cmd_left, "prepare": cmd_prepare, "judges": cmd_judges,
+    return {"run": cmd_run, "score": cmd_score, "left": cmd_left, "prepare": cmd_prepare, "warm-args": cmd_warm_args, "judges": cmd_judges,
             "collect": cmd_collect, "tasks": cmd_tasks, "again": cmd_again, "browser-verdict": cmd_browser_verdict}[a.cmd](a)
 
 

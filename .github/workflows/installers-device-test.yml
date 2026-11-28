@@ -34,9 +34,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos, runner: blacksmith-6vcpu-macos-15 }
-          - { os: windows, runner: blacksmith-4vcpu-windows-2025 }
-          - { os: linux, runner: blacksmith-2vcpu-ubuntu-2404 }
+          - { os: macos, runner: macos-15 }
+          - { os: windows, runner: windows-2025 }
+          - { os: linux, runner: sengi-basic-2-ubuntu-2404 }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     defaults:

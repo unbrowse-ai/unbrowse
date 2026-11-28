@@ -68,10 +68,15 @@ const after = await stat("gate");
 const n0 = before.body.rows?.[0]?.events ?? -1;
 const n1 = after.body.rows?.[0]?.events ?? -1;
 check(n1 === n0 + 2, `the events sent were kept, the tagged start among them (gate count ${n0} -> ${n1})`);
-for (const name of ["funnel", "funnel_by_from", "arms", "ours"]) {
+for (const name of ["funnel", "funnel_by_from", "arms", "ours", "days", "cohorts", "releases", "release_errors", "tool_weeks", "error_weeks", "arm_weeks", "period?days=30"]) {
   const q = await stat(name);
   check(q.status === 200 && Array.isArray(q.body.rows), `the ${name} question answers (got ${q.status})`);
 }
+// The real/ours split /admin reads (UNB-315): the gate's own calls this week are ours, and every row says who.
+const weeks = await stat("weeks");
+const wrows = weeks.body.rows ?? [];
+check(weeks.status === 200 && wrows.length > 0 && wrows.every((r) => r.who === "real" || r.who === "ours"), `the weeks question labels every row real or ours (got ${weeks.status}, ${wrows.length} rows)`);
+check(wrows.some((r) => r.who === "ours" && r.calls >= 1), "the gate's own calls are counted as ours in weeks");
 
 // The list of our own installs takes no change without the admin token (UNB-303).
 const stranger = await fetch(`${base}/v1/ours`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: "install", value: "0".repeat(32), why: "a stranger" }) });

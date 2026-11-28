@@ -6,7 +6,9 @@
 #                         confident wrong answer, or on a slice task right on the reference that is not right now
 #                         ("changed" until a person re-reads that site by hand). QA (qa.yml) calls it on those pushes,
 #                         so its verdict sits in the same report as every journey (UNB-235)
-#                         and it runs the node QA's run built once (`build_digest`), not a build of its own
+#                         and it runs the node QA's run built once (`build_digest`), not a build of its own.
+#                         Only on Lewis's Mac (lewis-mbp), waiting for it when busy, never a hosted one (Lewis, 28 Nov
+#                         2026: "run slices only on my Mac"; a data centre's address is refused, run 46116646462)
 #   nightly, on staging   the whole bank: the floor's early warning, red when the promotion gate would refuse it
 #   push to release/**    the whole bank on the candidate: the run the promotion gate (release.yml, promotion-gate.yml)
 #                         reads, kept as the artifact `gate-bank-full-<tree>`
@@ -18,7 +20,7 @@
 #                         promoted build).
 #   top1k, the release    gate-1k.yml calls it on every push to a release branch: the release gate on the bench
 #   gate (UNB-307)        (Lewis, 25 Nov 2026: rates, not every task). Every shard runs on one pinned kind of runner
-#                         (vars.GATE_1K_RUNNER, else blacksmith-6vcpu-macos-latest), the kind the floor was taken on;
+#                         (vars.GATE_1K_RUNNER, else macos-15), the kind the floor was taken on;
 #                         each shard runs once more every task whose verdict measured nothing or is not the floor's
 #                         (test-banks/gate/promoted-1k.json), on fresh nodes; the last job reads every shard together
 #                         with promotion_gate.py and keeps `gate-1k-<tree>` (results, meta.json, rereads.json, verdict),
@@ -56,10 +58,11 @@ on:
         description: SHA-256 of the calling run's qa-node-build archive (empty = build here)
         type: string
         default: ""
-      # Where the calling run's place job put this slice (qa.yml's `slice` output), so one place job hands out the Mac
+      # Where the calling run's place job put this bank (qa.yml's `slice` output), so one place job hands out the Mac
       # once for the whole run. Without it this workflow's own place job asks, and it cannot see the calling run's own
       # jobs (place_jobs.py skips its run): QA dispatch 44948600956 put Claude QA's shard 4 and the slice both on the
-      # one Mac, and the slice waited 6.6 min behind it (UNB-235). Empty: placed here.
+      # one Mac, and the slice waited 6.6 min behind it (UNB-235). Empty: placed here. A slice never reads it: it runs
+      # on Lewis's Mac whatever it is handed (Lewis, 28 Nov 2026), and the caller's place job gave the Mac to it first.
       runs_on:
         description: runs-on JSON from the calling run's place job (empty = place here)
         type: string
@@ -115,12 +118,15 @@ env:
   AGENT_AUTH: chatgpt
 
 jobs:
-  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
+  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a GitHub-hosted
   # machine that starts at once, so a Mac that is asleep or busy never holds a run up. The summary says why for each
   # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
+  # The slice is the exception (Lewis, 28 Nov 2026: "run slices only on my Mac"): it runs on Lewis's Mac
+  # (`mac-only`, vars.MAC_RUNNER) and nowhere else, and waits for it when it is busy or asleep. The whole bank and
+  # top1k are placed as before.
   place:
     name: Where the agent jobs run
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: read
@@ -136,27 +142,6 @@ jobs:
           persist-credentials: false
           sparse-checkout: .github/scripts/place_jobs.py
           sparse-checkout-cone-mode: false
-      - id: place
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
-          MAC_POOL: ${{ vars.MAC_RUNNER }}
-          LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
-          PLACED: ${{ inputs.runs_on }}
-          # top1k: one pinned kind of runner, never placed, so the run is held to a floor taken on the same kind: a
-          # data centre's address is walled where a home one is not (bank.yml's 16 of 30 hard sites, Blacksmith Macs).
-          PINNED: ${{ inputs.scope == 'top1k' && (vars.GATE_1K_RUNNER || 'blacksmith-6vcpu-macos-latest') || '' }}
-        run: |
-          if [ -n "$PINNED" ]; then
-            python3 -I -c 'import json, sys; print("bank=" + json.dumps(sys.argv[1])); print("runner=" + sys.argv[1])' "$PINNED" | tee -a "$GITHUB_OUTPUT"
-          elif [ -n "$PLACED" ]; then
-            # A runs-on label or label list, nothing else.
-            python3 -I -c 'import json, sys; v = json.loads(sys.argv[1]); assert isinstance(v, str) or (isinstance(v, list) and v and all(isinstance(x, str) for x in v))' "$PLACED"
-            echo "bank=$PLACED" >> "$GITHUB_OUTPUT"
-            echo "bank=$PLACED (placed by the calling run)"
-          else
-            python3 -I .github/scripts/place_jobs.py bank=mac
-          fi
       # The scope, and the jobs the bank runs as: one for the slice or the whole bank, one per shard for top1k.
       - id: shards
         env:
@@ -178,7 +163,33 @@ jobs:
           print("shards=" + json.dumps([{"i": i, "n": n, "label": label(i)} for i in only]))
           ')
           echo "$said" | tee -a "$GITHUB_OUTPUT"
-
+      - id: place
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+          MAC_POOL: ${{ vars.MAC_RUNNER }}
+          LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
+          PLACED: ${{ inputs.runs_on }}
+          # The slice runs on Lewis's Mac and nowhere else, whatever a caller hands it (Lewis, 28 Nov 2026: "run slices
+          # only on my Mac"): a hosted Mac's data-centre address is refused by sites the slice asks (run 46116646462).
+          SCOPE: ${{ steps.shards.outputs.scope }}
+          OWN_MAC: ${{ vars.MAC_RUNNER }}
+          # top1k: one pinned kind of runner, never placed, so the run is held to a floor taken on the same kind: a
+          # data centre's address is walled where a home one is not (bank.yml's 16 of 30 hard sites, on Blacksmith's Macs).
+          PINNED: ${{ inputs.scope == 'top1k' && (vars.GATE_1K_RUNNER || 'macos-15') || '' }}
+        run: |
+          if [ -n "$PINNED" ]; then
+            python3 -I -c 'import json, sys; print("bank=" + json.dumps(sys.argv[1])); print("runner=" + sys.argv[1])' "$PINNED" | tee -a "$GITHUB_OUTPUT"
+          elif [ "$SCOPE" = slice ]; then
+            python3 -I .github/scripts/place_jobs.py bank=mac-only
+          elif [ -n "$PLACED" ]; then
+            # A runs-on label or label list, nothing else.
+            python3 -I -c 'import json, sys; v = json.loads(sys.argv[1]); assert isinstance(v, str) or (isinstance(v, list) and v and all(isinstance(x, str) for x in v))' "$PLACED"
+            echo "bank=$PLACED" >> "$GITHUB_OUTPUT"
+            echo "bank=$PLACED (placed by the calling run)"
+          else
+            python3 -I .github/scripts/place_jobs.py bank=mac
+          fi
   bank:
     needs: place
     if: github.event_name != 'schedule' || github.ref == 'refs/heads/staging'
@@ -274,7 +285,7 @@ jobs:
           echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
           tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
           # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
-          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
+          # runner (a hosted Mac's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
           # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
           browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
           test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
@@ -343,7 +354,7 @@ jobs:
 
       # The credential is here and in the judges' step alone. Each run is the locked CLI on its argument file, three at
       # a time, under an alarm (20 minutes a task, as the unbrowse6 harness gives); a round's node stops when it ends.
-      - name: The clients
+      - name: The clients, cold
         env:
           RUNS: ${{ env.GATE }}/runs
           NODES: n
@@ -386,6 +397,57 @@ jobs:
                 one "$f"
                 if [ "$scope" = slice ]; then record_launches "$before" "${f%.args}.chrome-launches.txt"; fi
               done
+              echo "round $round cold done"
+            ) &
+            round=$((round + 1))
+          done
+          wait
+
+      # No credential here: the cold asks have run, and each warm run is written naming the routes its cold
+      # ask saved, read from that ask's own replies (run_gate.py warm-args). The nodes stay up for the warm wave.
+      - name: Write the warm runs
+        run: |
+          n=$(python3 -I test-banks/gate/run_gate.py warm-args --dir "$GATE/runs")
+          echo "$n warm run(s) written with their cold asks' saved routes"
+
+      - name: The clients, warm
+        env:
+          RUNS: ${{ env.GATE }}/runs
+          NODES: n
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+        run: |
+          runs="$RUNS"
+          nodes="$NODES"
+          scope="$SCOPE"
+
+          one() {
+            # Keep the round going when a client times out or its provider refuses it.
+            perl -e '$t=shift; $b=shift; local $/; open F, shift or die; @a=split /\0/, <F>; alarm $t; exec $b, @a' \
+              1200 "$CLAUDE_BIN" "$1" < /dev/null > "${1%.args}.out" 2> "${1%.args}.err" \
+              || echo "::warning::the client on $1 exited $?: its result reads what it left"
+          }
+
+          chrome_count() {
+            local count
+            [ -f "$1" ] || return 0
+            count=$(awk '/^chrome_(headless|headed)_launch([[:space:]]|$)/ { n++ } END { print n+0 }' "$1") || return 0
+            echo "$count"
+          }
+
+          record_launches() {
+            local after count=missing
+            after=$(chrome_count "$guard")
+            if [[ "$1" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]]; then count=$((after - $1)); fi
+            echo "$count" > "$2"
+          }
+
+          round=0
+          while [ -d "$runs/round-$round" ]; do
+            (
+              folder="$runs/round-$round"
+              guard="$RUNNER_TEMP/$nodes$round/guard.log"
               if [ -d "$folder/warm" ]; then
                 if [ "$scope" = slice ]; then before=$(chrome_count "$guard"); fi
                 for f in "$folder"/warm/*.args; do one "$f" & done
@@ -441,7 +503,7 @@ jobs:
         if: ${{ !cancelled() && steps.again.outputs.n > 0 }}
         run: sh test-banks/gate/start-rounds.sh "$GATE/again" a 18810 --again "$GATE/again.ids"
 
-      - name: The clients, again
+      - name: The clients, cold, again
         if: ${{ !cancelled() && steps.again.outputs.n > 0 }}
         env:
           RUNS: ${{ env.GATE }}/again
@@ -485,6 +547,59 @@ jobs:
                 one "$f"
                 if [ "$scope" = slice ]; then record_launches "$before" "${f%.args}.chrome-launches.txt"; fi
               done
+              echo "round $round cold done"
+            ) &
+            round=$((round + 1))
+          done
+          wait
+
+      # No credential here: the cold asks have run, and each warm run is written naming the routes its cold
+      # ask saved, read from that ask's own replies (run_gate.py warm-args). The nodes stay up for the warm wave.
+      - name: Write the warm runs, again
+        if: ${{ !cancelled() && steps.again.outputs.n > 0 }}
+        run: |
+          n=$(python3 -I test-banks/gate/run_gate.py warm-args --dir "$GATE/again")
+          echo "$n warm run(s) written with their cold asks' saved routes"
+
+      - name: The clients, warm, again
+        if: ${{ !cancelled() && steps.again.outputs.n > 0 }}
+        env:
+          RUNS: ${{ env.GATE }}/again
+          NODES: a
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+        run: |
+          runs="$RUNS"
+          nodes="$NODES"
+          scope="$SCOPE"
+
+          one() {
+            # Keep the round going when a client times out or its provider refuses it.
+            perl -e '$t=shift; $b=shift; local $/; open F, shift or die; @a=split /\0/, <F>; alarm $t; exec $b, @a' \
+              1200 "$CLAUDE_BIN" "$1" < /dev/null > "${1%.args}.out" 2> "${1%.args}.err" \
+              || echo "::warning::the client on $1 exited $?: its result reads what it left"
+          }
+
+          chrome_count() {
+            local count
+            [ -f "$1" ] || return 0
+            count=$(awk '/^chrome_(headless|headed)_launch([[:space:]]|$)/ { n++ } END { print n+0 }' "$1") || return 0
+            echo "$count"
+          }
+
+          record_launches() {
+            local after count=missing
+            after=$(chrome_count "$guard")
+            if [[ "$1" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]]; then count=$((after - $1)); fi
+            echo "$count" > "$2"
+          }
+
+          round=0
+          while [ -d "$runs/round-$round" ]; do
+            (
+              folder="$runs/round-$round"
+              guard="$RUNNER_TEMP/$nodes$round/guard.log"
               if [ -d "$folder/warm" ]; then
                 if [ "$scope" = slice ]; then before=$(chrome_count "$guard"); fi
                 for f in "$folder"/warm/*.args; do one "$f" & done
@@ -573,7 +688,7 @@ jobs:
     needs: [place, bank]
     if: ${{ !cancelled() && needs.place.outputs.scope == 'top1k' }}
     name: Gate bank (top1k, every shard)
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 10
     permissions:
       contents: read

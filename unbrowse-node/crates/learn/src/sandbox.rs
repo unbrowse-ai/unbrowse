@@ -89,7 +89,7 @@ function inRealm(e) {
   return e;
 }
 const guard = (f) => function () { try { return f.apply(undefined, arguments); } catch (e) { throw inRealm(e); } };
-const handlers = { uncaughtException: null, unhandledRejection: null };
+const handlers = { uncaughtException: null, unhandledRejection: null, call: null };
 process.on('uncaughtException', (e) => { const f = handlers.uncaughtException; if (typeof f === 'function') { try { f(inRealm(e)); } catch (x) {} } });
 process.on('unhandledRejection', (e) => { const f = handlers.unhandledRejection; if (typeof f === 'function') { try { f(inRealm(e)); } catch (x) {} } });
 let out = '';
@@ -112,7 +112,10 @@ process.stdin.on('data', (d) => {
     const text = inbuf.slice(0, i);
     inbuf = inbuf.slice(i + 1);
     let id = 0;
-    try { id = Number(JSON.parse(text).id); } catch (e) {}
+    let msg = null;
+    try { msg = JSON.parse(text); id = Number(msg.id); } catch (e) {}
+    // A page kept booted is called again: the node's `call` line, answered with a `value` line (`H.answer`).
+    if (msg && msg.t === 'call') { const f = handlers.call; if (typeof f === 'function') { try { f(String(msg.id), String(msg.ctx == null ? 'null' : msg.ctx)); } catch (e) {} } continue; }
     const cb = pending.get(id);
     if (cb) { pending.delete(id); try { cb(text); } catch (e) { const f = handlers.uncaughtException; if (typeof f === 'function') { try { f(inRealm(e)); } catch (x) {} } } }
   }
@@ -154,6 +157,9 @@ Object.assign(H, {
   log: guard((s) => { if (debug) { try { process.stderr.write(String(s)); } catch (e) {} } }),
   out: guard((s) => { if (out.length < OUT_MAX) out += String(s); }),
   exit: guard(() => { line({ t: 'done', out }); process.exit(0); }),
+  // A page kept booted says it is done with its first answer and stays, to be called again.
+  served: guard(() => { line({ t: 'done', out }); out = ''; }),
+  answer: guard((id, v) => { line({ t: 'value', id: Number(id), v: String(v) }); }),
   on: guard((ev, f) => { if (ev in handlers) handlers[ev] = f; }),
   timer: guard((cb, ms) => {
     const id = ++timerIds;
@@ -249,6 +255,8 @@ const process = {
   stderr: { write: (s) => { H.log(String(s)); return true; } },
   stdout: { write: (s) => { H.out(String(s)); return true; } },
   exit: () => H.exit(),
+  served: () => H.served(),
+  answer: (id, v) => H.answer(String(id), String(v)),
   on: (ev, f) => { H.on(String(ev), f); },
 };
 const setTimeout = (f, ms, ...args) => H.timer(() => { if (typeof f === 'function') f(...args); }, ms);
@@ -501,6 +509,9 @@ class URLSearchParams {
   [Symbol.iterator]() { return this.entries(); }
   toString() { return this._list.map(([k, v]) => formEncode(k) + '=' + formEncode(v)).join('&'); }
 }
+// The blobs the page made an address for: a `blob:` address names data the page holds, answered from here, never
+// sent to the network.
+const blobs = new Map();
 const URL_FIELDS = ['href', 'origin', 'protocol', 'username', 'password', 'host', 'hostname', 'port', 'pathname', 'search', 'hash'];
 class URL {
   constructor(input, base) {
@@ -510,8 +521,8 @@ class URL {
   }
   static canParse(input, base) { return !!H.url(String(input), base === undefined ? null : String(base)); }
   static parse(input, base) { try { return new URL(input, base); } catch (e) { return null; } }
-  static createObjectURL() { return 'blob:null/' + H.uuid(); }
-  static revokeObjectURL() {}
+  static createObjectURL(obj) { const u = 'blob:null/' + H.uuid(); if (obj && obj._b) blobs.set(u, obj); return u; }
+  static revokeObjectURL(u) { blobs.delete(String(u)); }
   _take(said) {
     const p = JSON.parse(said);
     this._p = p;
@@ -717,7 +728,11 @@ let settleTimer = null;
 // loader asked for. A route can keep only what the call touched, and a generator can see the module list it is in.
 const used = [];
 const noteUsed = (url) => { try { if (used.indexOf(url) < 0) used.push(url); } catch (e) {} };
-const done = () => { let values = []; try { values = (typeof g !== 'undefined' && g.__ub_values) ? g.__ub_values : []; } catch (e) {} let global; try { if (spec.readGlobal) { const v = g[spec.readGlobal]; global = v == null ? '' : String(v); } } catch (e) { global = ''; } let cookies = []; try { cookies = Array.from(jar.entries()); } catch (e) {} if (process.env.UNBROWSE_SIGN_DEBUG) { try { const uniq = Array.from(new Set(typeof descMissing !== 'undefined' ? descMissing : [])); process.stderr.write('[desc] ' + uniq.join(' ') + '\n'); } catch (e) {} } process.stdout.write(JSON.stringify({ requests: out, errors, errs, lookups, modules: used, values, global, cookies, targets: spec.targets || [], seen: Array.from(targetSeen) })); process.exit(0); };
+let doneOnce = false;
+const done = () => { if (doneOnce) return; doneOnce = true; let values = []; try { values = (typeof g !== 'undefined' && g.__ub_values) ? g.__ub_values : []; } catch (e) {} let global; try { if (spec.readGlobal) { const v = g[spec.readGlobal]; global = v == null ? '' : String(v); } } catch (e) { global = ''; } let cookies = []; try { cookies = Array.from(jar.entries()); } catch (e) {} if (process.env.UNBROWSE_SIGN_DEBUG) { try { const uniq = Array.from(new Set(typeof descMissing !== 'undefined' ? descMissing : [])); process.stderr.write('[desc] ' + uniq.join(' ') + '\n'); } catch (e) {} } process.stdout.write(JSON.stringify({ requests: out, errors, errs, lookups, modules: used, values, global, cookies, targets: spec.targets || [], seen: Array.from(targetSeen) })); if (spec.serve) process.served(); else process.exit(0); };
+// A page kept booted for a function of its own (`spec.serve`): each call of the node's runs the function again on this
+// page, with the call's own fields, and answers its value; the page is not booted again.
+if (spec.serve) process.on('call', (id, ctxText) => { (async () => { let v = ''; try { const f = g.__ub_call; if (typeof f === 'function') { const ctx = JSON.parse(ctxText); v = await f(ctx); } } catch (e) {} process.answer(id, v == null ? '' : String(v)); })(); });
 // The call(s) the route asks about: once the page has made them all, a short grace is enough. A call after that is
 // not the signature this boot was for, and waiting the whole quiet window for it is time the caller pays. The window
 // is armed in many places (a fetch in flight, a chunk, the page's own answer); every arm reads this, so no later
@@ -846,7 +861,10 @@ const streamOf = (text) => {
 };
 const responseOf = (r) => {
   const h = new Map((r && r.headers) || []);
-  const body = (r && r.body) || '';
+  // A body the page holds as bytes (a blob it made) is answered as those bytes: its text is read from them, and its
+  // byte readers never go through text, which would turn a byte that is not UTF-8 into a replacement character.
+  const raw = r && r.bytes instanceof Uint8Array ? r.bytes : null;
+  const body = raw ? fromUtf8(raw, false).text : (r && r.body) || '';
   // A response that carries an event stream says so: a page's SSE reader checks the content-type before it reads, and a
   // bridge answer that lost the header would stop it at the stream. The body says what it is.
   if (!h.has('content-type')) {
@@ -855,8 +873,8 @@ const responseOf = (r) => {
   }
   return { ok: !!(r && r.status >= 200 && r.status < 300), status: (r && r.status) || 0,
     headers: { get: (k) => (h.has(String(k).toLowerCase()) ? h.get(String(k).toLowerCase()) : null), forEach: (f) => h.forEach((v, k) => f(v, k)) },
-    body: streamOf(body), bodyUsed: false,
-    arrayBuffer: async () => new TextEncoder().encode(body).buffer,
+    body: raw ? new ReadableStream({ start(c) { try { c.enqueue(raw.slice()); } catch (e) {} c.close(); } }) : streamOf(body), bodyUsed: false,
+    arrayBuffer: async () => (raw ? raw.slice().buffer : new TextEncoder().encode(body).buffer),
     text: async () => body, json: async () => JSON.parse(body || '{}'), clone() { return this; } };
 };
 // A bundle's lazily loaded chunk: fetched from the node (the same line as its fetch), run in this context, and its
@@ -872,9 +890,10 @@ const chunk = async (what) => {
   let abs = String(what);
   try { abs = new URL(abs, spec.pageUrl).href; } catch (e) {}
   noteUsed(abs);
-  let src = carried.get(abs);
+  const made = blobs.get(String(what)) || blobs.get(abs);
+  let src = made ? fromUtf8(made._b, false).text : carried.get(abs);
   if (src == null) {
-    const r = await bridge({ method: 'GET', url: abs, headers: {}, body: null });
+    const r = await bridge({ method: 'GET', url: abs, headers: {}, body: null, script: true });
     if (!r || !r.status) {
       try { console.error('unbrowse: chunk ' + abs + ' failed: ' + ((r && r.error) || 'no answer')); } catch (e) {}
       throw new Error('import failed: ' + what);
@@ -922,6 +941,9 @@ const loadModule = async (abs, src) => {
   const heldModule = async (specifier, base) => {
     let dep = String(specifier);
     try { dep = new URL(specifier, base).href; } catch (e) {}
+    // A blob the page made is its own module source: the address names data the page holds, never the network's.
+    const made = blobs.get(String(specifier)) || blobs.get(dep);
+    if (made) return loadModule(blobs.has(String(specifier)) ? String(specifier) : dep, fromUtf8(made._b, false).text);
     const held = carried.get(dep);
     if (held != null) return loadModule(dep, held);
     // A module the route does not carry is asked of the site. When that answer is not a file, the specifier and the
@@ -932,7 +954,7 @@ const loadModule = async (abs, src) => {
         process.stderr.write('[module] ' + String(specifier) + ' from ' + String(base) + (pb != null ? ' [carried]' : ' [asked]') + ' -> ' + dep + (held != null ? ' (carried)' : ' (asked)') + '\n');
       } catch (e) {}
     }
-    const r = await bridge({ method: 'GET', url: dep, headers: {}, body: null });
+    const r = await bridge({ method: 'GET', url: dep, headers: {}, body: null, script: true });
     if (!r || !r.status) throw new Error('import: ' + dep);
     return loadModule(dep, r.body);
   };
@@ -959,7 +981,7 @@ const loadModule = async (abs, src) => {
 class UbWorker {
   constructor(url) {
     let abs = String(url && url.href ? url.href : url);
-    try { abs = new URL(abs, spec.pageUrl).href; } catch (e) {}
+    if (!blobs.has(abs)) { try { abs = new URL(abs, spec.pageUrl).href; } catch (e) {} }
     this._onmessage = null;
     this._mainQueue = [];
     this._queue = [];
@@ -989,7 +1011,11 @@ class UbWorker {
     // A worker's own script is in flight: the page is working, not quiet.
     if (settleTimer) clearTimeout(settleTimer);
     let r = null;
-    try { r = await bridge({ method: 'GET', url: abs, headers: {}, body: null }); } finally { arm(); }
+    // A worker made from the page's own blob runs the blob's code: the address names data the page holds.
+    const made = blobs.get(abs);
+    // It still starts after the page's own code has run on, as a browser starts any worker: never inside `new Worker`.
+    if (made) { r = await new Promise((done) => setTimeout(() => done({ status: 200, body: fromUtf8(made._b, false).text }), 0)); arm(); }
+    else try { r = await bridge({ method: 'GET', url: abs, headers: {}, body: null }); } finally { arm(); }
     if (!r || !r.status) { this._dead = true; return; }
     const ctx = Object.create(null);
     Object.assign(ctx, {
@@ -1083,6 +1109,8 @@ const doFetch = async (input, init) => {
   record(url, i);
   let abs = String(url);
   try { abs = new URL(String(url), spec.pageUrl).href; } catch (e) {}
+  const made = blobs.get(String(url)) || blobs.get(abs);
+  if (made) return responseOf({ status: 200, bytes: made._b, headers: [['content-type', made.type || 'application/octet-stream']] });
   const said = answered(abs);
   if (said) return responseOf({ status: said.status, body: said.body, headers: [['content-type', said.mime || 'application/json']] });
   if (net) {
@@ -1116,15 +1144,30 @@ const tags = [];
 // made at run time (`createElement('div'); id='root'; appendChild`), so it is in no markup the walk carried, and a
 // lookup by id must still find it. These are the shim's own realm-isolated nodes, not a real DOM's.
 const created = [];
+// The document as a tree, as a browser's parser builds it: each tag knows its parent (an index into `tags`, -1 for the
+// top) and its child nodes in order (`{ t: index }` for an element, `{ text }` for the text between tags). A void
+// element and a self-closed one hold nothing; a closing tag closes the nearest open element of its name.
+const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+const top = { kids: [] };
 const parseTags = (src) => {
   let i = 0;
   const lower = src.toLowerCase();
+  const open = [];
+  const holder = () => (open.length ? tags[open[open.length - 1]] : top);
   while (i < src.length) {
     const at = src.indexOf('<', i);
+    if (at > i || at < 0) { const t = src.slice(i, at < 0 ? src.length : at); if (t) holder().kids.push({ text: t }); }
     if (at < 0) break;
     if (src.startsWith('<!--', at)) { const e = src.indexOf('-->', at); i = e < 0 ? src.length : e + 3; continue; }
     const c = src[at + 1] || '';
-    if (c === '!' || c === '?' || c === '/') { const e = src.indexOf('>', at); i = e < 0 ? src.length : e + 1; continue; }
+    if (c === '/') {
+      const e = src.indexOf('>', at);
+      const name = (src.slice(at + 2, e < 0 ? src.length : e).match(/^([a-zA-Z][-a-zA-Z0-9]*)/) || [])[1];
+      if (name) { const k = open.map((n) => tags[n].tag).lastIndexOf(name.toLowerCase()); if (k >= 0) open.length = k; }
+      i = e < 0 ? src.length : e + 1;
+      continue;
+    }
+    if (c === '!' || c === '?') { const e = src.indexOf('>', at); i = e < 0 ? src.length : e + 1; continue; }
     const e = src.indexOf('>', at);
     if (e < 0) break;
     const inner = src.slice(at + 1, e);
@@ -1135,29 +1178,59 @@ const parseTags = (src) => {
     const re = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
     let a;
     while ((a = re.exec(inner))) attrs[a[1].toLowerCase()] = a[3] !== undefined ? a[3] : a[4] !== undefined ? a[4] : a[5];
+    const parent = open.length ? open[open.length - 1] : -1;
     if (tag === 'script' || tag === 'style') {
       const close = lower.indexOf('</' + tag, e + 1);
-      tags.push({ tag, attrs, end: e + 1, close: close < 0 ? src.length : close });
+      const body = src.slice(e + 1, close < 0 ? src.length : close);
+      tags.push({ tag, attrs, start: at, end: e + 1, close: close < 0 ? src.length : close, parent, kids: body ? [{ text: body }] : [] });
+      holder().kids.push({ t: tags.length - 1 });
       i = close < 0 ? src.length : close;
+      const shut = src.indexOf('>', i);
+      i = shut < 0 ? src.length : shut + 1;
       continue;
     }
-    tags.push({ tag, attrs, end: e + 1, close: -1 });
+    tags.push({ tag, attrs, start: at, end: e + 1, close: -1, parent, kids: [] });
+    holder().kids.push({ t: tags.length - 1 });
+    if (!VOID.has(tag) && !/\/\s*$/.test(inner)) open.push(tags.length - 1);
     i = e + 1;
   }
 };
 parseTags(spec.html || '');
-const matches = (el, sel) => {
-  sel = String(sel || '').trim();
-  let m = sel.match(/^([a-zA-Z][-a-zA-Z0-9]*)$/);
-  if (m) return el.tag === m[1].toLowerCase();
-  m = sel.match(/^#([\w-]+)$/);
-  if (m) return el.attrs.id === m[1];
-  m = sel.match(/^(?:([a-zA-Z][-a-zA-Z0-9]*))?\[([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\]\s]*))\]$/);
+// A selector as a browser reads one, for the shapes a page's own code asks with: a comma list of compound selectors,
+// each a tag (or `*`), an `#id`, `.class`es and `[attr]`s with any of the attribute operators. A selector with a
+// combinator (a descendant, a child) matches nothing here, as before. `tagOf` and `attrOf` read the node at hand.
+const selects = (sel, tagOf, attrOf) => String(sel || '').split(',').some((one) => {
+  const part = one.trim();
+  if (!part || /[\s>+~](?![^\[]*\])/.test(part)) return false;
+  const re = /^(\*|[a-zA-Z][-a-zA-Z0-9]*)?((?:#[\w-]+|\.[\w-]+|\[[^\]]+\])*)$/;
+  const m = part.match(re);
   if (!m) return false;
-  const want = m[3] !== undefined ? m[3] : m[4] !== undefined ? m[4] : m[5];
-  return (!m[1] || el.tag === m[1].toLowerCase()) && el.attrs[m[2].toLowerCase()] === want;
-};
+  if (m[1] && m[1] !== '*' && String(tagOf() || '').toLowerCase() !== m[1].toLowerCase()) return false;
+  const bits = m[2].match(/#[\w-]+|\.[\w-]+|\[[^\]]+\]/g) || [];
+  return bits.every((b) => {
+    if (b[0] === '#') return attrOf('id') === b.slice(1);
+    if (b[0] === '.') return String(attrOf('class') || '').split(/\s+/).includes(b.slice(1));
+    const a = b.slice(1, -1).match(/^\s*([\w:-]+)\s*(?:([~|^$*]?=)\s*(?:"([^"]*)"|'([^']*)'|([^\s]*)))?\s*$/);
+    if (!a) return false;
+    const have = attrOf(a[1].toLowerCase());
+    if (!a[2]) return have !== null && have !== undefined;
+    if (have === null || have === undefined) return false;
+    const want = a[3] !== undefined ? a[3] : a[4] !== undefined ? a[4] : a[5];
+    const v = String(have);
+    switch (a[2]) {
+      case '=': return v === want;
+      case '~=': return v.split(/\s+/).includes(want);
+      case '|=': return v === want || v.startsWith(want + '-');
+      case '^=': return want !== '' && v.startsWith(want);
+      case '$=': return want !== '' && v.endsWith(want);
+      case '*=': return want !== '' && v.includes(want);
+    }
+    return false;
+  });
+});
+const matches = (el, sel) => selects(sel, () => el.tag, (k) => (k in el.attrs ? el.attrs[k] : null));
 const elementOf = (el) => {
+  if (el._node) return el._node;
   const src = spec.html || '';
   // A parsed element is an element to a page's own framework too: React's `createRoot` refuses anything whose
   // `nodeType` is not 1 (error #299), and the mount node is one of these.
@@ -1173,28 +1246,44 @@ const elementOf = (el) => {
   // element has a parent that can take it, as a browser's document does. The inserted script is the page's own; the
   // harness's loader runs it when it is a harness node, and a third-party tag's no-op keeps the boot going.
   out.parentNode = out.parentNode || { insertBefore: (n) => n, appendChild: (n) => n, removeChild: (n) => n, replaceChild: (n) => n, childNodes: [], removeChildNode: noop };
-  const merged = Object.assign(out, dom(), out);
+  const baseDom = dom();
+  const merged = Object.assign({}, baseDom, out);
   // `dom()` holds ownerDocument as a non-enumerable getter, so the copy above drops it; a framework's `createRoot`
   // reads `node.ownerDocument` on the mount node it looked up by id, and the read of undefined stops the render.
   // Re-hold it here as a getter (not evaluated now: the document is still being built when the first tags are parsed).
   Object.defineProperty(merged, 'ownerDocument', { configurable: true, get: () => (typeof g !== 'undefined' ? g.document : null) });
+  // Its place in the tree: its children and child nodes (text too), its parent, its siblings, and the descendants a
+  // scoped query reads. Read when asked, so a node is built once and the tree is walked only where the page walks it.
+  el._node = merged;
+  // The served attributes answer first, then what the page set on the node since (`setAttribute`).
+  const later = { get: baseDom.getAttribute, has: baseDom.hasAttribute };
+  merged.getAttribute = (k) => { const n = String(k).toLowerCase(); if (n in el.attrs) return el.attrs[n]; const v = later.get ? later.get.call(merged, k) : null; return v === undefined ? null : v; };
+  merged.hasAttribute = (k) => String(k).toLowerCase() in el.attrs || !!(later.has && later.has.call(merged, k));
+  const kids = () => (el.kids || []).map((k) => (k.t !== undefined ? elementOf(tags[k.t]) : { nodeType: 3, nodeName: '#text', textContent: k.text, nodeValue: k.text, data: k.text, parentNode: merged }));
+  const elements = () => (el.kids || []).filter((k) => k.t !== undefined).map((k) => elementOf(tags[k.t]));
+  const below = () => { const out = []; const walk = (t) => { for (const k of t.kids || []) if (k.t !== undefined) { out.push(tags[k.t]); walk(tags[k.t]); } }; walk(el); return out; };
+  const tagIdx = tags.indexOf(el);
+  const siblings = () => ((el.parent >= 0 ? tags[el.parent] : top).kids || []).filter((k) => k.t !== undefined).map((k) => k.t);
+  const prevEl = () => { const s = siblings(); const p = s.indexOf(tagIdx); return p > 0 ? elementOf(tags[s[p - 1]]) : null; };
+  const nextEl = () => { const s = siblings(); const p = s.indexOf(tagIdx); return p >= 0 && p + 1 < s.length ? elementOf(tags[s[p + 1]]) : null; };
+  const fake = merged.parentNode;
+  const tree = {
+    children: () => elements(), childNodes: () => kids(), firstChild: () => kids()[0] || null, lastChild: () => kids().slice(-1)[0] || null,
+    firstElementChild: () => elements()[0] || null, lastElementChild: () => elements().slice(-1)[0] || null, childElementCount: () => elements().length,
+    parentElement: () => (el.parent >= 0 ? elementOf(tags[el.parent]) : null), parentNode: () => (el.parent >= 0 ? elementOf(tags[el.parent]) : fake),
+    previousElementSibling: prevEl, previousSibling: prevEl, nextElementSibling: nextEl, nextSibling: nextEl,
+    className: () => el.attrs.class || '', classList: () => { const c = String(el.attrs.class || '').split(/\s+/).filter(Boolean); return Object.assign(c, { contains: (x) => c.includes(x) }); },
+  };
+  for (const [k, f] of Object.entries(tree)) Object.defineProperty(merged, k, { configurable: true, enumerable: false, get: f });
+  merged.querySelector = (sel) => { const t = below().find((x) => matches(x, sel)); return t ? elementOf(t) : null; };
+  merged.querySelectorAll = (sel) => below().filter((x) => matches(x, sel)).map(elementOf);
+  merged.getElementsByTagName = (t) => merged.querySelectorAll(t);
+  if (fake && typeof merged.insertBefore !== 'function') merged.insertBefore = fake.insertBefore;
   return merged;
 };
 // A selector read on a live node the page created (its id and attributes are its own, set after it was made), the
 // same shapes `matches` reads on a parsed tag.
-const matchesNode = (n, sel) => {
-  sel = String(sel || '').trim();
-  let m = sel.match(/^([a-zA-Z][-a-zA-Z0-9]*)$/);
-  if (m) return String(n.tagName || '').toLowerCase() === m[1].toLowerCase();
-  m = sel.match(/^#([\w-]+)$/);
-  if (m) return n.id === m[1];
-  m = sel.match(/^(?:([a-zA-Z][-a-zA-Z0-9]*))?\[([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\]\s]*))\]$/);
-  if (!m) return false;
-  const want = m[3] !== undefined ? m[3] : m[4] !== undefined ? m[4] : m[5];
-  const key = m[2].toLowerCase();
-  const val = key === 'id' ? n.id : (n.getAttribute ? n.getAttribute(m[2]) : null);
-  return (!m[1] || String(n.tagName || '').toLowerCase() === m[1].toLowerCase()) && val === want;
-};
+const matchesNode = (n, sel) => selects(sel, () => n.tagName, (k) => (k === 'id' ? (n.id || null) : k === 'class' ? (n.className || (n.getAttribute ? n.getAttribute('class') : null)) : (n.getAttribute ? n.getAttribute(k) : null)));
 const q = (sel) => { const el = tags.find((t) => matches(t, sel)); if (el) return elementOf(el); return created.find((n) => matchesNode(n, sel)) || null; };
 const qa = (sel) => tags.filter((t) => matches(t, sel)).map(elementOf).concat(created.filter((n) => matchesNode(n, sel)));
 // What any node a page touches can do: a script it inserts, a node it removes, a listener it adds. A page's boot code
@@ -1211,7 +1300,13 @@ const runScript = async (node) => {
     } else {
       // A script the page's code writes itself (a JSONP-style boot, a module it builds): its text is the program.
       const body = text.replace(/\bimport\s*\(/g, '__ubImport(').replace(/\bimport\.meta\b/g, '__ubMeta');
-      vm.runInContext(body, g, { filename: String(node.id || 'inline:script'), timeout: spec.scriptMs });
+      const prevCurrent = g.document.currentScript;
+      g.document.currentScript = node || el();
+      try {
+        vm.runInContext(body, g, { filename: String(node.id || 'inline:script'), timeout: spec.scriptMs });
+      } finally {
+        g.document.currentScript = prevCurrent;
+      }
     }
     try { node.readyState = 'complete'; } catch (_) {}
     const load = { type: 'load', target: node };
@@ -1259,13 +1354,89 @@ const withText = (o) => {
   // would overwrite the block's own text (a JSON state block read by id came back empty).
   return o;
 };
+// An animation the page runs on an element (Web Animations), held as the page sets it: its keyframes, duration and
+// easing, and the moment it stands at. What the element shows at that moment is what `getComputedStyle` answers for
+// the animated properties, as a browser's style engine does: a page that hashes what its own animation shows signs
+// with what a browser would show (a colour between the keyframes' as the easing has it, a turn as its matrix).
+const easingOf = (s) => {
+  const named = { linear: [0, 0, 1, 1], ease: [0.25, 0.1, 0.25, 1], 'ease-in': [0.42, 0, 1, 1], 'ease-out': [0, 0, 0.58, 1], 'ease-in-out': [0.42, 0, 0.58, 1] };
+  const m = /cubic-bezier\(([^)]+)\)/.exec(String(s || ''));
+  const [x1, y1, x2, y2] = m ? m[1].split(',').map(Number) : (named[String(s || 'linear').trim()] || named.linear);
+  const at = (t, a, b) => 3 * a * (1 - t) * (1 - t) * t + 3 * b * (1 - t) * t * t + t * t * t;
+  return (x) => {
+    if (x <= 0 || x >= 1) return x;
+    let lo = 0, hi = 1, mid = 0;
+    for (let i = 0; i < 60; i++) { mid = (lo + hi) / 2; const v = at(mid, x1, x2); if (Math.abs(v - x) < 1e-7) break; if (v < x) lo = mid; else hi = mid; }
+    return at(mid, y1, y2);
+  };
+};
+// Keyframes as a list of frames, whichever way the page wrote them: a list of frames, or one frame of lists.
+const keyframesOf = (frames) => {
+  let list = Array.isArray(frames) ? frames.slice() : [frames || {}];
+  if (list.length === 1 && Object.values(list[0] || {}).some(Array.isArray)) {
+    const one = list[0];
+    const n = Math.max(...Object.values(one).filter(Array.isArray).map((v) => v.length));
+    list = Array.from({ length: n }, (_, i) => { const f = {}; for (const [k, v] of Object.entries(one)) f[k] = Array.isArray(v) ? v[Math.min(i, v.length - 1)] : v; return f; });
+  }
+  return list;
+};
+const animationOn = (el, frames, opts) => {
+  const o = typeof opts === 'number' ? { duration: opts } : (opts || {});
+  const a = {
+    currentTime: 0, playState: 'running', duration: Number(o.duration) || 0, frames: keyframesOf(frames), ease: easingOf(o.easing),
+    pause() { this.playState = 'paused'; }, play() { this.playState = 'running'; }, reverse: noop,
+    cancel() { this.playState = 'idle'; if (el.__ub_anim === this) el.__ub_anim = null; }, finish() { this.currentTime = this.duration; this.playState = 'finished'; },
+    addEventListener: noop, removeEventListener: noop, onfinish: null, oncancel: null, finished: Promise.resolve(), ready: Promise.resolve(),
+  };
+  a.effect = { getComputedTiming: () => ({ duration: a.duration, progress: a.duration ? Math.min(Math.max(a.currentTime / a.duration, 0), 1) : 0 }), getKeyframes: () => a.frames };
+  el.__ub_anim = a;
+  return a;
+};
+const rgbOf = (c) => {
+  const t = String(c).trim();
+  let m = /^#([0-9a-f]{3,8})$/i.exec(t);
+  if (m) { let h = m[1]; if (h.length <= 4) h = h.split('').map((x) => x + x).join(''); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)); }
+  m = /^rgba?\(([^)]+)\)$/i.exec(t);
+  return m ? m[1].split(/[\s,\/]+/).filter(Boolean).slice(0, 3).map(Number) : null;
+};
+const degOf = (t) => { const m = /rotate\(\s*(-?[\d.]+)(deg|rad|turn)?\s*\)/.exec(String(t)); if (!m) return String(t).trim() === 'none' ? 0 : null; const v = parseFloat(m[1]); return m[2] === 'rad' ? v * 180 / Math.PI : m[2] === 'turn' ? v * 360 : v; };
+const sig6 = (v) => String(+(+v).toPrecision(6));
+const shownBy = (a) => {
+  const out = {};
+  const n = a.frames.length;
+  if (!n) return out;
+  const x = a.ease(a.duration ? Math.min(Math.max(a.currentTime / a.duration, 0), 1) : 0);
+  const seg = n === 1 ? 0 : Math.min(Math.floor(x * (n - 1)), n - 2);
+  const from = a.frames[seg], to = a.frames[Math.min(seg + 1, n - 1)];
+  const p = easingOf(from.easing)(n === 1 ? 0 : x * (n - 1) - seg);
+  for (const k of Object.keys(from)) {
+    if (k === 'easing' || k === 'offset' || k === 'composite') continue;
+    const v = from[k], w = to[k] === undefined ? v : to[k];
+    let shown;
+    const [cv, cw] = [rgbOf(v), rgbOf(w)];
+    const [dv, dw] = [degOf(v), degOf(w)];
+    if (cv && cw) shown = 'rgb(' + cv.map((c, i) => Math.round(c + (cw[i] - c) * p)).join(', ') + ')';
+    else if (k === 'transform' && dv !== null && dw !== null) { const r = (dv + (dw - dv) * p) * Math.PI / 180; shown = 'matrix(' + [Math.cos(r), Math.sin(r), -Math.sin(r), Math.cos(r), 0, 0].map(sig6).join(', ') + ')'; }
+    else if (/^-?[\d.]+[a-z%]*$/i.test(String(v).trim()) && /^-?[\d.]+[a-z%]*$/i.test(String(w).trim())) { const unit = String(v).trim().replace(/^-?[\d.]+/, ''); shown = sig6(parseFloat(v) + (parseFloat(w) - parseFloat(v)) * p) + unit; }
+    else shown = String(p < 0.5 ? v : w);
+    out[k] = shown;
+    out[k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase())] = shown;
+  }
+  return out;
+};
+const computedStyle = (el) => {
+  const out = { getPropertyValue: (prop) => (out[prop] !== undefined && typeof out[prop] === 'string' ? out[prop] : '') };
+  if (el && el.__ub_anim) Object.assign(out, shownBy(el.__ub_anim));
+  return out;
+};
 const dom = () => withText({
   style: {}, dataset: {}, setAttribute: noop, getAttribute: () => null, removeAttribute: noop, hasAttribute: () => false,
   appendChild: (c) => inserted(c), insertBefore: (c) => inserted(c), append: (c) => void inserted(c), prepend: noop, removeChild: (c) => c, remove: noop,
   addEventListener: noop, removeEventListener: noop, dispatchEvent: () => true,
+  animate(frames, opts) { return animationOn(this, frames, opts); }, getAnimations() { return this.__ub_anim ? [this.__ub_anim] : []; },
   querySelector: (s) => q(s), querySelectorAll: (s) => qa(s), getElementsByTagName: (t) => qa(t),
   contains: () => false, cloneNode: () => el(), getBoundingClientRect: () => ({ top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0 }),
-  children: [], childNodes: [], parentNode: null, focus: noop, click: noop, offsetWidth: 0, offsetHeight: 0,
+  children: [], childNodes: [], parentNode: null, previousElementSibling: null, nextElementSibling: null, previousSibling: null, nextSibling: null, focus: noop, click: noop, offsetWidth: 0, offsetHeight: 0,
 });
 const el = () => dom();
 // A canvas is what the page's own code saw it draw: its output is the strings the walk's probe recorded, and a WebGL
@@ -1290,10 +1461,40 @@ const canvasEl = () => {
   c.toBlob = (f) => { try { f(null); } catch (_) {} };
   return c;
 };
+// A frame the page makes has a window of its own: the standard globals of a fresh page (its own `Date`, `JSON`,
+// `Math`), a document, and the page that made it as its parent. A script that checks the page's clock against a
+// frame's, or measures something in a frame, finds the frame there instead of throwing before the page's call.
+// Each frame's built-ins are its own realm's, as a browser gives every frame its own `Date`: a page that wraps the clock
+// in one frame and makes another for a clean one finds it clean, and nothing a frame's code changes reaches the
+// shim's own built-ins.
+const FRAME_BUILTINS = ['Date', 'Math', 'JSON', 'Object', 'Array', 'Function', 'String', 'Number', 'Boolean', 'RegExp', 'Error', 'TypeError', 'RangeError', 'Promise', 'Symbol', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Proxy', 'Reflect', 'ArrayBuffer', 'DataView', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Int8Array', 'Int16Array', 'Int32Array', 'Float32Array', 'Float64Array', 'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURIComponent', 'decodeURIComponent', 'encodeURI', 'decodeURI', 'Intl'];
+const frameBuiltins = () => {
+  try {
+    const realm = {};
+    vm.createContext(realm);
+    const own = vm.runInContext('({' + FRAME_BUILTINS.map((n) => n + ': typeof ' + n + " === 'undefined' ? undefined : " + n).join(', ') + '})', realm, { filename: 'frame' });
+    if (own && typeof own.Date === 'function') return own;
+  } catch (e) {}
+  return { Date, Math, JSON, Object, Array, Function, String, Number, Boolean, RegExp, Error, TypeError, RangeError, Promise, Symbol, Map, Set, WeakMap, WeakSet, Proxy, Reflect, ArrayBuffer, DataView, Uint8Array, Uint16Array, Uint32Array, Int8Array, Int16Array, Int32Array, Float32Array, Float64Array, parseInt, parseFloat, isNaN, isFinite, encodeURIComponent, decodeURIComponent, encodeURI, decodeURI,
+    Intl: typeof Intl === 'undefined' ? undefined : Intl };
+};
+const frameWindow = () => {
+  const d = { readyState: 'complete', title: '', cookie: '', createElement: (t) => create(t), createTextNode: (t) => ({ nodeType: 3, textContent: text(t) }), body: el(), head: el(), documentElement: el(), addEventListener: noop, removeEventListener: noop, querySelector: () => null, querySelectorAll: () => [], getElementById: () => null };
+  const w = Object.assign(frameBuiltins(), { document: d, frames: [], length: 0, addEventListener: noop, removeEventListener: noop, postMessage: noop });
+  for (const [k, f] of [['parent', () => g], ['top', () => g], ['navigator', () => g.navigator], ['location', () => g.location]]) Object.defineProperty(w, k, { get: f, enumerable: true, configurable: true });
+  w.window = w; w.self = w; w.globalThis = w; d.defaultView = w;
+  return w;
+};
 const create = (tag) => {
   const name = String(tag).toUpperCase();
-  const e = String(tag).toLowerCase() === 'canvas' ? canvasEl() : el();
+  const kind = String(tag).toLowerCase();
+  const e = kind === 'canvas' ? canvasEl() : el();
   e.tagName = name; e.nodeName = name; e.nodeType = 1;
+  if (kind === 'iframe' || kind === 'frame') {
+    let w = null;
+    Object.defineProperty(e, 'contentWindow', { get: () => (w || (w = frameWindow())), configurable: true });
+    Object.defineProperty(e, 'contentDocument', { get: () => e.contentWindow.document, configurable: true });
+  }
   return e;
 };
 let g = {
@@ -1313,8 +1514,10 @@ let g = {
   // The browser's WebCrypto, plus the runtime's hashes: a program written for the standalone sandbox may call
   // createHash/createHmac, and the page's own code never does. The capability is the runtime's, not a site's.
   crypto: webCrypto,
-  performance: { now: () => Date.now(), timeOrigin: Date.now() },
-  location: loc(spec.pageUrl), document: { title: '', referrer: '', readyState: 'loading', location: loc(spec.pageUrl), dispatchEvent: (e) => { const l = listeners[e && e.type]; if (l) for (const f of l.slice()) { try { f(e); } catch (_) {} } return true; }, createElement: create, createTextNode: (t) => ({ nodeType: 3, textContent: text(t) }), createDocumentFragment: () => el(), head: q('head') || el(), body: q('body') || el(), documentElement: q('html') || el(), addEventListener: (t, f) => { (listeners[t] || (listeners[t] = [])).push(f); }, removeEventListener: noop, querySelector: q, querySelectorAll: qa,       getElementById: (id) => { const e = q('#' + id); if (lookups.length < 24) lookups.push([String(id), !!e, e ? String(e.textContent || '').length : -1]); return e; }, getElementsByTagName: (t) => qa(t), getElementsByName: (n) => qa('[name="' + n + '"]'), scripts: tags.filter((t) => t.tag === 'script').map(elementOf), cookie: spec.cookies || '', writes: [],
+  // The browser's performance timeline, empty as a page that has recorded nothing sees it: a page's boot reads its
+  // navigation entry and sets marks, and a missing method is a throw that ends the boot before the page's call.
+  performance: (() => { const t0 = Date.now(); const none = () => []; return { now: () => Date.now(), timeOrigin: t0, getEntries: none, getEntriesByType: none, getEntriesByName: none, mark: (name) => ({ name: String(name), entryType: 'mark', startTime: Date.now() - t0, duration: 0 }), measure: (name) => ({ name: String(name), entryType: 'measure', startTime: 0, duration: Date.now() - t0 }), clearMarks: () => {}, clearMeasures: () => {}, clearResourceTimings: () => {}, setResourceTimingBufferSize: () => {}, addEventListener: () => {}, removeEventListener: () => {}, toJSON: () => ({ timeOrigin: t0 }) }; })(),
+  location: loc(spec.pageUrl), document: { title: '', referrer: '', readyState: 'loading', currentScript: null, location: loc(spec.pageUrl), hasFocus: () => true, dispatchEvent: (e) => { const l = listeners[e && e.type]; if (l) for (const f of l.slice()) { try { f(e); } catch (_) {} } return true; }, createElement: create, createTextNode: (t) => ({ nodeType: 3, textContent: text(t) }), createDocumentFragment: () => el(), head: q('head') || el(), body: q('body') || el(), documentElement: q('html') || el(), addEventListener: (t, f) => { (listeners[t] || (listeners[t] = [])).push(f); }, removeEventListener: noop, querySelector: q, querySelectorAll: qa,       getElementById: (id) => { const e = q('#' + id); if (lookups.length < 24) lookups.push([String(id), !!e, e ? String(e.textContent || '').length : -1]); return e; }, getElementsByTagName: (t) => qa(t), getElementsByName: (n) => qa('[name="' + n + '"]'), scripts: tags.filter((t) => t.tag === 'script').map(elementOf), cookie: spec.cookies || '', writes: [],
     // The implementation a page's code asks the document for (`new DOMImplementation().createHTMLDocument`): a
     // document of its own, so a script that builds one to parse or to measure finds something that behaves.
     implementation: { createHTMLDocument: (t) => ({ title: t || '', body: el(), documentElement: el(), querySelector: q, querySelectorAll: qa, createElement: create }) } },
@@ -1343,9 +1546,10 @@ let g = {
   dispatchEvent: (e) => { const l = listeners[e && e.type]; if (l) for (const f of l.slice()) { try { f(e); } catch (_) {} } return true; },
   requestAnimationFrame: (f) => setTimeout(() => f(Date.now()), 16), cancelAnimationFrame: noop,
   requestIdleCallback: (f) => setTimeout(() => f({ timeRemaining: () => 50, didTimeout: false }), 1), cancelIdleCallback: noop,
-  // What a page's code measures and watches: a computed style, an observer it starts. A stub that answers '' keeps the
-  // code running; the values that matter are the ones the page records in its own state, which the sandbox carries.
-  getComputedStyle: () => ({ getPropertyValue: () => '', ...{} }),
+  // What a page's code measures and watches: a computed style, an observer it starts. A property an animation of the
+  // page's own moves is answered as a browser shows it at the animation's moment (`computedStyle`); any other answers
+  // '', which keeps the code running, and the values that matter are the ones the page records in its own state.
+  getComputedStyle: (el) => computedStyle(el),
   // The platform's own data types come from the runtime: a bundle builds a Blob, a FormData, a Request, and reads
   // them the way a browser would.
   Blob, File: typeof File === 'function' ? File : undefined, FormData, Headers, Request, Response, AbortController,
@@ -1458,6 +1662,9 @@ try {
 try { g.ReadableStream = ReadableStream; g.TextDecoder = TextDecoder; g.TextEncoder = TextEncoder; } catch (e) {}
 g.__ubImport = doImport; g.__ubMeta = { url: spec.pageUrl };
 g.Worker = UbWorker; g.SharedWorker = UbWorker;
+// A program's answer still to come is the page still working: the quiet time stops while it is pending and starts
+// again when it comes (`run_program_on_page_many` waits on each answer through this).
+Object.defineProperty(g, '__ub_working', { configurable: false, enumerable: false, value: (p) => { if (settleTimer) clearTimeout(settleTimer); return Promise.resolve(p).finally(() => arm()); } });
 nudge(g.document);
 // A bundle keeps its module graph behind a closure, but a chunk's push hands it out: webpack replaces the chunk
 // array's `push` with a callback, and every factory it copies is called with `(module, exports, require)`. Watching
@@ -1609,10 +1816,10 @@ const bootOrder = () => {
     if (t.attrs.src) {
       let abs = String(t.attrs.src);
       try { abs = new URL(abs, spec.pageUrl).href; } catch (e) {}
-      if (byUrl.has(abs) && !seen.has(abs)) { seen.add(abs); named = true; list.push({ url: abs, body: byUrl.get(abs), module: asModule }); }
+      if (byUrl.has(abs) && !seen.has(abs)) { seen.add(abs); named = true; list.push({ url: abs, body: byUrl.get(abs), module: asModule, el: elementOf(t) }); }
     } else if (t.close < spec.html.length && spec.html.slice(t.end, t.close).trim()) {
       const url = asModule ? spec.pageUrl + '#inline-' + list.length : 'inline:' + list.length;
-      list.push({ url, body: spec.html.slice(t.end, t.close), module: asModule });
+      list.push({ url, body: spec.html.slice(t.end, t.close), module: asModule, el: elementOf(t) });
     }
   }
   // A script the document does not name is a lazy chunk, and a browser runs it only when the page asks for it. Run it
@@ -1676,6 +1883,7 @@ const backstop = setTimeout(done, spec.settleMs + 64000);
       if (settleTimer) clearTimeout(settleTimer);
       if (s.module) {
         // A module's scope is its own; its imports link through the same line as the page's fetches.
+        g.document.currentScript = null;
         await loadModule(String(s.url), String(s.body));
         watchChunks();
         continue;
@@ -1683,7 +1891,12 @@ const backstop = setTimeout(done, spec.settleMs + 64000);
       // `import()` is a keyword a script cannot be parsed with, and `import.meta` a module's. Both become calls this
       // harness answers: the chunk comes over the same line as a fetch, and runs here.
       const body = String(s.body).replace(/\bimport\s*\(/g, '__ubImport(').replace(/\bimport\.meta\b/g, '__ubMeta');
-      vm.runInContext(body, g, { filename: s.url, timeout: spec.scriptMs });
+      g.document.currentScript = s.el || el();
+      try {
+        vm.runInContext(body, g, { filename: s.url, timeout: spec.scriptMs });
+      } finally {
+        g.document.currentScript = null;
+      }
       watchChunks();
     } catch (e) {
       try {
@@ -1818,21 +2031,194 @@ const backstop = setTimeout(done, spec.settleMs + 64000);
 "#;
 
 pub(crate) fn runtime() -> Option<String> {
-    std::env::var("SIGNING_PROGRAM").ok().filter(|p| !p.trim().is_empty()).or_else(|| {
-        // The owner's own JS runtime, when it is on the path: the same arrangement as the browser program.
-        node_on_path(&std::env::var_os("PATH")?)
-    })
+    if let Some(explicit) = std::env::var("SIGNING_PROGRAM").ok().filter(|p| !p.trim().is_empty()) {
+        return Some(explicit);
+    }
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(std::path::PathBuf::from);
+    let nvm_dir = std::env::var_os("NVM_DIR").filter(|v| !v.is_empty()).map(std::path::PathBuf::from);
+    let candidates = node_candidates(std::env::var_os("PATH").as_deref(), home.as_deref(), nvm_dir.as_deref());
+    pick_runtime_with(candidates, |p| confined(p).is_some())
 }
 
 /// The first `node` (`node.exe` on Windows) in the folders `path` lists, read straight from the folders. A Unix shell
 /// was asked before (`sh -c 'command -v node'`): Windows has none, or Git's, which answers `/c/...`, a path no Windows
 /// program opens, so the sandbox never ran there and the page's values came from the browser instead.
+#[cfg(test)]
 fn node_on_path(path: &std::ffi::OsStr) -> Option<String> {
+    nodes_on_path(path).into_iter().next()
+}
+
+fn nodes_on_path(path: &std::ffi::OsStr) -> Vec<String> {
     std::env::split_paths(path)
         .filter(|d| !d.as_os_str().is_empty())
         .flat_map(|d| [d.join("node.exe"), d.join("node")])
-        .find(|c| c.is_file())
+        .filter(|c| c.is_file())
         .map(|c| c.to_string_lossy().into_owned())
+        .collect()
+}
+
+/// Candidate `node` binaries in preference order: `PATH` first, then standard install and version-manager folders
+/// (real binaries, not shims that `exec` another process and would be denied inside the OS sandbox). A GUI-launched
+/// node — macOS LaunchServices starts `Unbrowse.app` with `PATH=/usr/bin:/bin:/usr/sbin:/sbin` — never sees Homebrew
+/// or nvm on `PATH`, so looking in the usual folders lets the sandbox run without asking the owner to set
+/// `SIGNING_PROGRAM`. Duplicates that resolve to the same file are dropped.
+fn node_candidates(
+    path: Option<&std::ffi::OsStr>,
+    home: Option<&std::path::Path>,
+    nvm_dir: Option<&std::path::Path>,
+) -> Vec<String> {
+    let mut raw = Vec::new();
+    if let Some(p) = path {
+        raw.extend(nodes_on_path(p));
+    }
+    raw.extend(node_in_known_dirs(home, nvm_dir, known_system_bin_dirs()));
+    dedup_paths(raw)
+}
+
+fn dedup_paths(paths: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::with_capacity(paths.len());
+    for p in paths {
+        let key = std::fs::canonicalize(&p).unwrap_or_else(|_| std::path::PathBuf::from(&p));
+        if seen.insert(key) {
+            out.push(p);
+        }
+    }
+    out
+}
+
+/// Picks the first candidate that passes confinement when more than one exists (e.g. an older system Node alongside a
+/// newer nvm Node), falling back to the first candidate so `unheld()` still reports why it failed instead of claiming
+/// there is no runtime. With a single candidate it returns it without probing eagerly.
+fn pick_runtime_with(candidates: Vec<String>, mut is_confined: impl FnMut(&str) -> bool) -> Option<String> {
+    if candidates.len() <= 1 {
+        return candidates.into_iter().next();
+    }
+    if let Some(held) = candidates.iter().find(|p| is_confined(p)) {
+        return Some(held.clone());
+    }
+    candidates.into_iter().next()
+}
+
+fn known_system_bin_dirs() -> Vec<std::path::PathBuf> {
+    #[cfg(unix)]
+    {
+        ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin", "/nix/var/nix/profiles/default/bin"]
+            .into_iter()
+            .map(std::path::PathBuf::from)
+            .collect()
+    }
+    #[cfg(windows)]
+    {
+        let mut dirs = Vec::new();
+        for var in ["ProgramFiles", "ProgramFiles(x86)"] {
+            if let Some(base) = std::env::var_os(var) {
+                dirs.push(std::path::PathBuf::from(base).join("nodejs"));
+            }
+        }
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            dirs.push(std::path::PathBuf::from(local).join("Programs").join("nodejs"));
+        }
+        dirs
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        Vec::new()
+    }
+}
+
+/// Well-known real `node` binaries outside `PATH`: system package-manager dirs and real versioned installs from nvm,
+/// fnm, Volta, mise, asdf and nodenv (newest semver version first). Shims (`asdf/shims`, `volta/bin`, etc.) are
+/// intentionally skipped because a confined child process cannot `exec` through a shim into the real binary.
+fn node_in_known_dirs(
+    home: Option<&std::path::Path>,
+    nvm_dir: Option<&std::path::Path>,
+    system_dirs: Vec<std::path::PathBuf>,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    let push_dir = |out: &mut Vec<String>, dir: &std::path::Path| {
+        for name in ["node.exe", "node"] {
+            let c = dir.join(name);
+            if c.is_file() {
+                out.push(c.to_string_lossy().into_owned());
+                break;
+            }
+        }
+    };
+
+    for dir in &system_dirs {
+        push_dir(&mut out, dir);
+    }
+
+    let mut versioned_roots: Vec<(std::path::PathBuf, &[&str])> = Vec::new();
+    if let Some(nvm) = nvm_dir {
+        versioned_roots.push((nvm.join("versions").join("node"), &["bin"]));
+        versioned_roots.push((nvm.to_path_buf(), &[]));
+    }
+    if let Some(h) = home {
+        if nvm_dir.is_none() {
+            versioned_roots.push((h.join(".nvm").join("versions").join("node"), &["bin"]));
+        }
+        versioned_roots.push((h.join(".fnm").join("node-versions"), &["installation", "bin"]));
+        versioned_roots.push((h.join("Library").join("Application Support").join("fnm").join("node-versions"), &["installation", "bin"]));
+        versioned_roots.push((h.join(".local").join("share").join("fnm").join("node-versions"), &["installation", "bin"]));
+        versioned_roots.push((h.join(".volta").join("tools").join("image").join("node"), &["bin"]));
+        versioned_roots.push((h.join(".local").join("share").join("mise").join("installs").join("node"), &["bin"]));
+        versioned_roots.push((h.join(".asdf").join("installs").join("nodejs"), &["bin"]));
+        versioned_roots.push((h.join(".nodenv").join("versions"), &["bin"]));
+        #[cfg(windows)]
+        {
+            if let Some(appdata) = std::env::var_os("APPDATA") {
+                let app = std::path::PathBuf::from(appdata);
+                versioned_roots.push((app.join("nvm"), &[]));
+                versioned_roots.push((app.join("fnm").join("node-versions"), &["installation"]));
+            }
+            if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+                versioned_roots.push((std::path::PathBuf::from(local).join("Volta").join("tools").join("image").join("node"), &[]));
+            }
+            push_dir(&mut out, &h.join("scoop").join("apps").join("nodejs").join("current"));
+            push_dir(&mut out, &h.join("scoop").join("apps").join("nodejs-lts").join("current"));
+        }
+        for extra in [h.join("n").join("bin"), h.join(".local").join("bin"), h.join("bin")] {
+            push_dir(&mut out, &extra);
+        }
+    }
+
+    for (root, suffix) in versioned_roots {
+        for dir in version_dirs_desc(&root, suffix) {
+            push_dir(&mut out, &dir);
+        }
+    }
+    out
+}
+
+/// Immediate subdirectories of `root` sorted by descending numeric version (`v26.13.1` before `v22.23.3` before
+/// `v9.11.2`), each joined with `suffix`.
+fn version_dirs_desc(root: &std::path::Path, suffix: &[&str]) -> Vec<std::path::PathBuf> {
+    let Ok(entries) = std::fs::read_dir(root) else { return Vec::new() };
+    let mut dirs: Vec<((u64, u64, u64), String, std::path::PathBuf)> = entries
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().ok().is_some_and(|t| t.is_dir() || t.is_symlink()))
+        .map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let key = version_key(&name);
+            let mut p = e.path();
+            for s in suffix {
+                p = p.join(s);
+            }
+            (key, name, p)
+        })
+        .collect();
+    dirs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
+    dirs.into_iter().map(|(_, _, p)| p).collect()
+}
+
+fn version_key(name: &str) -> (u64, u64, u64) {
+    let s = name.strip_prefix('v').or_else(|| name.strip_prefix('V')).unwrap_or(name);
+    let mut parts = s.split('.').map(|p| {
+        p.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse::<u64>().unwrap_or(0)
+    });
+    (parts.next().unwrap_or(0), parts.next().unwrap_or(0), parts.next().unwrap_or(0))
 }
 
 /// Whether this machine can run a bundle at all: a runtime, and one it can confine.
@@ -2614,7 +3000,12 @@ const PAGE_BODY_MAX: usize = 1 << 20;
 /// Runs the confined child to its answer: the line it writes when it is done. Each request it makes on the way is
 /// answered by `net` when the node allows it ([`answer`]), else refused. The child is killed at its deadline, past
 /// its memory, or when it says something that isn't a line; what it said by then is not an answer.
-fn converse(child: &mut std::process::Child, mut net: Option<&mut Net<'_>>, page: Option<&url::Url>, limits: Limits) -> Option<String> {
+#[cfg(test)]
+fn converse(child: &mut std::process::Child, net: Option<&mut Net<'_>>, page: Option<&url::Url>, limits: Limits) -> Option<String> {
+    converse_with(child, net, page, &std::collections::HashSet::new(), limits)
+}
+
+fn converse_with(child: &mut std::process::Child, mut net: Option<&mut Net<'_>>, page: Option<&url::Url>, script_hosts: &std::collections::HashSet<String>, limits: Limits) -> Option<String> {
     use std::io::{Read, Write};
     let stdout = child.stdout.take()?;
     let mut stdin = child.stdin.take();
@@ -2673,7 +3064,7 @@ fn converse(child: &mut std::process::Child, mut net: Option<&mut Net<'_>>, page
                 let req = said.get("req").cloned().unwrap_or_default();
                 let mut reply = match net.as_deref_mut() {
                     Some(_) if calls > PAGE_CALLS_MAX => refused(&format!("the page made more than {PAGE_CALLS_MAX} calls in one run")),
-                    Some(n) => answer(&req, n, page, deadline),
+                    Some(n) => answer_with(&req, n, page, script_hosts, deadline),
                     None => refused("this run has no line to the node"),
                 };
                 reply["id"] = serde_json::Value::from(id);
@@ -2711,11 +3102,19 @@ fn refused(why: &str) -> serde_json::Value {
 /// machine, its network and another site are never the page's to reach, whoever's route it is. This is the loosest
 /// bound: the node's bridge holds a route that came from another node to the exact origins its graph names
 /// (`client::Runner::page_asks`).
+#[cfg(test)]
 fn page_may_ask(page: Option<&url::Url>, url: &url::Url) -> Result<(), String> {
+    page_may_ask_with(page, &std::collections::HashSet::new(), url, false)
+}
+
+/// [`page_may_ask`], also permitting credential-free plain `GET` lazy chunk fetches (`is_script_get`) to exact HTTPS
+/// script hosts already observed in the route's carried bundle (e.g. a site's static CDN like `abs.twimg.com`).
+fn page_may_ask_with(page: Option<&url::Url>, script_hosts: &std::collections::HashSet<String>, url: &url::Url, is_script_get: bool) -> Result<(), String> {
     crate::egress::Egress::Foreign.request(url)?;
     let page = page.ok_or("the run has no page")?;
     match (page.host_str(), url.host_str()) {
         (Some(p), Some(h)) if crate::identity::same_site(p, h) => Ok(()),
+        (_, Some(h)) if is_script_get && script_hosts.contains(&h.to_ascii_lowercase()) => Ok(()),
         (_, Some(h)) => Err(format!("{h} is not the page's own site")),
         _ => Err("the request names no host".into()),
     }
@@ -2739,18 +3138,17 @@ pub fn forbidden_header(name: &str) -> bool {
 /// input: the method is a word, a header is a token with a value on one line, the body is bounded, and a header the
 /// browser keeps for itself is dropped. The answer never carries the cookies the site set: a page's script never reads
 /// them in a browser either.
+#[cfg(test)]
 fn answer(v: &serde_json::Value, net: &mut Net<'_>, page: Option<&url::Url>, deadline: std::time::Instant) -> serde_json::Value {
+    answer_with(v, net, page, &std::collections::HashSet::new(), deadline)
+}
+
+fn answer_with(v: &serde_json::Value, net: &mut Net<'_>, page: Option<&url::Url>, script_hosts: &std::collections::HashSet<String>, deadline: std::time::Instant) -> serde_json::Value {
     if std::time::Instant::now() >= deadline {
         return refused("the run's time is up");
     }
     let debug = std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some();
     let Some(url) = v.get("url").and_then(|u| u.as_str()).and_then(|u| url::Url::parse(u).ok()) else { return refused("not a web address") };
-    if let Err(why) = page_may_ask(page, &url) {
-        if debug {
-            eprintln!("   [sign] the page asked {url}: refused ({why})");
-        }
-        return refused(&why);
-    }
     let method = v.get("method").and_then(|m| m.as_str()).unwrap_or("GET").to_ascii_uppercase();
     if method.is_empty() || method.len() > 16 || !method.bytes().all(|b| b.is_ascii_alphabetic()) {
         return refused("not a method");
@@ -2769,6 +3167,13 @@ fn answer(v: &serde_json::Value, net: &mut Net<'_>, page: Option<&url::Url>, dea
     let body = v.get("body").and_then(|b| b.as_str()).map(|b| b.as_bytes().to_vec());
     if body.as_ref().is_some_and(|b| b.len() > PAGE_BODY_MAX) {
         return refused("the page's request body is larger than the node sends for it");
+    }
+    let is_script_get = v.get("script").and_then(|s| s.as_bool()) == Some(true) && method == "GET" && body.is_none() && headers.is_empty();
+    if let Err(why) = page_may_ask_with(page, script_hosts, &url, is_script_get) {
+        if debug {
+            eprintln!("   [sign] the page asked {url}: refused ({why})");
+        }
+        return refused(&why);
     }
     let req = Request { method, url, exchange: usize::MAX, headers, body };
     let asked_at = std::time::Instant::now();
@@ -2796,10 +3201,208 @@ fn answer(v: &serde_json::Value, net: &mut Net<'_>, page: Option<&url::Url>, dea
     }
 }
 
+/// A page booted once in the sandbox and kept, for a function of its own script called again on each call
+/// (`route.value-dag`): the booted page is a node whose value depends only on the route's page, markup and scripts, so
+/// it is cached for as long as those stand, and each call runs only the function. The child is the same confined run
+/// as any other; it is killed when it is dropped, past its memory, or when it stops answering.
+struct Warm {
+    child: std::process::Child,
+    stdin: std::process::ChildStdin,
+    rx: std::sync::mpsc::Receiver<Option<String>>,
+    _dir: RunDir,
+    calls: u64,
+    used: std::time::Instant,
+}
+
+impl Drop for Warm {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+/// How long a page kept booted is kept unused, and how many are kept at once.
+const WARM_IDLE: std::time::Duration = std::time::Duration::from_secs(600);
+const WARM_HELD: usize = 4;
+/// The most a call of a page kept booted may take.
+const WARM_CALL: std::time::Duration = std::time::Duration::from_secs(20);
+
+impl Warm {
+    /// Boots `shim` with `spec` and `input` as a run that stays (`spec.serve`), and waits for its first answer: the
+    /// child kept, and what it said when done.
+    fn boot(program: &str, shim: &str, spec: &serde_json::Value, input: &str, limits: Limits) -> Option<(Warm, String)> {
+        use std::io::{BufRead, Read};
+        let c = confined(program)?;
+        let dir = RunDir::new("warm")?;
+        let boot = dir.write("boot.js", BOOT.as_bytes())?;
+        let shim = dir.write("shim.js", format!("((H) => {{\n{PRELUDE}\n{shim}\n}})").as_bytes())?;
+        let spec_path = dir.write("spec.json", spec.to_string().as_bytes())?;
+        let input_path = dir.write("input", input.as_bytes())?;
+        // The CPU a kept page may spend over its whole life: many calls, each a function's run.
+        let mut cmd = c.command(&dir, limits.ready + limits.wall + WARM_IDLE);
+        let debug = std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some();
+        cmd.arg(&boot).arg(&shim).arg(&spec_path).arg(&input_path).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(if debug { Stdio::piped() } else { Stdio::null() });
+        let mut child = cmd.spawn().ok()?;
+        if let Some(said) = child.stderr.take() {
+            relay_console(said);
+        }
+        let stdout = child.stdout.take()?;
+        let stdin = child.stdin.take()?;
+        let (tx, rx) = std::sync::mpsc::sync_channel::<Option<String>>(64);
+        std::thread::spawn(move || {
+            let mut r = std::io::BufReader::new(stdout);
+            loop {
+                let mut buf = Vec::new();
+                match (&mut r).take(LINE_MAX as u64 + 1).read_until(b'\n', &mut buf) {
+                    Ok(n) if n > 0 && buf.len() <= LINE_MAX && buf.ends_with(b"\n") => {
+                        if tx.send(Some(String::from_utf8_lossy(&buf).into_owned())).is_err() {
+                            return;
+                        }
+                    }
+                    _ => {
+                        let _ = tx.send(None);
+                        return;
+                    }
+                }
+            }
+        });
+        let mut warm = Warm { child, stdin, rx, _dir: dir, calls: 0, used: std::time::Instant::now() };
+        let deadline = std::time::Instant::now() + limits.ready + limits.wall;
+        let out = warm.until(deadline, |said| (said.get("t").and_then(|t| t.as_str()) == Some("done")).then(|| said.get("out").and_then(|o| o.as_str()).unwrap_or_default().to_string()))?;
+        Some((warm, out))
+    }
+
+    /// Reads the run's lines until `wanted` takes one, refusing every request the page makes (a function's page has
+    /// no line to the network), and watching the run's memory. None at the deadline or when the run ends.
+    fn until<T>(&mut self, deadline: std::time::Instant, mut wanted: impl FnMut(&serde_json::Value) -> Option<T>) -> Option<T> {
+        use std::io::Write;
+        loop {
+            let left = deadline.checked_duration_since(std::time::Instant::now())?;
+            if resident_mb(self.child.id()).is_some_and(|mb| mb > memory_mb()) {
+                eprintln!("   [sign] a page kept booted held more than {} MiB and was closed", memory_mb());
+                return None;
+            }
+            let line = match self.rx.recv_timeout(left.min(std::time::Duration::from_millis(20))) {
+                Ok(Some(line)) => line,
+                Ok(None) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return None,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            };
+            let said: serde_json::Value = serde_json::from_str(&line).ok()?;
+            if said.get("t").and_then(|t| t.as_str()) == Some("net") {
+                let mut reply = refused("a page kept for its function has no line to the network");
+                reply["id"] = said.get("id").cloned().unwrap_or_default();
+                let mut text = reply.to_string();
+                text.push('\n');
+                self.stdin.write_all(text.as_bytes()).ok()?;
+                self.stdin.flush().ok()?;
+                continue;
+            }
+            if let Some(found) = wanted(&said) {
+                return Some(found);
+            }
+        }
+    }
+
+    /// The function's value for one call's fields, from the page as it stands booted.
+    fn call(&mut self, ctx: &serde_json::Value) -> Option<String> {
+        use std::io::Write;
+        self.calls += 1;
+        self.used = std::time::Instant::now();
+        let id = 1_000_000_000 + self.calls;
+        let mut line = serde_json::json!({ "t": "call", "id": id, "ctx": ctx.to_string() }).to_string();
+        line.push('\n');
+        self.stdin.write_all(line.as_bytes()).ok()?;
+        self.stdin.flush().ok()?;
+        let deadline = std::time::Instant::now() + WARM_CALL;
+        self.until(deadline, |said| (said.get("t").and_then(|t| t.as_str()) == Some("value") && said.get("id").and_then(|i| i.as_u64()) == Some(id)).then(|| said.get("v").and_then(|v| v.as_str()).unwrap_or_default().to_string()))
+    }
+}
+
+/// The pages kept booted, by what they were booted from.
+static WARM_PAGES: std::sync::Mutex<Vec<(u64, Warm)>> = std::sync::Mutex::new(Vec::new());
+
+/// A program's value for one call's fields (`ctx`) on the page-shaped runtime, as [`run_program_on_page`] makes it,
+/// from a page booted once and kept: the first call boots the page and keeps it; each later call with the same
+/// program, page, markup, scripts, browser and storage runs only the program in it. A page that stops answering is
+/// dropped and booted again. Answers the value, or why there is none.
+#[allow(clippy::too_many_arguments)]
+pub fn run_program_on_page_warm(program: &str, ctx: &serde_json::Value, fingerprint: &serde_json::Value, storage: &Storage, page_url: &str, html: &str, answers: &[crate::signing::Answer], scripts: &[(String, String)]) -> Result<String, String> {
+    warm_value(program, ctx, fingerprint, storage, page_url, html, answers, scripts).map(|(v, _)| v)
+}
+
+/// [`run_program_on_page_warm`], and whether this call booted the page.
+#[allow(clippy::too_many_arguments)]
+fn warm_value(program: &str, ctx: &serde_json::Value, fingerprint: &serde_json::Value, storage: &Storage, page_url: &str, html: &str, answers: &[crate::signing::Answer], scripts: &[(String, String)]) -> Result<(String, bool), String> {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (program, page_url, html, scripts, fingerprint.to_string(), serde_json::to_string(&storage.local).unwrap_or_default(), serde_json::to_string(&storage.session).unwrap_or_default()).hash(&mut h);
+    let key = h.finish();
+    {
+        let mut held = WARM_PAGES.lock().unwrap_or_else(|e| e.into_inner());
+        held.retain(|(_, w)| w.used.elapsed() < WARM_IDLE);
+        if let Some(i) = held.iter().position(|(k, _)| *k == key) {
+            let (_, mut warm) = held.remove(i);
+            if let Some(v) = warm.call(ctx).filter(|v| !v.is_empty()) {
+                if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() {
+                    eprintln!("   [sign] the page kept booted answered its function's call {}", warm.calls);
+                }
+                held.push((key, warm));
+                return Ok((v, false));
+            }
+            // A page that stopped answering, or answered nothing: dropped (killed), and booted afresh below.
+        }
+    }
+    if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() {
+        // What the page kept booted is keyed on, part by part: a page booted again names the part that moved.
+        let part = |v: &dyn Fn(&mut std::collections::hash_map::DefaultHasher)| {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            v(&mut h);
+            h.finish() % 100_000
+        };
+        eprintln!(
+            "   [sign] booting a page to keep: program {} page {} markup {} scripts {} browser {} storage {}/{}",
+            part(&|h| program.hash(h)),
+            part(&|h| page_url.hash(h)),
+            part(&|h| html.hash(h)),
+            part(&|h| scripts.hash(h)),
+            part(&|h| fingerprint.to_string().hash(h)),
+            part(&|h| serde_json::to_string(&storage.local).unwrap_or_default().hash(h)),
+            part(&|h| serde_json::to_string(&storage.session).unwrap_or_default().hash(h)),
+        );
+    }
+    let runtime = runtime().ok_or_else(|| "no signing runtime on this machine".to_string())?;
+    let page = url::Url::parse(page_url).map_err(|e| e.to_string())?;
+    let origin = page.origin().ascii_serialization();
+    let path = "/__unbrowse_generated";
+    let samples_json = serde_json::to_string(std::slice::from_ref(ctx)).map_err(|e| e.to_string())?;
+    let mut bundle: Bundle = scripts.to_vec();
+    bundle.push((format!("{origin}{path}"), program_on_page(program, &samples_json, path)));
+    let settle = settle_ms();
+    let spec = serde_json::json!({
+        "pageUrl": page_url, "cookies": "", "localStorage": storage.local, "sessionStorage": storage.session, "html": html,
+        "fingerprint": fingerprint, "net": false, "answers": answers, "bootAll": true,
+        "targets": [{ "method": "POST", "path": path }], "readGlobal": null, "settleMs": settle, "scriptMs": script_ms().min(settle),
+        "debug": std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some(), "serve": true,
+    });
+    let input: Vec<serde_json::Value> = bundle.iter().map(|(url, body)| serde_json::json!({ "url": url, "body": body })).collect();
+    let (warm, out) = Warm::boot(&runtime, HARNESS, &spec, &serde_json::Value::Array(input).to_string(), Limits::new(std::time::Duration::from_millis(settle + 70_000))).ok_or_else(|| "the page sandbox made no generated call".to_string())?;
+    let said: serde_json::Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
+    let value = said.get("values").and_then(|v| v.get(0)).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    if value.is_empty() {
+        return Err("the program answered no value".to_string());
+    }
+    let mut held = WARM_PAGES.lock().unwrap_or_else(|e| e.into_inner());
+    while held.len() >= WARM_HELD {
+        held.remove(0);
+    }
+    held.push((key, warm));
+    Ok((value, true))
+}
+
 /// One confined run of `shim` (the prelude and a harness): its spec and its input (the page's scripts, or a program)
 /// beside it in a fresh private folder, the line to the node answered by `net`. The text the shim wrote when it was
 /// done, or None.
-fn run_confined(program: &str, kind: &str, shim: &str, spec: &serde_json::Value, input: &str, net: Option<&mut Net<'_>>, page: Option<&url::Url>, limits: Limits) -> Option<String> {
+fn run_confined(program: &str, kind: &str, shim: &str, spec: &serde_json::Value, input: &str, net: Option<&mut Net<'_>>, page: Option<&url::Url>, script_hosts: &std::collections::HashSet<String>, limits: Limits) -> Option<String> {
     let c = confined(program)?;
     let dir = RunDir::new(kind)?;
     let boot = dir.write("boot.js", BOOT.as_bytes())?;
@@ -2809,16 +3412,88 @@ fn run_confined(program: &str, kind: &str, shim: &str, spec: &serde_json::Value,
     let spec_path = dir.write("spec.json", spec.to_string().as_bytes())?;
     let input_path = dir.write("input", input.as_bytes())?;
     let mut cmd = c.command(&dir, limits.ready + limits.wall + std::time::Duration::from_secs(5));
+    // What the page writes to its console is read here, never written by the run itself: the run may write no file
+    // (`RLIMIT_FSIZE` 0), and a node whose log is a file would hand it that file, where every console write throws
+    // (`EFBIG`) and the page's code dies before it makes its call. Under the debug switch the node relays it.
+    let debug = std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some();
     cmd.arg(&boot)
         .arg(&shim)
         .arg(&spec_path)
         .arg(&input_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() { Stdio::inherit() } else { Stdio::null() });
+        .stderr(if debug { Stdio::piped() } else { Stdio::null() });
     let mut child = cmd.spawn().ok()?;
-    converse(&mut child, net, page, limits)
+    let relayed = child.stderr.take().map(relay_console);
+    let out = converse_with(&mut child, net, page, script_hosts, limits);
+    // What the run said is on the node's log before its call is handed back: the run is gone, so its console has
+    // closed and the relay ends with what is left in the pipe. A relay that does not end soon is not waited for.
+    if let Some(done) = relayed {
+        let _ = done.recv_timeout(RELAY_DRAIN);
+    }
+    out
 }
+
+/// The longest a finished run waits for its console relay to write what is left.
+const RELAY_DRAIN: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// The most of a run's console the debug switch relays to the node's own log.
+const CONSOLE_RELAYED: usize = 256 * 1024;
+
+/// Relays what a confined run wrote to its console onto the node's own log, line by line, up to [`CONSOLE_RELAYED`]
+/// bytes, and reads (and drops) the rest so the run never blocks on a full pipe. The receiver hears once the run's
+/// console has closed and everything relayed is written.
+fn relay_console(said: std::process::ChildStderr) -> std::sync::mpsc::Receiver<()> {
+    let (done, ended) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        #[cfg(test)]
+        std::thread::sleep(std::time::Duration::from_millis(RELAY_HELD_IN_TEST.load(std::sync::atomic::Ordering::Relaxed)));
+        relay(said, &mut std::io::stderr(), CONSOLE_RELAYED);
+        let _ = done.send(());
+    });
+    ended
+}
+
+/// Writes what `said` says onto `to`, a whole line at a time, up to `cap` bytes, and reads (and drops) the rest. What
+/// is held is never more than the cap: a line longer than what is left of it is cut there (and ended), and nothing
+/// after the cap is kept, however long its lines.
+fn relay(said: impl std::io::Read, to: &mut dyn std::io::Write, cap: usize) {
+    use std::io::BufRead;
+    let mut said = std::io::BufReader::with_capacity(8 * 1024, said);
+    let (mut relayed, mut line) = (0usize, Vec::new());
+    let mut write = |line: &mut Vec<u8>, relayed: &mut usize| {
+        if line.is_empty() {
+            return;
+        }
+        if !line.ends_with(b"\n") {
+            line.push(b'\n');
+        }
+        let _ = to.write_all(line);
+        *relayed += line.len();
+        line.clear();
+    };
+    loop {
+        let buf = match said.fill_buf() {
+            Ok([]) => break,
+            Ok(buf) => buf,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => break,
+        };
+        let upto = buf.iter().position(|&b| b == b'\n').map_or(buf.len(), |i| i + 1);
+        let room = cap.saturating_sub(relayed + line.len());
+        line.extend_from_slice(&buf[..upto.min(room)]);
+        let ended = buf[upto - 1] == b'\n';
+        said.consume(upto);
+        if ended || relayed + line.len() >= cap {
+            write(&mut line, &mut relayed);
+        }
+    }
+    write(&mut line, &mut relayed);
+}
+
+/// How long a test holds the console relay before it writes: a relay that ends after the run must still be waited for.
+#[cfg(test)]
+static RELAY_HELD_IN_TEST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Runs one of the node's own helper scripts (the slicer's parser) on adversarial input, in the same confined runtime
 /// page code runs in: `files` written into a fresh private run folder (never an existing path, never through a file
@@ -2899,6 +3574,15 @@ pub fn run_program_on_page(program: &str, ctx: &serde_json::Value, fingerprint: 
 /// The same, for every sample at once: the page's scripts boot **once**, and the program is called for each context in
 /// that one runtime. This is the shape the verifier uses — a page boot per sighting was the cost that made a pick take
 /// minutes. Answers one value per sample; a sample the program threw on is an empty string.
+/// The program a page-shaped run evaluates after the page's own scripts: `program` in a CommonJS shim with the
+/// primitives in its own scope, called for each of `samples_json`, its values written into the synthetic request at
+/// `path`. It leaves `__ub_call` behind, so a page kept booted (`run_program_on_page_warm`) can call it again.
+fn program_on_page(program: &str, samples_json: &str, path: &str) -> String {
+    format!(
+    ";(function(){{var module={{exports:{{}}}},exports=module.exports;var md5=function(v){{return crypto.createHash('md5').update(String(v)).digest('hex')}},sha1=function(v){{return crypto.createHash('sha1').update(String(v)).digest('hex')}},sha256=function(v){{return crypto.createHash('sha256').update(String(v)).digest('hex')}},sha512=function(v){{return crypto.createHash('sha512').update(String(v)).digest('hex')}},hmacSha256=function(k,v){{return crypto.createHmac('sha256',String(k)).update(String(v)).digest('hex')}},base64=function(v){{return Buffer.from(String(v),'utf8').toString('base64')}},base64url=function(v){{return Buffer.from(String(v),'utf8').toString('base64url')}},hex=function(v){{return Buffer.from(String(v),'utf8').toString('hex')}};{program}\n;if(window.__ub_ran)return;Object.defineProperty(window,'__ub_ran',{{value:true}});window.__ub_call=function(c){{var v=(typeof sign==='function')?sign(c):((typeof module.exports==='function')?module.exports(c):undefined);return Promise.resolve(v).then(function(x){{return x==null?'':String(x)}})}};window.__ub_values=[];var __ub_samples={samples_json};\n(async function(){{for(var __ub_i=0;__ub_i<__ub_samples.length;__ub_i++){{try{{var __ub_v=(typeof sign==='function')?sign(__ub_samples[__ub_i]):((typeof module.exports==='function')?module.exports(__ub_samples[__ub_i]):undefined);if(__ub_v&&typeof __ub_v.then==='function')__ub_v=await (typeof window.__ub_working==='function'?window.__ub_working(__ub_v):__ub_v);window.__ub_values.push(String(__ub_v));}}catch(e){{window.__ub_values.push('');}}}}\nfetch('{path}',{{method:'POST',headers:{{'x-generated':String(window.__ub_values[0]||'')}}}});}})();}})();"
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn run_program_on_page_many(program: &str, samples: &[serde_json::Value], fingerprint: &serde_json::Value, storage: &Storage, page_url: &str, html: &str, answers: &[crate::signing::Answer], scripts: &[(String, String)]) -> Result<Vec<String>, String> {
     let runtime = runtime().ok_or_else(|| "no signing runtime on this machine".to_string())?;
@@ -2908,9 +3592,7 @@ pub fn run_program_on_page_many(program: &str, samples: &[serde_json::Value], fi
     let samples_json = serde_json::to_string(samples).map_err(|e| e.to_string())?;
     // A CommonJS shim and the primitives only inside the program's own scope: the page-shaped runtime stays a browser,
     // and a program that answers through `module.exports` still works.
-    let body = format!(
-        ";(function(){{var module={{exports:{{}}}},exports=module.exports;var md5=function(v){{return crypto.createHash('md5').update(String(v)).digest('hex')}},sha1=function(v){{return crypto.createHash('sha1').update(String(v)).digest('hex')}},sha256=function(v){{return crypto.createHash('sha256').update(String(v)).digest('hex')}},sha512=function(v){{return crypto.createHash('sha512').update(String(v)).digest('hex')}},hmacSha256=function(k,v){{return crypto.createHmac('sha256',String(k)).update(String(v)).digest('hex')}},base64=function(v){{return Buffer.from(String(v),'utf8').toString('base64')}},base64url=function(v){{return Buffer.from(String(v),'utf8').toString('base64url')}},hex=function(v){{return Buffer.from(String(v),'utf8').toString('hex')}};{program}\n;window.__ub_values=[];var __ub_samples={samples_json};\nfor(var __ub_i=0;__ub_i<__ub_samples.length;__ub_i++){{try{{var __ub_v=(typeof sign==='function')?sign(__ub_samples[__ub_i]):((typeof module.exports==='function')?module.exports(__ub_samples[__ub_i]):undefined);window.__ub_values.push(String(__ub_v));}}catch(e){{window.__ub_values.push('');}}}}\nfetch('{path}',{{method:'POST',headers:{{'x-generated':String(window.__ub_values[0]||'')}}}});}})();"
-    );
+    let body = program_on_page(program, &samples_json, path);
     // The page's own scripts first, in load order, then the program: a global the page defines (a class, its own
     // encoder) exists for a program that calls it. This is the page's runtime as an opaque leaf; the verifier decides.
     let mut bundle: Bundle = scripts.to_vec();
@@ -2918,6 +3600,9 @@ pub fn run_program_on_page_many(program: &str, samples: &[serde_json::Value], fi
     let asked = Request { method: "POST".into(), url: format!("{origin}{path}").parse().map_err(|e: url::ParseError| e.to_string())?, exchange: 0, headers: vec![], body: None };
     let signed = sign_in(Some(&runtime), settle_ms(), &bundle, page_url, &asked, "", storage, html, fingerprint, answers, None, true)
         .ok_or_else(|| "the page sandbox made no generated call".to_string())?;
+    if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() {
+        eprintln!("   [sign] program on the page: {} value(s) for {} call(s), {} empty", signed.values.len(), samples.len(), signed.values.iter().filter(|v| v.is_empty()).count());
+    }
     if !signed.values.is_empty() {
         return Ok(signed.values);
     }
@@ -3013,7 +3698,9 @@ Object.assign(g, {
   localStorage: storeOf(storage.local || {}, 'localStorage'),
   sessionStorage: storeOf(storage.session || {}, 'sessionStorage'),
   Storage: function Storage() {},
-  performance: { now: () => Date.now(), timeOrigin: Date.now() },
+  // The browser's performance timeline, empty as a page that has recorded nothing sees it: a page's boot reads its
+  // navigation entry and sets marks, and a missing method is a throw that ends the boot before the page's call.
+  performance: (() => { const t0 = Date.now(); const none = () => []; return { now: () => Date.now(), timeOrigin: t0, getEntries: none, getEntriesByType: none, getEntriesByName: none, mark: (name) => ({ name: String(name), entryType: 'mark', startTime: Date.now() - t0, duration: 0 }), measure: (name) => ({ name: String(name), entryType: 'measure', startTime: 0, duration: Date.now() - t0 }), clearMarks: () => {}, clearMeasures: () => {}, clearResourceTimings: () => {}, setResourceTimingBufferSize: () => {}, addEventListener: () => {}, removeEventListener: () => {}, toJSON: () => ({ timeOrigin: t0 }) }; })(),
 });
 const classes = ['HTMLElement','Element','HTMLCanvasElement','HTMLDivElement','HTMLSpanElement','HTMLIFrameElement','HTMLInputElement','HTMLTextAreaElement','HTMLSelectElement','HTMLFormElement','HTMLScriptElement','HTMLStyleElement','HTMLDivElement','HTMLCollection','NodeList','DocumentFragment','CanvasRenderingContext2D','WebGLRenderingContext','AudioContext','OfflineAudioContext','Image','Document','HTMLDocument','Window','Location','History','MouseEvent','KeyboardEvent','Event','CustomEvent','MutationObserver','IntersectionObserver','ResizeObserver','Storage'];
 for (const name of classes) { const f = function () {}; Object.defineProperty(f, 'name', { value: name }); g[name] = f; }
@@ -3095,7 +3782,8 @@ fn run_program_in(program: &str, ctx: &serde_json::Value, fingerprint: &serde_js
     // A program that never answers is killed, not waited on: a call can fall back to the browser, but it can't hang on
     // a generated leaf.
     let limits = Limits::new(std::time::Duration::from_millis(program_budget_ms()));
-    let said = run_confined(&runtime, "program", PROGRAM_HARNESS, &spec, program, None, None, limits)
+    let no_hosts = std::collections::HashSet::new();
+    let said = run_confined(&runtime, "program", PROGRAM_HARNESS, &spec, program, None, None, &no_hosts, limits)
         .ok_or_else(|| "the program gave no answer: it ran past its time or its memory, or this machine can't confine its runtime".to_string())?;
     let said: serde_json::Value = serde_json::from_str(&said).map_err(|e| e.to_string())?;
     if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() {
@@ -3215,9 +3903,15 @@ fn run_all_held(program: Option<&str>, settle_ms: u64, bundle: &Bundle, page_url
         "debug": std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some(),
     });
     let scripts: Vec<serde_json::Value> = bundle.iter().map(|(url, body)| serde_json::json!({ "url": url, "body": body })).collect();
+    let script_hosts: std::collections::HashSet<String> = bundle
+        .iter()
+        .filter_map(|(u, _)| url::Url::parse(u).ok())
+        .filter(|u| u.scheme() == "https")
+        .filter_map(|u| u.host_str().map(|h| h.to_ascii_lowercase()))
+        .collect();
     let page = url::Url::parse(page_url).ok();
     let boot_started = std::time::Instant::now();
-    let said_out = run_confined(program, "sign", HARNESS, &spec, &serde_json::Value::Array(scripts).to_string(), net, page.as_ref(), limits);
+    let said_out = run_confined(program, "sign", HARNESS, &spec, &serde_json::Value::Array(scripts).to_string(), net, page.as_ref(), &script_hosts, limits);
     if std::env::var_os("UNBROWSE_SIGN_DEBUG").is_some() {
         eprintln!("   [sign] boot {} ms (settle {} ms)", boot_started.elapsed().as_millis(), settle_ms);
         eprintln!("   [sign] sandbox child output: {:?}", said_out.as_ref().map(String::len));
@@ -3344,6 +4038,143 @@ mod tests {
         assert_eq!(later, Some(unix.join("node").to_string_lossy().into_owned()));
         assert_eq!(none, None);
     }
+
+    /// A lazy chunk loaded from a static CDN host already present in the route's carried bundle (like `abs.twimg.com`
+    /// on `x.com`) is allowed for credential-free plain `GET` script loads, while non-script fetches, `POST`s, and
+    /// hosts not in the carried bundle remain refused.
+    #[test]
+    fn a_lazy_chunk_on_a_carried_script_host_is_allowed_for_plain_get_only() {
+        let page: url::Url = "https://x.com/search?q=ai".parse().unwrap();
+        let cdn_chunk: url::Url = "https://abs.twimg.com/x-web/assets/chunk.js".parse().unwrap();
+        let other_host: url::Url = "https://evil.example/a.js".parse().unwrap();
+        let mut hosts = std::collections::HashSet::new();
+        hosts.insert("abs.twimg.com".to_string());
+
+        assert!(super::page_may_ask_with(Some(&page), &hosts, &cdn_chunk, true).is_ok(), "carried CDN host script GET allowed");
+        assert!(super::page_may_ask_with(Some(&page), &hosts, &cdn_chunk, false).is_err(), "non-script fetch to CDN host still refused");
+        assert!(super::page_may_ask_with(Some(&page), &hosts, &other_host, true).is_err(), "unlisted third-party host still refused");
+        assert!(super::page_may_ask(Some(&page), &cdn_chunk).is_err(), "default page_may_ask stays strictly same-site");
+
+        // End-to-end through `answer()`: script GET with empty headers/body succeeds, POST or custom header is refused.
+        let mut called = 0usize;
+        let mut net = |req: &Request, _| -> Result<crate::trace::Exchange, String> {
+            called += 1;
+            Ok(crate::trace::Exchange {
+                method: req.method.clone(),
+                url: req.url.clone(),
+                request_headers: vec![],
+                request_body: None,
+                status: 200,
+                response_headers: vec![],
+                response_body: Some("window.__chunk = 1;".into()),
+                response_mime: "application/javascript".into(),
+                resource_type: None,
+                main_frame: None,
+            })
+        };
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let ok = super::answer_with(&serde_json::json!({ "method": "GET", "url": cdn_chunk.as_str(), "headers": {}, "body": null, "script": true }), &mut net, Some(&page), &hosts, deadline);
+        assert_eq!(ok["status"], 200);
+
+        let post = super::answer_with(&serde_json::json!({ "method": "POST", "url": cdn_chunk.as_str(), "headers": {}, "body": "x", "script": true }), &mut net, Some(&page), &hosts, deadline);
+        assert_eq!(post["status"], 0, "POST to CDN host must be refused: {post}");
+        let hdr = super::answer_with(&serde_json::json!({ "method": "GET", "url": cdn_chunk.as_str(), "headers": { "x-leak": "1" }, "body": null, "script": true }), &mut net, Some(&page), &hosts, deadline);
+        assert_eq!(hdr["status"], 0, "custom header to CDN host must be refused: {hdr}");
+        drop(net);
+        assert_eq!(called, 1);
+    }
+
+    /// Inline scripts on modern SSR pages (e.g. x.com) call `document.currentScript.remove()` and read
+    /// `document.currentScript.previousElementSibling`. Classic inline scripts must see their `<script>` element on
+    /// `document.currentScript` with sibling navigation, while module scripts see `null`.
+    #[test]
+    fn an_inline_script_sees_document_current_script_and_its_previous_sibling() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let html = r#"<!doctype html><html><body><div id="seed" data-tok="sig-ok"></div><script>
+            var prev = document.currentScript.previousElementSibling;
+            var tok = prev && prev.getAttribute('data-tok');
+            document.currentScript.remove();
+            fetch('/api/check', { method: 'GET', headers: { 'x-from-inline': String(tok) } });
+        </script><script type="module">
+            if (document.currentScript !== null) throw new Error('module saw currentScript');
+        </script></body></html>"#;
+        let bundle: Bundle = vec![];
+        let asked = request("GET", "https://shop.example.com/api/check", None);
+        let signed = sign_in(runtime().as_deref(), 500, &bundle, "https://shop.example.com/", &asked, "", &Storage::default(), html, &serde_json::Value::Null, &[], None, false)
+            .expect("inline script should boot and emit signed call");
+        let hdr = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-from-inline")).map(|(_, v)| v.as_str());
+        assert_eq!(hdr, Some("sig-ok"), "inline script must read previousElementSibling and call remove() without throwing");
+    }
+
+    /// macOS GUI launch (LaunchServices), 28 Nov 2026: `Unbrowse.app` starts `unbrowse-node` with
+    /// `PATH=/usr/bin:/bin:/usr/sbin:/sbin`, hiding Homebrew and nvm Node installs and causing `sandbox.no_runtime`.
+    /// Known system and version-manager folders are searched without a shell, newest semver version first, skipping
+    /// shims that would fail confinement.
+    #[test]
+    fn node_is_found_in_known_dirs_when_path_is_stripped_and_sorted_by_semver() {
+        let root = std::env::temp_dir().join(format!("sandbox-known-dirs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let home = root.join("home");
+        let brew = root.join("homebrew").join("bin");
+        let nvm_v9 = home.join(".nvm/versions/node/v9.11.2/bin");
+        let nvm_v22 = home.join(".nvm/versions/node/v22.23.3/bin");
+        let nvm_v26 = home.join(".nvm/versions/node/v26.13.1/bin");
+        let fnm_v20 = home.join("Library/Application Support/fnm/node-versions/v20.18.0/installation/bin");
+        let volta_shim = home.join(".volta/bin");
+        let volta_real = home.join(".volta/tools/image/node/22.12.0/bin");
+        let mise_v24 = home.join(".local/share/mise/installs/node/24.1.0/bin");
+        let asdf_v22 = home.join(".asdf/installs/nodejs/22.5.0/bin");
+        let nodenv_v22 = home.join(".nodenv/versions/22.4.0/bin");
+        for d in [&brew, &nvm_v9, &nvm_v22, &nvm_v26, &fnm_v20, &volta_shim, &volta_real, &mise_v24, &asdf_v22, &nodenv_v22] {
+            std::fs::create_dir_all(d).unwrap();
+            std::fs::write(d.join("node"), b"").unwrap();
+        }
+
+        let found = super::node_in_known_dirs(Some(&home), None, vec![brew.clone()]);
+        let s = |p: &std::path::Path| p.join("node").to_string_lossy().into_owned();
+        // System dir comes first; nvm sorts v26 > v22 > v9 (numeric, not lexicographic); volta shim is skipped.
+        assert_eq!(found.first().map(String::as_str), Some(s(&brew).as_str()));
+        let pos = |p: &std::path::Path| found.iter().position(|x| x == &s(p));
+        assert!(pos(&nvm_v26).unwrap() < pos(&nvm_v22).unwrap(), "v26 before v22: {found:?}");
+        assert!(pos(&nvm_v22).unwrap() < pos(&nvm_v9).unwrap(), "v22 before v9 (numeric semver): {found:?}");
+        assert!(pos(&fnm_v20).is_some(), "macOS fnm found: {found:?}");
+        assert!(pos(&volta_real).is_some(), "volta real image binary found: {found:?}");
+        assert!(pos(&volta_shim).is_none(), "volta shim must not be returned: {found:?}");
+        assert!(pos(&mise_v24).is_some(), "mise real binary found: {found:?}");
+        assert!(pos(&asdf_v22).is_some(), "asdf real binary found: {found:?}");
+        assert!(pos(&nodenv_v22).is_some(), "nodenv real binary found: {found:?}");
+
+        // Custom NVM_DIR overrides ~/.nvm.
+        let custom_nvm = root.join("custom-nvm");
+        let custom_v25 = custom_nvm.join("versions/node/v25.0.0/bin");
+        std::fs::create_dir_all(&custom_v25).unwrap();
+        std::fs::write(custom_v25.join("node"), b"").unwrap();
+        let with_custom = super::node_in_known_dirs(Some(&home), Some(&custom_nvm), vec![]);
+        assert_eq!(with_custom.first().map(String::as_str), Some(s(&custom_v25).as_str()));
+
+        // Deduplication drops repeated paths (e.g. when PATH already holds the same binary).
+        let deduped = super::dedup_paths(vec![s(&nvm_v22), s(&nvm_v22), s(&nvm_v26)]);
+        assert_eq!(deduped, vec![s(&nvm_v22), s(&nvm_v26)]);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn pick_runtime_prefers_confined_candidate_and_falls_back_to_first_for_error_reporting() {
+        let old = "/usr/local/bin/node".to_string();
+        let newer = "/Users/owner/.nvm/versions/node/v22.23.3/bin/node".to_string();
+        // When an older Node fails confinement and a newer one passes, the newer one is chosen.
+        let picked = super::pick_runtime_with(vec![old.clone(), newer.clone()], |p| p == newer);
+        assert_eq!(picked.as_deref(), Some(newer.as_str()));
+        // When none pass confinement, the first candidate is kept so `unheld()` reports why instead of NoRuntime.
+        let kept = super::pick_runtime_with(vec![old.clone(), newer.clone()], |_| false);
+        assert_eq!(kept.as_deref(), Some(old.as_str()));
+        // Empty stays None.
+        assert_eq!(super::pick_runtime_with(vec![], |_| true), None);
+    }
     use super::*;
 
     fn request(method: &str, url: &str, body: Option<&str>) -> Request {
@@ -3373,6 +4204,398 @@ mod tests {
         let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
         assert_eq!(sig, Some("sig-eyJxIjoia2V0dGxlIn0=-7"), "{:?}", signed.headers);
         assert!(signed.headers.iter().any(|(k, v)| k.eq_ignore_ascii_case("content-type") && v == "application/json"));
+    }
+
+    /// A page whose boot reads the browser's performance timeline (its navigation entry, its resource entries, a mark
+    /// it sets and measures) before it signs still signs: the timeline is the browser's standard API, and the sandbox
+    /// has one, empty, as a page that recorded nothing yet would see it. Without it a timeline site's app threw
+    /// `performance.getEntriesByType is not a function` in its boot and never made its search call (27 November 2026).
+    #[test]
+    fn a_page_that_reads_the_performance_timeline_still_signs() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            (function () {
+                var nav = performance.getEntriesByType('navigation');
+                var all = performance.getEntries().length + performance.getEntriesByName('first-paint').length;
+                performance.mark('boot');
+                performance.measure('boot-to-call', 'boot');
+                performance.clearMarks(); performance.clearMeasures();
+                var q = new URLSearchParams(location.search).get('q') || '';
+                fetch('/api/search?q=' + q, { headers: { 'x-sig': 'sig-' + q.length + '-' + nav.length + '-' + all } });
+            })();
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        let signed = sign_with(Some("node"), 200, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), "", &serde_json::Value::Null, None).expect("the page's signed call");
+        let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
+        assert_eq!(sig, Some("sig-6-0-0"), "{:?}", signed.headers);
+    }
+
+    /// A page that makes a blob, takes its address and reads it back (worker code, a chunk it assembled) gets its own
+    /// bytes from that address and goes on to sign: a blob address names data the page holds, never a place on the
+    /// network. It was sent to the network instead and refused, and a timeline site's boot waited on it
+    /// (27 November 2026).
+    #[test]
+    fn a_page_reads_back_the_blob_it_made_and_still_signs() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            (function () {
+                var u = URL.createObjectURL(new Blob(['made-here'], { type: 'text/plain' }));
+                fetch(u).then(function (r) { return r.text(); }).then(function (t) {
+                    var q = new URLSearchParams(location.search).get('q') || '';
+                    fetch('/api/search?q=' + q, { headers: { 'x-sig': 'sig-' + t } });
+                });
+            })();
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        let signed = sign_with(Some("node"), 200, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), "", &serde_json::Value::Null, None).expect("the page's signed call");
+        let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
+        assert_eq!(sig, Some("sig-made-here"), "{:?}", signed.headers);
+    }
+
+    /// A page that starts a worker from a blob it made (its worker code assembled in the page) gets that code run,
+    /// and the worker's answer lets it sign: the blob's address is the page's own data, never the network's.
+    #[test]
+    fn a_worker_started_from_the_pages_own_blob_runs_it() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            (function () {
+                var code = "self.onmessage = function (e) { self.postMessage('w-' + e.data); };";
+                var w = new Worker(URL.createObjectURL(new Blob([code], { type: 'text/javascript' })));
+                w.onmessage = function (e) {
+                    var q = new URLSearchParams(location.search).get('q') || '';
+                    fetch('/api/search?q=' + q, { headers: { 'x-sig': 'sig-' + e.data } });
+                };
+                w.postMessage('ready');
+            })();
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        // The network refuses everything: the worker's code can come only from the page's own blob.
+        let mut net = |_: &Request, _: std::time::Instant| -> Result<crate::trace::Exchange, String> { Err("not asked".into()) };
+        let signed = sign_with(Some("node"), 12000, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), "", &serde_json::Value::Null, Some(&mut net)).expect("the page's signed call");
+        let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
+        assert_eq!(sig, Some("sig-w-ready"), "{:?}", signed.headers);
+    }
+
+    /// A program whose value comes after a wait of its own (a chunk it loads, a timer) is waited for, for every call
+    /// it is asked, however long the whole takes: a page is still working while a program's answer is pending, and
+    /// the sandbox's quiet time starts again when it comes. Read as quiet, the run ended after the first answers and
+    /// the verifier saw fewer values than it asked for (a timeline site's own function, 27 November 2026).
+    #[test]
+    fn a_program_that_waits_is_waited_for_on_every_call() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let program = "function sign(ctx){ return new Promise(function (done) { setTimeout(function () { done('v' + ctx.path); }, 1500); }); }";
+        let ctx = |p: &str| crate::generated::context_of("GET", &format!("https://shop.example.com{p}"), None, &[], &[]);
+        let made = run_program_on_page_many(program, &[ctx("/a"), ctx("/b"), ctx("/c")], &serde_json::Value::Null, &Storage::default(), "https://shop.example.com/", "<html><head></head><body></body></html>", &[], &[]).expect("values");
+        assert_eq!(made, vec!["v/a".to_string(), "v/b".to_string(), "v/c".to_string()]);
+    }
+
+    /// A page whose code reads its own markup as a tree (elements found by an id's prefix, then walked by their
+    /// children to a path's `d`, a meta's content found by name) signs with what that markup holds: the page's
+    /// document is a tree of the elements it was served, each knowing its parent and its children, as a browser's
+    /// parser builds it. A timeline site's transaction id is made from such a walk, and on a flat list of tags its
+    /// own code threw reading `childNodes` of an element it never found (27 November 2026).
+    #[test]
+    fn a_page_that_walks_its_own_markup_as_a_tree_signs_with_what_it_holds() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let html = r#"<html><head><meta name="site-key" content="k-123" /><link rel="manifest" href="/m.json"></head><body><div id="root"></div><svg viewBox="0 0 24 24" id="anim-0" class="a b"><g><path d="M1 2L3 4"></path></g></svg><svg id="anim-1" class="b"><g><path d="M0 0"/><path d="M5 6L7 8"/></g></svg><p>one <b>two</b> three</p></body></html>"#;
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            (function () {
+                var anims = document.querySelectorAll("[id^='anim-']");
+                var d = anims[1].children[0].children[1].getAttribute('d');
+                var key = document.querySelector("meta[name='site-key']").getAttribute('content');
+                var g = anims[0].childNodes[0];
+                var shape = [anims.length, g.nodeName, g.parentElement.id, g.firstElementChild.getAttribute('d'), document.querySelectorAll('.b').length,
+                             document.querySelector('p').childNodes.length, document.querySelector('p').childNodes[0].nodeType, anims[1].querySelectorAll('path').length].join('|');
+                fetch('/api/search?q=kettle', { headers: { 'x-sig': key + ':' + d + ':' + shape } });
+            })();
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        let signed = sign_with(Some("node"), 200, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), html, &serde_json::Value::Null, None).expect("the page's signed call");
+        let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
+        assert_eq!(sig, Some("k-123:M5 6L7 8:2|G|anim-0|M1 2L3 4|2|3|3|2"), "{:?}", signed.headers);
+    }
+
+    /// A page booted for a function of its own script is kept, and each later call runs only the function in it
+    /// (`route.value-dag`: the booted page is a node whose lifetime is its page and scripts, cached for that lifetime):
+    /// the second call answers for its own fields without booting the page again, and another page is booted apart.
+    #[test]
+    fn a_page_kept_booted_answers_its_function_again_without_booting_again() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        use crate::slice::module_call_tests::{CHUNK, MAIN, RUNTIME};
+        let scripts: Vec<(String, String)> = [("https://cdn.app.example/runtime.js", RUNTIME), ("https://cdn.app.example/main.js", MAIN), ("https://cdn.app.example/chunk7.js", CHUNK)].iter().map(|(u, b)| (u.to_string(), b.to_string())).collect();
+        let f = crate::graph::PageFunction { module: "100".into(), export: "kc".into(), args: vec![crate::graph::Arg::Call { field: crate::graph::CallField::Origin }, crate::graph::Arg::Call { field: crate::graph::CallField::Path }, crate::graph::Arg::Call { field: crate::graph::CallField::Method }] };
+        let program = crate::slice::render(&f);
+        let html = "<html><head></head><body></body></html>";
+        let ctx = |method: &str, url: &str| crate::generated::context_of(method, url, None, &[], &[]);
+        let page = "https://app.example/search-kept";
+        let first = warm_value(&program, &ctx("GET", "https://app.example/api/search?q=a"), &serde_json::Value::Null, &Storage::default(), page, html, &[], &scripts).expect("the first call");
+        let second = warm_value(&program, &ctx("POST", "https://app.example/api/list"), &serde_json::Value::Null, &Storage::default(), page, html, &[], &scripts).expect("the second call");
+        assert_eq!(first, ("sig:/api/search:GET".to_string(), true), "the first call boots the page");
+        assert_eq!(second, ("sig:/api/list:POST".to_string(), false), "the second runs the function in the page kept, for its own fields");
+        let other = warm_value(&program, &ctx("GET", "https://app.example/api/search"), &serde_json::Value::Null, &Storage::default(), "https://app.example/other-kept", html, &[], &scripts).expect("another page");
+        assert!(other.1, "another page is booted apart");
+
+        // A page kept booted refuses any network message sent to the host.
+        let rt = runtime().expect("runtime");
+        let net_spec = serde_json::json!({
+            "pageUrl": "https://app.example/warm-net", "cookies": "", "localStorage": {}, "sessionStorage": {},
+            "html": html, "fingerprint": null, "net": true, "answers": [], "bootAll": true,
+            "targets": [], "readGlobal": null, "settleMs": 200, "scriptMs": 200, "debug": false, "serve": true,
+        });
+        let net_input = serde_json::json!([{ "url": "https://app.example/net.js", "body": "fetch('https://app.example/blocked').catch(function(){});" }]).to_string();
+        let (warm_net, _) = Warm::boot(&rt, HARNESS, &net_spec, &net_input, Limits::new(std::time::Duration::from_secs(10))).expect("warm boot with refused net");
+        drop(warm_net);
+
+        // Empty answer is rejected and drops the warm child cleanly.
+        let ping_ctx = ctx("GET", "https://app.example/api/ping");
+        let err = warm_value("function sign(){ return ''; }", &ping_ctx, &serde_json::Value::Null, &Storage::default(), "https://app.example/warm-empty", html, &[], &[]).unwrap_err();
+        assert!(err.contains("no value"), "{err}");
+
+        // Booting past WARM_HELD distinct pages evicts the oldest warm page and runs Warm::drop.
+        let fast_prog = "function sign(ctx){ return 'ok:' + ctx.path; }";
+        for i in 0..=WARM_HELD {
+            let extra = format!("https://app.example/warm-evict-{i}");
+            let (out, fresh) = warm_value(fast_prog, &ping_ctx, &serde_json::Value::Null, &Storage::default(), &extra, html, &[], &[]).expect("warm page");
+            assert!(fresh && out == "ok:/api/ping");
+        }
+    }
+
+    /// A page that runs an animation of its own, holds it at a moment and reads what its element shows then (its computed
+    /// colour and transform) signs with what a browser shows at that moment: the colour between the keyframes' as the
+    /// easing has it, written `rgb(r, g, b)`, and the turn written as the matrix it is. A page that hashes what its own
+    /// animation shows into a call's signature was refused on every call while the sandbox answered nothing for a style
+    /// (a timeline site's transaction id, 28 November 2026). Before the animation moves, the first keyframe's.
+    #[test]
+    fn a_page_that_reads_its_own_animation_signs_with_what_a_browser_shows() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            (function () {
+                function shown(at) {
+                    var div = document.createElement('div');
+                    document.body.append(div);
+                    var a = div.animate([{ color: ['#dca095', '#87f623'], transform: ['rotate(0deg)', 'rotate(89deg)'], easing: 'cubic-bezier(0.54,0.38,0.65,0.82)' }], 4096);
+                    a.pause();
+                    a.currentTime = at;
+                    var s = getComputedStyle(div);
+                    var out = s.color + '|' + s.transform + '|' + s.getPropertyValue('color');
+                    div.remove();
+                    return out;
+                }
+                fetch('/api/search?q=kettle', { headers: { 'x-mid': shown(2048), 'x-early': shown(460), 'x-start': shown(0) } });
+            })();
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        let signed = sign_with(Some("node"), 200, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), "", &serde_json::Value::Null, None).expect("the page's signed call");
+        let header = |name: &str| signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.clone());
+        assert_eq!(header("x-mid").as_deref(), Some("rgb(179, 202, 94)|matrix(0.730745, 0.68265, -0.68265, 0.730745, 0, 0)|rgb(179, 202, 94)"), "{:?}", signed.headers);
+        assert_eq!(header("x-early").as_deref(), Some("rgb(213, 167, 139)|matrix(0.991381, 0.131012, -0.131012, 0.991381, 0, 0)|rgb(213, 167, 139)"));
+        assert_eq!(header("x-start").as_deref(), Some("rgb(220, 160, 149)|matrix(1, 0, 0, 1, 0, 0)|rgb(220, 160, 149)"));
+    }
+
+    /// A page that asks whether it has the focus, as a visible page does before it reports itself, still signs: the
+    /// document says it has (the page is visible), where a missing method threw in a timeline site's logged-in bundle
+    /// and its search was never made (27 November 2026).
+    #[test]
+    fn a_page_that_asks_for_the_focus_still_signs() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            (function () {
+                var focused = document.hasFocus();
+                var q = new URLSearchParams(location.search).get('q') || '';
+                fetch('/api/search?q=' + q, { headers: { 'x-sig': 'sig-' + q.length + '-' + focused } });
+            })();
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        let signed = sign_with(Some("node"), 200, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), "", &serde_json::Value::Null, None).expect("the page's signed call");
+        let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
+        assert_eq!(sig, Some("sig-6-true"), "{:?}", signed.headers);
+    }
+
+    /// A page that makes a hidden frame and reads the frame's own window (its `Date`, as a check that the page's own
+    /// clock was not replaced) still signs: a frame the page attached has a window of its own, with the standard
+    /// globals, where the frame had none and a timeline site's anti-tamper script threw before its search was made
+    /// (27 November 2026).
+    #[test]
+    fn a_page_that_reads_a_frames_own_window_still_signs() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            (function () {
+                var f = document.createElement('iframe');
+                f.style.display = 'none';
+                document.body.appendChild(f);
+                var w = f.contentWindow;
+                var year = new w.Date(0).getUTCFullYear();
+                var same = typeof w.JSON.stringify === 'function' && typeof w.Math.random === 'function' && !!f.contentDocument;
+                var q = new URLSearchParams(location.search).get('q') || '';
+                fetch('/api/search?q=' + q, { headers: { 'x-sig': 'sig-' + year + '-' + same } });
+            })();
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        let signed = sign_with(Some("node"), 200, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), "", &serde_json::Value::Null, None).expect("the page's signed call");
+        let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
+        assert_eq!(sig, Some("sig-1970-true"), "{:?}", signed.headers);
+    }
+
+    /// What a page says on its console reaches the node's own log under the signing debug switch, when that log is a
+    /// file, and the page still signs. The run may write no file (`RLIMIT_FSIZE` 0); handed the node's log as its
+    /// stderr, every console write failed with `EFBIG` and nothing the page said arrived, so the page's own account
+    /// of why it stopped was lost (53 `EFBIG` errors standing in for the one real error on a timeline site's search,
+    /// 27 November 2026). The node relays the run's console instead.
+    #[cfg(unix)]
+    #[test]
+    fn a_pages_console_reaches_the_nodes_log_when_the_log_is_a_file() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            (function () {
+                console.log('booting the search');
+                console.error('a warning the page prints');
+                var q = new URLSearchParams(location.search).get('q') || '';
+                fetch('/api/search?q=' + q, { headers: { 'x-sig': 'sig-' + q.length } });
+            })();
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        let log = std::env::temp_dir().join(format!("unbrowse-console-{}.log", std::process::id()));
+        let file = std::fs::File::create(&log).expect("a log file");
+        // The node's log is a file: the process's own stderr points at it while the page runs.
+        let (signed, err) = unsafe {
+            use std::os::fd::AsRawFd;
+            let saved = libc::dup(2);
+            libc::dup2(file.as_raw_fd(), 2);
+            std::env::set_var("UNBROWSE_SIGN_DEBUG", "1");
+            // The relay is held past the run's end: the sandbox waits for what it relays before it hands the call back.
+            RELAY_HELD_IN_TEST.store(300, std::sync::atomic::Ordering::Relaxed);
+            let signed = sign_with(Some("node"), 200, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), "", &serde_json::Value::Null, None);
+            RELAY_HELD_IN_TEST.store(0, std::sync::atomic::Ordering::Relaxed);
+            std::env::remove_var("UNBROWSE_SIGN_DEBUG");
+            libc::dup2(saved, 2);
+            libc::close(saved);
+            (signed, std::fs::read_to_string(&log).unwrap_or_default())
+        };
+        let _ = std::fs::remove_file(&log);
+        assert!(err.contains("[page error] a warning the page prints"), "the page's console line never reached the node's log: {err:?}");
+        let signed = signed.expect("the page's signed call");
+        let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
+        assert_eq!(sig, Some("sig-6"), "{:?}", signed.headers);
+    }
+
+    /// The console relay holds the node's log to its cap whatever one line is: a page that prints one line far past
+    /// the cap has the log get no more than the cap, and the rest is still read, so the run never blocks on its pipe.
+    #[test]
+    fn a_console_line_past_the_cap_is_cut_to_the_cap_and_the_rest_is_still_read() {
+        let mut said = vec![b'x'; 3 * 64 * 1024];
+        said.push(b'\n');
+        said.extend_from_slice(b"after\n");
+        let mut reader = std::io::Cursor::new(said.clone());
+        let mut log: Vec<u8> = Vec::new();
+        relay(&mut reader, &mut log, 64 * 1024);
+        assert!(log.len() <= 64 * 1024 + 1, "the log got {} bytes past a cap of {}", log.len(), 64 * 1024);
+        assert!(!log.is_empty(), "the cap's worth reached the log");
+        assert_eq!(reader.position() as usize, said.len(), "the rest was read and dropped");
+    }
+
+    /// A page that fetches a blob of bytes it made reads back those bytes, every one, through `arrayBuffer()` and
+    /// through the body's stream: a byte that is not UTF-8 (0xFF) is the page's data, never a replacement character.
+    /// A page that hashes the bytes it made signs with the hash of what it made.
+    #[test]
+    fn a_page_reads_its_own_binary_blob_back_byte_for_byte() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            (function () {
+                var u = URL.createObjectURL(new Blob([new Uint8Array([255, 0, 128, 65])], { type: 'application/octet-stream' }));
+                Promise.all([
+                    fetch(u).then(function (r) { return r.arrayBuffer(); }),
+                    fetch(u).then(function (r) { return r.body.getReader().read(); }).then(function (c) { return c.value; })
+                ]).then(function (got) {
+                    var said = Array.from(new Uint8Array(got[0])).join('.') + '-' + Array.from(new Uint8Array(got[1])).join('.');
+                    var q = new URLSearchParams(location.search).get('q') || '';
+                    fetch('/api/search?q=' + q, { headers: { 'x-sig': 'sig-' + said } });
+                });
+            })();
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        let signed = sign_with(Some("node"), 200, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), "", &serde_json::Value::Null, None).expect("the page's signed call");
+        let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
+        assert_eq!(sig, Some("sig-255.0.128.65-255.0.128.65"), "{:?}", signed.headers);
+    }
+
+    /// An ES module that imports a module it assembled as a blob gets that module: the blob's address names source the
+    /// page holds, for a module's `import()` as for a script's, and never goes to the network.
+    #[test]
+    fn a_module_imports_the_blob_module_the_page_made() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            export const booted = true;
+            const u = URL.createObjectURL(new Blob(["export const said = 'from-the-blob';"], { type: 'text/javascript' }));
+            import(u).then((m) => {
+                const q = new URLSearchParams(location.search).get('q') || '';
+                fetch('/api/search?q=' + q, { headers: { 'x-sig': 'sig-' + m.said } });
+            });
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        let mut net = |_: &Request, _: std::time::Instant| -> Result<crate::trace::Exchange, String> { Err("not asked".into()) };
+        let signed = sign_with(Some("node"), 12000, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), "", &serde_json::Value::Null, Some(&mut net)).expect("the page's signed call");
+        let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
+        assert_eq!(sig, Some("sig-from-the-blob"), "{:?}", signed.headers);
+    }
+
+    /// Each frame the page makes has built-ins of its own, as a browser's do: a page that wraps one frame's clock and
+    /// makes a second frame for a clean one finds the second clean, and the page's own `Date` is neither frame's.
+    #[test]
+    fn each_frame_the_page_makes_has_its_own_built_ins() {
+        if !available() {
+            eprintln!("no signing runtime on this machine: the sandbox is skipped");
+            return;
+        }
+        let bundle: Bundle = vec![("https://cdn.shop.example.com/app.js".into(), r#"
+            (function () {
+                var frame = function () { var f = document.createElement('iframe'); document.body.appendChild(f); return f.contentWindow; };
+                var a = frame(), b = frame();
+                a.Date.now = function () { return 1; };
+                var clean = b.Date.now() !== 1 && Date.now() !== 1 && a.Date !== b.Date && b.Date !== Date;
+                var q = new URLSearchParams(location.search).get('q') || '';
+                fetch('/api/search?q=' + q, { headers: { 'x-sig': 'sig-' + clean } });
+            })();
+        "#.into())];
+        let asked = request("GET", "https://shop.example.com/api/search?q=kettle", None);
+        let signed = sign_with(Some("node"), 200, &bundle, "https://shop.example.com/search?q=kettle", &asked, "", &Storage::default(), "", &serde_json::Value::Null, None).expect("the page's signed call");
+        let sig = signed.headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("x-sig")).map(|(_, v)| v.as_str());
+        assert_eq!(sig, Some("sig-true"), "{:?}", signed.headers);
     }
 
     /// A bundle that reads what the page had in front of it — a key in `localStorage`, a nonce in the cookie — signs

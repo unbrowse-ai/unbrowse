@@ -54,7 +54,7 @@ jobs:
   scope:
     name: What this change reaches (agent checks)
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: read
@@ -80,14 +80,17 @@ jobs:
           cat why.txt
           { echo "### What this change reaches"; sed 's/^/- /' why.txt; } >> "$GITHUB_STEP_SUMMARY"
 
-  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a Blacksmith
+  # Where this workflow's agent jobs run (UNB-166): one of Lewis's own runners while one is free, else a GitHub-hosted
   # machine that starts at once, so a Mac that is asleep or busy never holds a run up. The summary says why for each
   # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
+  # Except the gate bank's slice (`mac-only`; Lewis, 28 Nov 2026: "run slices only on my Mac"): it runs on Lewis's Mac
+  # and nowhere else, and waits for it when it is busy or asleep. On a hosted Mac (a data centre's address)
+  # Ticketmaster and Carousell refuse its tasks and its gate says PROMOTION_REFUSED (PR #945, run 46116646462).
   place:
     name: Where the agent jobs run
     needs: scope
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && (needs.scope.result != 'success' || needs.scope.outputs.qa == 'true')
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: read
@@ -111,17 +114,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MAC_POOL: ${{ vars.MAC_RUNNER }}
+          OWN_MAC: ${{ vars.MAC_RUNNER }}
           LINUX_POOL: ${{ vars.LINUX_POOL || '["self-hosted", "linux", "x64"]' }}
-        # One Mac takes one job, the slice (as before sharding); the Claude QA shards go to Blacksmith
-        # at once, side by side, rather than queueing behind each other on it.
-        run: python3 -I .github/scripts/place_jobs.py slice=mac qa4=mac qa1=mac qa2=mac qa3=mac skills=linux
+        # One Mac takes one job, the slice, always (it takes the free slot first, else waits for the Mac); the Claude
+        # QA shards go to a hosted Mac at once, side by side, rather than queueing behind each other on it.
+        run: python3 -I .github/scripts/place_jobs.py slice=mac-only qa4=mac qa1=mac qa2=mac qa3=mac skills=linux
 
   # The credential's rules, checked on this pull request's own workflows before any job that holds it starts: a pull
   # request that breaks them never reaches the credential here (its change to the test is in the diff for review).
   security:
     name: Workflow security test
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 10
     permissions:
       contents: read
@@ -135,7 +139,7 @@ jobs:
     name: Build the node once
     needs: scope
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && (needs.scope.result != 'success' || needs.scope.outputs.qa == 'true')
-    runs-on: blacksmith-6vcpu-macos-latest
+    runs-on: macos-15
     timeout-minutes: 45
     permissions:
       contents: read
@@ -262,7 +266,7 @@ jobs:
           echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
           tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
           # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
-          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
+          # runner (a hosted Mac's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
           # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
           browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
           test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
@@ -541,6 +545,7 @@ jobs:
   # gate-bank.yml's slice, on the build above. Red on a confident wrong answer, or on a slice task right on the
   # reference that is not right now ("changed" until a person re-reads that site by hand). Live sites change on their
   # own: a red slice is read site by site, with the same task on staging, before it is called this change's.
+  # On Lewis's Mac only (the place job's `mac-only`), queued for it while it is busy: its timeout counts from the start.
   slice:
     name: Gate bank (slice)
     needs: [scope, place, security, build]
@@ -577,7 +582,7 @@ jobs:
           echo "$DIGEST  $RUNNER_TEMP/node-build/node-build.tar" | shasum -a 256 -c -
           tar -xf "$RUNNER_TEMP/node-build/node-build.tar"
           # A debug node looks for its browser where it was built (browse.rs binary()); this build may come from another
-          # runner (Blacksmith's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
+          # runner (a hosted Mac's /Users/runner), so name the one unpacked here, or stop: with none, Claude QA's browser
           # checks come back "blocked: browser_missing" and its verdict still passes (staging QA 44917313753).
           browser="$GITHUB_WORKSPACE/unbrowse-browser/cli/target/debug/agent-browser"
           test -x "$browser" || { echo "::error::the build has no browser program at $browser"; exit 1; }
@@ -590,7 +595,7 @@ jobs:
         env:
           SCOPE: slice
         run: sh test-banks/gate/start-rounds.sh "$GATE/runs" n 17810
-      - name: The clients
+      - name: The clients, cold
         env:
           OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
           OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
@@ -629,6 +634,52 @@ jobs:
                 one "$f"
                 record_launches "$before" "${f%.args}.chrome-launches.txt"
               done
+              echo "round $round cold done"
+            ) &
+            round=$((round + 1))
+          done
+          wait
+      # No credential here: the cold asks have run, and each warm run is written naming the routes its cold
+      # ask saved, read from that ask's own replies (run_gate.py warm-args). The nodes stay up for the warm wave.
+      - name: Write the warm runs
+        run: |
+          n=$(python3 -I test-banks/gate/run_gate.py warm-args --dir "$GATE/runs")
+          echo "$n warm run(s) written with their cold asks' saved routes"
+
+      - name: The clients, warm
+        env:
+          OPENCODE_CHATGPT_ACCESS_TOKEN: ${{ secrets.OPENCODE_CHATGPT_ACCESS_TOKEN }}
+          OPENCODE_CHATGPT_CREDENTIAL_URL: ${{ vars.OPENCODE_CHATGPT_CREDENTIAL_URL }}
+          OPENCODE_CHATGPT_CREDENTIAL_KEY: ${{ secrets.OPENCODE_CHATGPT_CREDENTIAL_KEY }}
+        run: |
+          runs="$GATE/runs"
+          nodes=n
+          one() {
+            # Keep the round going when a client times out or its provider refuses it.
+            perl -e '$t=shift; $b=shift; local $/; open F, shift or die; @a=split /\0/, <F>; alarm $t; exec $b, @a' \
+              1200 "$CLAUDE_BIN" "$1" < /dev/null > "${1%.args}.out" 2> "${1%.args}.err" \
+              || echo "::warning::the client on $1 exited $?: its result reads what it left"
+          }
+
+          chrome_count() {
+            local count
+            [ -f "$1" ] || return 0
+            count=$(awk '/^chrome_(headless|headed)_launch([[:space:]]|$)/ { n++ } END { print n+0 }' "$1") || return 0
+            echo "$count"
+          }
+
+          record_launches() {
+            local after count=missing
+            after=$(chrome_count "$guard")
+            if [[ "$1" =~ ^[0-9]+$ && "$after" =~ ^[0-9]+$ ]]; then count=$((after - $1)); fi
+            echo "$count" > "$2"
+          }
+
+          round=0
+          while [ -d "$runs/round-$round" ]; do
+            (
+              folder="$runs/round-$round"
+              guard="$RUNNER_TEMP/$nodes$round/guard.log"
               if [ -d "$folder/warm" ]; then
                 before=$(chrome_count "$guard")
                 for f in "$folder"/warm/*.args; do one "$f" & done
@@ -699,7 +750,7 @@ jobs:
     name: QA report
     needs: [scope, qa]
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && (always() && needs.qa.result != 'skipped')
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 15
     permissions:
       contents: read
@@ -770,7 +821,7 @@ jobs:
     needs: [scope, place, security, build, qa, skills, slice, report]
     if: always()
     # It runs for a fork's pull request too (to be red), so it runs on a hosted machine, never one of Lewis's (UNB-166).
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions: {}
     steps:

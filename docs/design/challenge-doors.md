@@ -260,6 +260,23 @@ it until it lapses, and the browser (once per TTL) re-earns it after that.
 - **E3 — the record.** Open: with the walk holding at the door, does a route carry a `Door` with `at` and a
   credential, and does the route call answer from the jar?
 
+## The box a check draws, taken first (2026-11-28)
+
+A check that shows a box is met with the box, before the node's solver and with nobody's model in the turn: the page's
+own snapshot names it (`learn::challenge::the_check_offers` — a box inside the widget's frame, unticked, or the page's
+only box), and the walk clicks it by that reference, whatever the box is called and in whatever language. Nothing is
+clicked on a page that asks nobody, so a page's own newsletter box is left alone.
+
+Why the name was the bug: until 2026-11-28 the walk recognised the box by two English phrases ("Verify you are human",
+"Verify you're a human"), so a check that says "I'm not a robot", "Ich bin kein Roboter" or "Verify you're a human" in
+another language was walked past and set aside. t-online.de's 1k task is the case: the snapshot named its box and the
+walk clicked nothing.
+
+Why taking the box first matters beyond the words: the click is inside the walk, so it costs no round trip and no
+solver key, and it lands inside a timer that a turn spent asking outlasts (redfin.com's AWS WAF grid). A page that still
+asks after the box goes on to `Act::Solve` — the node's solver, the owner's or Unbrowse's — and a page that asks for
+neither is an honest failure, as before.
+
 ## Not in scope
 
 Synthesizing a vendor's token, a per-site code path, a Rust proof-of-work solver (that is re-implementing each

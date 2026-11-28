@@ -3,7 +3,7 @@ use super::*;
 use crate::graph::{Body, PartTemplate, Step};
 
 fn a_step(method: &str, body: Option<Body>) -> Step {
-    Step {
+    Step { lifetime: None,
         page_signed: false,
         page_producers: Vec::new(),
         exchange: 1,
