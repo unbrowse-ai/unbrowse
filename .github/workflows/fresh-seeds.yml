@@ -1,4 +1,4 @@
-# Runners (UNB-166): Blacksmith, as ci.yml's settlement job (plain jobs on Blacksmith, #787).
+# Runners (UNB-166): Sengi, as ci.yml's settlement job (plain Linux jobs on Sengi).
 # The contracts' fuzz and invariant tests draw their cases from a seed, a new one each run. ci.yml runs them when a
 # file they read changes and leaves them out when those very files already passed (.github/scripts/ci-scope.py,
 # READS), so a push that touched no contract no longer draws a seed. This draws one every night instead, on staging as
@@ -26,7 +26,7 @@ jobs:
       contents: read
     name: Settlement contracts, fresh seed
     if: github.repository == 'unbrowse-ai/unbrowse-core'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 150
     env:
       FOUNDRY_VERSION: v1.8.5

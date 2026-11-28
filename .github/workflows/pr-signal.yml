@@ -17,7 +17,7 @@ permissions: {}
 jobs:
   signal:
     name: Signal
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 2
     steps:
       - name: Pass

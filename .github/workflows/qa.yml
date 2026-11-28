@@ -47,7 +47,7 @@
 #   choice, skill triggers and the gate bank's slice, on the merge commit, before it merges. A draft, a fork's pull
 #   request and a pull request into main never reach that credential; pr-check.yml is what they get.
 #   A push to staging or main (this workflow): the build, MCP check, Claude QA, skill triggers, the gate bank's slice,
-#   journey coverage and the report, on the pushed commit, all on Blacksmith machines. The MCP check, Claude QA and the
+#   journey coverage and the report, on the pushed commit, all on hosted machines (Sengi, Blacksmith's Macs). The MCP check, Claude QA and the
 #   slice are not run again for a tree that already passed them on its pull request (`passed`, passed_on_pr.py).
 #   Nightly and by hand only: this workflow whatever passed before (nightly, one job may take Lewis's Mac when it is
 #   free), the full gate bank (gate-bank.yml) and the hard-site and writes banks (bank.yml).
@@ -88,7 +88,7 @@ jobs:
   # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
   place:
     name: Where the agent jobs run
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: read
@@ -129,7 +129,7 @@ jobs:
   # never look. A plain job, on Blacksmith (#787).
   passed:
     name: Look up the pull request's run
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: read
@@ -745,7 +745,7 @@ jobs:
     name: Skill triggers, remembered
     needs: skills
     if: needs.skills.outputs.pass == 'true' && needs.skills.outputs.key != ''
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions: {}
     steps:
@@ -761,7 +761,7 @@ jobs:
   # model, no build, no secret.
   coverage:
     name: Journey coverage
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: read
@@ -808,7 +808,7 @@ jobs:
     name: QA report
     needs: [check, qa, skills, coverage, bank]
     if: always() && needs.qa.result != 'skipped'
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     permissions:
       contents: read
     steps:

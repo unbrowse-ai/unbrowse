@@ -120,7 +120,7 @@ jobs:
   # job. A fork's pull request is never placed on a local runner. .github/scripts/place_jobs.py
   place:
     name: Where the agent jobs run
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: read
@@ -573,7 +573,7 @@ jobs:
     needs: [place, bank]
     if: ${{ !cancelled() && needs.place.outputs.scope == 'top1k' }}
     name: Gate bank (top1k, every shard)
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 10
     permissions:
       contents: read

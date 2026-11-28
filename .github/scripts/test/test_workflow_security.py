@@ -57,8 +57,8 @@ SAME_REPO_GUARD = "(github.event_name != 'pull_request' || github.event.pull_req
 # A placed job reads its place job's output, by name, or (a matrix of shards, UNB-235) by a name made of a prefix and
 # each matrix row's value: `needs.place.outputs[format('qa{0}', matrix.shard)]` reads qa1, qa2, ...
 PLACED = re.compile(r"^\$\{\{ fromJSON\(needs\.place\.outputs(?:\.(\w+)|\[format\('(\w+)\{0\}', matrix\.(\w+)\)\])\) \}\}$")
-# Hosted machines: Blacksmith's and GitHub's. Every other job (build, unit, lint, coverage) runs on one of these.
-HOSTED = re.compile(r"^(blacksmith-\d+vcpu-(ubuntu-\d{4}(-arm)?|macos-[\w.]+|windows-\d{4})|ubuntu-[\d.]+(-arm)?|macos-[\d.]+|windows-\d{4})$")
+# Hosted machines: Sengi's, Blacksmith's and GitHub's. Every other job (build, unit, lint, coverage) runs on one of these.
+HOSTED = re.compile(r"^(sengi-(basic|premium)-[248]-ubuntu-2404|blacksmith-\d+vcpu-(ubuntu-\d{4}(-arm)?|macos-[\w.]+|windows-\d{4})|ubuntu-[\d.]+(-arm)?|macos-[\d.]+|windows-\d{4})$")
 # Environments holding the keys that sign what users install, or publish it.
 SHIP_ENVIRONMENTS = {"release", "targets-cosign"}
 # Workflows whose builds users install (release.yml: the programs, the installers and the Mac app; updates.yml: the
@@ -951,13 +951,38 @@ class WorkflowSecurityTest(unittest.TestCase):
             "an environment": text.replace("    name: Journey coverage\n", "    name: Journey coverage\n    environment: pr-agent-checks\n", 1),
             "a write permission": text.replace("permissions:\n      contents: read", "permissions:\n      contents: write", 1),
             "a saved cache": text.replace("actions/cache/restore@", "actions/cache@", 1),
-            "Lewis's machine": text.replace("runs-on: blacksmith-2vcpu-ubuntu-2404", "runs-on: [self-hosted, linux, x64]", 1),
+            "Lewis's machine": text.replace("runs-on: sengi-basic-2-ubuntu-2404", "runs-on: [self-hosted, linux, x64]", 1),
             "the head": text.replace("DRAFT: ${{ github.event.pull_request.draft }}", "DRAFT: ${{ github.event.pull_request.head.ref }}"),
             "a kept token": text.replace("persist-credentials: false", "persist-credentials: true", 1),
         }
         for what, bad in planted.items():
             self.assertNotEqual(bad, text, f"the {what} plant changed nothing")
             self.assertTrue(_credential_free_problems(yaml.safe_load(bad), bad), f"{what} went unnoticed")
+
+    def test_linux_x64_runs_on_sengi_and_only_what_sengi_cannot_run_stays_on_blacksmith(self):
+        # Lewis, 27 Nov 2026: "switch from blacksmith to sengi on unb core n public". Sengi runs Ubuntu 24.04 on x64
+        # only, so a Blacksmith label is left only for macOS, Windows and arm64; the Linux fallback for an agent job
+        # the pool cannot take is Sengi too. The pool is told apart by its runners' names (steam-machine-N): Sengi's
+        # names are random, so the old "self-hosted and not blacksmith-" test would have read a Sengi job as the pool.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("place_jobs", ROOT / ".github/scripts/place_jobs.py")
+        place_jobs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(place_jobs)
+        self.assertTrue(place_jobs.FALLBACK["linux"].startswith("sengi-"), place_jobs.FALLBACK)
+        linux_on_blacksmith, name_tests, sengi = [], [], 0
+        for path in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
+            text = path.read_text()
+            if "startsWith(runner.name, 'blacksmith-')" in text:
+                name_tests.append(path.name)
+            for name, job in (yaml.safe_load(text).get("jobs") or {}).items():
+                for runner in _runners(job):
+                    label = str(runner)
+                    sengi += label.startswith("sengi-")
+                    if label.startswith("blacksmith-") and not re.search(r"macos|windows|-arm$", label):
+                        linux_on_blacksmith.append(f"{path.name}: {name}: {label}")
+        self.assertEqual(linux_on_blacksmith, [], "a Linux x64 job is still on Blacksmith")
+        self.assertEqual(name_tests, [], "a step tells the pool apart by a Blacksmith runner name")
+        self.assertGreater(sengi, 0)
 
     def test_pr_check_runs_the_same_steps_as_the_checks_it_stands_for(self):
         # Copies drift; these can't. The MCP check builds as pr-agent-checks.yml's `build` does, step for step, and the

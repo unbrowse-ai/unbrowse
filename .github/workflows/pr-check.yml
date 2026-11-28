@@ -14,7 +14,7 @@
 #
 # What it may not do, held by test_workflow_security.py: name a secret or an environment, hold a write permission,
 # save a cache (it restores staging's; nothing a pull request builds reaches another run), talk to GitHub, check out
-# anything but the merge commit, or run on one of Lewis's own machines (every job is on a Blacksmith machine).
+# anything but the merge commit, or run on one of Lewis's own machines (every job is on a hosted machine: Sengi for Linux, Blacksmith for macOS).
 # The Claude credential stays in pr-agent-checks.yml (a ready pull request from a branch of this repository) and in
 # qa.yml (a push, nightly, by hand); the split is written out in qa.yml's header.
 name: PR check (no credential)
@@ -34,7 +34,7 @@ permissions: {}
 jobs:
   scope:
     name: What this change reaches (PR check)
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: read
@@ -239,7 +239,7 @@ jobs:
   # Journey coverage, as qa.yml's `coverage` job runs it: no model, no build, no secret.
   coverage:
     name: Journey coverage
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: read
@@ -261,7 +261,7 @@ jobs:
     name: PR check (no credential)
     needs: [scope, check, coverage]
     if: always()
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions: {}
     steps:

@@ -66,7 +66,7 @@ jobs:
   place:
     if: inputs.scope != 'top1000'
     name: Where the agent jobs run
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: read
@@ -167,13 +167,13 @@ jobs:
           retention-days: 3
           if-no-files-found: error
 
-  # The same build for Linux, for the hard sites: the Steam Machine's slots, or Blacksmith's Ubuntu when none is free.
-  # On Blacksmith, not the pool: a cold build there fills the Steam Machine's data drive, the pool's scarce thing (the
+  # The same build for Linux, for the hard sites: the Steam Machine's slots, or Sengi's Ubuntu when none is free.
+  # On Sengi, not the pool: a cold build there fills the Steam Machine's data drive, the pool's scarce thing (the
   # slots stop taking jobs under 8 GB free, 21 Nov 2026). Ubuntu 24.04 on both, as the pool's image is.
   build-linux:
     if: github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch'
     name: Build the node once (Linux)
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: sengi-premium-4-ubuntu-2404
     timeout-minutes: 45
     permissions:
       contents: read
@@ -333,7 +333,7 @@ jobs:
     if: always() && (github.ref == 'refs/heads/staging' || github.event_name == 'workflow_dispatch') && inputs.scope != 'top1000'
     needs: hard-sites
     name: Hard sites, report
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 10
     permissions:
       contents: read
@@ -371,7 +371,7 @@ jobs:
   top-plan:
     if: github.event_name == 'workflow_dispatch' && inputs.scope == 'top1000'
     name: Top sites, the shards
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions: {}
     outputs:
@@ -492,7 +492,7 @@ jobs:
     if: always() && github.event_name == 'workflow_dispatch' && inputs.scope == 'top1000'
     needs: top-sites
     name: Top sites, report
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 15
     permissions:
       contents: read

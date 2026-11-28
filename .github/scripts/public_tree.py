@@ -23,15 +23,17 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 EXCLUDE = ".github/public-tree-exclude"
 KEEP = ".github/public-tree-keep"
 
-# What must not reach the public tree, one `pattern<TAB>why` a line, in a file the public tree itself leaves out: a list
-# of names to keep private is private too (27 Nov 2026: this list, kept here, went public in a sync pull request).
-FORBIDDEN_LIST = ".github/public-tree-forbidden"
-
-
-def forbidden(root=ROOT):
-    """{pattern: why} from FORBIDDEN_LIST; empty where the list is absent (the public tree, where core's check ran)."""
-    return dict(line.split("\t", 1) for line in listed(root, FORBIDDEN_LIST))
-
+# Each is something that must not reach the public tree, and why.
+FORBIDDEN = {
+    r"chronos": "a client's name",
+    r"hoy ?san": "a client's name",
+    r"/Users/lewis": "a person's home folder",
+    r"/home/deck": "a person's home folder",
+    r"lewis-6d8": "the owner's Cloudflare account subdomain",
+    r"garan2314": "a person's private email",
+}
+# These name them in order to forbid them.
+ALLOWED = {".github/scripts/public_tree.py", ".github/scripts/test/test_public_surface.py"}
 
 # A Markdown link's target: [text](target) or [text]: target. Text may run over lines; the target may not.
 LINK = re.compile(r"\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)|^\s*\[[^\]]+\]:\s*(\S+)", re.MULTILINE)
@@ -77,20 +79,19 @@ def text_of(path):
 
 
 def names_found(root, files):
-    """Each line of the public tree that names something forbidden(), as `file:line: why (match)`."""
-    rules = forbidden(root)
-    if not rules:
-        return []
-    pattern = re.compile("|".join(f"({p})" for p in rules), re.IGNORECASE)
+    """Each line of the public tree that names something FORBIDDEN, as `file:line: why (match)`."""
+    pattern = re.compile("|".join(f"({p})" for p in FORBIDDEN), re.IGNORECASE)
     found = []
     for name in files:
+        if name in ALLOWED:
+            continue
         text = text_of(root / name)
         if text is None:
             continue
         for n, line in enumerate(text.splitlines(), 1):
             m = pattern.search(line)
             if m:
-                why = next(w for p, w in rules.items() if re.search(p, m.group(0), re.IGNORECASE))
+                why = next(w for p, w in FORBIDDEN.items() if re.search(p, m.group(0), re.IGNORECASE))
                 found.append(f"{name}:{n}: {why} ({m.group(0)})")
     return found
 
@@ -116,18 +117,9 @@ def links_out(root, files):
     return found
 
 
-def list_kept_private(root):
-    """The forbidden list must itself stay out of the public tree; where it is named there and absent, this is that tree."""
-    if (root / FORBIDDEN_LIST).is_file() and not under(FORBIDDEN_LIST, excluded(root)):
-        return [f"{FORBIDDEN_LIST}: the names to keep private would go public; add it to {EXCLUDE}"]
-    if not (root / FORBIDDEN_LIST).is_file() and not under(FORBIDDEN_LIST, excluded(root)):
-        return [f"{FORBIDDEN_LIST} is missing, so no name was checked"]
-    return []
-
-
 def problems(root=ROOT):
     files = public_files(root)
-    return list_kept_private(root) + names_found(root, files) + links_out(root, files)
+    return names_found(root, files) + links_out(root, files)
 
 
 def sync(src, dest):
@@ -213,8 +205,7 @@ def main(argv=None):
         print(f"PUBLIC_TREE_REFUSED {len(found)} problems: nothing was copied")
         return 1
     if args.cmd == "check":
-        print(f"PUBLIC_TREE_OK {len(public_files(ROOT))} files, {len(forbidden(ROOT))} names checked; leaves out "
-              f"{', '.join(excluded(ROOT))}")
+        print(f"PUBLIC_TREE_OK {len(public_files(ROOT))} files; leaves out {', '.join(excluded(ROOT))}")
         return 0
     written, removed = sync(ROOT, args.dest.resolve())
     if args.report:

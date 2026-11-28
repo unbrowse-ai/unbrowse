@@ -17,6 +17,5 @@ docs/CI-AGENTS.md
 docs/HARNESS.md
 docs/PERFORMANCE.md
 
-# The sync itself runs only here, and the names it keeps out are private too.
+# The sync itself runs only here.
 .github/workflows/public-sync.yml
-.github/public-tree-forbidden

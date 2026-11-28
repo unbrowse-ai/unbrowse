@@ -54,7 +54,7 @@ jobs:
   scope:
     name: What this change reaches (agent checks)
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       contents: read
@@ -87,7 +87,7 @@ jobs:
     name: Where the agent jobs run
     needs: scope
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && (needs.scope.result != 'success' || needs.scope.outputs.qa == 'true')
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions:
       actions: read
@@ -121,7 +121,7 @@ jobs:
   security:
     name: Workflow security test
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 10
     permissions:
       contents: read
@@ -699,7 +699,7 @@ jobs:
     name: QA report
     needs: [scope, qa]
     if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository && (always() && needs.qa.result != 'skipped')
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 15
     permissions:
       contents: read
@@ -770,7 +770,7 @@ jobs:
     needs: [scope, place, security, build, qa, skills, slice, report]
     if: always()
     # It runs for a fork's pull request too (to be red), so it runs on a hosted machine, never one of Lewis's (UNB-166).
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 5
     permissions: {}
     steps:

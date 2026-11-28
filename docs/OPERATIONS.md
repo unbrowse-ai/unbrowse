@@ -174,8 +174,8 @@ npm or a GitHub release: `gh workflow run release.yml --repo unbrowse-ai/unbrows
 The public repository `unbrowse-ai/unbrowse` gets an approved core tree as one squashed commit per sync, through a pull request,
 without the paths in `.github/public-tree-exclude`. `public-sync.yml` proposes it on every push to staging (or by
 hand, `gh workflow run public-sync.yml --ref staging`), and merging that pull request is the approval:
-`.github/scripts/public_tree.py check` refuses a tree that names a client, a home folder or the owner's account (the
-patterns are in `.github/public-tree-forbidden`, which is itself left out), or links to a path it leaves out, and `sync` replaces the public tree with core's on the public branch
+`.github/scripts/public_tree.py check` refuses a tree that names a client, a home folder or the owner's account, or
+links to a path it leaves out, and `sync` replaces the public tree with core's on the public branch
 `sync/core-staging`, leaving the public repository's own files (`.github/public-tree-keep`: `CHANGELOG.md`,
 `.github/promotion-waivers`) alone. One pull request from that branch into public staging is opened, then updated by
 each later push; its body lists the files it removes and any change made on the public repository that it replaces

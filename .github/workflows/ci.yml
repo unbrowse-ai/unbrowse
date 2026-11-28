@@ -1,10 +1,8 @@
-# Runners (UNB-166): Linux jobs run on the local pool's [self-hosted, linux, x64] slots (podman containers on the
-# Steam Machine); any free slot takes any job. macOS jobs run where the repository variable MAC_RUNNER says, as a JSON
-# list: `gh variable set MAC_RUNNER -b '["self-hosted","macos","arm64"]'` sends them to the pool's Mac slots (Lewis's
-# Macs). While it is unset they run on blacksmith-6vcpu-macos-latest: on 21 Nov 2026 the pool had no Mac slot (the
-# MacBook was off the tailnet), so every macOS job (Node, Window, QA, Bank, Gate bank, PR agent checks) waited for a
-# runner that did not exist and no CI run could finish.
-# Windows has no local machine and runs on GitHub's windows-2025. No fork's pull request reaches a pool slot: every
+# Runners: Linux jobs run on Sengi (sengi-premium-* for builds and tests, sengi-basic-2 for the small jobs), a fresh
+# VM per job; Sengi runs Ubuntu 24.04 on x64 only. macOS jobs run on blacksmith-6vcpu-macos-latest and Windows on
+# blacksmith-4vcpu-windows-2025, which Sengi has no machine for. A step that has to know it is on the local pool (the
+# Steam Machine's [self-hosted, linux, x64] slots, runners named steam-machine-N) asks the runner's name: Sengi's names
+# are random, so `self-hosted` alone cannot tell the two apart. No fork's pull request reaches a pool slot: every
 # pool job opens its `if` with the same-repository guard (test_workflow_security.py).
 # Every part of the repository, built and tested. The node and its window are tested on macOS,
 # and built on Linux and Windows too, where they are released as well; everything else runs on Linux.
@@ -39,7 +37,7 @@ jobs:
       pull-requests: read
     name: What this change reaches
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     outputs:
       settlement: ${{ steps.scope.outputs.settlement }}
       spec: ${{ steps.scope.outputs.spec }}
@@ -58,7 +56,7 @@ jobs:
       # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it.
       # Skipped on hosted runners.
       - name: Tools the local runner may lack
-        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        if: startsWith(runner.name, 'steam-machine')
         run: dpkg -s gh > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq gh > /dev/null; }
       # The checkout holds every folder's listing (only file contents are left out), which is all a key is made of.
       # No key, no pass looked up: the jobs run.
@@ -109,7 +107,7 @@ jobs:
     # trigger a pull request can fire, so no pull request's code ever runs in it.
     name: Papers are copies
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -124,7 +122,7 @@ jobs:
       # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it.
       # Skipped on hosted runners.
       - name: Tools the local runner may lack
-        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        if: startsWith(runner.name, 'steam-machine')
         run: dpkg -s python3-yaml > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq python3-yaml > /dev/null; }
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -170,7 +168,7 @@ jobs:
       contents: read
     name: SDK (TypeScript)
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-premium-2-ubuntu-2404
     defaults:
       run:
         working-directory: unbrowse-sdk/typescript
@@ -202,7 +200,7 @@ jobs:
       contents: read
     name: Short checks
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-premium-2-ubuntu-2404
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -287,7 +285,7 @@ jobs:
       contents: read
     name: SDK (Python ${{ matrix.python }})
     if: (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     strategy:
       matrix:
         python: ["3.9.25", "3.13.18"]
@@ -325,7 +323,7 @@ jobs:
     # tests run once (UNB-166). It runs for what coverage.yml doesn't see: a push to main, a manual run, and a pull
     # request into any other branch.
     if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.engine == 'true') && !((github.event_name == 'push' && github.ref != 'refs/heads/main') || (github.event_name == 'pull_request' && (github.base_ref == 'staging' || github.base_ref == 'main' || startsWith(github.base_ref, 'release/'))))) }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: sengi-premium-4-ubuntu-2404
     # One part since the fork's module became a subset of the CLI's own run (#773): the second half ran
     # `cargo test -- "unbrowse::"`, tests the step "Test the CLI" already runs. The matrix stays for the check's name.
     strategy:
@@ -343,7 +341,7 @@ jobs:
       # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it. Each
       # workspace's target/ lives in the pool's shared cache, so rust-cache is skipped there. Skipped on hosted runners.
       - name: Tools and cargo cache on the local runner pool
-        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        if: startsWith(runner.name, 'steam-machine')
         run: |
           dpkg -s build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl xz-utils zstd > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl xz-utils zstd > /dev/null; }
           for w in unbrowse-node/crates/browser unbrowse-browser/cli; do
@@ -354,7 +352,7 @@ jobs:
         with:
           toolchain: 1.99.1
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        if: (runner.environment != 'self-hosted' || startsWith(runner.name, 'blacksmith-'))
+        if: ${{ !startsWith(runner.name, 'steam-machine') }}
         with:
           workspaces: |
             unbrowse-node/crates/browser -> target
@@ -531,7 +529,7 @@ jobs:
     name: Lint fixed on the branch
     needs: lint
     if: ${{ always() && needs.lint.result == 'failure' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     timeout-minutes: 10
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -583,7 +581,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: Linux, runner: blacksmith-4vcpu-ubuntu-2204 }
+          - { os: Linux, runner: sengi-premium-4-ubuntu-2404 }
           - { os: Windows, runner: blacksmith-4vcpu-windows-2025 }
     runs-on: ${{ matrix.runner }}
     env:
@@ -598,7 +596,7 @@ jobs:
       # Local runner pool (UNB-166): installs what a hosted image gave the job, if the pool's image lacks it. Each
       # workspace's target/ lives in the pool's shared cache, so rust-cache is skipped there. Skipped on hosted runners.
       - name: Tools and cargo cache on the local runner pool
-        if: runner.environment == 'self-hosted' && !startsWith(runner.name, 'blacksmith-')
+        if: startsWith(runner.name, 'steam-machine')
         run: |
           dpkg -s build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl xz-utils zstd > /dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y -qq build-essential pkg-config libssl-dev libdbus-1-dev libudev-dev cmake clang libclang-dev perl xz-utils zstd > /dev/null; }
           for w in unbrowse-node unbrowse-browser/cli; do
@@ -617,7 +615,7 @@ jobs:
         working-directory: unbrowse-node
         run: sh scripts/apply-tls-patch.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        if: (runner.environment != 'self-hosted' || startsWith(runner.name, 'blacksmith-'))
+        if: ${{ !startsWith(runner.name, 'steam-machine') }}
         with:
           workspaces: |
             unbrowse-node -> target
@@ -708,7 +706,7 @@ jobs:
     if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && github.repository == 'unbrowse-ai/unbrowse-core' && (needs.scope.result != 'success' || needs.scope.outputs.settlement == 'true')) }}
     # forge test is CPU-bound (fuzz and invariant runs, one contract per core): 478 s on staging push 44914154818 and
     # 888 s on dispatch 44948604489 with 2 cores, the longest job of a push that reaches the contracts (UNB-235).
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: sengi-premium-8-ubuntu-2404
     env:
       FOUNDRY_VERSION: v1.8.5
     defaults:
@@ -775,7 +773,7 @@ jobs:
     name: Route-coin spec, part ${{ matrix.part }}${{ matrix.shard != '1/1' && format(' ({0})', matrix.shard) || '' }}
     needs: scope
     if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && github.repository == 'unbrowse-ai/unbrowse-core' && (needs.scope.result != 'success' || needs.scope.outputs.spec == 'true')) }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     permissions:
       contents: read
     strategy:
@@ -811,7 +809,7 @@ jobs:
     name: Route-coin spec
     needs: [scope, coins-spec]
     if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!cancelled() && github.repository == 'unbrowse-ai/unbrowse-core') }}
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: sengi-basic-2-ubuntu-2404
     permissions: {}
     steps:
       - env:

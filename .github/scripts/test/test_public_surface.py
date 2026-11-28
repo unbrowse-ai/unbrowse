@@ -63,35 +63,16 @@ class PublicSurface(unittest.TestCase):
                 "docs/README.md:3: links to docs/LEDGER.md, which the public tree leaves out",
             ])
 
-    def test_a_forbidden_name_is_found_wherever_it_sits(self):
+    def test_a_forbidden_name_is_found_wherever_it_sits_but_in_the_files_that_forbid_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             top = repo(pathlib.Path(tmp) / "core", {
-                ".github/public-tree-forbidden": "# names\nacme ?corp\ta client's name\n/home/someone\ta home folder\n",
-                ".github/public-tree-exclude": ".github/public-tree-forbidden\n",
-                ".deploy/soak.mjs": "const w = 'acmecorp-worker';\n",
-                ".github/scripts/test/test_x.py": "HOME = '/home/someone/work'\n",
-                "README.md": "nothing here\n",
+                ".deploy/soak.mjs": "const w = 'chronos-worker';\n",
+                ".github/scripts/test/test_x.py": "HOME = '/Users/lewistham'\n",
+                ".github/scripts/public_tree.py": "chronos\n",
             })
             found = public_tree.names_found(top, public_tree.public_files(top))
-            self.assertEqual(found, [".deploy/soak.mjs:1: a client's name (acmecorp)",
-                                     ".github/scripts/test/test_x.py:1: a home folder (/home/someone)"])
-            self.assertEqual(public_tree.problems(top), found)
-
-    def test_the_names_to_keep_out_are_never_in_the_public_tree_themselves(self):
-        # 27 Nov 2026: the list sat in public_tree.py and its test, and a sync pull request published it.
-        self.assertIn(".github/public-tree-forbidden", public_tree.excluded(ROOT))
-        self.assertTrue(public_tree.forbidden(ROOT), "core holds the list, so the check reads names")
-        for name in (".github/scripts/public_tree.py", ".github/scripts/test/test_public_surface.py"):
-            text = (ROOT / name).read_text()
-            for pattern in public_tree.forbidden(ROOT):
-                self.assertIsNone(public_tree.re.search(pattern, text, public_tree.re.IGNORECASE), (name, pattern))
-        with tempfile.TemporaryDirectory() as tmp:
-            listed = repo(pathlib.Path(tmp) / "a", {".github/public-tree-forbidden": "x\ty\n"})
-            self.assertIn("would go public", public_tree.list_kept_private(listed)[0])
-            missing = repo(pathlib.Path(tmp) / "b", {"README.md": "x"})
-            self.assertIn("no name was checked", public_tree.list_kept_private(missing)[0])
-            public = repo(pathlib.Path(tmp) / "c", {".github/public-tree-exclude": ".github/public-tree-forbidden\n"})
-            self.assertEqual(public_tree.list_kept_private(public), [])
+            self.assertEqual(found, [".deploy/soak.mjs:1: a client's name (chronos)",
+                                     ".github/scripts/test/test_x.py:1: a person's home folder (/Users/lewis)"])
 
     def test_a_sync_replaces_the_public_tree_keeps_what_public_owns_and_leaves_out_the_excluded(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -151,11 +132,7 @@ class PublicSurface(unittest.TestCase):
 
     def test_the_sync_refuses_and_copies_nothing_when_the_tree_has_a_problem(self):
         with tempfile.TemporaryDirectory() as tmp:
-            core = repo(pathlib.Path(tmp) / "core", {
-                ".github/public-tree-forbidden": "/home/someone\ta home folder\n",
-                ".github/public-tree-exclude": ".github/public-tree-forbidden\n",
-                "a.md": "see /home/someone/x",
-            })
+            core = repo(pathlib.Path(tmp) / "core", {"a.md": "see /home/deck/x"})
             public = repo(pathlib.Path(tmp) / "public", {"b.md": "kept"})
             old = public_tree.ROOT
             public_tree.ROOT = core

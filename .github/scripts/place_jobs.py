@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Where each agent job of this run goes: one of Lewis's own runners when one is free, else Blacksmith (UNB-166).
+"""Where each agent job of this run goes: one of Lewis's own runners when one is free, else a hosted machine (UNB-166):
+Sengi for Linux, Blacksmith for macOS.
 
     place_jobs.py qa=mac check=mac slice=mac skills=linux
 
@@ -8,7 +9,7 @@ Each argument is `<job>=<pool>`, in the order the free slots are handed out. For
 
 A pool is a label set of self-hosted runners: `mac` is the repository variable MAC_RUNNER (unset: no Mac pool),
 `linux` is LINUX_POOL (default `["self-hosted", "linux", "x64"]`). A job goes to its pool only while the pool has a
-free runner nobody is waiting for; otherwise it goes to the pool's fallback, a Blacksmith machine that starts at once.
+free runner nobody is waiting for; otherwise it goes to the pool's fallback, a hosted machine that starts at once.
 One Mac runs one job at a time, so a run never queues three agent jobs behind each other on it, and a Mac that is
 asleep or busy never holds a pull request up.
 
@@ -22,7 +23,7 @@ What "free" is read from:
     is asleep or offline, and one waiting STALE_MINUTES (10) says it is not keeping up: nothing new goes there until
     that job starts. The one job sent to a pool that has just gone to sleep waits for it; the runs after it do not.
 
-A fork's pull request is never placed on a pool (FORK=true). Anything this cannot read sends the job to Blacksmith:
+A fork's pull request is never placed on a pool (FORK=true). Anything this cannot read sends the job to its hosted fallback:
 a wrong guess here costs money, never a hung check.
 """
 
@@ -33,7 +34,7 @@ import sys
 import urllib.request
 from datetime import datetime, timezone
 
-FALLBACK = {"mac": "blacksmith-6vcpu-macos-latest", "linux": "blacksmith-2vcpu-ubuntu-2404"}
+FALLBACK = {"mac": "blacksmith-6vcpu-macos-latest", "linux": "sengi-premium-2-ubuntu-2404"}
 DEFAULT_SLOTS = {"mac": 1, "linux": 4}
 MAX_RUNS_READ = 40
 # Workflows that only ever run on hosted runners: skipping their `/jobs` queries cuts API calls per placement.
@@ -210,8 +211,8 @@ def main(argv, env):
             states[kind] = pool_state(pools[kind], get, repo, this_run, now, runner_get, slots,
                                       float(env.get("STALE_MINUTES", "10")),
                                       active_jobs=active_jobs, runners=runners_list)
-    except Exception as error:  # noqa: BLE001: anything unread sends the job to Blacksmith, said in the summary
-        print(f"::warning::Could not read the local runners ({type(error).__name__}: {error}); every job goes to Blacksmith")
+    except Exception as error:  # noqa: BLE001: anything unread sends the job to its hosted fallback, said in the summary
+        print(f"::warning::Could not read the local runners ({type(error).__name__}: {error}); every job goes to its hosted fallback")
         pools, states = {}, {}
     placed, why = place(requests, pools, states, fork)
     out = env.get("GITHUB_OUTPUT")
